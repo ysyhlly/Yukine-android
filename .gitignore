@@ -6,6 +6,11 @@
 build/
 app/build/
 
+# One-off local build directories created during Codex/compatibility checks
+**/build-codex-*/
+**/build-kotlin22/
+**/build-background-blur/
+
 # Local Android SDK and machine-specific config
 android-sdk/
 local.properties

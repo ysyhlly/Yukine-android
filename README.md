@@ -86,6 +86,7 @@ flowchart TD
 - QQ 音乐播放解析兼容：仅使用新版无签名 `UrlGetVkey` 与新版 CDN 分发，不再请求旧 `CgiGetVkey`；有 `mediaMid` 时使用该文件标识，缺失时按 `songMid + songMid` 兼容。搜索建议会保留 `mediaMid`，避免解析时丢失文件标识；仅接受合法 HTTP(S) SIP 与可播放 `purl`，会拒绝 `IP;invalid;` 等内部诊断值，旧的坏播放缓存也不会恢复到播放器。`104009` / IP 校验失败会立即停止候选重试，避免反复卡住。QQ 网页登录前会显示平台风控和当前网络受限风险提示，需等待 5 秒后确认；异常时建议通过 QQ 音乐官方客户端退出并重新登录或联系官方支持。`psrf_qqaccess_token` 仍随 Cookie 保留，Netscape `#HttpOnly_` Cookie 记录可导入。QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS；会员、地区、IP 校验和登录失败会显示明确原因，而不再被通用“需登录”提示覆盖。
 - QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
 - 设置迁移继续推进：设置页面状态由 `SettingsViewModel` 直接构建，`SettingsRenderCoordinator`、`SettingsPageEventController`、`SettingsPageChromeBindings`、`SettingsScrollStateSink` 已移除，页面背景和备份选择通过平台 owner/effect 处理。
+- 备份恢复采用安全两阶段流程：选择文件后必须明确确认，备份会先经过条目白名单、大小限制与 SQLite 完整性校验；数据库仅在下次冷启动、尚未打开时通过带回滚的替换流程恢复，失败不会覆盖当前数据。
 - 设置体验改造：首页按“授权/曲库 → 播放 → 歌词 → 外观”排序并展示当前状态；常用开关可直接操作，单选项会显示选中状态，缺少音乐权限时可从首页直接授权。
 - 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源；同歌手、同曲名且时长接近的结果合并为一条，并以 `+N` 标记备用音源。所有合并音源仍保留，可在主音源解析失败时自动回退，并在播放页手动切换。
 - 下载管理增强：应用内下载支持断点续传、暂停后保留缓存、继续下载不再清零进度；支持 HTTP Range 的音源会使用有限分片并发下载，不支持时自动回退单连接下载。
@@ -107,7 +108,7 @@ flowchart TD
 - 音频独占：播放设置中默认开启，使用系统媒体焦点让兼容的其他媒体应用暂停或静音；关闭后可与其他媒体同时播放。Android 无法强制不遵守音频焦点的应用停止。
 - 桌面小部件：封面、标题、艺人、上一首、播放/暂停、下一首。
 - NowBar：歌词条、可直接点击和拖动的进度条、波形、收藏、随机、循环、队列入口；点击时间区域可展开或收起波形。
-- 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步。
+- 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步；沉浸态仅点击实际歌词文字区域才会跳转进度，左右空白不再误触。
 - 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据；兼容模式会随每句歌词发送 MediaSession 元数据更新，避免系统媒体标题停在第一句。
 - 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
 - ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
@@ -303,6 +304,7 @@ flowchart TD
 - QQ Music playback compatibility: only the unsigned modern `UrlGetVkey` plus current CDN dispatch are used; legacy `CgiGetVkey` is no longer requested. A track uses its `mediaMid` filename when present and `songMid + songMid` only when it is absent. Smartbox search preserves `mediaMid` so resolution does not lose the file identifier. Only valid HTTP(S) SIP values and playable `purl` values are accepted; internal diagnostics such as `IP;invalid;` and stale invalid playback cache entries never reach the player. `104009` / IP-validation failures stop candidate retries immediately to avoid repeated stalls. QQ web sign-in now presents a five-second acknowledgement about risk controls and current-network restrictions; on failure, users should sign out and back in with the official QQ Music client or contact official support. `psrf_qqaccess_token` remains in the Cookie header and Netscape `#HttpOnly_` records are importable. HTTP QQ CDN SIP URLs are normalized to HTTPS, while membership, region, IP-validation, and login failures now show their real reason instead of a generic login prompt.
 - QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.
 - Settings migration: settings page state is now built by `SettingsViewModel`; `SettingsRenderCoordinator`, `SettingsPageEventController`, `SettingsPageChromeBindings`, and `SettingsScrollStateSink` have been removed, while page-background and backup pickers route through platform owners/effects.
+- Backup restore now uses a safe two-phase flow: the user confirms after choosing a file, the archive is staged only after allowlist, size, and SQLite integrity checks, and database files are replaced with rollback protection only on the next cold start before the database opens.
 - Settings experience refresh: the home page now leads with permission/library setup, then playback, lyrics, and appearance; common switches work inline, choices show their selection, and missing music access can be granted directly from Settings.
 - Search now combines local results with multi-source online aggregation. Results with the same artist, title, and a close duration are collapsed into one row with a `+N` source indicator. Every merged source remains available for automatic playback fallback and manual switching on the Now Playing screen.
 - Download management now supports resumable in-app downloads. Paused tasks keep cache files and continue without resetting progress; sources with HTTP Range support use limited segmented parallel downloads, while unsupported sources fall back to a single connection.
@@ -324,7 +326,7 @@ flowchart TD
 - Audio exclusive: enabled by default in Playback settings. It requests system media focus so compatible media apps pause or mute; turning it off allows mixing with other media. Android cannot force apps that ignore audio focus to stop.
 - Home screen widget with artwork, title, artist, previous, play/pause, and next actions.
 - NowBar with a directly tappable and draggable progress bar, lyric strip, waveform, favorite, shuffle, repeat, and queue controls; tap the time row to expand or collapse the waveform.
-- Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing.
+- Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing. In immersive mode, seeking is limited to the actual lyric text bounds so taps in the surrounding blank space no longer seek accidentally.
 - Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata and emits a MediaSession metadata update for every lyric line so title-only surfaces do not stay on the first line.
 - Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
 - ReplayGain parsing and playback gain application for local tracks.

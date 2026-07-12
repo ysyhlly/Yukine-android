@@ -333,7 +333,7 @@ class SettingsPageStateBuilderTest {
     @Test
     fun sourcesGroupBuildsNetworkAndProviderActions() {
         val navigated = mutableListOf<SettingsPage>()
-        var networkSourcesOpened = false
+        val openedNetworkPages = mutableListOf<String>()
 
         val content = SettingsPageStateBuilder.sourcesGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
@@ -341,19 +341,28 @@ class SettingsPageStateBuilderTest {
             shareStyle = TrackShareStyle.CARD,
             gatewayConfigured = false,
             onNavigate = { page -> navigated += page },
-            onOpenNetworkSources = { networkSourcesOpened = true }
+            onOpenNetworkPage = { page -> openedNetworkPages += page }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.sources"), content.uiState.title)
         assertEquals(4, content.uiState.metrics.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[0].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[2].value)
-        assertEquals(5, content.actions.size)
+        assertEquals(7, content.actions.size)
 
         content.actions[1].onClick.run()
-        content.actions[4].onClick.run()
+        content.actions[2].onClick.run()
+        content.actions[3].onClick.run()
+        content.actions[6].onClick.run()
 
-        assertEquals(true, networkSourcesOpened)
+        assertEquals(
+            listOf(
+                MainRoutes.NETWORK_STREAMING,
+                MainRoutes.NETWORK_WEBDAV,
+                MainRoutes.NETWORK_SOURCES
+            ),
+            openedNetworkPages
+        )
         assertEquals(listOf(SettingsPage.StreamingGateway), navigated)
     }
 
@@ -575,14 +584,14 @@ class SettingsPageStateBuilderTest {
         assertEquals(SettingsActionStyle.Navigation, content.actions[1].style)
         assertEquals(SettingsActionStyle.Toggle, content.actions[2].style)
         assertEquals(false, content.actions[2].checked)
+        assertEquals(false, content.actions[2].enabled)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
-        content.actions[2].onClick.run()
 
         assertEquals(listOf(SettingsPage.LyricsGroup), navigated)
         assertEquals(true, permissionOpened)
-        assertEquals(listOf(true), toggles)
+        assertEquals(emptyList<Boolean>(), toggles)
     }
 
     @Test

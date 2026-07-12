@@ -38,7 +38,7 @@ class SettingsViewModelTest {
     fun onEventEmitsLibraryAndExternalActionEffects() {
         val viewModel = SettingsViewModel()
 
-        viewModel.onEvent(SettingsEvent.OpenNetworkSources)
+        viewModel.onEvent(SettingsEvent.OpenNetworkPage(MainRoutes.NETWORK_SOURCES))
         viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
         viewModel.onEvent(SettingsEvent.LoadLibrary)
         viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
@@ -61,7 +61,7 @@ class SettingsViewModelTest {
         val effects = viewModel.drainEffects()
         assertEquals(
             listOf(
-                SettingsEffect.OpenNetworkSources,
+                SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_SOURCES),
                 SettingsEffect.RequestNeededPermissions,
                 SettingsEffect.LoadLibrary,
                 SettingsEffect.OpenAudioFilePicker,
@@ -110,7 +110,7 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel()
         viewModel.bindEffectListener { effect -> effects += effect }
 
-        viewModel.onEvent(SettingsEvent.OpenNetworkSources)
+        viewModel.onEvent(SettingsEvent.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV))
         viewModel.onEvent(SettingsEvent.OpenDownloads)
         viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
         viewModel.onEvent(SettingsEvent.LoadLibrary)
@@ -126,7 +126,7 @@ class SettingsViewModelTest {
         viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990"))
 
         val expected = listOf(
-            SettingsEffect.OpenNetworkSources,
+            SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV),
             SettingsEffect.OpenDownloads,
             SettingsEffect.RequestNeededPermissions,
             SettingsEffect.LoadLibrary,
@@ -496,6 +496,7 @@ class SettingsViewModelTest {
         val mirror = FakeSettingsStoreMirror()
         viewModel.bindPreferenceGateway(preferenceGateway)
         viewModel.bindStoreMirror(mirror)
+        viewModel.bindRuntimeEffectListener { true }
 
         viewModel.applyThemeMode("dark")
         viewModel.applyAccentMode("teal")
@@ -579,6 +580,34 @@ class SettingsViewModelTest {
         assertEquals(
             listOf("statusLyrics:false", "floatingLyrics:true"),
             preferenceGateway.events
+        )
+    }
+
+    @Test
+    fun rejectedFloatingLyricsEnableDoesNotPersistAnInactiveSetting() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferenceGateway = FakePreferenceGateway()
+        viewModel.bindPreferenceGateway(preferenceGateway)
+        viewModel.bindRuntimeEffectListener { effect ->
+            effect !is SettingsRuntimeEffect.ApplyFloatingLyrics || !effect.enabled
+        }
+        viewModel.renderCurrentPage(
+            SettingsPage.FloatingLyrics,
+            SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
+            RuntimeSettingsStatus(overlayPermissionGranted = false)
+        )
+
+        viewModel.setFloatingLyricsEnabled(true)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.state.value.preferences.statusBarLyricsEnabled)
+        assertEquals(false, viewModel.state.value.preferences.floatingLyricsEnabled)
+        assertEquals(emptyList<String>(), preferenceGateway.events)
+        assertTrue(
+            viewModel.drainEffects()
+                .filterIsInstance<SettingsEffect.ShowStatus>()
+                .any { it.message == AppLanguage.text(AppLanguage.MODE_SYSTEM, "floating.lyrics.permission.required") }
         )
     }
 

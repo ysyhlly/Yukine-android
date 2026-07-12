@@ -12,6 +12,7 @@ internal fun interface TrackListPlaybackAction {
 
 internal class NetworkMenuEventController(
     private val navigator: Navigator,
+    private val backAction: Runnable,
     private val showAddStreamAction: Runnable,
     private val showImportM3uAction: Runnable,
     private val showAddWebDavAction: Runnable,
@@ -69,6 +70,10 @@ internal class NetworkMenuEventController(
 
     override fun navigateNetworkPage(page: String) {
         navigator.navigateNetworkPage(page)
+    }
+
+    override fun backFromNetworkPage() {
+        backAction.run()
     }
 
     override fun showAddStream() {

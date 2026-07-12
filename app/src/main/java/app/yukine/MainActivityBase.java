@@ -439,7 +439,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 statusKey -> {
                     statusMessageController.setStatusKey(statusKey);
                     return kotlin.Unit.INSTANCE;
-                }
+                },
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
         );
         luoxueSourceImportController = new LuoxueSourceImportController(
                 key -> AppLanguage.text(
@@ -707,8 +708,8 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect instanceof SettingsEffect.NavigatePage) {
                 routeController.setSettingsPage(SettingsPage.route(((SettingsEffect.NavigatePage) effect).getPage()));
                 renderAndPersistSelectedTab();
-            } else if (effect == SettingsEffect.OpenNetworkSources.INSTANCE) {
-                navigateToNetworkTabPage(NETWORK_HOME);
+            } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
+                navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
                 navigateToTab(TAB_DOWNLOADS, true, true);
             } else if (effect == SettingsEffect.RequestNeededPermissions.INSTANCE) {
@@ -862,7 +863,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         StreamingSearchRenderController streamingSearchRenderController = new StreamingSearchRenderController(
                 () -> settingsStore.languageMode(),
                 streamingSearchRenderListenerFactory.create(
-                        () -> navigateNetworkPage(MainRoutes.NETWORK_HOME),
+                        this::handleAppBack,
                         streamingSearchActionHandler,
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         (provider, providerPlaylistId) ->
@@ -1073,6 +1074,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializeNetworkRendering(StreamingSearchRenderController streamingSearchRenderController) {
         NetworkMenuEventController menuEvents = new NetworkMenuEventController(
                 this::navigateNetworkPage,
+                this::handleAppBack,
                 () -> networkDialogController.showAddStream(),
                 () -> networkDialogController.showImportM3u(),
                 () -> networkDialogController.showAddWebDav(),

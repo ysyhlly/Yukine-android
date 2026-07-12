@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import app.yukine.backup.BackupManager
+import app.yukine.ui.EchoDialog
 
 internal fun interface BackupActivityResultLauncher {
     fun launch(intent: Intent, onResult: (ActivityResult) -> Unit)
@@ -15,17 +16,27 @@ internal fun interface BackupActivityResultLauncher {
 
 internal interface BackupFileOperations {
     fun export(context: Context, uri: Uri): Boolean
-    fun restore(context: Context, uri: Uri): Boolean
+    fun stageRestore(context: Context, uri: Uri): Boolean
+}
+
+internal fun interface BackupImportConfirmer {
+    fun confirm(onConfirm: Runnable)
 }
 
 internal class BackupRestoreLauncher @JvmOverloads constructor(
     private val activity: ComponentActivity,
     private val statusSink: (String) -> Unit,
+    private val languageModeProvider: () -> String = { AppLanguage.MODE_SYSTEM },
     activityResultLauncher: BackupActivityResultLauncher? = null,
-    private val operations: BackupFileOperations = BackupManagerOperations
+    private val operations: BackupFileOperations = BackupManagerOperations,
+    importConfirmer: BackupImportConfirmer? = null
 ) {
     private val activityResultLauncher =
         activityResultLauncher ?: ActivityResultBackupLauncher(activity)
+    private val importConfirmer = importConfirmer ?: DialogBackupImportConfirmer(
+        activity,
+        languageModeProvider
+    )
 
     fun exportBackup() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -53,7 +64,10 @@ internal class BackupRestoreLauncher @JvmOverloads constructor(
         }
         val statusKey = when (action) {
             BackupAction.EXPORT -> exportStatus(uri)
-            BackupAction.IMPORT -> importStatus(uri)
+            BackupAction.IMPORT -> {
+                importConfirmer.confirm(Runnable { statusSink(importStatus(uri)) })
+                return
+            }
         }
         statusSink(statusKey)
     }
@@ -64,7 +78,7 @@ internal class BackupRestoreLauncher @JvmOverloads constructor(
     }
 
     private fun importStatus(uri: Uri): String {
-        val ok = operations.restore(activity, uri)
+        val ok = operations.stageRestore(activity, uri)
         return if (ok) "backup.import.success" else "backup.import.failed"
     }
 
@@ -80,8 +94,27 @@ internal class BackupRestoreLauncher @JvmOverloads constructor(
             override fun export(context: Context, uri: Uri): Boolean =
                 BackupManager.export(context, uri)
 
-            override fun restore(context: Context, uri: Uri): Boolean =
-                BackupManager.restore(context, uri)
+            override fun stageRestore(context: Context, uri: Uri): Boolean =
+                BackupManager.stageRestore(context, uri)
+        }
+
+        private class DialogBackupImportConfirmer(
+            private val activity: ComponentActivity,
+            private val languageModeProvider: () -> String
+        ) : BackupImportConfirmer {
+            override fun confirm(onConfirm: Runnable) {
+                EchoDialog.builder(activity)
+                    .setTitle(text("backup.import.confirm.title"))
+                    .setMessage(text("backup.import.confirm.message"))
+                    .setNegativeButton(text("cancel"), null)
+                    .setPositiveButton(text("backup.import.confirm.action")) { _, _ ->
+                        onConfirm.run()
+                    }
+                    .show()
+            }
+
+            private fun text(key: String): String =
+                AppLanguage.text(languageModeProvider(), key)
         }
 
         private class ActivityResultBackupLauncher(

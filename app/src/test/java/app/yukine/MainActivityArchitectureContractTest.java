@@ -3306,7 +3306,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(pageStateBuilder.contains("StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT"));
         assertTrue(settingsViewModel.contains("sealed interface SettingsItem"));
         assertTrue(settingsViewModel.contains("sealed interface SettingsEffect"));
-        assertTrue(settingsViewModel.contains("data object OpenNetworkSources : SettingsEffect"));
+        assertTrue(settingsViewModel.contains("data class OpenNetworkPage(val page: String) : SettingsEffect"));
         assertTrue(settingsViewModel.contains("data object OpenDownloads : SettingsEffect"));
         assertTrue(settingsViewModel.contains("data object LoadLibrary : SettingsEffect"));
         assertTrue(settingsViewModel.contains("data object OpenAudioFilePicker : SettingsEffect"));
@@ -3583,6 +3583,7 @@ public final class MainActivityArchitectureContractTest {
     public void backupRestoreLauncherIsOwnedOutsideMainActivity() throws Exception {
         String mainActivity = read("app/src/main/java/app/yukine/MainActivity.java");
         String launcher = read("app/src/main/java/app/yukine/BackupRestoreLauncher.kt");
+        String application = read("app/src/main/java/app/yukine/EchoApplication.kt");
 
         assertFalse(exists("app/src/main/java/app/yukine/BackupRestoreBindings.kt"));
         assertFalse(exists("app/src/main/java/app/yukine/BackupRestoreBindings.java"));
@@ -3597,7 +3598,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(launcher.contains("Intent.ACTION_OPEN_DOCUMENT"));
         assertTrue(launcher.contains("intent.type = \"application/zip\""));
         assertTrue(launcher.contains("BackupManager.export(context, uri)"));
-        assertTrue(launcher.contains("BackupManager.restore(context, uri)"));
+        assertTrue(launcher.contains("BackupManager.stageRestore(context, uri)"));
+        assertTrue(launcher.contains("importConfirmer.confirm"));
+        assertTrue(application.contains("BackupManager.applyPendingRestore(this)"));
         assertTrue(launcher.contains("statusSink(statusKey)"));
         assertTrue(mainActivity.contains("new BackupRestoreLauncher("));
         assertTrue(mainActivity.contains("statusKey -> {"));

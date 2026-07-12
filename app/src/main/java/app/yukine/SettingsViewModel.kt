@@ -117,7 +117,7 @@ data class SettingsAppliedStatusText(
 sealed interface SettingsEffect {
     data class ShowStatus(val message: String) : SettingsEffect
     data class NavigatePage(val page: SettingsPage) : SettingsEffect
-    data object OpenNetworkSources : SettingsEffect
+    data class OpenNetworkPage(val page: String) : SettingsEffect
     data object OpenDownloads : SettingsEffect
     data object RequestNeededPermissions : SettingsEffect
     data object LoadLibrary : SettingsEffect
@@ -137,7 +137,7 @@ sealed interface SettingsEffect {
 
 sealed interface SettingsEvent {
     data class NavigateSettingsPage(val page: SettingsPage) : SettingsEvent
-    data object OpenNetworkSources : SettingsEvent
+    data class OpenNetworkPage(val page: String) : SettingsEvent
     data object OpenDownloads : SettingsEvent
     data object RequestNeededPermissions : SettingsEvent
     data object LoadLibrary : SettingsEvent
@@ -290,7 +290,7 @@ class SettingsViewModel @JvmOverloads constructor(
         }
         when (event) {
             is SettingsEvent.NavigateSettingsPage -> Unit
-            SettingsEvent.OpenNetworkSources -> emitEffect(SettingsEffect.OpenNetworkSources)
+            is SettingsEvent.OpenNetworkPage -> emitEffect(SettingsEffect.OpenNetworkPage(event.page))
             SettingsEvent.OpenDownloads -> emitEffect(SettingsEffect.OpenDownloads)
             SettingsEvent.RequestNeededPermissions -> emitEffect(SettingsEffect.RequestNeededPermissions)
             SettingsEvent.LoadLibrary -> emitEffect(SettingsEffect.LoadLibrary)
@@ -450,7 +450,7 @@ class SettingsViewModel @JvmOverloads constructor(
                     preferences.shareStyle,
                     runtime.streamingGatewayConfigured,
                     onNavigate = ::navigateSettingsPage,
-                    onOpenNetworkSources = { onEvent(SettingsEvent.OpenNetworkSources) }
+                    onOpenNetworkPage = { page -> onEvent(SettingsEvent.OpenNetworkPage(page)) }
                 )
             SettingsPage.AboutGroup ->
                 SettingsPageStateBuilder.aboutGroup(
@@ -845,6 +845,10 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun setFloatingLyricsEnabled(enabled: Boolean) {
         val applied = applyRuntimeEffect(SettingsRuntimeEffect.ApplyFloatingLyrics(enabled))
+        if (enabled && !applied) {
+            emitAppliedStatus(currentAppliedStatusText().floatingLyricsPermissionRequired)
+            return
+        }
         val disableStatusBarLyrics = enabled && applied && _state.value.preferences.statusBarLyricsEnabled
         if (disableStatusBarLyrics) {
             applyRuntimeEffect(SettingsRuntimeEffect.SetStatusBarLyrics(false))
@@ -857,9 +861,7 @@ class SettingsViewModel @JvmOverloads constructor(
         }
         val statusText = currentAppliedStatusText()
         emitAppliedStatus(
-            if (!applied && enabled) {
-                statusText.floatingLyricsPermissionRequired
-            } else if (enabled) {
+            if (enabled) {
                 statusText.floatingLyricsEnabled
             } else {
                 statusText.floatingLyricsDisabled

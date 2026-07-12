@@ -21,7 +21,7 @@ public final class AppLanguage {
         put("tab.queue", "Queue", "\u961f\u5217");
         put("tab.playing", "Playing", "\u64ad\u653e");
         put("tab.now", "Now", "\u5f53\u524d");
-        put("tab.network", "Network", "\u7f51\u7edc");
+        put("tab.network", "Sources & network", "\u97f3\u6e90\u4e0e\u7f51\u7edc");
         put("tab.downloads", "Downloads", "\u4e0b\u8f7d");
         put("tab.search", "Search", "\u641c\u7d22");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
@@ -133,6 +133,8 @@ public final class AppLanguage {
         put("settings.group.library.description", "Scan and import local music.", "\u626b\u63cf\u548c\u5bfc\u5165\u672c\u5730\u97f3\u4e50\u3002");
         put("settings.group.lyrics.description", "Online lyrics, reload, and timing offset.", "\u5728\u7ebf\u6b4c\u8bcd\u3001\u91cd\u8f7d\u548c\u65f6\u95f4\u504f\u79fb\u3002");
         put("settings.group.sources.description", "Streaming accounts, remote sources, quality, and gateway.", "\u6d41\u5a92\u4f53\u8d26\u53f7\u3001\u8fdc\u7a0b\u6765\u6e90\u3001\u97f3\u8d28\u548c\u7f51\u5173\u3002");
+        put("settings.sources.streaming.hint", "Manage direct stream URLs and M3U playlists", "\u7ba1\u7406\u76f4\u94fe\u4e32\u6d41\u548c M3U \u64ad\u653e\u5217\u8868");
+        put("settings.sources.webdav.hint", "Add, sync, and browse WebDAV music", "\u6dfb\u52a0\u3001\u540c\u6b65\u5e76\u6d4f\u89c8 WebDAV \u97f3\u4e50");
         put("settings.group.about.description", "App status and version.", "\u5e94\u7528\u72b6\u6001\u548c\u7248\u672c\u4fe1\u606f\u3002");
         put("settings.start", "Getting started", "\u5f00\u59cb\u8bbe\u7f6e");
         put("settings.start.hint", "Add your music first; you can change the rest later.", "\u5148\u6dfb\u52a0\u97f3\u4e50\uff0c\u5176\u4ed6\u9009\u9879\u53ef\u968f\u65f6\u518d\u8c03\u6574\u3002");
@@ -146,6 +148,9 @@ public final class AppLanguage {
         put("backup.export", "Export backup", "\u5bfc\u51fa\u5907\u4efd");
         put("backup.import", "Import backup", "\u5bfc\u5165\u5907\u4efd");
         put("backup.import.description", "Replaces the current library, history, and settings.", "\u5c06\u8986\u76d6\u5f53\u524d\u66f2\u5e93\u3001\u64ad\u653e\u8bb0\u5f55\u548c\u8bbe\u7f6e\u3002");
+        put("backup.import.confirm.title", "Restore this backup?", "\u786e\u5b9a\u6062\u590d\u6b64\u5907\u4efd\uff1f");
+        put("backup.import.confirm.message", "The backup will be validated now. Your current library, history, and settings will be replaced safely after Yukine restarts. This cannot be undone.", "\u5c06\u5148\u9a8c\u8bc1\u5907\u4efd\u3002Yukine \u91cd\u542f\u540e\u4f1a\u5b89\u5168\u66ff\u6362\u5f53\u524d\u66f2\u5e93\u3001\u64ad\u653e\u8bb0\u5f55\u548c\u8bbe\u7f6e\uff0c\u6b64\u64cd\u4f5c\u65e0\u6cd5\u64a4\u9500\u3002");
+        put("backup.import.confirm.action", "Restore", "\u6062\u590d");
         put("qq.group", "Yukine QQ group", "Yukine QQ \u7fa4");
         put("qq.group.hint", "Tap to view the group QR code", "\u70b9\u51fb\u67e5\u770b\u7fa4\u4e8c\u7ef4\u7801");
         put("qq.group.number", "Group number: 1013122077", "\u7fa4\u53f7\uff1a1013122077");
@@ -156,7 +161,7 @@ public final class AppLanguage {
         put("debug.prompts.disabled", "Debug prompts disabled", "\u5df2\u5173\u95ed\u8c03\u8bd5\u63d0\u793a");
         put("backup.export.success", "Backup exported", "\u5907\u4efd\u5df2\u5bfc\u51fa");
         put("backup.export.failed", "Export failed", "\u5bfc\u51fa\u5931\u8d25");
-        put("backup.import.success", "Backup imported, restart to apply", "\u5907\u4efd\u5df2\u5bfc\u5165\uff0c\u8bf7\u91cd\u542f\u5e94\u7528");
+        put("backup.import.success", "Backup validated. Restart Yukine to finish restoring.", "\u5907\u4efd\u9a8c\u8bc1\u901a\u8fc7\uff0c\u8bf7\u91cd\u542f Yukine \u5b8c\u6210\u6062\u590d\u3002");
         put("backup.import.failed", "Import failed", "\u5bfc\u5165\u5931\u8d25");
         put("recently.added", "Recently added", "\u6700\u8fd1\u6dfb\u52a0");
         put("no.recently.added", "No recently added tracks", "\u6682\u65e0\u6700\u8fd1\u6dfb\u52a0");

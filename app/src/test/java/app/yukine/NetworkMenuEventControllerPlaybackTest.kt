@@ -13,6 +13,7 @@ class NetworkMenuEventControllerPlaybackTest {
         val calls = mutableListOf<String>()
         val controller = NetworkMenuEventController(
             navigator = { _ -> },
+            backAction = Runnable { Unit },
             showAddStreamAction = Runnable { Unit },
             showImportM3uAction = Runnable { Unit },
             showAddWebDavAction = Runnable { Unit },

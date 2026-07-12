@@ -73,13 +73,15 @@ class BackupRestoreLauncherTest {
     @Test
     fun exportAndImportResultsEmitMappedStatusKeys() {
         val launcher = RecordingBackupActivityResultLauncher()
+        val confirmer = RecordingBackupImportConfirmer()
         val statuses = mutableListOf<String>()
         val operations = RecordingBackupOperations(exportOk = true, restoreOk = false)
         val owner = BackupRestoreLauncher(
             activity = activity(),
             statusSink = { statuses += it },
             activityResultLauncher = launcher,
-            operations = operations
+            operations = operations,
+            importConfirmer = confirmer
         )
         val exportUri = Uri.parse("content://backup/export")
         val importUri = Uri.parse("content://backup/import")
@@ -88,6 +90,11 @@ class BackupRestoreLauncherTest {
         launcher.emit(ActivityResult(Activity.RESULT_OK, Intent().setData(exportUri)))
         owner.importBackup()
         launcher.emit(ActivityResult(Activity.RESULT_OK, Intent().setData(importUri)))
+
+        assertEquals(listOf("backup.export.success"), statuses)
+        assertEquals(emptyList<Uri>(), operations.restored)
+
+        confirmer.confirm()
 
         assertEquals(listOf("backup.export.success", "backup.import.failed"), statuses)
         assertEquals(listOf(exportUri), operations.exported)
@@ -123,9 +130,22 @@ class BackupRestoreLauncherTest {
             return exportOk
         }
 
-        override fun restore(context: Context, uri: Uri): Boolean {
+        override fun stageRestore(context: Context, uri: Uri): Boolean {
             restored += uri
             return restoreOk
+        }
+    }
+
+    private class RecordingBackupImportConfirmer : BackupImportConfirmer {
+        private var pending: Runnable? = null
+
+        override fun confirm(onConfirm: Runnable) {
+            pending = onConfirm
+        }
+
+        fun confirm() {
+            pending?.run()
+            pending = null
         }
     }
 

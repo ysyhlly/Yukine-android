@@ -237,31 +237,34 @@ private fun ImmersiveLyricsView(
 private fun ImmersiveLyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
     val p = EchoTheme.colors()
     val copyText = rememberCopyTextAction()
-    Surface(
-        shape = EchoShapes.small,
-        color = Color.Transparent,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = { onSeek(line.timeMs) },
-                onLongClick = { copyText(line.text) }
-            )
+            .padding(vertical = if (line.active) 12.dp else 6.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = line.text,
-            style = if (line.active) {
-                EchoTypography.headline.copy(fontSize = 24.sp, lineHeight = 32.sp)
-            } else {
-                EchoTypography.body.copy(fontSize = 16.sp, lineHeight = 24.sp)
-            },
-            color = if (line.active) p.accent else p.muted.copy(alpha = 0.5f),
-            textAlign = TextAlign.Center,
+        Surface(
+            shape = EchoShapes.small,
+            color = Color.Transparent,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = if (line.active) 12.dp else 6.dp),
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis
-        )
+                .combinedClickable(
+                    onClick = { onSeek(line.timeMs) },
+                    onLongClick = { copyText(line.text) }
+                )
+        ) {
+            Text(
+                text = line.text,
+                style = if (line.active) {
+                    EchoTypography.headline.copy(fontSize = 24.sp, lineHeight = 32.sp)
+                } else {
+                    EchoTypography.body.copy(fontSize = 16.sp, lineHeight = 24.sp)
+                },
+                color = if (line.active) p.accent else p.muted.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

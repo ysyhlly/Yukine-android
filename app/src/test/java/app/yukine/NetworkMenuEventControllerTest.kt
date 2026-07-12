@@ -16,6 +16,7 @@ class NetworkMenuEventControllerTest {
         val controller = fakes.controller()
 
         controller.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
+        controller.backFromNetworkPage()
         controller.showAddStream()
         controller.showImportM3u()
         controller.openM3uFilePicker()
@@ -24,6 +25,7 @@ class NetworkMenuEventControllerTest {
         assertEquals(
             listOf(
                 "navigate:${MainRoutes.NETWORK_STREAMING}",
+                "back",
                 "dialog:addStream",
                 "dialog:importM3u",
                 "picker:m3u",
@@ -105,6 +107,7 @@ class NetworkMenuEventControllerTest {
         fun controller(): NetworkMenuEventController =
             NetworkMenuEventController(
                 { page -> events.add("navigate:$page") },
+                Runnable { events.add("back") },
                 Runnable { events.add("dialog:addStream") },
                 Runnable { events.add("dialog:importM3u") },
                 Runnable { events.add("dialog:addWebDav") },

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -119,7 +121,7 @@ fun SettingsScreen(
 ) {
     var activeImageDialog by remember { mutableStateOf<SettingsImageDialog?>(null) }
     val titleBackAction = actions.firstOrNull { it.isBack || isBackAction(it.label) }
-    val visibleActions = if (titleBackAction != null) actions.drop(1) else actions
+    val visibleActions = settingsContentActions(actions)
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
         initialFirstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset.coerceAtLeast(0)
@@ -230,7 +232,14 @@ private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Mo
         }
     } else if (action.style == SettingsActionStyle.Toggle) {
         Surface(
-            modifier = cardModifier,
+            modifier = cardModifier
+                .toggleable(
+                    value = action.checked,
+                    enabled = action.enabled,
+                    role = Role.Switch,
+                    onValueChange = { onClick() }
+                )
+                .semantics { contentDescription = action.label },
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -239,6 +248,7 @@ private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Mo
     } else {
         Surface(
             onClick = onClick,
+            enabled = action.enabled,
             interactionSource = interaction,
             modifier = cardModifier
                 .echoPressScale(interaction)
@@ -309,7 +319,7 @@ private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
         EchoIcon(
             kind = iconForSettingsAction(action),
             modifier = Modifier.size(22.dp),
-            color = if (action.style == SettingsActionStyle.Destructive) p.muted else p.accent
+            color = if (!action.enabled || action.style == SettingsActionStyle.Destructive) p.muted else p.accent
         )
         Spacer(Modifier.width(12.dp))
         Column(
@@ -319,7 +329,7 @@ private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
             Text(
                 action.label,
                 style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = p.text,
+                color = if (action.enabled) p.text else p.muted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -343,7 +353,8 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
     when (action.style) {
         SettingsActionStyle.Toggle -> Switch(
             checked = action.checked,
-            onCheckedChange = { onClick() },
+            onCheckedChange = null,
+            enabled = action.enabled,
             modifier = Modifier.semantics { contentDescription = action.label },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = p.onAccent,
@@ -360,8 +371,7 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
             }
         }
         SettingsActionStyle.Slider -> Unit
-        SettingsActionStyle.Navigation,
-        SettingsActionStyle.Default -> {
+        SettingsActionStyle.Navigation -> {
             if (action.value.isNotBlank()) {
                 Text(
                     text = action.value,
@@ -375,8 +385,19 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
             Spacer(Modifier.width(6.dp))
             EchoIcon(EchoIconKind.ChevronRight, Modifier.size(16.dp), p.muted)
         }
+        SettingsActionStyle.Default -> Unit
         SettingsActionStyle.Destructive -> Unit
     }
+}
+
+internal fun settingsContentActions(actions: List<SettingsAction>): List<SettingsAction> {
+    val backActionIndex = actions.indexOfFirst { action ->
+        action.isBack || isBackAction(action.label)
+    }
+    if (backActionIndex < 0) {
+        return actions
+    }
+    return actions.filterIndexed { index, _ -> index != backActionIndex }
 }
 
 @Composable

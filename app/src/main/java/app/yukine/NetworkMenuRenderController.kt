@@ -10,6 +10,8 @@ internal class NetworkMenuRenderController(
     interface Listener {
         fun navigateNetworkPage(page: String)
 
+        fun backFromNetworkPage()
+
         fun showAddStream()
 
         fun showImportM3u()
@@ -45,7 +47,7 @@ internal class NetworkMenuRenderController(
         actions.add(SettingsAction(text(languageMode, "remote.sources"), Runnable {
             listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES)
         }))
-        val title = text(languageMode, "tab.network")
+        val title = text(languageMode, "settings.group.sources")
         listener.publishNetworkMenu(title, metrics, actions)
     }
 
@@ -56,7 +58,7 @@ internal class NetworkMenuRenderController(
 
         val actions = ArrayList<SettingsAction>()
         actions.add(SettingsAction(text(languageMode, "back"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_HOME)
+            listener.backFromNetworkPage()
         }))
         actions.add(SettingsAction(text(languageMode, "add.stream.url"), Runnable {
             listener.showAddStream()
@@ -88,7 +90,7 @@ internal class NetworkMenuRenderController(
 
         val actions = ArrayList<SettingsAction>()
         actions.add(SettingsAction(text(languageMode, "back"), Runnable {
-            listener.navigateNetworkPage(MainRoutes.NETWORK_HOME)
+            listener.backFromNetworkPage()
         }))
         actions.add(SettingsAction(text(languageMode, "add.webdav"), Runnable {
             listener.showAddWebDav()

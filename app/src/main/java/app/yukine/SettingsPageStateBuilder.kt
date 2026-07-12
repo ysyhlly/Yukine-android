@@ -296,7 +296,7 @@ internal object SettingsPageStateBuilder {
         shareStyle: String,
         gatewayConfigured: Boolean,
         onNavigate: (SettingsPage) -> Unit,
-        onOpenNetworkSources: () -> Unit
+        onOpenNetworkPage: (String) -> Unit
     ): SettingsPageStateContent {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
         val metrics = listOf(
@@ -308,8 +308,20 @@ internal object SettingsPageStateBuilder {
         val actions = listOf(
             navigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
+                label = text(languageMode, "streaming"),
+                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_STREAMING) },
+                description = text(languageMode, "settings.sources.streaming.hint"),
+                style = SettingsActionStyle.Navigation
+            ),
+            SettingsAction(
+                label = text(languageMode, "webdav"),
+                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_WEBDAV) },
+                description = text(languageMode, "settings.sources.webdav.hint"),
+                style = SettingsActionStyle.Navigation
+            ),
+            SettingsAction(
                 label = text(languageMode, "remote.music.sources"),
-                onClick = Runnable { onOpenNetworkSources() },
+                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_SOURCES) },
                 description = text(languageMode, "remote.music.sources.hint"),
                 style = SettingsActionStyle.Navigation
             ),
@@ -721,7 +733,8 @@ internal object SettingsPageStateBuilder {
                     onClick = Runnable { onToggle(!enabled) },
                     description = text(languageMode, "floating.lyrics.description"),
                     style = SettingsActionStyle.Toggle,
-                    checked = enabled
+                    checked = enabled,
+                    enabled = overlayPermissionGranted || enabled
                 )
             )
         }
