@@ -28,7 +28,7 @@ internal class OnboardingController @JvmOverloads constructor(
 
         fun navigateToNetworkTabPage(page: String)
 
-        fun renderAndPersistSelectedTab()
+        fun renderSelectedTabAfterStateChange()
 
         fun openPlaylistM3uFilePicker()
 
@@ -60,7 +60,7 @@ internal class OnboardingController @JvmOverloads constructor(
     fun libraryScanInProgress(): Boolean = libraryScanInProgress
 
     fun finishOnboarding() {
-        completeOnboarding { listener.renderAndPersistSelectedTab() }
+        completeOnboarding { listener.renderSelectedTabAfterStateChange() }
     }
 
     fun openStreamingFromOnboarding() {

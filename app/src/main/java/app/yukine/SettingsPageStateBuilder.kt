@@ -8,6 +8,7 @@ import app.yukine.ui.SettingsActionStyle
 import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.EchoIconKind
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
@@ -1099,6 +1100,7 @@ internal object SettingsPageStateBuilder {
         onClick = Runnable { onNavigate(page) },
         description = groupDescription(languageMode, key),
         style = SettingsActionStyle.Navigation,
+        icon = settingsIconForPage(page),
         section = section
     )
 
@@ -1110,6 +1112,7 @@ internal object SettingsPageStateBuilder {
         label = label,
         onClick = Runnable { onNavigate(page) },
         style = SettingsActionStyle.Navigation,
+        icon = if (isBackLabel(label)) EchoIconKind.Back else settingsIconForPage(page),
         isBack = isBackLabel(label)
     )
 
@@ -1125,11 +1128,35 @@ internal object SettingsPageStateBuilder {
         description = description,
         value = value,
         style = SettingsActionStyle.Navigation,
+        icon = if (isBackLabel(label)) EchoIconKind.Back else settingsIconForPage(page),
         isBack = isBackLabel(label)
     )
 
     private fun isBackLabel(label: String): Boolean =
         label.startsWith("Back", ignoreCase = true) || label.contains("返回")
+
+    private fun settingsIconForPage(page: SettingsPage): EchoIconKind = when (page) {
+        SettingsPage.AppearanceGroup, SettingsPage.Appearance, SettingsPage.PageBackground -> EchoIconKind.Palette
+        SettingsPage.AdvancedTheme -> EchoIconKind.Sparkle
+        SettingsPage.Accent -> EchoIconKind.Swatch
+        SettingsPage.Language -> EchoIconKind.Language
+        SettingsPage.PlaybackGroup, SettingsPage.AudioEffects, SettingsPage.ConcurrentPlayback,
+        SettingsPage.PlaybackSpeed -> EchoIconKind.Gauge
+        SettingsPage.AppVolume -> EchoIconKind.Volume
+        SettingsPage.LyricsGroup, SettingsPage.Lyrics, SettingsPage.StatusBarLyrics -> EchoIconKind.Lyrics
+        SettingsPage.FloatingLyrics -> EchoIconKind.Permission
+        SettingsPage.SourcesGroup, SettingsPage.StreamingGateway -> EchoIconKind.Network
+        SettingsPage.StreamingAudioQuality -> EchoIconKind.Gauge
+        SettingsPage.LibraryGroup, SettingsPage.Library -> EchoIconKind.Library
+        SettingsPage.AboutGroup -> EchoIconKind.Info
+        SettingsPage.Downloads -> EchoIconKind.Download
+        SettingsPage.SleepTimer -> EchoIconKind.Timer
+        SettingsPage.NowPlayingGestures -> EchoIconKind.More
+        SettingsPage.PlaybackRestore -> EchoIconKind.Refresh
+        SettingsPage.ReplayGain -> EchoIconKind.Gauge
+        SettingsPage.ShareStyle -> EchoIconKind.Upload
+        SettingsPage.Home -> EchoIconKind.Back
+    }
 
     private fun permissionLabel(granted: Boolean, languageMode: String): String =
         if (granted) text(languageMode, "granted") else text(languageMode, "missing")

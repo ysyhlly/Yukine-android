@@ -41,7 +41,7 @@ internal class NetworkSourcesEventController(
     }
 
     fun interface Renderer {
-        fun renderAndPersistSelectedTab()
+        fun renderSelectedTabAfterStateChange()
     }
 
     override fun backToNetwork() {
@@ -50,7 +50,7 @@ internal class NetworkSourcesEventController(
             routeController.clearSelectedRemoteSource()
             routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
         }
-        renderer.renderAndPersistSelectedTab()
+        renderer.renderSelectedTabAfterStateChange()
     }
 
     override fun testRemoteSource(sourceId: Long) {
@@ -73,7 +73,7 @@ internal class NetworkSourcesEventController(
     override fun openRemoteSourceTracks(sourceId: Long) {
         routeController.setSelectedRemoteSourceId(sourceId)
         routeController.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
-        renderer.renderAndPersistSelectedTab()
+        renderer.renderSelectedTabAfterStateChange()
     }
 
     override fun showEditWebDav(source: RemoteSource) {

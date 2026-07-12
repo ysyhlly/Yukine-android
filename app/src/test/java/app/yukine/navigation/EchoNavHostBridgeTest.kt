@@ -43,7 +43,9 @@ class EchoNavHostBridgeTest {
         EchoTabItem(SettingsTab, "Settings")
     )
 
-    private fun hostState(): EchoNavHostState {
+    private fun hostState(
+        navigationViewModel: NavigationViewModel = NavigationViewModel(SavedStateHandle())
+    ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
             it.updateHomeDashboard(
                 HomeDashboardUiState(heroTitle = "Bridge native home")
@@ -76,7 +78,7 @@ class EchoNavHostBridgeTest {
         val streaming = StreamingViewModel()
         val settings = SettingsViewModel()
         return EchoNavHostState(
-            routeState = NavigationViewModel(SavedStateHandle()).state,
+            routeState = navigationViewModel.state,
             homeDashboardState = homeDashboard.uiState,
             nowPlayingStateProvider = NowPlayingViewModel(),
             libraryGroupsState = library.libraryGroups,
@@ -109,12 +111,18 @@ class EchoNavHostBridgeTest {
 
     @Test
     fun queueTab_updatesHostStateRoute() {
-        val state = hostState()
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        val state = hostState(navigationViewModel)
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoNavHostBridge(
                     tabs = tabs,
-                    hostState = state
+                    hostState = state,
+                    onTabChanged = { tab ->
+                        navigationViewModel.updateRoute(
+                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                        )
+                    }
                 )
             }
         }
@@ -122,7 +130,7 @@ class EchoNavHostBridgeTest {
         composeRule.onNode(hasContentDescription("Playing") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, state.selectedTabRoute)
+        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
     }
 
     @Test

@@ -67,6 +67,7 @@ class EchoNavGraphTest {
         realtimeBandsProvider: () -> FloatArray = { emptyRealtimeBands },
         nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel(),
         playbackSnapshotProvider: PlaybackSnapshotProvider = app.yukine.PlaybackViewModel(),
+        navigationViewModel: NavigationViewModel = NavigationViewModel(SavedStateHandle()),
         queueSheetVisibilityListener: QueueSheetVisibilityListener = QueueSheetVisibilityListener { }
     ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
@@ -107,7 +108,7 @@ class EchoNavGraphTest {
             )
         }
         return EchoNavHostState(
-            routeState = NavigationViewModel(SavedStateHandle()).state,
+            routeState = navigationViewModel.state,
             homeDashboardState = homeDashboard.uiState,
             nowPlayingStateProvider = nowPlayingStateProvider,
             libraryGroupsState = library.libraryGroups,
@@ -216,12 +217,18 @@ class EchoNavGraphTest {
 
     @Test
     fun selectingPlayingTab_updatesHostStateRoute() {
-        val state = hostState()
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        val state = hostState(navigationViewModel = navigationViewModel)
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    hostState = state
+                    hostState = state,
+                    onTabChanged = { tab ->
+                        navigationViewModel.updateRoute(
+                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                        )
+                    }
                 )
             }
         }
@@ -229,19 +236,28 @@ class EchoNavGraphTest {
         composeRule.onNode(hasContentDescription("Playing") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, state.selectedTabRoute)
+        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
     }
 
     @Test
     fun clickingNowBarTrack_opensImmersiveNowPlayingRoute() {
         val nowPlayingViewModel = NowPlayingViewModel()
-        val state = hostState(nowPlayingStateProvider = nowPlayingViewModel)
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        val state = hostState(
+            nowPlayingStateProvider = nowPlayingViewModel,
+            navigationViewModel = navigationViewModel
+        )
         nowPlayingViewModel.updateState(nowPlayingSnapshot(), emptySet(), null)
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoNavGraph(
                     tabs = tabs,
-                    hostState = state
+                    hostState = state,
+                    onTabChanged = { tab ->
+                        navigationViewModel.updateRoute(
+                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                        )
+                    }
                 )
             }
         }
@@ -249,7 +265,7 @@ class EchoNavGraphTest {
         composeRule.onNodeWithText("Song").performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, state.selectedTabRoute)
+        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
         composeRule.onAllNodesWithText("Elapsed").assertCountEquals(0)
     }
 

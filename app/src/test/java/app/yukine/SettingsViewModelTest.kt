@@ -381,6 +381,27 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun failedPreferenceWriteEmitsFailureStatus() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferenceGateway = FakePreferenceGateway().also { it.failWrites = true }
+        viewModel.bindPreferenceGateway(preferenceGateway)
+        viewModel.renderCurrentPage(
+            SettingsPage.Appearance,
+            SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_ENGLISH),
+            RuntimeSettingsStatus()
+        )
+
+        viewModel.onEvent(SettingsEvent.ApplyThemeMode(EchoTheme.MODE_DARK))
+        advanceUntilIdle()
+
+        val statuses = viewModel.drainEffects()
+            .filterIsInstance<SettingsEffect.ShowStatus>()
+            .map { it.message }
+        assertTrue(statuses.last().contains("Failed to save"))
+    }
+
+    @Test
     fun audioExclusiveMapsToTheInverseConcurrentPlaybackRuntimeSetting() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = SettingsViewModel(dispatcher)
@@ -748,8 +769,9 @@ class SettingsViewModelTest {
 
     private class FakePreferenceGateway : SettingsPreferenceGateway {
         val events = mutableListOf<String>()
+        var failWrites: Boolean = false
 
-        override fun save(update: SettingsPreferenceUpdate) {
+        override fun save(update: SettingsPreferenceUpdate): Boolean {
             events += when (update.key) {
                 SettingsPreferenceKey.ThemeMode -> "theme:${update.value}"
                 SettingsPreferenceKey.AccentMode -> "accent:${update.value}"
@@ -784,6 +806,7 @@ class SettingsViewModelTest {
                     "background:${backgrounds.sharedUri}"
                 }
             }
+            return !failWrites
         }
     }
 

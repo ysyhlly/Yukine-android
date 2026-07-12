@@ -64,7 +64,7 @@ fun EchoNavGraph(
     val route by hostState.routeState.collectAsState()
     val playbackQuality = StreamingDataPathMetadata.quality(playbackState.currentTrack?.dataPath)
     val pagerTabs = tabs.map { it.tab }
-    val selectedTab = TabRoute.fromKey(hostState.selectedTabRoute) ?: HomeTab
+    val selectedTab = TabRoute.fromKey(route.selectedTab) ?: HomeTab
     val selectedPagerIndex = pagerTabs.indexOf(selectedTab)
     val selectedIndex = selectedPagerIndex.coerceAtLeast(0)
     val selectedInPager = selectedPagerIndex >= 0
@@ -158,8 +158,7 @@ fun EchoNavGraph(
                 return@collect
             }
             val tab = pagerTabs.getOrNull(page) ?: return@collect
-            if (tab.route != hostState.selectedTabRoute) {
-                hostState.selectedTabRoute = tab.route
+            if (tab.route != route.selectedTab) {
                 onTabChanged(tab)
             }
         }
@@ -176,7 +175,6 @@ fun EchoNavGraph(
             onRepeat = Runnable { nowPlayingEventHandler(NowPlayingEvent.CycleRepeatMode) },
             onOpenNowPlaying = {
                 nowPlayingImmersive = true
-                hostState.selectedTabRoute = QueueTab.route
                 onTabChanged(QueueTab)
             },
             onOpenQueue = { hostState.setQueueSheetVisibility(true) },
@@ -188,7 +186,6 @@ fun EchoNavGraph(
         tabs = tabs,
         selectedTab = selectedTab,
         onTabSelected = { tab -> 
-            hostState.selectedTabRoute = tab.route
             onTabChanged(tab)
         },
         nowBar = persistentNowBar,

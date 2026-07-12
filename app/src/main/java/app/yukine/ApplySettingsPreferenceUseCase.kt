@@ -131,50 +131,52 @@ internal class MusicLibrarySettingsPreferenceOperations(
 internal class ApplySettingsPreferenceUseCase(
     private val operations: SettingsPreferenceOperations
 ) {
-    fun execute(update: SettingsPreferenceUpdate) {
-        when (update.key) {
-            SettingsPreferenceKey.ThemeMode -> operations.saveThemeMode(update.value as String)
-            SettingsPreferenceKey.AccentMode -> operations.saveAccentMode(update.value as String)
-            SettingsPreferenceKey.LanguageMode -> operations.saveLanguageMode(update.value as String)
-            SettingsPreferenceKey.PlaybackSpeed -> operations.savePlaybackSpeed(update.value as Float)
-            SettingsPreferenceKey.AppVolume -> operations.saveAppVolume(update.value as Float)
-            SettingsPreferenceKey.StreamingAudioQuality ->
-                operations.saveStreamingAudioQuality(update.value as String)
-            SettingsPreferenceKey.OnlineLyricsEnabled ->
-                operations.saveOnlineLyricsEnabled(update.value as Boolean)
-            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
-                operations.saveConcurrentPlaybackEnabled(update.value as Boolean)
-            SettingsPreferenceKey.LyricsOffsetMs -> operations.saveLyricsOffsetMs(update.value as Long)
-            SettingsPreferenceKey.AudioEffectSettings ->
-                operations.saveAudioEffectSettings(update.value as AudioEffectSettings)
-            SettingsPreferenceKey.StatusBarLyricsEnabled ->
-                operations.saveStatusBarLyricsEnabled(update.value as Boolean)
-            SettingsPreferenceKey.SystemMediaLyricsTitleEnabled ->
-                operations.saveSystemMediaLyricsTitleEnabled(update.value as Boolean)
-            SettingsPreferenceKey.FloatingLyricsEnabled ->
-                operations.saveFloatingLyricsEnabled(update.value as Boolean)
-            SettingsPreferenceKey.NowPlayingGesturesEnabled ->
-                operations.saveNowPlayingGesturesEnabled(update.value as Boolean)
-            SettingsPreferenceKey.PlaybackRestoreEnabled ->
-                operations.savePlaybackRestoreEnabled(update.value as Boolean)
-            SettingsPreferenceKey.ReplayGainEnabled ->
-                operations.saveReplayGainEnabled(update.value as Boolean)
-            SettingsPreferenceKey.DebugPromptsEnabled ->
-                operations.saveDebugPromptsEnabled(update.value as Boolean)
-            SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
-                operations.saveCustomBackgroundBlurEnabled(update.value as Boolean)
-            SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->
-                operations.saveCustomBackgroundBlurRadiusDp(update.value as Float)
-            SettingsPreferenceKey.GlassBlurEnabled ->
-                operations.saveGlassBlurEnabled(update.value as Boolean)
-            SettingsPreferenceKey.GlassBlurRadiusDp ->
-                operations.saveGlassBlurRadiusDp(update.value as Float)
-            SettingsPreferenceKey.GlassSurfaceOpacity ->
-                operations.saveGlassSurfaceOpacity(update.value as Float)
-            SettingsPreferenceKey.ShareStyle ->
-                operations.saveShareStyle(update.value as String)
-            SettingsPreferenceKey.PageBackgrounds ->
-                operations.savePageBackgrounds(update.value as PageBackgrounds)
-        }
+    fun execute(update: SettingsPreferenceUpdate): Boolean {
+        return runCatching {
+            when (update.key) {
+                SettingsPreferenceKey.ThemeMode -> operations.saveThemeMode(update.value as String)
+                SettingsPreferenceKey.AccentMode -> operations.saveAccentMode(update.value as String)
+                SettingsPreferenceKey.LanguageMode -> operations.saveLanguageMode(update.value as String)
+                SettingsPreferenceKey.PlaybackSpeed -> operations.savePlaybackSpeed(update.value as Float)
+                SettingsPreferenceKey.AppVolume -> operations.saveAppVolume(update.value as Float)
+                SettingsPreferenceKey.StreamingAudioQuality ->
+                    operations.saveStreamingAudioQuality(update.value as String)
+                SettingsPreferenceKey.OnlineLyricsEnabled ->
+                    operations.saveOnlineLyricsEnabled(update.value as Boolean)
+                SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
+                    operations.saveConcurrentPlaybackEnabled(update.value as Boolean)
+                SettingsPreferenceKey.LyricsOffsetMs -> operations.saveLyricsOffsetMs(update.value as Long)
+                SettingsPreferenceKey.AudioEffectSettings ->
+                    operations.saveAudioEffectSettings(update.value as AudioEffectSettings)
+                SettingsPreferenceKey.StatusBarLyricsEnabled ->
+                    operations.saveStatusBarLyricsEnabled(update.value as Boolean)
+                SettingsPreferenceKey.SystemMediaLyricsTitleEnabled ->
+                    operations.saveSystemMediaLyricsTitleEnabled(update.value as Boolean)
+                SettingsPreferenceKey.FloatingLyricsEnabled ->
+                    operations.saveFloatingLyricsEnabled(update.value as Boolean)
+                SettingsPreferenceKey.NowPlayingGesturesEnabled ->
+                    operations.saveNowPlayingGesturesEnabled(update.value as Boolean)
+                SettingsPreferenceKey.PlaybackRestoreEnabled ->
+                    operations.savePlaybackRestoreEnabled(update.value as Boolean)
+                SettingsPreferenceKey.ReplayGainEnabled ->
+                    operations.saveReplayGainEnabled(update.value as Boolean)
+                SettingsPreferenceKey.DebugPromptsEnabled ->
+                    operations.saveDebugPromptsEnabled(update.value as Boolean)
+                SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
+                    operations.saveCustomBackgroundBlurEnabled(update.value as Boolean)
+                SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->
+                    operations.saveCustomBackgroundBlurRadiusDp(update.value as Float)
+                SettingsPreferenceKey.GlassBlurEnabled ->
+                    operations.saveGlassBlurEnabled(update.value as Boolean)
+                SettingsPreferenceKey.GlassBlurRadiusDp ->
+                    operations.saveGlassBlurRadiusDp(update.value as Float)
+                SettingsPreferenceKey.GlassSurfaceOpacity ->
+                    operations.saveGlassSurfaceOpacity(update.value as Float)
+                SettingsPreferenceKey.ShareStyle ->
+                    operations.saveShareStyle(update.value as String)
+                SettingsPreferenceKey.PageBackgrounds ->
+                    operations.savePageBackgrounds(update.value as PageBackgrounds)
+            }
+        }.isSuccess
     }
 }

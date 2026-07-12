@@ -75,8 +75,10 @@ internal class MainSettingsFloatingLyricsControls(
         return true
     }
 
-    override fun openPermissionSettings() {
-        permissionControllerProvider()?.openOverlayPermissionSettings()
+    override fun openPermissionSettings(): Boolean {
+        val permissionController = permissionControllerProvider() ?: return false
+        permissionController.openOverlayPermissionSettings()
+        return true
     }
 }
 
@@ -93,51 +95,72 @@ internal class SettingsRuntimeApplier(
                 true
             }
             is SettingsRuntimeEffect.ApplyPlaybackSpeed -> {
-                playbackServiceControlsProvider.controls()?.setPlaybackSpeed(effect.speed)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setPlaybackSpeed(effect.speed)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.ApplyAppVolume -> {
-                playbackServiceControlsProvider.controls()?.setAppVolume(effect.volume)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setAppVolume(effect.volume)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetConcurrentPlaybackEnabled -> {
-                playbackServiceControlsProvider.controls()?.setConcurrentPlaybackEnabled(effect.enabled)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setConcurrentPlaybackEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.ApplyAudioEffects -> {
-                playbackServiceControlsProvider.controls()?.applyAudioEffectSettings(effect.settings)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.applyAudioEffectSettings(effect.settings)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetStatusBarLyrics -> {
-                playbackServiceControlsProvider.controls()?.setStatusBarLyricsEnabled(effect.enabled)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setStatusBarLyricsEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled -> {
-                playbackServiceControlsProvider.controls()?.setSystemMediaLyricsTitleEnabled(effect.enabled)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setSystemMediaLyricsTitleEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.ApplyFloatingLyrics -> {
                 floatingLyricsControlsProvider.controls()?.apply(effect.enabled) != false
             }
             SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings -> {
-                floatingLyricsControlsProvider.controls()?.openPermissionSettings()
-                true
+                floatingLyricsControlsProvider.controls()?.let {
+                    it.openPermissionSettings()
+                } ?: false
             }
             is SettingsRuntimeEffect.SetPlaybackRestoreEnabled -> {
-                playbackServiceControlsProvider.controls()?.setPlaybackRestoreEnabled(effect.enabled)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setPlaybackRestoreEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetReplayGainEnabled -> {
-                playbackServiceControlsProvider.controls()?.setReplayGainEnabled(effect.enabled)
-                true
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setReplayGainEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetOnlineLyricsEnabled -> {
-                lyricsControlsProvider.controls()?.setOnlineEnabled(effect.enabled)
-                true
+                lyricsControlsProvider.controls()?.let {
+                    it.setOnlineEnabled(effect.enabled)
+                    true
+                } ?: false
             }
             is SettingsRuntimeEffect.SetLyricsOffsetMs -> {
-                lyricsControlsProvider.controls()?.setOffsetMs(effect.offsetMs)
-                true
+                lyricsControlsProvider.controls()?.let {
+                    it.setOffsetMs(effect.offsetMs)
+                    true
+                } ?: false
             }
         }
     }

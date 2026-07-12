@@ -3,7 +3,9 @@ package app.yukine
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
 ) : LibraryRouteActions {
-    private var state: NavigationRouteState = NavigationRouteState()
+    /** NavigationViewModel is the sole owner of the persistent route snapshot. */
+    private val state: NavigationRouteState
+        get() = viewModel.state.value
     private var networkEntry: NetworkEntry? = null
 
     init {
@@ -15,7 +17,8 @@ internal class MainRouteController(
     }
 
     fun restoreFromViewModel() {
-        state = viewModel.state.value
+        // Kept as an explicit lifecycle hook for the Java host. State is read directly from the
+        // ViewModel, so there is no second mutable copy to synchronize.
     }
 
     fun snapshot(
@@ -43,7 +46,6 @@ internal class MainRouteController(
     }
 
     fun persist(state: NavigationRouteState) {
-        this.state = state
         viewModel.updateRoute(state)
     }
 
@@ -289,12 +291,12 @@ internal class MainRouteController(
             selectedTab() == MainRoutes.TAB_NETWORK &&
             networkPage() == entry.entryPage
         ) {
-            state = entry.origin
+            viewModel.updateRoute(entry.origin)
             networkEntry = null
             return MainBackNavigationPolicy.Result.navigate(
-                state.selectedTab,
-                state.networkPage,
-                state.settingsPage,
+                entry.origin.selectedTab,
+                entry.origin.networkPage,
+                entry.origin.settingsPage,
                 true
             )
         }
@@ -343,7 +345,7 @@ internal class MainRouteController(
         settingsPage: String,
         selectedRemoteSourceId: Long
     ) {
-        state = snapshot(
+        viewModel.updateRoute(snapshot(
             normalizeTab(selectedTab),
             normalizeLibraryMode(libraryMode),
             selectedLibraryGroupKey,
@@ -353,7 +355,7 @@ internal class MainRouteController(
             networkPage,
             settingsPage,
             selectedRemoteSourceId
-        )
+        ))
     }
 
     private fun normalizeTab(tabKey: String): String {

@@ -41,7 +41,7 @@ internal fun interface SettingsLyricsControlsProvider {
 internal interface SettingsFloatingLyricsControls {
     fun apply(enabled: Boolean): Boolean
 
-    fun openPermissionSettings()
+    fun openPermissionSettings(): Boolean
 }
 
 internal fun interface SettingsFloatingLyricsControlsProvider {

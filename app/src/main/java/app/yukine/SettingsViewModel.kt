@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 sealed interface SettingsItem {
@@ -193,7 +195,7 @@ fun interface SettingsStoreMirror {
 }
 
 fun interface SettingsPreferenceGateway {
-    fun save(update: SettingsPreferenceUpdate)
+    fun save(update: SettingsPreferenceUpdate): Boolean
 }
 
 class SettingsViewModel @JvmOverloads constructor(
@@ -211,6 +213,7 @@ class SettingsViewModel @JvmOverloads constructor(
     private var storeMirror: SettingsStoreMirror? = null
     private var effectListener: SettingsEffectListener? = null
     private var runtimeEffectListener: SettingsRuntimeEffectListener? = null
+    private val preferenceWriteMutex = Mutex()
 
     fun bindPreferenceGateway(nextGateway: SettingsPreferenceGateway?) {
         preferenceGateway = nextGateway
@@ -640,7 +643,12 @@ class SettingsViewModel @JvmOverloads constructor(
     }
 
     private fun applyRuntimeEffect(effect: SettingsRuntimeEffect): Boolean {
-        return runtimeEffectListener?.onRuntimeEffect(effect) != false
+        val listener = runtimeEffectListener ?: return true
+        val applied = listener.onRuntimeEffect(effect)
+        if (!applied) {
+            emitEffect(SettingsEffect.ShowStatus(runtimeUnavailableStatus()))
+        }
+        return applied
     }
 
     private fun currentAppliedStatusText(offsetMs: Long = 0L): SettingsAppliedStatusText {
@@ -1012,9 +1020,32 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun savePreference(key: SettingsPreferenceKey, value: Any) {
         val currentGateway = preferenceGateway ?: return
         viewModelScope.launch {
-            withContext(ioDispatcher) {
-                currentGateway.save(SettingsPreferenceUpdate(key, value))
+            val result = withContext(ioDispatcher) {
+                preferenceWriteMutex.withLock {
+                    runCatching {
+                        check(currentGateway.save(SettingsPreferenceUpdate(key, value)))
+                    }
+                }
             }
+            result.onFailure {
+                emitEffect(SettingsEffect.ShowStatus(preferenceSaveFailedStatus()))
+            }
+        }
+    }
+
+    private fun runtimeUnavailableStatus(): String {
+        return if (_state.value.preferences.languageMode == AppLanguage.MODE_ENGLISH) {
+            "Runtime playback is not connected; the setting will apply when playback reconnects."
+        } else {
+            "播放服务当前未连接，设置将在重新连接后生效。"
+        }
+    }
+
+    private fun preferenceSaveFailedStatus(): String {
+        return if (_state.value.preferences.languageMode == AppLanguage.MODE_ENGLISH) {
+            "Failed to save the setting. Please try again."
+        } else {
+            "设置保存失败，请重试。"
         }
     }
 

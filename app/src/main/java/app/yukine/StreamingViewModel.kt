@@ -46,10 +46,11 @@ import javax.inject.Inject
 private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
 private val CROSS_SOURCE_ARTIST_JOINERS = setOf("and", "feat", "featuring", "ft", "with", "和", "与")
-internal const val STREAMING_PLAYLIST_PAGE_SIZE = 2_000
-internal const val STREAMING_PLAYLIST_MAX_PAGES = 50
-private const val STREAMING_PLAYLIST_MAX_TRACKS =
-    STREAMING_PLAYLIST_PAGE_SIZE * STREAMING_PLAYLIST_MAX_PAGES
+// Kept as source-compatible aliases for existing callers/tests; the coordinator owns the limits.
+internal const val STREAMING_PLAYLIST_PAGE_SIZE =
+    StreamingPlaylistDataCoordinator.STREAMING_PLAYLIST_PAGE_SIZE
+internal const val STREAMING_PLAYLIST_MAX_PAGES =
+    StreamingPlaylistDataCoordinator.STREAMING_PLAYLIST_MAX_PAGES
 
 @HiltViewModel
 class StreamingViewModel @Inject constructor(
@@ -64,6 +65,11 @@ class StreamingViewModel @Inject constructor(
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val streamingPlaylistDataCoordinator = StreamingPlaylistDataCoordinator(
+        repositoryProvider = { streamingRepository },
+        localOperationsProvider = { streamingLocalPlaylistOperations },
+        ioDispatcherProvider = { ioDispatcher }
+    )
     private val queueWindowPreResolveInFlight =
         ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
     private val sessionMaintenanceInFlight =
@@ -1856,47 +1862,7 @@ class StreamingViewModel @Inject constructor(
         provider: StreamingProviderName,
         providerPlaylistId: String
     ): Pair<String, List<StreamingTrack>> {
-        val tracks = ArrayList<StreamingTrack>()
-        var playlistName: String? = null
-        var page = 1
-        var total: Int? = null
-        while (true) {
-            val detail = streamingRepository.playlist(
-                provider = provider,
-                providerPlaylistId = providerPlaylistId,
-                page = page,
-                pageSize = STREAMING_PLAYLIST_PAGE_SIZE,
-                useCache = false
-            )
-            if (playlistName.isNullOrBlank()) {
-                playlistName = detail.playlist?.title?.takeIf { it.isNotBlank() }
-            }
-            total = detail.total ?: total
-            val remainingCapacity = STREAMING_PLAYLIST_MAX_TRACKS - tracks.size
-            val acceptedTracks = if (remainingCapacity > 0) {
-                detail.tracks.take(remainingCapacity)
-            } else {
-                emptyList()
-            }
-            tracks.addAll(acceptedTracks)
-
-            val reachedTotal = total?.let { expected -> tracks.size >= expected } == true
-            val reachedLocalPageCap = page >= STREAMING_PLAYLIST_MAX_PAGES
-            val reachedLocalTrackCap = acceptedTracks.size < detail.tracks.size ||
-                tracks.size >= STREAMING_PLAYLIST_MAX_TRACKS
-            if (!detail.hasMore ||
-                detail.tracks.isEmpty() ||
-                reachedTotal ||
-                reachedLocalPageCap ||
-                reachedLocalTrackCap
-            ) {
-                break
-            }
-            page += 1
-        }
-        val name = playlistName?.takeIf { it.isNotBlank() }
-            ?: "Streaming playlist $providerPlaylistId"
-        return name to tracks
+        return streamingPlaylistDataCoordinator.loadPlaylistTracks(provider, providerPlaylistId)
     }
 
     fun importStreamingPlaylistToLocal(
@@ -1980,16 +1946,7 @@ class StreamingViewModel @Inject constructor(
         beginStreamingRequest()
         return viewModelScope.launch {
             runCatching {
-                val tracks = if (link.providerPlaylistId.isNullOrBlank()) {
-                    streamingRepository.userLikedTracks(link.provider)
-                } else {
-                    loadStreamingPlaylistTracks(link.provider, link.providerPlaylistId).second
-                }
-                val operations = streamingLocalPlaylistOperations
-                    ?: error("Streaming local playlist operations are not bound")
-                withContext(ioDispatcher) {
-                    operations.syncStreamingPlaylist(link, tracks)
-                }
+                streamingPlaylistDataCoordinator.syncPlaylistToLocal(link)
             }.onSuccess { result ->
                 streamingState.value = streamingState.value.copy(
                     loading = false,
@@ -2013,11 +1970,7 @@ class StreamingViewModel @Inject constructor(
         beginStreamingRequest()
         return viewModelScope.launch {
             runCatching {
-                val operations = streamingLocalPlaylistOperations
-                    ?: error("Streaming local playlist operations are not bound")
-                withContext(ioDispatcher) {
-                    operations.ensureStreamingLoginPlaylist(playlistName, provider)
-                }
+                streamingPlaylistDataCoordinator.ensureLoginPlaylist(playlistName, provider)
             }.onSuccess { result ->
                 streamingState.value = streamingState.value.copy(
                     loading = false,
@@ -2046,8 +1999,11 @@ class StreamingViewModel @Inject constructor(
         )
         return viewModelScope.launch {
             runCatching {
-                val importer = app.yukine.streaming.StreamingPlaylistImporter(streamingRepository)
-                importer.importToStreaming(provider, playlistName, localTracks)
+                streamingPlaylistDataCoordinator.importPlaylistToStreaming(
+                    provider,
+                    playlistName,
+                    localTracks
+                )
             }.onSuccess { summary ->
                 streamingState.value = streamingState.value.copy(
                     playlistImporting = false,
@@ -2074,21 +2030,12 @@ class StreamingViewModel @Inject constructor(
         tracks: List<StreamingTrack>,
         linkWhenProviderPlaylistIdBlank: Boolean
     ): StreamingLocalPlaylistImportResult {
-        val operations = streamingLocalPlaylistOperations
-            ?: error("Streaming local playlist operations are not bound")
-        val result = withContext(ioDispatcher) {
-            operations.importStreamingPlaylist(
-                playlistName,
-                provider,
-                providerPlaylistId,
-                tracks,
-                linkWhenProviderPlaylistIdBlank
-            )
-        }
-        return StreamingLocalPlaylistImportResult(
-            playlistName = result.playlistName,
-            playlistAddedCount = result.playlistAddedCount,
-            empty = result.isEmpty
+        return streamingPlaylistDataCoordinator.importTracksToLocal(
+            playlistName,
+            provider,
+            providerPlaylistId,
+            tracks,
+            linkWhenProviderPlaylistIdBlank
         )
     }
 

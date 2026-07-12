@@ -41,6 +41,7 @@ public final class MusicLibraryRepository {
     private static final int AUDIO_SPEC_PARSE_BATCH_LIMIT = 24;
 
     private final EchoDatabaseHelper database;
+    private final EchoSettingsStore settingsStore;
     private final MediaStoreMusicScanner scanner;
     private final DocumentMusicImporter documentImporter;
     private final AudioSpecParser audioSpecParser;
@@ -51,6 +52,7 @@ public final class MusicLibraryRepository {
     public MusicLibraryRepository(@ApplicationContext Context context, StreamingDataPathParser streamingDataPathParser) {
         Context appContext = context.getApplicationContext();
         database = new EchoDatabaseHelper(appContext);
+        settingsStore = new EchoSettingsStore(database);
         scanner = new MediaStoreMusicScanner(appContext);
         documentImporter = new DocumentMusicImporter(appContext);
         audioSpecParser = new AudioSpecParser(appContext);
@@ -107,139 +109,139 @@ public final class MusicLibraryRepository {
     }
 
     public boolean loadPlaybackResumeRequested() {
-        return database.loadPlaybackResumeRequested();
+        return settingsStore.loadPlaybackResumeRequested();
     }
 
     public void savePlaybackResumeRequested(boolean requested) {
-        database.savePlaybackResumeRequested(requested);
+        settingsStore.savePlaybackResumeRequested(requested);
     }
 
     public AudioEffectSettings loadAudioEffectSettings() {
-        return database.loadAudioEffectSettings();
+        return settingsStore.loadAudioEffectSettings();
     }
 
     public void saveAudioEffectSettings(AudioEffectSettings settings) {
-        database.saveAudioEffectSettings(settings);
+        settingsStore.saveAudioEffectSettings(settings);
     }
 
     public boolean loadStatusBarLyricsEnabled() {
-        return database.loadStatusBarLyricsEnabled();
+        return settingsStore.loadStatusBarLyricsEnabled();
     }
 
     public void saveStatusBarLyricsEnabled(boolean enabled) {
-        database.saveStatusBarLyricsEnabled(enabled);
+        settingsStore.saveStatusBarLyricsEnabled(enabled);
     }
 
     public boolean loadSystemMediaLyricsTitleEnabled() {
-        return database.loadSystemMediaLyricsTitleEnabled();
+        return settingsStore.loadSystemMediaLyricsTitleEnabled();
     }
 
     public void saveSystemMediaLyricsTitleEnabled(boolean enabled) {
-        database.saveSystemMediaLyricsTitleEnabled(enabled);
+        settingsStore.saveSystemMediaLyricsTitleEnabled(enabled);
     }
 
     public boolean loadFloatingLyricsEnabled() {
-        return database.loadFloatingLyricsEnabled();
+        return settingsStore.loadFloatingLyricsEnabled();
     }
 
     public void saveFloatingLyricsEnabled(boolean enabled) {
-        database.saveFloatingLyricsEnabled(enabled);
+        settingsStore.saveFloatingLyricsEnabled(enabled);
     }
 
     public boolean loadNowPlayingGesturesEnabled() {
-        return database.loadNowPlayingGesturesEnabled();
+        return settingsStore.loadNowPlayingGesturesEnabled();
     }
 
     public void saveNowPlayingGesturesEnabled(boolean enabled) {
-        database.saveNowPlayingGesturesEnabled(enabled);
+        settingsStore.saveNowPlayingGesturesEnabled(enabled);
     }
 
     public boolean loadPlaybackRestoreEnabled() {
-        return database.loadPlaybackRestoreEnabled();
+        return settingsStore.loadPlaybackRestoreEnabled();
     }
 
     public void savePlaybackRestoreEnabled(boolean enabled) {
-        database.savePlaybackRestoreEnabled(enabled);
+        settingsStore.savePlaybackRestoreEnabled(enabled);
     }
 
     public boolean loadReplayGainEnabled() {
-        return database.loadReplayGainEnabled();
+        return settingsStore.loadReplayGainEnabled();
     }
 
     public void saveReplayGainEnabled(boolean enabled) {
-        database.saveReplayGainEnabled(enabled);
+        settingsStore.saveReplayGainEnabled(enabled);
     }
 
     public boolean loadDebugPromptsEnabled() {
-        return database.loadDebugPromptsEnabled();
+        return settingsStore.loadDebugPromptsEnabled();
     }
 
     public void saveDebugPromptsEnabled(boolean enabled) {
-        database.saveDebugPromptsEnabled(enabled);
+        settingsStore.saveDebugPromptsEnabled(enabled);
     }
 
     public boolean loadCustomBackgroundBlurEnabled() {
-        return database.loadCustomBackgroundBlurEnabled();
+        return settingsStore.loadCustomBackgroundBlurEnabled();
     }
 
     public float loadCustomBackgroundBlurRadiusDp() {
-        return database.loadCustomBackgroundBlurRadiusDp();
+        return settingsStore.loadCustomBackgroundBlurRadiusDp();
     }
 
     public void saveCustomBackgroundBlurEnabled(boolean enabled) {
-        database.saveCustomBackgroundBlurEnabled(enabled);
+        settingsStore.saveCustomBackgroundBlurEnabled(enabled);
     }
 
     public void saveCustomBackgroundBlurRadiusDp(float radiusDp) {
-        database.saveCustomBackgroundBlurRadiusDp(radiusDp);
+        settingsStore.saveCustomBackgroundBlurRadiusDp(radiusDp);
     }
 
     public boolean loadGlassBlurEnabled() {
-        return database.loadGlassBlurEnabled();
+        return settingsStore.loadGlassBlurEnabled();
     }
 
     public float loadGlassBlurRadiusDp() {
-        return database.loadGlassBlurRadiusDp();
+        return settingsStore.loadGlassBlurRadiusDp();
     }
 
     public void saveGlassBlurEnabled(boolean enabled) {
-        database.saveGlassBlurEnabled(enabled);
+        settingsStore.saveGlassBlurEnabled(enabled);
     }
 
     public void saveGlassBlurRadiusDp(float radiusDp) {
-        database.saveGlassBlurRadiusDp(radiusDp);
+        settingsStore.saveGlassBlurRadiusDp(radiusDp);
     }
 
     public float loadGlassSurfaceOpacity() {
-        return database.loadGlassSurfaceOpacity();
+        return settingsStore.loadGlassSurfaceOpacity();
     }
 
     public void saveGlassSurfaceOpacity(float opacity) {
-        database.saveGlassSurfaceOpacity(opacity);
+        settingsStore.saveGlassSurfaceOpacity(opacity);
     }
 
     public String loadShareStyle() {
-        return TrackShareStyle.normalize(database.loadShareStyle());
+        return settingsStore.loadShareStyle();
     }
 
     public void saveShareStyle(String style) {
-        database.saveShareStyle(TrackShareStyle.normalize(style));
+        settingsStore.saveShareStyle(style);
     }
 
     public PageBackgrounds loadPageBackgrounds() {
-        return database.loadPageBackgrounds();
+        return settingsStore.loadPageBackgrounds();
     }
 
     public void savePageBackgrounds(PageBackgrounds backgrounds) {
-        database.savePageBackgrounds(backgrounds == null ? PageBackgrounds.empty() : backgrounds);
+        settingsStore.savePageBackgrounds(backgrounds);
     }
 
     public boolean loadOnboardingCompleted() {
-        return database.loadOnboardingCompleted();
+        return settingsStore.loadOnboardingCompleted();
     }
 
     public void saveOnboardingCompleted(boolean completed) {
-        database.saveOnboardingCompleted(completed);
+        settingsStore.saveOnboardingCompleted(completed);
     }
 
     public List<RemoteSource> loadRemoteSources() {
@@ -656,75 +658,75 @@ public final class MusicLibraryRepository {
     }
 
     public String loadThemeMode() {
-        return database.loadThemeMode();
+        return settingsStore.loadThemeMode();
     }
 
     public void saveThemeMode(String mode) {
-        database.saveThemeMode(mode);
+        settingsStore.saveThemeMode(mode);
     }
 
     public String loadAccentMode() {
-        return database.loadAccentMode();
+        return settingsStore.loadAccentMode();
     }
 
     public void saveAccentMode(String mode) {
-        database.saveAccentMode(mode);
+        settingsStore.saveAccentMode(mode);
     }
 
     public String loadLanguageMode() {
-        return database.loadLanguageMode();
+        return settingsStore.loadLanguageMode();
     }
 
     public void saveLanguageMode(String mode) {
-        database.saveLanguageMode(mode);
+        settingsStore.saveLanguageMode(mode);
     }
 
     public float loadPlaybackSpeed() {
-        return normalizePlaybackSpeed(database.loadPlaybackSpeed());
+        return normalizePlaybackSpeed(settingsStore.loadPlaybackSpeed());
     }
 
     public void savePlaybackSpeed(float speed) {
-        database.savePlaybackSpeed(normalizePlaybackSpeed(speed));
+        settingsStore.savePlaybackSpeed(normalizePlaybackSpeed(speed));
     }
 
     public float loadAppVolume() {
-        return normalizeAppVolume(database.loadAppVolume());
+        return normalizeAppVolume(settingsStore.loadAppVolume());
     }
 
     public void saveAppVolume(float volume) {
-        database.saveAppVolume(normalizeAppVolume(volume));
+        settingsStore.saveAppVolume(normalizeAppVolume(volume));
     }
 
     public String loadStreamingAudioQuality() {
-        return StreamingQualityPreference.normalize(database.loadStreamingAudioQuality());
+        return StreamingQualityPreference.normalize(settingsStore.loadStreamingAudioQuality());
     }
 
     public void saveStreamingAudioQuality(String quality) {
-        database.saveStreamingAudioQuality(StreamingQualityPreference.normalize(quality));
+        settingsStore.saveStreamingAudioQuality(StreamingQualityPreference.normalize(quality));
     }
 
     public boolean loadOnlineLyricsEnabled() {
-        return database.loadOnlineLyricsEnabled();
+        return settingsStore.loadOnlineLyricsEnabled();
     }
 
     public void saveOnlineLyricsEnabled(boolean enabled) {
-        database.saveOnlineLyricsEnabled(enabled);
+        settingsStore.saveOnlineLyricsEnabled(enabled);
     }
 
     public boolean loadConcurrentPlaybackEnabled() {
-        return database.loadConcurrentPlaybackEnabled();
+        return settingsStore.loadConcurrentPlaybackEnabled();
     }
 
     public void saveConcurrentPlaybackEnabled(boolean enabled) {
-        database.saveConcurrentPlaybackEnabled(enabled);
+        settingsStore.saveConcurrentPlaybackEnabled(enabled);
     }
 
     public long loadLyricsOffsetMs() {
-        return normalizeLyricsOffsetMs(database.loadLyricsOffsetMs());
+        return normalizeLyricsOffsetMs(settingsStore.loadLyricsOffsetMs());
     }
 
     public void saveLyricsOffsetMs(long offsetMs) {
-        database.saveLyricsOffsetMs(normalizeLyricsOffsetMs(offsetMs));
+        settingsStore.saveLyricsOffsetMs(normalizeLyricsOffsetMs(offsetMs));
     }
 
     public List<Track> refreshFromDevice() {

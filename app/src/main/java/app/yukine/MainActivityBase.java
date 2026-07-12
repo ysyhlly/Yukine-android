@@ -707,7 +707,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage());
             } else if (effect instanceof SettingsEffect.NavigatePage) {
                 routeController.setSettingsPage(SettingsPage.route(((SettingsEffect.NavigatePage) effect).getPage()));
-                renderAndPersistSelectedTab();
+                renderSelectedTabAfterStateChange();
             } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
                 navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
@@ -1100,7 +1100,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 (tracks, index) -> playTrackListFromHost(tracks, index),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> statusMessageController.setStatus(status),
-                this::renderAndPersistSelectedTab
+                this::renderSelectedTabAfterStateChange
         );
         NetworkTrackListRenderController trackListRenderer =
                 new NetworkTrackListRenderController(new NetworkTrackListRenderController.Listener() {
@@ -1208,8 +1208,8 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
 
             @Override
-            public void renderAndPersistSelectedTab() {
-                MainActivityBase.this.renderAndPersistSelectedTab();
+            public void renderSelectedTabAfterStateChange() {
+                MainActivityBase.this.renderSelectedTabAfterStateChange();
             }
 
             @Override
@@ -1496,9 +1496,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void renderSelectedTabForNavHostState() {
-        if (routeController != null) {
-            routeController.persist();
-        }
         tabRenderDispatcher.render(selectedTab());
     }
 
@@ -1519,7 +1516,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     networkSourcesViewModel.getUiState(),
                     streamingViewModel.getStreaming(),
                     playbackViewModel,
-                    selectedTab(),
                     downloadsViewModel.getUiState(),
                     downloadsViewModel.openDirectoryRequests(),
                     downloadsDestinationActions(),
@@ -1537,7 +1533,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             );
             return;
         }
-        navHostState.setSelectedTabRoute(selectedTab());
     }
 
     private app.yukine.DownloadsDestinationActions downloadsDestinationActions() {
@@ -1746,7 +1741,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (result.navigateTab) {
             navigateToTab(result.selectedTab);
         } else {
-            renderAndPersistSelectedTab();
+            renderSelectedTabAfterStateChange();
         }
         return true;
     }
@@ -1882,7 +1877,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void applyLibraryReplacement(List<Track> tracks, Set<Long> favorites, Runnable onApplied) {
         libraryStore.replaceLibraryAsync(tracks, favorites, searchQuery(), () -> {
-            renderAndPersistSelectedTab();
+            renderSelectedTabAfterStateChange();
             loadCollections();
             onApplied.run();
         });
@@ -2114,7 +2109,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             if (query != null && !query.trim().isEmpty() && libraryStore.visibleTracks().isEmpty()) {
                 statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
             }
-            renderAndPersistSelectedTab();
+            renderSelectedTabAfterStateChange();
         });
         if (TAB_SEARCH.equals(selectedTab())) {
             refreshUnifiedSearch(true);
@@ -2128,10 +2123,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private void renderAndPersistSelectedTab() {
-        if (routeController != null) {
-            routeController.persist();
-        }
+    private void renderSelectedTabAfterStateChange() {
         renderSelectedTab();
     }
 
@@ -2145,9 +2137,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         boolean sameTab = routeController.navigateToTab(tabKey, userInitiated);
         if (userInitiated && sameTab && previousDirectory.equals(currentDirectoryKey())) {
             requestCurrentDirectoryScrollToTop();
-        }
-        if (routeController != null) {
-            routeController.persist();
         }
         if (TAB_QUEUE.equals(tabKey)) {
             bindQueueViewModelInputs(true);
@@ -2175,7 +2164,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         String mode = modes.get(nextIndex);
         routeController.setLibraryMode(mode);
-        renderAndPersistSelectedTab();
+        renderSelectedTabAfterStateChange();
         return true;
     }
 
@@ -2185,7 +2174,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         routeController.clearLibraryGroup();
         routeController.setSelectedPlaylistId(-1L);
-        renderAndPersistSelectedTab();
+        renderSelectedTabAfterStateChange();
         return true;
     }
 
@@ -2201,12 +2190,12 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void navigateNetworkPage(String page) {
         routeController.setNetworkPage(page);
-        renderAndPersistSelectedTab();
+        renderSelectedTabAfterStateChange();
     }
 
     private void navigateToNetworkTabPage(String page) {
         routeController.navigateToNetworkPageFromCurrent(page);
-        renderAndPersistSelectedTab();
+        renderSelectedTabAfterStateChange();
     }
 
     private String normalizedTabKey(String tabKey) {
@@ -2235,9 +2224,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void renderSelectedTab() {
-        if (routeController != null) {
-            routeController.persist();
-        }
         renderSelectedTabForNavHostState();
         syncNavHostState();
     }

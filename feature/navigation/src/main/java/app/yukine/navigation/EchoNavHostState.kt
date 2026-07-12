@@ -49,7 +49,6 @@ class EchoNavHostState @JvmOverloads constructor(
     val networkSourcesState: StateFlow<NetworkSourcesUiState>,
     val streamingState: StateFlow<StreamingSearchState>,
     val playbackSnapshotProvider: PlaybackSnapshotProvider,
-    selectedTabRoute: String = HomeTab.route,
     val downloadsState: StateFlow<DownloadsUiState> = MutableStateFlow(DownloadsUiState()),
     val downloadsOpenDirectoryRequests: Flow<Unit> = emptyFlow(),
     val downloadsActions: DownloadsDestinationActions = DownloadsDestinationActions(),
@@ -65,7 +64,6 @@ class EchoNavHostState @JvmOverloads constructor(
     val nowBarStateProvider: NowPlayingScreenStateProvider = nowPlayingStateProvider
     val nowPlayingUiState: StateFlow<app.yukine.NowPlayingUiState> = nowPlayingStateProvider.uiState
 
-    var selectedTabRoute by mutableStateOf(selectedTabRoute)
     var queueSheetVisible by mutableStateOf(false)
         private set
 

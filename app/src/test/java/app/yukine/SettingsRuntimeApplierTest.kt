@@ -66,8 +66,9 @@ class SettingsRuntimeApplierTest {
                 return floatingAllowed
             }
 
-            override fun openPermissionSettings() {
+            override fun openPermissionSettings(): Boolean {
                 calls += "floatingPermission"
+                return true
             }
         }
         val applier = SettingsRuntimeApplier(
@@ -126,10 +127,10 @@ class SettingsRuntimeApplierTest {
         )
 
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
-        assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.1f)))
-        assertTrue(applier.apply(SettingsRuntimeEffect.SetOnlineLyricsEnabled(true)))
+        assertFalse(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.1f)))
+        assertFalse(applier.apply(SettingsRuntimeEffect.SetOnlineLyricsEnabled(true)))
         assertFalse(applier.apply(SettingsRuntimeEffect.ApplyFloatingLyrics(true)))
-        assertTrue(applier.apply(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings))
+        assertFalse(applier.apply(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings))
 
         assertEquals(listOf("theme"), calls)
     }

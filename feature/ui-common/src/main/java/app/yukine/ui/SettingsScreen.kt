@@ -67,6 +67,7 @@ data class SettingsAction(
     val description: String = "",
     val value: String = "",
     val style: SettingsActionStyle = SettingsActionStyle.Default,
+    val icon: EchoIconKind? = null,
     val checked: Boolean = false,
     val enabled: Boolean = true,
     val sliderValue: Float = 0f,
@@ -450,6 +451,7 @@ private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {
 }
 
 internal fun iconForSettingsAction(action: SettingsAction): EchoIconKind {
+    action.icon?.let { return it }
     val label = action.label
     fun has(vararg keys: String) = keys.any { label.contains(it, ignoreCase = true) }
     if (isBackAction(label)) return EchoIconKind.Back
