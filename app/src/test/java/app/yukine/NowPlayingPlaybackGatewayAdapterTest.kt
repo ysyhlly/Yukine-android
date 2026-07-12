@@ -33,11 +33,13 @@ class NowPlayingPlaybackGatewayAdapterTest {
     }
 
     @Test
-    fun missingServiceKeepsCommandsAsNoOps() {
+    fun missingServiceQueuesReliableCommandsAndUsesActionsForSkipping() {
         val startedActions = mutableListOf<String?>()
+        val commandQueue = PlaybackServiceCommandQueue()
         val gateway = NowPlayingPlaybackGatewayAdapter(
             serviceProvider = { null },
-            serviceStarter = { startedActions += it }
+            serviceStarter = { startedActions += it },
+            commandQueue = commandQueue
         )
 
         gateway.play()
@@ -53,6 +55,55 @@ class NowPlayingPlaybackGatewayAdapterTest {
             startedActions
         )
         assertEquals(false, gateway.serviceConnected())
+        assertEquals(1, commandQueue.pendingCount())
+    }
+
+    @Test
+    fun disconnectedCommandsFlushInOrderWhenServiceConnects() {
+        var service: FakeNowPlayingPlaybackServicePort? = null
+        val startedActions = mutableListOf<String?>()
+        val commandQueue = PlaybackServiceCommandQueue()
+        val gateway = NowPlayingPlaybackGatewayAdapter(
+            serviceProvider = { service },
+            serviceStarter = { startedActions += it },
+            commandQueue = commandQueue
+        )
+        val first = track(7L)
+        val second = track(8L)
+
+        gateway.seekTo(1_200L)
+        gateway.replaceQueuedTrack(first)
+        gateway.appendToQueue(listOf(second))
+
+        assertEquals(emptyList<String?>(), startedActions)
+        assertEquals(3, commandQueue.pendingCount())
+
+        service = FakeNowPlayingPlaybackServicePort()
+        commandQueue.flush(service)
+
+        assertEquals(
+            listOf("seek:1200", "replace:7", "append:1"),
+            service.calls
+        )
+        assertEquals(0, commandQueue.pendingCount())
+    }
+
+    @Test
+    fun nextConnectedCommandFlushesEarlierPendingCommandsFirst() {
+        var service: FakeNowPlayingPlaybackServicePort? = null
+        val commandQueue = PlaybackServiceCommandQueue()
+        val gateway = NowPlayingPlaybackGatewayAdapter(
+            serviceProvider = { service },
+            serviceStarter = { },
+            commandQueue = commandQueue
+        )
+
+        gateway.seekTo(900L)
+        service = FakeNowPlayingPlaybackServicePort()
+        gateway.pause()
+
+        assertEquals(listOf("seek:900", "pause"), service.calls)
+        assertEquals(0, commandQueue.pendingCount())
     }
 
     private class FakeNowPlayingPlaybackServicePort : NowPlayingPlaybackServicePort {

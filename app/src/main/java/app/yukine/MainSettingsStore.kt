@@ -11,6 +11,7 @@ internal class MainSettingsStore {
     private var playbackSpeed: Float = 1.0f
     private var appVolume: Float = 1.0f
     private var streamingAudioQuality: String = StreamingQualityPreference.defaultValue()
+    private var refuseAutomaticQualityDowngrade: Boolean = false
     private var concurrentPlaybackEnabled: Boolean = false
     private var audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT
     private var statusBarLyricsEnabled: Boolean = true
@@ -36,6 +37,7 @@ internal class MainSettingsStore {
         playbackSpeed = preferences.playbackSpeed
         appVolume = preferences.appVolume
         streamingAudioQuality = preferences.streamingAudioQuality
+        refuseAutomaticQualityDowngrade = preferences.refuseAutomaticQualityDowngrade
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
@@ -65,6 +67,7 @@ internal class MainSettingsStore {
         playbackSpeed = preferences.playbackSpeed
         appVolume = preferences.appVolume
         streamingAudioQuality = StreamingQualityPreference.normalize(preferences.streamingAudioQuality)
+        refuseAutomaticQualityDowngrade = preferences.refuseAutomaticQualityDowngrade
         concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
@@ -84,6 +87,33 @@ internal class MainSettingsStore {
         shareStyle = TrackShareStyle.normalize(preferences.shareStyle)
         pageBackgrounds = preferences.pageBackgrounds
     }
+
+    fun preferencesSnapshot(): SettingsPreferencesSnapshot =
+        SettingsPreferencesSnapshot(
+            themeMode = themeMode,
+            accentMode = accentMode,
+            languageMode = languageMode,
+            playbackSpeed = playbackSpeed,
+            appVolume = appVolume,
+            streamingAudioQuality = streamingAudioQuality,
+            refuseAutomaticQualityDowngrade = refuseAutomaticQualityDowngrade,
+            concurrentPlaybackEnabled = concurrentPlaybackEnabled,
+            audioEffectSettings = audioEffectSettings,
+            statusBarLyricsEnabled = statusBarLyricsEnabled,
+            systemMediaLyricsTitleEnabled = systemMediaLyricsTitleEnabled,
+            floatingLyricsEnabled = floatingLyricsEnabled,
+            nowPlayingGesturesEnabled = nowPlayingGesturesEnabled,
+            playbackRestoreEnabled = playbackRestoreEnabled,
+            replayGainEnabled = replayGainEnabled,
+            debugPromptsEnabled = debugPromptsEnabled,
+            customBackgroundBlurEnabled = customBackgroundBlurEnabled,
+            customBackgroundBlurRadiusDp = customBackgroundBlurRadiusDp,
+            glassBlurEnabled = glassBlurEnabled,
+            glassBlurRadiusDp = glassBlurRadiusDp,
+            glassSurfaceOpacity = glassSurfaceOpacity,
+            shareStyle = shareStyle,
+            pageBackgrounds = pageBackgrounds
+        )
 
     fun themeMode(): String {
         return themeMode
@@ -108,6 +138,8 @@ internal class MainSettingsStore {
     fun streamingAudioQuality(): String {
         return streamingAudioQuality
     }
+
+    fun refuseAutomaticQualityDowngrade(): Boolean = refuseAutomaticQualityDowngrade
 
     fun concurrentPlaybackEnabled(): Boolean {
         return concurrentPlaybackEnabled
@@ -184,6 +216,10 @@ internal class MainSettingsStore {
 
     fun setStreamingAudioQuality(streamingAudioQuality: String) {
         this.streamingAudioQuality = StreamingQualityPreference.normalize(streamingAudioQuality)
+    }
+
+    fun setRefuseAutomaticQualityDowngrade(refuse: Boolean) {
+        refuseAutomaticQualityDowngrade = refuse
     }
 
     fun setConcurrentPlaybackEnabled(concurrentPlaybackEnabled: Boolean) {

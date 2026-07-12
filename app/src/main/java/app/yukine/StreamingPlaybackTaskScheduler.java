@@ -76,6 +76,11 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
             nextResolveQueue.offer(scheduledTask);
             drainNextResolve();
         } else {
+            if (priority == Priority.CURRENT_URL_RESOLVE) {
+                // Only the newest not-yet-started foreground selection is actionable. An active
+                // resolve is allowed to finish, while the controller rejects its stale result.
+                criticalQueue.removeIf(queued -> queued.priority == Priority.CURRENT_URL_RESOLVE);
+            }
             criticalQueue.offer(scheduledTask);
             drainCritical();
         }

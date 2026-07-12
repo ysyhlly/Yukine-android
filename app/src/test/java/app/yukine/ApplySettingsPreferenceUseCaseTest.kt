@@ -93,6 +93,10 @@ class ApplySettingsPreferenceUseCaseTest {
             events.add("quality:$quality")
         }
 
+        override fun saveRefuseAutomaticQualityDowngrade(refuse: Boolean) {
+            events.add("refuseQualityDowngrade:$refuse")
+        }
+
         override fun saveOnlineLyricsEnabled(enabled: Boolean) {
             events.add("onlineLyrics:$enabled")
         }

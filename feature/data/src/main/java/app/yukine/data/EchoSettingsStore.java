@@ -29,6 +29,10 @@ final class EchoSettingsStore {
     void saveAppVolume(float volume) { database.saveAppVolume(volume); }
     String loadStreamingAudioQuality() { return database.loadStreamingAudioQuality(); }
     void saveStreamingAudioQuality(String quality) { database.saveStreamingAudioQuality(quality); }
+    boolean loadRefuseAutomaticQualityDowngrade() { return database.loadRefuseAutomaticQualityDowngrade(); }
+    void saveRefuseAutomaticQualityDowngrade(boolean refuse) {
+        database.saveRefuseAutomaticQualityDowngrade(refuse);
+    }
     boolean loadOnlineLyricsEnabled() { return database.loadOnlineLyricsEnabled(); }
     void saveOnlineLyricsEnabled(boolean enabled) { database.saveOnlineLyricsEnabled(enabled); }
     boolean loadConcurrentPlaybackEnabled() { return database.loadConcurrentPlaybackEnabled(); }

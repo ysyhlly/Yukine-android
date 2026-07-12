@@ -173,6 +173,7 @@ data class StreamingPlaylistImportTarget(
 )
 
 data class StreamingRecoveryResolution(
+    val expectedTrackId: Long,
     val track: Track,
     val quality: StreamingAudioQuality,
     val positionMs: Long
@@ -182,7 +183,9 @@ data class StreamingPlaybackStatusText(
     val resolving: String = "",
     val resolveFailed: String = "",
     val qualityDowngrading: String = "",
-    val qualityDowngraded: String = ""
+    val qualityDowngraded: String = "",
+    val qualityRefreshing: String = "",
+    val qualityRefreshed: String = ""
 )
 
 data class StreamingStatusText(

@@ -10,6 +10,8 @@ internal class StreamingPlaybackController(
     private val nowPlayingViewModel: NowPlayingViewModel,
     private val listener: Listener
 ) {
+    private var foregroundResolveGeneration = 0L
+
     private companion object {
         private const val PRE_RESOLVE_WINDOW_TARGETS = 3
         private const val PRE_RESOLVE_LOOKAHEAD_LIMIT = 32
@@ -21,6 +23,8 @@ internal class StreamingPlaybackController(
         fun adaptiveStreamingQuality(): StreamingAudioQuality
 
         fun selectedStreamingQuality(): StreamingAudioQuality
+
+        fun refuseAutomaticQualityDowngrade(): Boolean
 
         fun queueSnapshot(): List<Track>
 
@@ -36,11 +40,15 @@ internal class StreamingPlaybackController(
     }
 
     fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean {
+        val generation = nextForegroundResolveGeneration()
         val scheduled = streamingViewModel.resolveStreamingTrackListForPlayback(
             tracks,
             index,
             listener.adaptiveStreamingQuality()
         ) { resolved ->
+            if (!isCurrentForegroundResolve(generation)) {
+                return@resolveStreamingTrackListForPlayback
+            }
             if (resolved == null) {
                 publishResolveFailure()
                 return@resolveStreamingTrackListForPlayback
@@ -62,11 +70,15 @@ internal class StreamingPlaybackController(
         expectedTrackId: Long,
         positionMs: Long
     ): Boolean {
+        val generation = nextForegroundResolveGeneration()
         val scheduled = streamingViewModel.resolveStreamingTrackListForPlayback(
             tracks,
             index,
             listener.adaptiveStreamingQuality()
         ) { resolved ->
+            if (!isCurrentForegroundResolve(generation)) {
+                return@resolveStreamingTrackListForPlayback
+            }
             if (resolved == null) {
                 publishResolveFailure()
                 return@resolveStreamingTrackListForPlayback
@@ -189,29 +201,45 @@ internal class StreamingPlaybackController(
         if (snapshot == null) {
             return
         }
+        val refuseAutomaticQualityDowngrade = listener.refuseAutomaticQualityDowngrade()
         val recoveryQuality = streamingViewModel.recoverStreamingBuffering(
             snapshot,
             listener.selectedStreamingQuality(),
-            listener.adaptiveStreamingQuality()
+            listener.adaptiveStreamingQuality(),
+            refuseAutomaticQualityDowngrade
         ) { resolved ->
             if (resolved == null) {
                 return@recoverStreamingBuffering
             }
-            nowPlayingViewModel.replaceCurrentTrackAndResume(resolved.track, resolved.positionMs)
+            nowPlayingViewModel.replaceCurrentSourceAndResume(
+                resolved.expectedTrackId,
+                resolved.track,
+                resolved.positionMs
+            )
+            val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+                listener.languageMode(),
+                resolved.quality
+            )
             listener.setStatus(
-                streamingViewModel.prepareStreamingPlaybackStatusText(
-                    listener.languageMode(),
-                    resolved.quality
-                ).qualityDowngraded
+                if (refuseAutomaticQualityDowngrade) status.qualityRefreshed else status.qualityDowngraded
             )
         } ?: return
+        val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+            listener.languageMode(),
+            recoveryQuality
+        )
         listener.setStatus(
-            streamingViewModel.prepareStreamingPlaybackStatusText(
-                listener.languageMode(),
-                recoveryQuality
-            ).qualityDowngrading
+            if (refuseAutomaticQualityDowngrade) status.qualityRefreshing else status.qualityDowngrading
         )
     }
 
     private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
+
+    private fun nextForegroundResolveGeneration(): Long {
+        foregroundResolveGeneration += 1L
+        return foregroundResolveGeneration
+    }
+
+    private fun isCurrentForegroundResolve(generation: Long): Boolean =
+        generation == foregroundResolveGeneration
 }

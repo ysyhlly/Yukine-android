@@ -855,8 +855,10 @@ internal object SettingsPageStateBuilder {
     fun streamingAudioQuality(
         languageMode: String,
         quality: String,
+        refuseAutomaticQualityDowngrade: Boolean,
         onNavigate: (SettingsPage) -> Unit,
-        onApplyQuality: (String) -> Unit
+        onApplyQuality: (String) -> Unit,
+        onRefuseAutomaticQualityDowngradeChange: (Boolean) -> Unit
     ): SettingsPageStateContent {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
         val metrics = listOf(
@@ -866,6 +868,18 @@ internal object SettingsPageStateBuilder {
         )
         val actions = buildList {
             add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingAudioQuality), onNavigate))
+            add(
+                SettingsAction(
+                    label = text(languageMode, "quality.downgrade.refuse"),
+                    onClick = Runnable {
+                        onRefuseAutomaticQualityDowngradeChange(!refuseAutomaticQualityDowngrade)
+                    },
+                    description = text(languageMode, "quality.downgrade.refuse.hint"),
+                    style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Gauge,
+                    checked = refuseAutomaticQualityDowngrade
+                )
+            )
             StreamingQualityPreference.options().forEach { option ->
                 val normalizedOption = StreamingQualityPreference.normalize(option)
                 val audioQuality = StreamingAudioQuality.fromWireName(normalizedOption)

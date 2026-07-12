@@ -626,6 +626,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         this::adaptiveStreamingQuality,
                         this::selectedStreamingQuality,
+                        () -> settingsStore != null && settingsStore.refuseAutomaticQualityDowngrade(),
                         new StreamingQueueReadSource() {
                             @Override
                             public List<Track> queueSnapshot() {
@@ -1275,6 +1276,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
+        releaseViewModelHostBindings();
         if (onboardingController != null) {
             onboardingController.release();
         }
@@ -1286,6 +1288,55 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         executors.shutdownNow();
         super.onDestroy();
+    }
+
+    /**
+     * ViewModels survive configuration changes, while every callback assembled by this host points
+     * at the current Activity or one of its activity-scoped owners. Clear those boundaries before
+     * releasing the host so asynchronous work cannot publish into a destroyed Activity.
+     */
+    private void releaseViewModelHostBindings() {
+        if (nowPlayingViewModel != null) {
+            nowPlayingViewModel.bindGateway(null);
+            nowPlayingViewModel.bindPlaybackGateway(null);
+            nowPlayingViewModel.bindSourceCandidatesProvider(null);
+            nowPlayingViewModel.bindLuoxueTrackMetadataResolver(null);
+        }
+        if (queueViewModel != null) {
+            queueViewModel.bindIntentListener(null);
+        }
+        if (lyricsViewModel != null) {
+            lyricsViewModel.bindListener(null);
+            lyricsViewModel.bindReloadGateway(null, null, null);
+        }
+        if (settingsViewModel != null) {
+            settingsViewModel.bindEffectListener(null);
+            settingsViewModel.bindRuntimeEffectListener(null);
+            settingsViewModel.bindPreferenceGateway(null);
+            settingsViewModel.bindStoreMirror(null);
+        }
+        if (networkActionsViewModel != null) {
+            networkActionsViewModel.bindListener(null);
+            networkActionsViewModel.bindUseCases(null);
+        }
+        if (libraryViewModel != null) {
+            libraryViewModel.bindGateway(null);
+            libraryViewModel.bindPlaylistTrackLoader(null);
+            libraryViewModel.bindFavoriteWriter(null);
+            libraryViewModel.bindFavoriteIdsProvider(null);
+            libraryViewModel.bindCollectionGateway(null);
+            libraryViewModel.bindImportGateway(null);
+            libraryViewModel.bindDocumentGateway(null);
+            libraryViewModel.bindPlaylistActionGateway(null);
+        }
+        if (streamingViewModel != null) {
+            streamingViewModel.bindStreamingPlaybackCoordinator(null, null);
+            streamingViewModel.bindStreamingLocalPlaylistOperations(null);
+            streamingViewModel.bindStreamingTrackMatchStore(null);
+        }
+        if (streamingRecommendationViewModel != null) {
+            streamingRecommendationViewModel.bindStreamingTrackMatchStore(null);
+        }
     }
 
     @Override

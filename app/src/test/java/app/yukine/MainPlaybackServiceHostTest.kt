@@ -75,7 +75,9 @@ class MainPlaybackServiceHostTest {
     @Test
     fun factoryCreatesPlaybackServiceHostControllerHost() {
         val calls = mutableListOf<String>()
-        val host = PlaybackUiModule.provideMainPlaybackServiceHostFactory().create(
+        val host = PlaybackUiModule.provideMainPlaybackServiceHostFactory(
+            PlaybackServiceCommandQueue()
+        ).create(
             MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
             MainPlaybackServiceHost.AppVolumeSource { 0.9f },
             MainPlaybackServiceHost.ConcurrentPlaybackSource { false },

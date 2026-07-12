@@ -10,31 +10,7 @@ internal class SettingsContextProvider(
     private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
     private val repository: app.yukine.data.MusicLibraryRepository
 ) {
-    fun preferencesSnapshot(): SettingsPreferencesSnapshot =
-        SettingsPreferencesSnapshot(
-            themeMode = settingsStore.themeMode(),
-            accentMode = settingsStore.accentMode(),
-            languageMode = settingsStore.languageMode(),
-            playbackSpeed = settingsStore.playbackSpeed(),
-            appVolume = settingsStore.appVolume(),
-            streamingAudioQuality = settingsStore.streamingAudioQuality(),
-            concurrentPlaybackEnabled = settingsStore.concurrentPlaybackEnabled(),
-            audioEffectSettings = settingsStore.audioEffectSettings(),
-            statusBarLyricsEnabled = settingsStore.statusBarLyricsEnabled(),
-            systemMediaLyricsTitleEnabled = settingsStore.systemMediaLyricsTitleEnabled(),
-            floatingLyricsEnabled = settingsStore.floatingLyricsEnabled(),
-            nowPlayingGesturesEnabled = settingsStore.nowPlayingGesturesEnabled(),
-            playbackRestoreEnabled = settingsStore.playbackRestoreEnabled(),
-            replayGainEnabled = settingsStore.replayGainEnabled(),
-            debugPromptsEnabled = settingsStore.debugPromptsEnabled(),
-            customBackgroundBlurEnabled = settingsStore.customBackgroundBlurEnabled(),
-            customBackgroundBlurRadiusDp = settingsStore.customBackgroundBlurRadiusDp(),
-            glassBlurEnabled = settingsStore.glassBlurEnabled(),
-            glassBlurRadiusDp = settingsStore.glassBlurRadiusDp(),
-            glassSurfaceOpacity = settingsStore.glassSurfaceOpacity(),
-            shareStyle = settingsStore.shareStyle(),
-            pageBackgrounds = settingsStore.pageBackgrounds()
-        )
+    fun preferencesSnapshot(): SettingsPreferencesSnapshot = settingsStore.preferencesSnapshot()
 
     fun runtimeStatus(): RuntimeSettingsStatus {
         val allTracks = libraryStore.allTracks()

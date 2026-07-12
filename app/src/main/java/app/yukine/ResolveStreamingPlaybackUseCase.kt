@@ -28,6 +28,7 @@ data class StreamingPreResolveRequest(
 
 data class StreamingRecoveryRequest(
     val key: String,
+    val expectedTrackId: Long,
     val provider: StreamingProviderName,
     val providerTrackId: String,
     val quality: StreamingAudioQuality,
@@ -64,7 +65,8 @@ interface StreamingPlaybackResolvePlanner : StreamingPreResolvePlanner {
     fun prepareRecovery(
         snapshot: PlaybackStateSnapshot?,
         selectedQuality: StreamingAudioQuality,
-        adaptiveQuality: StreamingAudioQuality
+        adaptiveQuality: StreamingAudioQuality,
+        refuseAutomaticQualityDowngrade: Boolean
     ): StreamingRecoveryRequest?
 
     fun clearRecovery(key: String?)
@@ -76,7 +78,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     private val preResolveProgress: Float = 0.70f,
     private val preResolveRetryMs: Long = 120_000L,
     private val recoveryCooldownMs: Long = 20_000L,
-    private val recoveryWarmupMs: Long = 8_000L,
+    private val recoveryWarmupMs: Long = 2_000L,
     private val unresolvedStreamingTrack: (Track?) -> Boolean = StreamingPlaybackAdapter::isUnresolvedStreamingTrack
 ) : StreamingPlaybackResolvePlanner {
     private var preResolvingKey = ""
@@ -177,7 +179,8 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     override fun prepareRecovery(
         snapshot: PlaybackStateSnapshot?,
         selectedQuality: StreamingAudioQuality,
-        adaptiveQuality: StreamingAudioQuality
+        adaptiveQuality: StreamingAudioQuality,
+        refuseAutomaticQualityDowngrade: Boolean
     ): StreamingRecoveryRequest? {
         val current = snapshot?.currentTrack ?: return null
         if (!StreamingPlaybackAdapter.isStreamingTrack(current) ||
@@ -185,16 +188,24 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         ) {
             return null
         }
-        if (snapshot.positionMs < recoveryWarmupMs) {
+        // Initial source preparation can legitimately buffer at a restored position. Only recover
+        // once the source has reached READY (preparing=false) and then stalls after real playback.
+        if (snapshot.preparing || snapshot.positionMs < recoveryWarmupMs) {
             return null
         }
         val provider = StreamingPlaybackAdapter.streamingProviderName(current.dataPath) ?: return null
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(current.dataPath)
             .takeIf { it.isNotBlank() }
             ?: return null
-        val recoveryQuality = recoveryQuality(selectedQuality)
-        if (recoveryQuality == adaptiveQuality) {
-            return null
+        val activeQuality = if (adaptiveQuality.ordinal < selectedQuality.ordinal) {
+            adaptiveQuality
+        } else {
+            selectedQuality
+        }
+        val recoveryQuality = if (refuseAutomaticQualityDowngrade) {
+            activeQuality
+        } else {
+            recoveryQuality(activeQuality)
         }
         val key = "${provider.wireName}:$providerTrackId:${recoveryQuality.name}"
         val now = clockMs()
@@ -208,6 +219,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         lastRecoveryAtMs = now
         return StreamingRecoveryRequest(
             key = key,
+            expectedTrackId = current.id,
             provider = provider,
             providerTrackId = providerTrackId,
             quality = recoveryQuality,

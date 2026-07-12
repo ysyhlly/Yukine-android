@@ -33,9 +33,10 @@ internal object PlaybackUiModule {
     @Provides
     @ActivityScoped
     fun provideMainNowPlayingPlaybackGatewayFactory(
-        serviceStarter: NowPlayingPlaybackServiceStarter
+        serviceStarter: NowPlayingPlaybackServiceStarter,
+        commandQueue: PlaybackServiceCommandQueue
     ): MainNowPlayingPlaybackGatewayFactory {
-        return MainNowPlayingPlaybackGatewayFactory(serviceStarter::startPlaybackService)
+        return MainNowPlayingPlaybackGatewayFactory(serviceStarter::startPlaybackService, commandQueue)
     }
 
     @Provides
@@ -96,6 +97,7 @@ internal object PlaybackUiModule {
                 languageProvider,
                 adaptiveQualityProvider,
                 selectedQualityProvider,
+                automaticQualityDowngradePreference,
                 queueSnapshotSource,
                 heartbeatAppendHandler,
                 resultSink,
@@ -104,6 +106,7 @@ internal object PlaybackUiModule {
                 languageProvider,
                 adaptiveQualityProvider,
                 selectedQualityProvider,
+                automaticQualityDowngradePreference,
                 queueSnapshotSource,
                 heartbeatAppendHandler,
                 resultSink,
@@ -169,7 +172,9 @@ internal object PlaybackUiModule {
 
     @Provides
     @ActivityScoped
-    fun provideMainPlaybackServiceHostFactory(): MainPlaybackServiceHostFactory =
+    fun provideMainPlaybackServiceHostFactory(
+        commandQueue: PlaybackServiceCommandQueue
+    ): MainPlaybackServiceHostFactory =
         MainPlaybackServiceHostFactory {
                 playbackSpeedSource,
                 appVolumeSource,
@@ -192,7 +197,10 @@ internal object PlaybackUiModule {
                 systemMediaLyricsTitleSource,
                 playbackRestoreSource,
                 replayGainSource,
-                playbackServiceAttacher,
+                MainPlaybackServiceHost.PlaybackServiceAttacher { service ->
+                    playbackServiceAttacher.attachPlaybackService(service)
+                    commandQueue.flush(service)
+                },
                 playbackServiceClearer,
                 playbackStoreResetter,
                 pendingTracksPlayer,

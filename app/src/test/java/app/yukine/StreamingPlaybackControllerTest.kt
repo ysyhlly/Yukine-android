@@ -145,6 +145,8 @@ class StreamingPlaybackControllerTest {
 
         override fun selectedStreamingQuality(): StreamingAudioQuality = StreamingAudioQuality.HIGH
 
+        override fun refuseAutomaticQualityDowngrade(): Boolean = false
+
         override fun queueSnapshot(): List<Track> {
             queueSnapshotReads += 1
             return queue
@@ -193,7 +195,8 @@ class StreamingPlaybackControllerTest {
         override fun prepareRecovery(
             snapshot: PlaybackStateSnapshot?,
             selectedQuality: StreamingAudioQuality,
-            adaptiveQuality: StreamingAudioQuality
+            adaptiveQuality: StreamingAudioQuality,
+            refuseAutomaticQualityDowngrade: Boolean
         ): StreamingRecoveryRequest? = null
 
         override fun clearRecovery(key: String?) {}

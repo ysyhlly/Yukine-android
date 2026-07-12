@@ -126,4 +126,28 @@ public class StreamingPlaybackTaskSchedulerTest {
         Assert.assertEquals("throw,next,", order.toString());
         Assert.assertEquals(StreamingPlaybackTaskScheduler.Priority.NEXT_URL_RESOLVE, failedPriority.get());
     }
+
+    @Test
+    public void newestQueuedCurrentResolveSupersedesOlderQueuedResolve() {
+        StreamingPlaybackTaskScheduler scheduler = new StreamingPlaybackTaskScheduler();
+        StringBuilder order = new StringBuilder();
+        final Runnable[] activeCompletion = new Runnable[1];
+
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("active,");
+            activeCompletion[0] = completion;
+        });
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("superseded,");
+            completion.run();
+        });
+        scheduler.scheduleCurrentUrlResolve(completion -> {
+            order.append("latest,");
+            completion.run();
+        });
+
+        activeCompletion[0].run();
+
+        Assert.assertEquals("active,latest,", order.toString());
+    }
 }

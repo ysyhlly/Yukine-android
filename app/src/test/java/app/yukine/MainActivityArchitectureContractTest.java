@@ -108,6 +108,23 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(countMatching("app/src/test/java/app/yukine", "Bindings") == 0);
     }
 
+    @Test
+    public void activityClearsRetainedViewModelHostCallbacksBeforeRelease() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        int onDestroy = activity.indexOf("protected void onDestroy()");
+        int releaseBindings = activity.indexOf("releaseViewModelHostBindings();", onDestroy);
+        int releaseConnection = activity.indexOf("playbackServiceConnectionController.release();", onDestroy);
+
+        assertTrue(onDestroy >= 0);
+        assertTrue(releaseBindings > onDestroy);
+        assertTrue(releaseConnection > releaseBindings);
+        assertTrue(activity.contains("lyricsViewModel.bindListener(null)"));
+        assertTrue(activity.contains("settingsViewModel.bindEffectListener(null)"));
+        assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
+        assertTrue(activity.contains("queueViewModel.bindIntentListener(null)"));
+        assertTrue(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
+    }
+
     private static List<Path> sourceFiles(String relativeDirectory) throws IOException {
         try (Stream<Path> stream = Files.walk(root().resolve(relativeDirectory))) {
             return stream.filter(Files::isRegularFile)

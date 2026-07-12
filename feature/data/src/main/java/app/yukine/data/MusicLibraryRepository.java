@@ -705,6 +705,14 @@ public final class MusicLibraryRepository {
         settingsStore.saveStreamingAudioQuality(StreamingQualityPreference.normalize(quality));
     }
 
+    public boolean loadRefuseAutomaticQualityDowngrade() {
+        return settingsStore.loadRefuseAutomaticQualityDowngrade();
+    }
+
+    public void saveRefuseAutomaticQualityDowngrade(boolean refuse) {
+        settingsStore.saveRefuseAutomaticQualityDowngrade(refuse);
+    }
+
     public boolean loadOnlineLyricsEnabled() {
         return settingsStore.loadOnlineLyricsEnabled();
     }

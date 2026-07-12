@@ -281,6 +281,10 @@ public final class AppLanguage {
         put("speed.description", "Adjust playback speed", "\u8c03\u6574\u64ad\u653e\u901f\u5ea6");
         put("volume.description", "Adjust app playback volume", "\u8c03\u6574\u5e94\u7528\u64ad\u653e\u97f3\u91cf");
         put("streaming.quality.description", "Choose the maximum quality for online playback. Lower quality can reduce buffering.", "\u9009\u62e9\u5728\u7ebf\u64ad\u653e\u7684\u6700\u9ad8\u97f3\u8d28\u3002\u964d\u4f4e\u97f3\u8d28\u53ef\u51cf\u5c11\u7f13\u51b2\u3002");
+        put("quality.downgrade.refuse", "Refuse automatic quality downgrade", "\u62d2\u7edd\u81ea\u52a8\u964d\u4f4e\u97f3\u8d28");
+        put("quality.downgrade.refuse.hint", "Refresh expired playback links at the current quality. Playback may keep buffering when that quality is unavailable.", "\u64ad\u653e\u5730\u5740\u5931\u6548\u65f6\u4ecd\u4ee5\u5f53\u524d\u97f3\u8d28\u91cd\u65b0\u62c9\u53d6\uff1b\u5982\u679c\u8be5\u97f3\u8d28\u4e0d\u53ef\u7528\uff0c\u53ef\u80fd\u4f1a\u7ee7\u7eed\u7f13\u51b2\u3002");
+        put("quality.downgrade.refused", "Automatic quality downgrade disabled", "\u5df2\u62d2\u7edd\u81ea\u52a8\u964d\u4f4e\u97f3\u8d28");
+        put("quality.downgrade.allowed", "Automatic quality downgrade enabled", "\u5df2\u5141\u8bb8\u81ea\u52a8\u964d\u4f4e\u97f3\u8d28");
         put("concurrent.playback.description", "Keep playing alongside other media apps instead of pausing them. Yukine will not request audio focus, so it won't pause other apps and won't be paused by them.", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u5e94\u7528\u540c\u65f6\u51fa\u58f0\uff0c\u800c\u4e0d\u662f\u6682\u505c\u5b83\u4eec\u3002Yukine \u4e0d\u518d\u62a2\u5360\u97f3\u9891\u7126\u70b9\uff0c\u56e0\u6b64\u65e2\u4e0d\u4f1a\u6682\u505c\u5176\u4ed6\u5e94\u7528\uff0c\u4e5f\u4e0d\u4f1a\u88ab\u5b83\u4eec\u6682\u505c\u3002");
         put("enable.concurrent.playback", "Enable mixing", "\u5f00\u542f\u540c\u65f6\u64ad\u653e");
         put("disable.concurrent.playback", "Disable mixing", "\u5173\u95ed\u540c\u65f6\u64ad\u653e");
@@ -357,6 +361,8 @@ public final class AppLanguage {
         put("streaming.quality.applied", "Streaming quality: ", "\u6d41\u5a92\u4f53\u97f3\u8d28\uff1a");
         put("streaming.quality.downgrading", "Buffering, switching stream to ", "\u7f13\u51b2\u5361\u987f\uff0c\u6b63\u5728\u5207\u6362\u5230 ");
         put("streaming.quality.downgraded", "Stream switched to ", "\u5df2\u5207\u6362\u5230 ");
+        put("streaming.quality.refreshing", "Refreshing playback link at ", "\u6b63\u5728\u4ee5\u5f53\u524d\u97f3\u8d28\u5237\u65b0\u64ad\u653e\u5730\u5740\uff1a");
+        put("streaming.quality.refreshed", "Playback link refreshed at ", "\u5df2\u4ee5\u5f53\u524d\u97f3\u8d28\u5237\u65b0\u64ad\u653e\u5730\u5740\uff1a");
         put("online.lyrics.enabled", "Online lyrics enabled", "\u5df2\u5f00\u542f\u5728\u7ebf\u6b4c\u8bcd");
         put("online.lyrics.disabled", "Online lyrics disabled", "\u5df2\u5173\u95ed\u5728\u7ebf\u6b4c\u8bcd");
         put("concurrent.playback.enabled", "Mixing with other media enabled", "\u5df2\u5f00\u542f\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");

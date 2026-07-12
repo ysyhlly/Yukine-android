@@ -89,20 +89,87 @@ class ResolveStreamingPlaybackUseCaseTest {
         val request = useCase.prepareRecovery(
             snapshot,
             selectedQuality = StreamingAudioQuality.HIRES,
-            adaptiveQuality = StreamingAudioQuality.HIRES
+            adaptiveQuality = StreamingAudioQuality.HIRES,
+            refuseAutomaticQualityDowngrade = false
         )
-        val duplicate = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES)
+        val duplicate = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES, false)
         useCase.clearRecovery(request?.key)
-        val cooledDownDuplicate = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES)
+        val cooledDownDuplicate = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES, false)
         now += 21_000L
-        val retried = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES)
+        val retried = useCase.prepareRecovery(snapshot, StreamingAudioQuality.HIRES, StreamingAudioQuality.HIRES, false)
 
         requireNotNull(request)
+        assertEquals(current.id, request.expectedTrackId)
         assertEquals(StreamingAudioQuality.LOSSLESS, request.quality)
         assertEquals("netease:song-1:LOSSLESS", request.key)
         assertNull(duplicate)
         assertNull(cooledDownDuplicate)
         assertEquals(StreamingAudioQuality.LOSSLESS, retried?.quality)
+    }
+
+    @Test
+    fun prepareRecoveryHandlesThreeSecondPostReadyStallEvenAtAdaptiveQuality() {
+        val useCase = ResolveStreamingPlaybackUseCase(unresolvedStreamingTrack = { false })
+        val current = resolvedStreamingTrack("early-stall")
+        val snapshot = snapshot(
+            current,
+            currentIndex = 0,
+            queueSize = 1,
+            positionMs = 3_000L,
+            preparing = false
+        )
+
+        val request = useCase.prepareRecovery(
+            snapshot,
+            selectedQuality = StreamingAudioQuality.STANDARD,
+            adaptiveQuality = StreamingAudioQuality.STANDARD,
+            refuseAutomaticQualityDowngrade = false
+        )
+
+        requireNotNull(request)
+        assertEquals(StreamingAudioQuality.STANDARD, request.quality)
+    }
+
+    @Test
+    fun prepareRecoveryIgnoresInitialPreparationAtRestoredPosition() {
+        val useCase = ResolveStreamingPlaybackUseCase(unresolvedStreamingTrack = { false })
+        val current = resolvedStreamingTrack("restored")
+        val snapshot = snapshot(
+            current,
+            currentIndex = 0,
+            queueSize = 1,
+            positionMs = 30_000L,
+            preparing = true
+        )
+
+        assertNull(
+            useCase.prepareRecovery(
+                snapshot,
+                selectedQuality = StreamingAudioQuality.HIGH,
+                adaptiveQuality = StreamingAudioQuality.HIGH,
+                refuseAutomaticQualityDowngrade = false
+            )
+        )
+    }
+
+    @Test
+    fun prepareRecoveryRefreshesAtCurrentQualityWhenDowngradeIsRefused() {
+        val useCase = ResolveStreamingPlaybackUseCase(unresolvedStreamingTrack = { false })
+        val request = useCase.prepareRecovery(
+            snapshot(
+                resolvedStreamingTrack("keep-quality"),
+                currentIndex = 0,
+                queueSize = 1,
+                positionMs = 3_000L
+            ),
+            selectedQuality = StreamingAudioQuality.LOSSLESS,
+            adaptiveQuality = StreamingAudioQuality.LOSSLESS,
+            refuseAutomaticQualityDowngrade = true
+        )
+
+        requireNotNull(request)
+        assertEquals(StreamingAudioQuality.LOSSLESS, request.quality)
+        assertEquals("netease:keep-quality:LOSSLESS", request.key)
     }
 
     @Test
@@ -249,7 +316,8 @@ class ResolveStreamingPlaybackUseCaseTest {
         currentIndex: Int,
         queueSize: Int,
         positionMs: Long = 0L,
-        durationMs: Long = 1000L
+        durationMs: Long = 1000L,
+        preparing: Boolean = false
     ): PlaybackStateSnapshot =
         PlaybackStateSnapshot(
             track,
@@ -258,7 +326,7 @@ class ResolveStreamingPlaybackUseCaseTest {
             positionMs,
             durationMs,
             true,
-            false,
+            preparing,
             "",
             false,
             0,

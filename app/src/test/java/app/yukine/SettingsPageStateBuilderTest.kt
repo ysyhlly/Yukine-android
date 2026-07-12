@@ -732,12 +732,15 @@ class SettingsPageStateBuilderTest {
     fun streamingAudioQualityBuildsPlatformMappingActions() {
         val navigated = mutableListOf<SettingsPage>()
         val applied = mutableListOf<String>()
+        val downgradePreferences = mutableListOf<Boolean>()
 
         val content = SettingsPageStateBuilder.streamingAudioQuality(
             languageMode = AppLanguage.MODE_ENGLISH,
             quality = StreamingQualityPreference.LOSSLESS,
+            refuseAutomaticQualityDowngrade = false,
             onNavigate = { page -> navigated += page },
-            onApplyQuality = { quality -> applied += quality }
+            onApplyQuality = { quality -> applied += quality },
+            onRefuseAutomaticQualityDowngradeChange = { refuse -> downgradePreferences += refuse }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.audio.quality"), content.uiState.title)
@@ -746,19 +749,23 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.platform.mapping.summary"), content.uiState.metrics[2].value)
         assertTrue(content.uiState.metrics[1].compact)
         assertTrue(content.uiState.metrics[2].compact)
-        assertEquals(6, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.actions[4].label)
+        assertEquals(7, content.actions.size)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[1].style)
+        assertEquals(false, content.actions[1].checked)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.actions[5].label)
         assertEquals(
             StreamingQualityPlatformMapping.explanation(app.yukine.streaming.StreamingAudioQuality.LOSSLESS, AppLanguage.MODE_ENGLISH),
-            content.actions[4].description
+            content.actions[5].description
         )
-        assertEquals(SettingsActionStyle.Choice, content.actions[4].style)
-        assertEquals(true, content.actions[4].checked)
+        assertEquals(SettingsActionStyle.Choice, content.actions[5].style)
+        assertEquals(true, content.actions[5].checked)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
-        content.actions[4].onClick.run()
+        content.actions[2].onClick.run()
         content.actions[5].onClick.run()
+        assertEquals(listOf(true), downgradePreferences)
+        content.actions[6].onClick.run()
 
         assertEquals(listOf(SettingsPage.SourcesGroup), navigated)
         assertEquals(

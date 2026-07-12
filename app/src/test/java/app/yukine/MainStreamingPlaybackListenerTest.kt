@@ -21,6 +21,7 @@ class MainStreamingPlaybackListenerTest {
             languageProvider = StreamingPlaybackLanguageProvider { "zh-CN" },
             adaptiveQualityProvider = AdaptiveStreamingQualityProvider { StreamingAudioQuality.HIGH },
             selectedQualityProvider = SelectedStreamingQualityProvider { StreamingAudioQuality.LOSSLESS },
+            automaticQualityDowngradePreference = AutomaticQualityDowngradePreference { true },
             queueSource = queueSource(queue),
             heartbeatAppendHandler = HeartbeatRecommendationAppendHandler { appendedSnapshots += it },
             resultSink = PlaybackActionResultSink { appliedResults += it },
@@ -30,6 +31,7 @@ class MainStreamingPlaybackListenerTest {
         assertEquals("zh-CN", listener.languageMode())
         assertEquals(StreamingAudioQuality.HIGH, listener.adaptiveStreamingQuality())
         assertEquals(StreamingAudioQuality.LOSSLESS, listener.selectedStreamingQuality())
+        assertEquals(true, listener.refuseAutomaticQualityDowngrade())
         assertEquals(queue, listener.queueSnapshot())
         assertEquals(2, listener.queueSize())
         assertSame(queue[1], listener.queueTrackAt(1))
@@ -51,6 +53,7 @@ class MainStreamingPlaybackListenerTest {
             StreamingPlaybackLanguageProvider { "en" },
             AdaptiveStreamingQualityProvider { StreamingAudioQuality.STANDARD },
             SelectedStreamingQualityProvider { StreamingAudioQuality.HIRES },
+            AutomaticQualityDowngradePreference { false },
             queueSource(listOf(streamingPlaybackTrack(3L))),
             HeartbeatRecommendationAppendHandler { calls += "heartbeat:${it.queueSize}" },
             PlaybackActionResultSink { calls += "result:${it?.status}" },
@@ -61,6 +64,7 @@ class MainStreamingPlaybackListenerTest {
         assertEquals("en", listener.languageMode())
         assertEquals(StreamingAudioQuality.STANDARD, listener.adaptiveStreamingQuality())
         assertEquals(StreamingAudioQuality.HIRES, listener.selectedStreamingQuality())
+        assertEquals(false, listener.refuseAutomaticQualityDowngrade())
         assertEquals(listOf(3L), listener.queueSnapshot().map { it.id })
         assertEquals(1, listener.queueSize())
         assertEquals(3L, listener.queueTrackAt(0)?.id)

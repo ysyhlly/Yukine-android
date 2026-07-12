@@ -53,6 +53,71 @@ public class PlaybackStatePublisherWidgetOwnerTest {
         assertEquals(0, widgetOperations.updateCalls);
     }
 
+    @Test
+    public void skipsProgressOnlyWidgetUpdatesButPublishesVisibleChanges() {
+        Context context = RuntimeEnvironment.getApplication();
+        FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
+        PlaybackStatePublisherWidgetOwner owner = new PlaybackStatePublisherWidgetOwner(
+                () -> context,
+                () -> widgetOperations
+        );
+        PlaybackStateSnapshot first = snapshot(1000L, false);
+        PlaybackStateSnapshot laterProgress = snapshot(3000L, false);
+        PlaybackStateSnapshot playing = snapshot(3000L, true);
+
+        owner.update(first, null);
+        owner.update(laterProgress, null);
+        owner.update(playing, null);
+
+        assertEquals(2, widgetOperations.updateCalls);
+        assertSame(playing, widgetOperations.lastSnapshot);
+    }
+
+    @Test
+    public void publishesArtworkWhenAsyncArtworkArrivesForSameTrack() {
+        Context context = RuntimeEnvironment.getApplication();
+        FakeWidgetOperations widgetOperations = new FakeWidgetOperations();
+        PlaybackStatePublisherWidgetOwner owner = new PlaybackStatePublisherWidgetOwner(
+                () -> context,
+                () -> widgetOperations
+        );
+        PlaybackStateSnapshot snapshot = snapshot(1000L, true);
+        Bitmap artwork = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888);
+
+        owner.update(snapshot, null);
+        owner.update(snapshot, artwork);
+        owner.update(snapshot, artwork);
+
+        assertEquals(2, widgetOperations.updateCalls);
+    }
+
+    private static PlaybackStateSnapshot snapshot(long positionMs, boolean playing) {
+        app.yukine.model.Track track = new app.yukine.model.Track(
+                7L,
+                "Track",
+                "Artist",
+                "Album",
+                180000L,
+                android.net.Uri.parse("content://track/7"),
+                "content://track/7"
+        );
+        return new PlaybackStateSnapshot(
+                track,
+                0,
+                1,
+                positionMs,
+                track.durationMs,
+                playing,
+                false,
+                "",
+                false,
+                0,
+                1.0f,
+                1.0f,
+                0L
+        );
+    }
+
     private static final class FakeWidgetOperations
             implements PlaybackStatePublisherWidgetOwner.WidgetOperations {
         private int updateCalls;

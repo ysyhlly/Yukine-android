@@ -11,6 +11,7 @@ internal data class LoadedSettingsPreferences(
     val playbackSpeed: Float,
     val appVolume: Float,
     val streamingAudioQuality: String,
+    val refuseAutomaticQualityDowngrade: Boolean,
     val concurrentPlaybackEnabled: Boolean,
     val audioEffectSettings: AudioEffectSettings,
     val statusBarLyricsEnabled: Boolean,
@@ -36,6 +37,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadPlaybackSpeed(): Float
     fun loadAppVolume(): Float
     fun loadStreamingAudioQuality(): String
+    fun loadRefuseAutomaticQualityDowngrade(): Boolean
     fun loadConcurrentPlaybackEnabled(): Boolean
     fun loadAudioEffectSettings(): AudioEffectSettings
     fun loadStatusBarLyricsEnabled(): Boolean
@@ -68,6 +70,9 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
     override fun loadAppVolume(): Float = repository.loadAppVolume()
 
     override fun loadStreamingAudioQuality(): String = repository.loadStreamingAudioQuality()
+
+    override fun loadRefuseAutomaticQualityDowngrade(): Boolean =
+        repository.loadRefuseAutomaticQualityDowngrade()
 
     override fun loadConcurrentPlaybackEnabled(): Boolean =
         repository.loadConcurrentPlaybackEnabled()
@@ -122,6 +127,7 @@ internal class LoadSettingsPreferencesUseCase(
         val playbackSpeed = operations.loadPlaybackSpeed()
         val appVolume = operations.loadAppVolume()
         val streamingAudioQuality = StreamingQualityPreference.normalize(operations.loadStreamingAudioQuality())
+        val refuseAutomaticQualityDowngrade = operations.loadRefuseAutomaticQualityDowngrade()
         val concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled()
         val audioEffectSettings = operations.loadAudioEffectSettings()
         val statusBarLyricsEnabled = operations.loadStatusBarLyricsEnabled()
@@ -133,6 +139,7 @@ internal class LoadSettingsPreferencesUseCase(
             playbackSpeed = playbackSpeed,
             appVolume = appVolume,
             streamingAudioQuality = streamingAudioQuality,
+            refuseAutomaticQualityDowngrade = refuseAutomaticQualityDowngrade,
             concurrentPlaybackEnabled = concurrentPlaybackEnabled,
             audioEffectSettings = audioEffectSettings,
             statusBarLyricsEnabled = statusBarLyricsEnabled && !floatingLyricsEnabled,

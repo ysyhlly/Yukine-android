@@ -871,6 +871,22 @@ class StreamingViewModel @Inject constructor(
         metadata: StreamingTrack? = null,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         onResolved: StreamingCallback<Track?>
+    ): Job = resolveStreamingTrackForPlaybackInternal(
+        provider,
+        providerTrackId,
+        metadata,
+        quality,
+        forceRefresh = false,
+        onResolved
+    )
+
+    private fun resolveStreamingTrackForPlaybackInternal(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        metadata: StreamingTrack?,
+        quality: StreamingAudioQuality,
+        forceRefresh: Boolean,
+        onResolved: StreamingCallback<Track?>
     ): Job {
         beginStreamingRequest()
         return viewModelScope.launch {
@@ -879,7 +895,8 @@ class StreamingViewModel @Inject constructor(
                     provider,
                     providerTrackId,
                     quality,
-                    metadata
+                    metadata,
+                    forceRefresh = forceRefresh
                 )
             }.onSuccess { result ->
                 updateStreamingPlaybackTrack(result.source, result.track)
@@ -904,14 +921,16 @@ class StreamingViewModel @Inject constructor(
         val request = planner.prepareNextPreResolve(snapshot, queue) ?: return false
         taskQueue.scheduleNextUrlResolve(
             StreamingPlaybackTask { onComplete ->
-                resolveStreamingTrackForPlayback(
+                val job = resolveStreamingTrackForPlayback(
                     request.provider,
                     request.providerTrackId,
                     request.metadata,
                     quality
                 ) { resolved ->
-                    planner.clearPreResolve(request.key)
                     onResolved.onResult(request.oldTrackId, resolved)
+                }
+                job.invokeOnCompletion {
+                    planner.clearPreResolve(request.key)
                     onComplete.run()
                 }
             }
@@ -1008,7 +1027,7 @@ class StreamingViewModel @Inject constructor(
         val request = planner.prepare(tracks, index) ?: return false
         taskQueue.scheduleCurrentUrlResolve(
             StreamingPlaybackTask { onComplete ->
-                resolveStreamingTrackForPlayback(
+                val job = resolveStreamingTrackForPlayback(
                     request.provider,
                     request.providerTrackId,
                     request.metadata,
@@ -1016,7 +1035,6 @@ class StreamingViewModel @Inject constructor(
                 ) { resolved ->
                     if (resolved == null) {
                         onResolved.onResult(null)
-                        onComplete.run()
                         return@resolveStreamingTrackForPlayback
                     }
                     onResolved.onResult(
@@ -1025,8 +1043,8 @@ class StreamingViewModel @Inject constructor(
                             index = request.index
                         )
                     )
-                    onComplete.run()
                 }
+                job.invokeOnCompletion { onComplete.run() }
             }
         )
         return true
@@ -1112,29 +1130,39 @@ class StreamingViewModel @Inject constructor(
         snapshot: PlaybackStateSnapshot?,
         selectedQuality: StreamingAudioQuality,
         adaptiveQuality: StreamingAudioQuality,
+        refuseAutomaticQualityDowngrade: Boolean,
         onResolved: StreamingCallback<StreamingRecoveryResolution?>
     ): StreamingAudioQuality? {
         val planner = streamingPlaybackPlanner ?: return null
         val taskQueue = streamingPlaybackTaskQueue ?: return null
-        val request = planner.prepareRecovery(snapshot, selectedQuality, adaptiveQuality) ?: return null
+        val request = planner.prepareRecovery(
+            snapshot,
+            selectedQuality,
+            adaptiveQuality,
+            refuseAutomaticQualityDowngrade
+        ) ?: return null
         taskQueue.scheduleCurrentPlaybackRecovery(
             StreamingPlaybackTask { onComplete ->
-                resolveStreamingTrackForPlayback(
+                val job = resolveStreamingTrackForPlaybackInternal(
                     request.provider,
                     request.providerTrackId,
                     request.metadata,
-                    request.quality
+                    request.quality,
+                    forceRefresh = true
                 ) { resolved ->
-                    planner.clearRecovery(request.key)
                     onResolved.onResult(
                         resolved?.let {
                             StreamingRecoveryResolution(
+                                expectedTrackId = request.expectedTrackId,
                                 track = it,
                                 quality = request.quality,
                                 positionMs = snapshot?.positionMs ?: 0L
                             )
                         }
                     )
+                }
+                job.invokeOnCompletion {
+                    planner.clearRecovery(request.key)
                     onComplete.run()
                 }
             }
@@ -1235,7 +1263,9 @@ class StreamingViewModel @Inject constructor(
             resolving = text(languageMode, "streaming.resolving"),
             resolveFailed = text(languageMode, "streaming.resolve.failed"),
             qualityDowngrading = text(languageMode, "streaming.quality.downgrading") + qualityLabel,
-            qualityDowngraded = text(languageMode, "streaming.quality.downgraded") + qualityLabel
+            qualityDowngraded = text(languageMode, "streaming.quality.downgraded") + qualityLabel,
+            qualityRefreshing = text(languageMode, "streaming.quality.refreshing") + qualityLabel,
+            qualityRefreshed = text(languageMode, "streaming.quality.refreshed") + qualityLabel
         )
     }
 

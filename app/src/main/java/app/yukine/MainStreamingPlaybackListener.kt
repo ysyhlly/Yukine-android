@@ -16,6 +16,10 @@ internal fun interface SelectedStreamingQualityProvider {
     fun selectedStreamingQuality(): StreamingAudioQuality
 }
 
+internal fun interface AutomaticQualityDowngradePreference {
+    fun refuseAutomaticQualityDowngrade(): Boolean
+}
+
 internal interface StreamingQueueReadSource {
     fun queueSnapshot(): List<Track>
 
@@ -37,6 +41,7 @@ internal fun interface MainStreamingPlaybackListenerFactory {
         languageProvider: StreamingPlaybackLanguageProvider,
         adaptiveQualityProvider: AdaptiveStreamingQualityProvider,
         selectedQualityProvider: SelectedStreamingQualityProvider,
+        automaticQualityDowngradePreference: AutomaticQualityDowngradePreference,
         queueSource: StreamingQueueReadSource,
         heartbeatAppendHandler: HeartbeatRecommendationAppendHandler,
         resultSink: PlaybackActionResultSink,
@@ -48,6 +53,7 @@ internal class MainStreamingPlaybackListener(
     private val languageProvider: StreamingPlaybackLanguageProvider,
     private val adaptiveQualityProvider: AdaptiveStreamingQualityProvider,
     private val selectedQualityProvider: SelectedStreamingQualityProvider,
+    private val automaticQualityDowngradePreference: AutomaticQualityDowngradePreference,
     private val queueSource: StreamingQueueReadSource,
     private val heartbeatAppendHandler: HeartbeatRecommendationAppendHandler,
     private val resultSink: PlaybackActionResultSink,
@@ -61,6 +67,9 @@ internal class MainStreamingPlaybackListener(
 
     override fun selectedStreamingQuality(): StreamingAudioQuality =
         selectedQualityProvider.selectedStreamingQuality()
+
+    override fun refuseAutomaticQualityDowngrade(): Boolean =
+        automaticQualityDowngradePreference.refuseAutomaticQualityDowngrade()
 
     override fun queueSnapshot(): List<Track> =
         queueSource.queueSnapshot()

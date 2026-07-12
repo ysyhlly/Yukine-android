@@ -37,6 +37,7 @@ data class SettingsPreferencesSnapshot(
     val playbackSpeed: Float = 1.0f,
     val appVolume: Float = 1.0f,
     val streamingAudioQuality: String = StreamingQualityPreference.defaultValue(),
+    val refuseAutomaticQualityDowngrade: Boolean = false,
     val concurrentPlaybackEnabled: Boolean = false,
     val audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT,
     val statusBarLyricsEnabled: Boolean = true,
@@ -155,6 +156,7 @@ sealed interface SettingsEvent {
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsEvent
     data class ApplyAppVolume(val volume: Float) : SettingsEvent
     data class ApplyStreamingAudioQuality(val quality: String) : SettingsEvent
+    data class SetRefuseAutomaticQualityDowngrade(val refuse: Boolean) : SettingsEvent
     data class ApplyShareStyle(val style: String) : SettingsEvent
     data class SetAudioExclusiveEnabled(val enabled: Boolean) : SettingsEvent
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsEvent
@@ -323,6 +325,8 @@ class SettingsViewModel @JvmOverloads constructor(
             is SettingsEvent.ApplyPlaybackSpeed -> applyPlaybackSpeed(event.speed)
             is SettingsEvent.ApplyAppVolume -> applyAppVolume(event.volume)
             is SettingsEvent.ApplyStreamingAudioQuality -> applyStreamingAudioQuality(event.quality)
+            is SettingsEvent.SetRefuseAutomaticQualityDowngrade ->
+                setRefuseAutomaticQualityDowngrade(event.refuse)
             is SettingsEvent.ApplyShareStyle -> applyShareStyle(event.style)
             is SettingsEvent.SetAudioExclusiveEnabled -> setAudioExclusiveEnabled(event.enabled)
             is SettingsEvent.SetConcurrentPlaybackEnabled -> setConcurrentPlaybackEnabled(event.enabled)
@@ -563,8 +567,12 @@ class SettingsViewModel @JvmOverloads constructor(
                 SettingsPageStateBuilder.streamingAudioQuality(
                     languageMode,
                     preferences.streamingAudioQuality,
+                    preferences.refuseAutomaticQualityDowngrade,
                     onNavigate = ::navigateSettingsPage,
-                    onApplyQuality = { quality -> onEvent(SettingsEvent.ApplyStreamingAudioQuality(quality)) }
+                    onApplyQuality = { quality -> onEvent(SettingsEvent.ApplyStreamingAudioQuality(quality)) },
+                    onRefuseAutomaticQualityDowngradeChange = { refuse ->
+                        onEvent(SettingsEvent.SetRefuseAutomaticQualityDowngrade(refuse))
+                    }
                 )
             SettingsPage.ShareStyle ->
                 SettingsPageStateBuilder.shareStyle(
@@ -781,6 +789,17 @@ class SettingsViewModel @JvmOverloads constructor(
         updatePreferences { it.copy(streamingAudioQuality = normalizedQuality) }
         emitAppliedStatus(streamingQualityAppliedStatus(normalizedQuality))
         savePreference(SettingsPreferenceKey.StreamingAudioQuality, normalizedQuality)
+    }
+
+    fun setRefuseAutomaticQualityDowngrade(refuse: Boolean) {
+        updatePreferences { it.copy(refuseAutomaticQualityDowngrade = refuse) }
+        emitAppliedStatus(
+            AppLanguage.text(
+                _state.value.preferences.languageMode,
+                if (refuse) "quality.downgrade.refused" else "quality.downgrade.allowed"
+            )
+        )
+        savePreference(SettingsPreferenceKey.RefuseAutomaticQualityDowngrade, refuse)
     }
 
     fun applyShareStyle(style: String) {
@@ -1068,6 +1087,7 @@ class SettingsViewModel @JvmOverloads constructor(
         SettingsPreferenceKey.PlaybackSpeed to preferences.playbackSpeed,
         SettingsPreferenceKey.AppVolume to preferences.appVolume,
         SettingsPreferenceKey.StreamingAudioQuality to preferences.streamingAudioQuality,
+        SettingsPreferenceKey.RefuseAutomaticQualityDowngrade to preferences.refuseAutomaticQualityDowngrade,
         SettingsPreferenceKey.OnlineLyricsEnabled to runtime.onlineLyricsEnabled,
         SettingsPreferenceKey.ConcurrentPlaybackEnabled to preferences.concurrentPlaybackEnabled,
         SettingsPreferenceKey.LyricsOffsetMs to runtime.lyricsOffsetMs,
@@ -1095,6 +1115,8 @@ class SettingsViewModel @JvmOverloads constructor(
         SettingsPreferenceKey.PlaybackSpeed -> _state.value.preferences.playbackSpeed
         SettingsPreferenceKey.AppVolume -> _state.value.preferences.appVolume
         SettingsPreferenceKey.StreamingAudioQuality -> _state.value.preferences.streamingAudioQuality
+        SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
+            _state.value.preferences.refuseAutomaticQualityDowngrade
         SettingsPreferenceKey.OnlineLyricsEnabled -> _state.value.runtime.onlineLyricsEnabled
         SettingsPreferenceKey.ConcurrentPlaybackEnabled -> _state.value.preferences.concurrentPlaybackEnabled
         SettingsPreferenceKey.LyricsOffsetMs -> _state.value.runtime.lyricsOffsetMs
@@ -1135,6 +1157,8 @@ class SettingsViewModel @JvmOverloads constructor(
             SettingsPreferenceKey.AppVolume -> preferences = preferences.copy(appVolume = value as Float)
             SettingsPreferenceKey.StreamingAudioQuality ->
                 preferences = preferences.copy(streamingAudioQuality = value as String)
+            SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
+                preferences = preferences.copy(refuseAutomaticQualityDowngrade = value as Boolean)
             SettingsPreferenceKey.OnlineLyricsEnabled ->
                 runtime = runtime.copy(onlineLyricsEnabled = value as Boolean)
             SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
@@ -1178,6 +1202,8 @@ class SettingsViewModel @JvmOverloads constructor(
                 applyRuntimeEffect(SettingsRuntimeEffect.ApplyPlaybackSpeed(preferences.playbackSpeed))
             SettingsPreferenceKey.AppVolume ->
                 applyRuntimeEffect(SettingsRuntimeEffect.ApplyAppVolume(preferences.appVolume))
+            SettingsPreferenceKey.RefuseAutomaticQualityDowngrade,
+            SettingsPreferenceKey.StreamingAudioQuality -> Unit
             SettingsPreferenceKey.OnlineLyricsEnabled ->
                 applyRuntimeEffect(SettingsRuntimeEffect.SetOnlineLyricsEnabled(runtime.onlineLyricsEnabled))
             SettingsPreferenceKey.ConcurrentPlaybackEnabled ->

@@ -10,6 +10,7 @@ enum class SettingsPreferenceKey {
     PlaybackSpeed,
     AppVolume,
     StreamingAudioQuality,
+    RefuseAutomaticQualityDowngrade,
     OnlineLyricsEnabled,
     ConcurrentPlaybackEnabled,
     LyricsOffsetMs,
@@ -42,6 +43,7 @@ internal interface SettingsPreferenceOperations {
     fun savePlaybackSpeed(speed: Float)
     fun saveAppVolume(volume: Float)
     fun saveStreamingAudioQuality(quality: String)
+    fun saveRefuseAutomaticQualityDowngrade(refuse: Boolean)
     fun saveOnlineLyricsEnabled(enabled: Boolean)
     fun saveConcurrentPlaybackEnabled(enabled: Boolean)
     fun saveLyricsOffsetMs(offsetMs: Long)
@@ -77,6 +79,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveStreamingAudioQuality(quality: String) =
         repository.saveStreamingAudioQuality(quality)
+
+    override fun saveRefuseAutomaticQualityDowngrade(refuse: Boolean) =
+        repository.saveRefuseAutomaticQualityDowngrade(refuse)
 
     override fun saveOnlineLyricsEnabled(enabled: Boolean) =
         repository.saveOnlineLyricsEnabled(enabled)
@@ -141,6 +146,8 @@ internal class ApplySettingsPreferenceUseCase(
                 SettingsPreferenceKey.AppVolume -> operations.saveAppVolume(update.value as Float)
                 SettingsPreferenceKey.StreamingAudioQuality ->
                     operations.saveStreamingAudioQuality(update.value as String)
+                SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
+                    operations.saveRefuseAutomaticQualityDowngrade(update.value as Boolean)
                 SettingsPreferenceKey.OnlineLyricsEnabled ->
                     operations.saveOnlineLyricsEnabled(update.value as Boolean)
                 SettingsPreferenceKey.ConcurrentPlaybackEnabled ->

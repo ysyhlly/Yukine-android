@@ -779,6 +779,8 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.PlaybackSpeed -> "speed:${update.value}"
                 SettingsPreferenceKey.AppVolume -> "volume:${update.value}"
                 SettingsPreferenceKey.StreamingAudioQuality -> "quality:${update.value}"
+                SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
+                    "refuseQualityDowngrade:${update.value}"
                 SettingsPreferenceKey.OnlineLyricsEnabled -> "onlineLyrics:${update.value}"
                 SettingsPreferenceKey.ConcurrentPlaybackEnabled -> "concurrent:${update.value}"
                 SettingsPreferenceKey.LyricsOffsetMs -> "lyricsOffset:${update.value}"

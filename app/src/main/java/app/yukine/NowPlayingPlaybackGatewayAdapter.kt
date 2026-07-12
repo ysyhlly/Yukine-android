@@ -4,6 +4,9 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.service.PlaybackServiceActions
+import dagger.hilt.android.scopes.ActivityRetainedScoped
+import java.util.ArrayDeque
+import javax.inject.Inject
 
 interface NowPlayingPlaybackServicePort {
     fun snapshot(): PlaybackStateSnapshot?
@@ -36,16 +39,67 @@ interface NowPlayingPlaybackServicePort {
 }
 
 internal class MainNowPlayingPlaybackGatewayFactory(
-    private val serviceStarter: (String?) -> Unit
+    private val serviceStarter: (String?) -> Unit,
+    private val commandQueue: PlaybackServiceCommandQueue
 ) {
     fun create(serviceProvider: () -> NowPlayingPlaybackServicePort?): NowPlayingPlaybackGateway {
-        return NowPlayingPlaybackGatewayAdapter(serviceProvider, serviceStarter)
+        return NowPlayingPlaybackGatewayAdapter(serviceProvider, serviceStarter, commandQueue)
+    }
+}
+
+internal fun interface PlaybackServiceCommand {
+    fun execute(service: NowPlayingPlaybackServicePort)
+}
+
+/**
+ * Owns commands issued during the short window between starting/binding playback and receiving
+ * the service connection. The queue is activity-retained so it survives configuration changes,
+ * but a finished Activity session cannot replay stale commands into a later session.
+ */
+@ActivityRetainedScoped
+internal class PlaybackServiceCommandQueue @Inject constructor() {
+    private val pending = ArrayDeque<PlaybackServiceCommand>()
+
+    fun executeOrEnqueue(
+        serviceProvider: () -> NowPlayingPlaybackServicePort?,
+        command: PlaybackServiceCommand
+    ): Boolean {
+        val service: NowPlayingPlaybackServicePort
+        val commands: List<PlaybackServiceCommand>
+        synchronized(pending) {
+            service = serviceProvider() ?: run {
+                pending.addLast(command)
+                return false
+            }
+            commands = drainLocked(command)
+        }
+        commands.forEach { it.execute(service) }
+        return true
+    }
+
+    fun flush(service: NowPlayingPlaybackServicePort) {
+        val commands = synchronized(pending) { drainLocked() }
+        commands.forEach { it.execute(service) }
+    }
+
+    internal fun pendingCount(): Int = synchronized(pending) { pending.size }
+
+    private fun drainLocked(last: PlaybackServiceCommand? = null): List<PlaybackServiceCommand> {
+        val commands = ArrayList<PlaybackServiceCommand>(pending.size + if (last == null) 0 else 1)
+        while (pending.isNotEmpty()) {
+            commands += pending.removeFirst()
+        }
+        if (last != null) {
+            commands += last
+        }
+        return commands
     }
 }
 
 internal class NowPlayingPlaybackGatewayAdapter(
     private val serviceProvider: () -> NowPlayingPlaybackServicePort?,
-    private val serviceStarter: (String?) -> Unit
+    private val serviceStarter: (String?) -> Unit,
+    private val commandQueue: PlaybackServiceCommandQueue = PlaybackServiceCommandQueue()
 ) : NowPlayingPlaybackGateway {
     override fun serviceConnected(): Boolean = service() != null
 
@@ -72,89 +126,93 @@ internal class NowPlayingPlaybackGatewayAdapter(
     }
 
     override fun seekTo(positionMs: Long) {
-        service()?.seekTo(positionMs)
+        executeOrQueue { it.seekTo(positionMs) }
     }
 
     override fun removeTracksById(trackIds: Set<Long>) {
-        service()?.removeTracksById(trackIds)
+        executeOrQueue { it.removeTracksById(trackIds) }
     }
 
     override fun clearQueue() {
-        service()?.clearQueue()
+        executeOrQueue { it.clearQueue() }
     }
 
     override fun moveQueueTrack(fromIndex: Int, toIndex: Int) {
-        service()?.moveQueueTrack(fromIndex, toIndex)
+        executeOrQueue { it.moveQueueTrack(fromIndex, toIndex) }
     }
 
     override fun replaceQueuedTrack(updated: Track) {
-        service()?.replaceQueuedTrack(updated)
+        executeOrQueue { it.replaceQueuedTrack(updated) }
     }
 
     override fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) {
-        service()?.updateQueuedTrackArtwork(trackId, artworkUri)
+        executeOrQueue { it.updateQueuedTrackArtwork(trackId, artworkUri) }
     }
 
     override fun replaceQueuedTracks(updated: List<Track>) {
-        service()?.replaceQueuedTracks(updated)
+        executeOrQueue { it.replaceQueuedTracks(updated) }
     }
 
     override fun replaceQueuedTrackById(oldTrackId: Long, updated: Track) {
-        service()?.replaceQueuedTrackById(oldTrackId, updated)
+        executeOrQueue { it.replaceQueuedTrackById(oldTrackId, updated) }
     }
 
     override fun retainTracksById(trackIds: Set<Long>) {
-        service()?.retainTracksById(trackIds)
+        executeOrQueue { it.retainTracksById(trackIds) }
     }
 
     override fun warmPlaybackTrack(track: Track) {
-        service()?.warmPlaybackTrack(track)
+        executeOrQueue { it.warmPlaybackTrack(track) }
     }
 
     override fun appendToQueue(tracks: List<Track>) {
-        service()?.appendToQueue(tracks)
+        executeOrQueue { it.appendToQueue(tracks) }
     }
 
     override fun replaceCurrentTrackAndResume(track: Track, positionMs: Long) {
-        service()?.replaceCurrentTrackAndResume(track, positionMs)
+        executeOrQueue { it.replaceCurrentTrackAndResume(track, positionMs) }
     }
 
     override fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) {
-        service()?.replaceCurrentSourceAndResume(expectedTrackId, track, positionMs)
+        executeOrQueue { it.replaceCurrentSourceAndResume(expectedTrackId, track, positionMs) }
     }
 
     override fun startSleepTimerMinutes(minutes: Int) {
-        service()?.startSleepTimerMinutes(minutes)
+        executeOrQueue { it.startSleepTimerMinutes(minutes) }
     }
 
     override fun cancelSleepTimer() {
-        service()?.cancelSleepTimer()
+        executeOrQueue { it.cancelSleepTimer() }
     }
 
     override fun playQueue(tracks: List<Track>, index: Int) {
         serviceStarter(null)
-        service()?.playQueue(tracks, index)
+        executeOrQueue { it.playQueue(tracks, index) }
     }
 
     override fun pause() {
-        service()?.pause()
+        executeOrQueue { it.pause() }
     }
 
     override fun play() {
         serviceStarter(null)
-        service()?.play()
+        executeOrQueue { it.play() }
     }
 
     override fun setShuffleEnabled(enabled: Boolean) {
-        service()?.setShuffleEnabled(enabled)
+        executeOrQueue { it.setShuffleEnabled(enabled) }
     }
 
     override fun cycleRepeatMode() {
-        service()?.cycleRepeatMode()
+        executeOrQueue { it.cycleRepeatMode() }
     }
 
     override fun setRepeatMode(repeatMode: Int) {
-        service()?.setRepeatMode(repeatMode)
+        executeOrQueue { it.setRepeatMode(repeatMode) }
+    }
+
+    private fun executeOrQueue(command: PlaybackServiceCommand) {
+        commandQueue.executeOrEnqueue(serviceProvider, command)
     }
 
     private fun service(): NowPlayingPlaybackServicePort? = serviceProvider()

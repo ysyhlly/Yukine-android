@@ -17,6 +17,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.playbackSpeed = 1.25f
         operations.appVolume = 0.8f
         operations.streamingAudioQuality = "bad-quality"
+        operations.refuseAutomaticQualityDowngrade = true
         operations.concurrentPlaybackEnabled = false
         operations.statusBarLyricsEnabled = false
         operations.systemMediaLyricsTitleEnabled = true
@@ -41,6 +42,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(1.25f, result.playbackSpeed)
         assertEquals(0.8f, result.appVolume)
         assertEquals(StreamingQualityPreference.defaultValue(), result.streamingAudioQuality)
+        assertEquals(true, result.refuseAutomaticQualityDowngrade)
         assertFalse(result.concurrentPlaybackEnabled)
         assertFalse(result.audioEffectSettings.enabled)
         assertFalse(result.statusBarLyricsEnabled)
@@ -58,7 +60,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -83,6 +85,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var playbackSpeed = 1.0f
         var appVolume = 1.0f
         var streamingAudioQuality = StreamingQualityPreference.defaultValue()
+        var refuseAutomaticQualityDowngrade = false
         var concurrentPlaybackEnabled = true
         var audioEffectSettings = AudioEffectSettings.DEFAULT
         var statusBarLyricsEnabled = true
@@ -128,6 +131,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadStreamingAudioQuality(): String {
             events.add("quality")
             return streamingAudioQuality
+        }
+
+        override fun loadRefuseAutomaticQualityDowngrade(): Boolean {
+            events.add("refuseQualityDowngrade")
+            return refuseAutomaticQualityDowngrade
         }
 
         override fun loadConcurrentPlaybackEnabled(): Boolean {

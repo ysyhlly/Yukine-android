@@ -43,6 +43,8 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     private static final String SETTING_PLAYBACK_SPEED = "playback_speed";
     private static final String SETTING_APP_VOLUME = "app_volume";
     private static final String SETTING_STREAMING_AUDIO_QUALITY = "streaming_audio_quality";
+    private static final String SETTING_REFUSE_AUTOMATIC_QUALITY_DOWNGRADE =
+            "refuse_automatic_quality_downgrade";
     private static final String SETTING_ONLINE_LYRICS = "online_lyrics";
     private static final String SETTING_CONCURRENT_PLAYBACK = "concurrent_playback";
     private static final String SETTING_LYRICS_OFFSET_MS = "lyrics_offset_ms";
@@ -399,6 +401,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
 
     public void saveStreamingAudioQuality(String quality) {
         saveSetting(SETTING_STREAMING_AUDIO_QUALITY, quality == null ? "high" : quality);
+    }
+
+    public boolean loadRefuseAutomaticQualityDowngrade() {
+        return "true".equals(loadSetting(SETTING_REFUSE_AUTOMATIC_QUALITY_DOWNGRADE, "false"));
+    }
+
+    public void saveRefuseAutomaticQualityDowngrade(boolean refuse) {
+        saveSetting(SETTING_REFUSE_AUTOMATIC_QUALITY_DOWNGRADE, refuse ? "true" : "false");
     }
 
     public boolean loadOnlineLyricsEnabled() {
