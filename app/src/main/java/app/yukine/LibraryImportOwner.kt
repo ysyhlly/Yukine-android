@@ -62,6 +62,10 @@ internal class LibraryImportOwner(
         )
     }
 
+    fun cancelLibraryLoad() {
+        viewModel.cancelLibraryLoad()
+    }
+
     fun importAudioUris(uris: List<Uri>) {
         if (uris.isEmpty()) {
             statusSink.setStatus(text("no.audio.files.selected"))

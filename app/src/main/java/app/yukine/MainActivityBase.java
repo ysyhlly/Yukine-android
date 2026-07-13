@@ -184,7 +184,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private PlaylistDialogController playlistDialogController;
     private PlaylistMutationOwner playlistMutationOwner;
     private ConfirmationDialogController confirmationDialogController;
-    private OnboardingController onboardingController;
+    private OnboardingOwner onboardingOwner;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -379,8 +379,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
                 () -> {
-                    if (onboardingController != null) {
-                        onboardingController.onPermissionsChanged();
+                    if (onboardingOwner != null) {
+                        onboardingOwner.onPermissionsChanged();
                     }
                 }
         );
@@ -394,8 +394,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 status -> statusMessageController.setStatus(status),
                 this::loadCollections,
                 canScan -> {
-                    if (onboardingController != null) {
-                        onboardingController.onLibraryScanResult(canScan);
+                    if (onboardingOwner != null) {
+                        onboardingOwner.onLibraryScanResult(canScan);
                     }
                 },
                 () -> navigateToNetworkTabPage(NETWORK_STREAMING)
@@ -1165,75 +1165,35 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeOnboardingAndStartup() {
-        onboardingController = new OnboardingController(new OnboardingController.Listener() {
-            @Override
-            public boolean hasAudioPermission() {
-                return permissionController != null && permissionController.hasAudioPermission();
-            }
-
-            @Override
-            public boolean hasNotificationPermission() {
-                return permissionController != null && permissionController.hasNotificationPermission();
-            }
-
-            @Override
-            public void requestNeededPermissions() {
-                if (permissionController != null) {
-                    permissionController.requestNeededPermissions();
-                }
-            }
-
-            @Override
-            public void loadLibrary(boolean allowCachedFirst) {
-                libraryImportOwner.loadLibrary(allowCachedFirst);
-            }
-
-            @Override
-            public void cancelLibraryLoad() {
-                if (libraryViewModel != null) {
-                    libraryViewModel.cancelLibraryLoad();
-                }
-            }
-
-            @Override
-            public void onLibraryScanTimedOut() {
-                statusMessageController.setStatus(
-                        AppLanguage.text(settingsStore.languageMode(), "library.scan.timeout")
-                );
-            }
-
-            @Override
-            public void navigateToNetworkTabPage(String page) {
-                MainActivityBase.this.navigateToNetworkTabPage(page);
-            }
-
-            @Override
-            public void openPlaylistM3uFilePicker() {
-                documentPickerController.openPlaylistM3uFilePicker();
-            }
-
-            @Override
-            public void onboardingCompleted() {
-                if (repository != null) {
-                    repository.saveOnboardingCompleted(true);
-                }
-            }
-        }, new OnboardingController.Scheduler() {
-            @Override
-            public void postDelayed(Runnable runnable, long delayMs) {
-                mainHandler.postDelayed(runnable, delayMs);
-            }
-
-            @Override
-            public void removeCallbacks(Runnable runnable) {
-                mainHandler.removeCallbacks(runnable);
-            }
-        });
-        onboardingController.initialize(repository == null || !repository.loadOnboardingCompleted());
+        onboardingOwner = new OnboardingOwner(
+                new OnboardingPermissionAccess(
+                        () -> permissionController != null && permissionController.hasAudioPermission(),
+                        () -> permissionController != null && permissionController.hasNotificationPermission(),
+                        permissionController::requestNeededPermissions
+                ),
+                new OnboardingLibraryAccess(
+                        libraryImportOwner::loadLibrary,
+                        libraryImportOwner::cancelLibraryLoad
+                ),
+                this::navigateToNetworkTabPage,
+                documentPickerController::openPlaylistM3uFilePicker,
+                new OnboardingCompletionStore(
+                        () -> repository == null || !repository.loadOnboardingCompleted(),
+                        () -> {
+                            if (repository != null) {
+                                repository.saveOnboardingCompleted(true);
+                            }
+                        }
+                ),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                statusMessageController::setStatus,
+                new HandlerOnboardingScheduler(mainHandler)
+        );
+        onboardingOwner.initialize();
         installNavHostShell();
         installBackNavigation();
         playbackServiceConnectionController.bind();
-        if (!showOnboarding()) {
+        if (!onboardingOwner.showOnboarding()) {
             permissionController.requestNeededPermissions();
             if (permissionController.hasAudioPermission()) {
                 libraryImportOwner.loadLibrary(false);
@@ -1244,10 +1204,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             libraryImportOwner.loadLibrary(true);
         }
         loadCollections();
-    }
-
-    private boolean showOnboarding() {
-        return onboardingController != null && onboardingController.showOnboarding();
     }
 
     @Override
@@ -1271,8 +1227,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Override
     protected void onDestroy() {
         releaseViewModelHostBindings();
-        if (onboardingController != null) {
-            onboardingController.release();
+        if (onboardingOwner != null) {
+            onboardingOwner.release();
         }
         if (networkRenderCoordinator != null) {
             networkRenderCoordinator.release();
@@ -1471,14 +1427,14 @@ public abstract class MainActivityBase extends ComponentActivity {
         navHostInstalled = true;
         EchoAppHost.installNavHost(this, new MainNavHostMount(
                 () -> navHostState,
-                onboardingController.getState(),
+                onboardingOwner.getState(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 new app.yukine.ui.OnboardingActions(
                         () -> permissionController.requestNeededPermissions(),
-                        () -> onboardingController.scanLibraryFromOnboarding(),
-                        () -> onboardingController.importPlaylistFromOnboarding(),
-                        () -> onboardingController.openStreamingFromOnboarding(),
-                        () -> onboardingController.finishOnboarding()
+                        onboardingOwner::scanLibrary,
+                        onboardingOwner::importPlaylist,
+                        onboardingOwner::openStreaming,
+                        onboardingOwner::finish
                 ),
                 () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true),
                 event -> {

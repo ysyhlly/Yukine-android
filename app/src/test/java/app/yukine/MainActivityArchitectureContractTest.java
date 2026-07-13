@@ -355,6 +355,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void onboardingFeaturePolicyIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/OnboardingOwner.kt");
+        assertFalse(activity.contains("new OnboardingController.Listener"));
+        assertFalse(activity.contains("new OnboardingController.Scheduler"));
+        assertFalse(activity.contains("private boolean showOnboarding"));
+        assertTrue(activity.contains("onboardingOwner.initialize()"));
+        assertTrue(owner.contains(": OnboardingController.Listener"));
+        assertTrue(owner.contains("completionStore.markCompleted()"));
+        assertTrue(owner.contains("library.scan.timeout"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
