@@ -4,8 +4,6 @@ import android.os.Handler
 import android.os.Looper
 import app.yukine.MainDocumentPickerListener
 import app.yukine.MainDocumentPickerListenerFactory
-import app.yukine.MainPermissionListener
-import app.yukine.MainPermissionListenerFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -41,17 +39,4 @@ internal object PlatformModule {
             )
         }
 
-    @Provides
-    @ActivityScoped
-    fun provideMainPermissionListenerFactory(): MainPermissionListenerFactory =
-        MainPermissionListenerFactory {
-                audioPermissionStatusSource,
-                libraryLoader,
-                permissionResultObserver ->
-            MainPermissionListener(
-                audioPermissionStatusSource,
-                libraryLoader,
-                permissionResultObserver
-            )
-        }
 }

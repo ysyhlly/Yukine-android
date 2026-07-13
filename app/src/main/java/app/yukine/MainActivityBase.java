@@ -67,7 +67,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainStreamingSearchActionHandlerFactory streamingSearchActionHandlerFactory;
     @Inject MainStreamingSearchRenderListenerFactory streamingSearchRenderListenerFactory;
     @Inject MainDocumentPickerListenerFactory documentPickerListenerFactory;
-    @Inject MainPermissionListenerFactory permissionListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
     @Inject LyricsLoader lyricsLoader;
@@ -126,6 +125,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StatusMessageController statusMessageController;
     @Inject MainSettingsRuntimeApplierFactory settingsRuntimeApplierFactory;
     private MainPermissionController permissionController;
+    private PermissionResultOwner permissionResultOwner;
     private MainUiShellController uiShellController;
     private TrackShareLauncher trackShareLauncher;
     private CustomBackgroundAccentController customBackgroundAccentController;
@@ -376,7 +376,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 task -> mainHandler.post(task),
                 EchoTheme::setCustomBackgroundAccentArgb
         );
-        permissionController = new MainPermissionController(this, permissionListenerFactory.create(
+        permissionResultOwner = new PermissionResultOwner(
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
                 () -> {
@@ -384,7 +384,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                         onboardingController.onPermissionsChanged();
                     }
                 }
-        ));
+        );
+        permissionController = new MainPermissionController(this, permissionResultOwner);
         libraryImportOwner = new LibraryImportOwner(
                 libraryViewModel,
                 libraryStore,

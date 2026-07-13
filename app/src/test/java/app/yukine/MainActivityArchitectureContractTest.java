@@ -329,6 +329,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void permissionResultPolicyIsOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/PermissionResultOwner.kt");
+        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
+        assertFalse(activity.contains("permissionListenerFactory"));
+        assertTrue(activity.contains("new MainPermissionController(this, permissionResultOwner)"));
+        assertTrue(owner.contains("if (audioPermissionStatusSource.hasAudioPermission())"));
+        assertTrue(owner.contains("permissionResultObserver.onPermissionsChanged()"));
+        assertFalse(platformModule.contains("MainPermissionListenerFactory"));
+        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainPermissionListener.kt")));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
