@@ -72,6 +72,16 @@ interface StreamingPlaybackResolvePlanner : StreamingPreResolvePlanner {
     fun clearRecovery(key: String?)
 }
 
+interface StreamingSourceSwitchPlanner {
+    fun metadataFor(
+        track: Track?,
+        provider: StreamingProviderName,
+        providerTrackId: String
+    ): StreamingTrack?
+
+    fun prepareSourceSwitch(track: Track?): StreamingSourceSwitchResolveRequest?
+}
+
 internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val preResolveRemainingMs: Long = 45_000L,
@@ -80,7 +90,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     private val recoveryCooldownMs: Long = 20_000L,
     private val recoveryWarmupMs: Long = 2_000L,
     private val unresolvedStreamingTrack: (Track?) -> Boolean = StreamingPlaybackAdapter::isUnresolvedStreamingTrack
-) : StreamingPlaybackResolvePlanner {
+) : StreamingPlaybackResolvePlanner, StreamingSourceSwitchPlanner {
     private var preResolvingKey = ""
     private var lastPreResolveAttemptKey = ""
     private var lastPreResolveAttemptAtMs = 0L
@@ -264,7 +274,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         )
     }
 
-    fun metadataFor(
+    override fun metadataFor(
         track: Track?,
         provider: StreamingProviderName,
         providerTrackId: String
@@ -314,7 +324,7 @@ internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     }
 
     /** Identifies a library-backed source that still needs its streaming URL resolved. */
-    fun prepareSourceSwitch(track: Track?): StreamingSourceSwitchResolveRequest? {
+    override fun prepareSourceSwitch(track: Track?): StreamingSourceSwitchResolveRequest? {
         if (!unresolvedStreamingTrack(track)) {
             return null
         }

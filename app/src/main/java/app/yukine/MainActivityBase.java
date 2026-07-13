@@ -36,7 +36,6 @@ import app.yukine.ui.TrackListHeaderMetric;
 import app.yukine.ui.TrackListLabels;
 import app.yukine.ui.TrackRowActions;
 import app.yukine.ui.TrackRowUiState;
-import app.yukine.streaming.StreamingQualityPreference;
 
 public abstract class MainActivityBase extends ComponentActivity {
     private static final String TAG = "MainActivity";
@@ -161,6 +160,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LuoxueSourceImportController luoxueSourceImportController;
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
     private PlaybackServiceConnectionController playbackServiceConnectionController;
+    private StreamingPlaybackQualityPolicy streamingPlaybackQualityPolicy;
+    private NowPlayingSourceSwitchOwner nowPlayingSourceSwitchOwner;
     private PlaybackStateEventController playbackStateEventController;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
@@ -249,7 +250,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private MainActivityStreamingActionGateway createStreamingActionGateway() {
         return streamingActionGatewayFactory.create(
-                this::adaptiveStreamingQuality,
+                streamingPlaybackQualityPolicy::adaptive,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
                 (tracks, index) -> playTrackListFromHost(tracks, index),
@@ -348,6 +349,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializeRouteStoresAndStatus() {
         uiShellController = new MainUiShellController(this);
         routeController = new MainRouteController(navigationViewModel);
+        streamingPlaybackQualityPolicy = new StreamingPlaybackQualityPolicy(this, settingsStore);
         statusMessageController = new StatusMessageController(
                 statusMessageViewModel,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
@@ -536,6 +538,14 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackServiceCommandQueue
         );
         playbackViewModel.bind(playbackServiceConnectionController);
+        nowPlayingSourceSwitchOwner = new NowPlayingSourceSwitchOwner(
+                resolveStreamingPlaybackUseCase,
+                streamingViewModel,
+                nowPlayingViewModel,
+                playbackServiceConnectionController,
+                streamingPlaybackQualityPolicy,
+                statusMessageController
+        );
     }
 
     private void initializeNavigationRendering() {
@@ -635,8 +645,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 nowPlayingViewModel,
                 streamingPlaybackListenerFactory.create(
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                        this::adaptiveStreamingQuality,
-                        this::selectedStreamingQuality,
+                        streamingPlaybackQualityPolicy::adaptive,
+                        streamingPlaybackQualityPolicy::selected,
                         () -> settingsStore != null && settingsStore.refuseAutomaticQualityDowngrade(),
                         new StreamingQueueReadSource() {
                             @Override
@@ -1852,7 +1862,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track.getProvider(),
                 track.getProviderTrackId(),
                 track,
-                selectedStreamingQuality(),
+                streamingPlaybackQualityPolicy.selected(),
                 resolved -> {
                     if (requestId != unifiedStreamingPlaybackRequestId) {
                         return;
@@ -1865,104 +1875,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     statusMessageController.showFeedback("\u5f00\u59cb\u64ad\u653e\uff1a" + resolved.title);
                 }
         );
-    }
-
-    private void switchNowPlayingSource(final NowPlayingEffect.SwitchSource effect) {
-        if (effect == null || effect.getTrack() == null) {
-            statusMessageController.showFeedback("\u5f53\u524d\u6ca1\u6709\u53ef\u5207\u6362\u7684\u6b4c\u66f2");
-            return;
-        }
-        if (streamingViewModel == null || nowPlayingViewModel == null) {
-            statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
-            return;
-        }
-        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
-            return;
-        }
-        final Track current = effect.getTrack();
-        final long positionMs = playbackSnapshot().positionMs;
-        final app.yukine.streaming.StreamingAudioQuality quality =
-                effect.getQuality() == null ? selectedStreamingQuality() : effect.getQuality();
-        statusMessageController.showFeedback("\u6b63\u5728\u5207\u6362\u97f3\u6e90\uff1a" + effect.getProvider().getWireName());
-        streamingViewModel.resolveStreamingTrackForPlayback(
-                effect.getProvider(),
-                effect.getProviderTrackId(),
-                resolveStreamingPlaybackUseCase.metadataFor(current, effect.getProvider(), effect.getProviderTrackId()),
-                quality,
-                resolved -> {
-                    if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
-                        return;
-                    }
-                    if (resolved == null) {
-                        statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u5931\u8d25\uff0c\u8bf7\u6362\u4e00\u4e2a\u6765\u6e90\u518d\u8bd5");
-                        return;
-                    }
-                    completeNowPlayingSourceSwitch(effect.getRequestId(), current, resolved, positionMs);
-                }
-        );
-    }
-
-    private void switchNowPlayingLibrarySource(final NowPlayingEffect.SwitchLibrarySource effect) {
-        if (effect == null || effect.getCurrent() == null || effect.getReplacement() == null) {
-            statusMessageController.showFeedback("\u5f53\u524d\u6ca1\u6709\u53ef\u5207\u6362\u7684\u6b4c\u66f2");
-            return;
-        }
-        if (nowPlayingViewModel == null) {
-            statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
-            return;
-        }
-        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
-            return;
-        }
-        final Track current = effect.getCurrent();
-        final Track replacement = effect.getReplacement();
-        final long positionMs = playbackSnapshot().positionMs;
-        final StreamingSourceSwitchResolveRequest sourceSwitchRequest =
-                resolveStreamingPlaybackUseCase.prepareSourceSwitch(replacement);
-        if (sourceSwitchRequest == null) {
-            completeNowPlayingSourceSwitch(effect.getRequestId(), current, replacement, positionMs);
-            return;
-        }
-        final StreamingProviderName provider = sourceSwitchRequest.getProvider();
-        final String providerTrackId = sourceSwitchRequest.getProviderTrackId();
-        if (provider == null || providerTrackId == null || providerTrackId.trim().isEmpty()
-                || streamingViewModel == null) {
-            statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u6682\u4e0d\u53ef\u7528");
-            return;
-        }
-        statusMessageController.showFeedback("\u6b63\u5728\u5207\u6362\u97f3\u6e90\uff1a" + provider.getWireName());
-        streamingViewModel.resolveStreamingTrackForPlayback(
-                provider,
-                providerTrackId,
-                resolveStreamingPlaybackUseCase.metadataFor(replacement, provider, providerTrackId),
-                selectedStreamingQuality(),
-                resolved -> {
-                    if (!nowPlayingViewModel.isLatestSourceSwitchRequest(effect.getRequestId())) {
-                        return;
-                    }
-                    if (resolved == null) {
-                        statusMessageController.showFeedback("\u97f3\u6e90\u5207\u6362\u5931\u8d25\uff0c\u8bf7\u6362\u4e00\u4e2a\u6765\u6e90\u518d\u8bd5");
-                        return;
-                    }
-                    completeNowPlayingSourceSwitch(effect.getRequestId(), current, resolved, positionMs);
-                }
-        );
-    }
-
-    private void completeNowPlayingSourceSwitch(
-            long requestId,
-            Track current,
-            Track replacement,
-            long positionMs
-    ) {
-        if (current == null || replacement == null || nowPlayingViewModel == null) {
-            return;
-        }
-        if (!nowPlayingViewModel.isLatestSourceSwitchRequest(requestId)) {
-            return;
-        }
-        nowPlayingViewModel.replaceCurrentSourceAndResume(current.id, replacement, positionMs);
-        statusMessageController.showFeedback("\u5df2\u5207\u6362\u97f3\u6e90\uff1a" + replacement.title);
     }
 
     private void loadLyrics(final Track track) {
@@ -2137,9 +2049,9 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect instanceof NowPlayingEffect.DownloadTrack downloadTrack) {
                 downloadRequestController.downloadTrack(downloadTrack.getTrack());
             } else if (effect instanceof NowPlayingEffect.SwitchSource switchSource) {
-                switchNowPlayingSource(switchSource);
+                nowPlayingSourceSwitchOwner.handle(switchSource);
             } else if (effect instanceof NowPlayingEffect.SwitchLibrarySource switchLibrarySource) {
-                switchNowPlayingLibrarySource(switchLibrarySource);
+                nowPlayingSourceSwitchOwner.handle(switchLibrarySource);
             } else if (effect instanceof NowPlayingEffect.ShowMessage showMessage) {
                 statusMessageController.setStatus(showMessage.getMessage());
             }
@@ -2164,25 +2076,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         currentTrack.id,
                         snapshot.positionMs
                 );
-    }
-
-    /**
-     * Chooses the selected streaming quality. Auto mode still adapts to the active network.
-     */
-    private app.yukine.streaming.StreamingAudioQuality adaptiveStreamingQuality() {
-        return StreamingQualityPreference.playbackQuality(
-                this,
-                settingsStore == null ? null : settingsStore.streamingAudioQuality()
-        );
-    }
-
-    private app.yukine.streaming.StreamingAudioQuality selectedStreamingQuality() {
-        String selected = settingsStore == null
-                ? StreamingQualityPreference.defaultValue()
-                : settingsStore.streamingAudioQuality();
-        return StreamingQualityPreference.AUTO.equals(
-                StreamingQualityPreference.normalize(selected)
-        ) ? adaptiveStreamingQuality() : StreamingQualityPreference.ceilingFor(selected);
     }
 
     private void applyPlaybackActionResult(PlaybackActionResultUi result) {

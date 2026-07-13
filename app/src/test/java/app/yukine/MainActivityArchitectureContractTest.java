@@ -198,6 +198,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void nowPlayingSourceSwitchPolicyIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/NowPlayingSourceSwitchOwner.kt");
+        assertFalse(activity.contains("switchNowPlayingSource"));
+        assertFalse(activity.contains("switchNowPlayingLibrarySource"));
+        assertFalse(activity.contains("completeNowPlayingSourceSwitch"));
+        assertFalse(activity.contains("selectedStreamingQuality"));
+        assertTrue(owner.contains("private val playbackReadModel: PlaybackReadModel"));
+        assertTrue(owner.contains("if (!isLatestRequest(requestId))"));
+        assertTrue(owner.contains("replaceCurrentSourceAndResume(current.id, replacement, positionMs)"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
