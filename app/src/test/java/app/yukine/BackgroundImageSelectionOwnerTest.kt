@@ -2,9 +2,13 @@ package app.yukine
 
 import android.net.FakeUri
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class BackgroundImageSelectionOwnerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun appliesPickedBackgroundToTheCurrentSettingsSnapshot() {
         val settingsViewModel = SettingsViewModel()

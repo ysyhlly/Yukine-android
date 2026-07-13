@@ -2,9 +2,12 @@ package app.yukine.data
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.YukineDatabase
-import app.yukine.model.Track
+import app.yukine.data.room.YukineSchema
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -47,28 +50,8 @@ class YukineDatabaseMigrationTest {
     @Test
     fun versionFourteenFixturePreservesEveryUserStateDomain() {
         val name = databaseName("v14")
-        val helper = EchoDatabaseHelper(context, name)
-        val track = Track(
-            1401L,
-            "Migration Track",
-            "Migration Artist",
-            "Migration Album",
-            180_000L,
-            android.net.Uri.parse("file:///migration.flac"),
-            "/music/migration.flac",
-            14L,
-            null
-        )
-        helper.upsertTracks(listOf(track))
-        helper.setFavorite(track.id, true)
-        helper.markPlayed(track.id)
-        val playlistId = helper.createPlaylist("Migration Playlist")
-        helper.addTrackToPlaylist(playlistId, track.id)
-        helper.savePlaybackQueue(List(512) { track }, 311)
-        helper.savePlaybackPosition(track.id, 54_321L)
-        helper.saveThemeMode("dark")
-        helper.saveStreamingTrackMatch("local-key", "netease", "provider-1401", track)
-        helper.close()
+        val playlistId = 77L
+        createVersionFourteenFixture(name, playlistId)
 
         val database = YukineDatabase.open(context, name)
         val sqlite = database.openHelper.writableDatabase
@@ -83,6 +66,8 @@ class YukineDatabaseMigrationTest {
         assertEquals("311", stringValue(sqlite, "SELECT value FROM settings WHERE `key` = 'playback_queue_index'"))
         assertEquals("54321", stringValue(sqlite, "SELECT value FROM settings WHERE `key` = 'playback_position_ms'"))
         assertEquals("dark", stringValue(sqlite, "SELECT value FROM settings WHERE `key` = 'theme_mode'"))
+        assertEquals(1L, longValue(sqlite, "SELECT COUNT(*) FROM library_exclusions"))
+        assertEquals(1L, longValue(sqlite, "SELECT COUNT(*) FROM remote_sources WHERE id = 14"))
         assertEquals(
             "provider-1401",
             stringValue(
@@ -97,9 +82,7 @@ class YukineDatabaseMigrationTest {
     @Test
     fun invalidNullLegacyPrimaryKeyAbortsAndLeavesOriginalDatabaseUntouched() {
         val name = databaseName("invalid")
-        val helper = EchoDatabaseHelper(context, name)
-        helper.writableDatabase.execSQL("INSERT INTO settings(`key`, value) VALUES (NULL, 'keep-me')")
-        helper.close()
+        createVersionFourteenFixture(name, 77L, includeNullSetting = true)
 
         val database = YukineDatabase.open(context, name)
         try {
@@ -144,6 +127,87 @@ class YukineDatabaseMigrationTest {
         database.execSQL("INSERT INTO play_history(track_id, played_at) VALUES (901, 1700000000000)")
         database.version = 1
         database.close()
+    }
+
+    private fun createVersionFourteenFixture(
+        name: String,
+        playlistId: Long,
+        includeNullSetting: Boolean = false
+    ) {
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(14) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            YukineSchema.normalizeV14(db)
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+        db.execSQL(
+            "INSERT INTO tracks(id,title,artist,album,duration_ms,content_uri,data_path," +
+                "album_id,album_art_uri,codec,bitrate_kbps,sample_rate_hz,bits_per_sample," +
+                "channel_count,replay_gain_track_db,replay_gain_album_db,updated_at) " +
+                "VALUES(1401,'Migration Track','Migration Artist','Migration Album',180000," +
+                "'file:///migration.flac','/music/migration.flac',14,'','flac',900,96000," +
+                "24,2,-6.0,-4.0,1700000000000)"
+        )
+        db.execSQL("INSERT INTO favorites(track_id,created_at) VALUES(1401,1700000000000)")
+        db.execSQL("INSERT INTO play_history(track_id,played_at,play_count) VALUES(1401,1700000000000,3)")
+        db.execSQL("INSERT INTO play_events(track_id,played_at) VALUES(1401,1700000000000)")
+        db.execSQL(
+            "INSERT INTO playlists(id,name,created_at,updated_at) " +
+                "VALUES($playlistId,'Migration Playlist',1700000000000,1700000000000)"
+        )
+        db.execSQL(
+            "INSERT INTO playlist_tracks(playlist_id,track_id,position,added_at) " +
+                "VALUES($playlistId,1401,0,1700000000000)"
+        )
+        repeat(512) { position ->
+            db.execSQL(
+                "INSERT INTO playback_queue(position,track_id,title,artist,album,duration_ms," +
+                    "content_uri,data_path,album_id,album_art_uri,codec,bitrate_kbps," +
+                    "sample_rate_hz,bits_per_sample,channel_count,replay_gain_track_db," +
+                    "replay_gain_album_db) VALUES($position,1401,'Migration Track'," +
+                    "'Migration Artist','Migration Album',180000,'file:///migration.flac'," +
+                    "'/music/migration.flac',14,'','flac',900,96000,24,2,-6.0,-4.0)"
+            )
+        }
+        listOf(
+            "playback_queue_index" to "311",
+            "playback_position_track_id" to "1401",
+            "playback_position_ms" to "54321",
+            "theme_mode" to "dark"
+        ).forEach { (key, value) ->
+            db.execSQL("INSERT INTO settings(`key`,value) VALUES('$key','$value')")
+        }
+        db.execSQL(
+            "INSERT INTO remote_sources(id,type,name,base_url,username,password,root_path," +
+                "last_status,updated_at) VALUES(14,'webdav','Legacy DAV'," +
+                "'https://dav.example.test','user','secret','music','ready',1700000000000)"
+        )
+        db.execSQL(
+            "INSERT INTO streaming_track_matches(local_key,provider,provider_track_id,title," +
+                "artist,data_path,updated_at) VALUES('local-key','netease','provider-1401'," +
+                "'Migration Track','Migration Artist','/music/migration.flac',1700000000000)"
+        )
+        db.execSQL(
+            "INSERT INTO library_exclusions(source_key,content_uri,data_path,created_at) " +
+                "VALUES('uri:content://hidden','content://hidden','/music/hidden.flac',1700000000000)"
+        )
+        if (includeNullSetting) {
+            db.execSQL("INSERT INTO settings(`key`, value) VALUES (NULL, 'keep-me')")
+        }
+        helper.close()
     }
 
     private fun databaseName(suffix: String): String =

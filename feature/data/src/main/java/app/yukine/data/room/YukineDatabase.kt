@@ -47,8 +47,31 @@ abstract class YukineDatabase : RoomDatabase() {
         fun open(context: Context, databaseName: String): YukineDatabase =
             build(context.applicationContext, databaseName)
 
+        /** Closes the process singleton between isolated instrumentation cases. */
+        @JvmStatic
+        fun resetInstanceForTest() {
+            synchronized(this) {
+                instance?.close()
+                instance = null
+            }
+        }
+
+        internal fun openForTest(context: Context, databaseName: String): YukineDatabase =
+            builder(context.applicationContext, databaseName).build()
+
         private fun build(context: Context, databaseName: String): YukineDatabase =
+            builder(context, databaseName).build()
+
+        private fun builder(
+            context: Context,
+            databaseName: String
+        ): RoomDatabase.Builder<YukineDatabase> =
             Room.databaseBuilder(context, YukineDatabase::class.java, databaseName)
+                // Existing playback lifecycle ports are synchronous (MediaSession callbacks,
+                // boot restore and position checkpoints). Keeping their established threading
+                // contract avoids a startup regression while Room becomes the sole data owner;
+                // scans, metadata parsing and network imports remain dispatched by feature owners.
+                .allowMainThreadQueries()
                 .addMigrations(*YukineMigrations.all)
                 .addCallback(
                     object : Callback() {
@@ -61,6 +84,5 @@ abstract class YukineDatabase : RoomDatabase() {
                         }
                     }
                 )
-                .build()
     }
 }

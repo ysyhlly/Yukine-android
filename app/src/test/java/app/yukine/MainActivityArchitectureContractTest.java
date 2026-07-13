@@ -223,6 +223,43 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void roomIsTheOnlyDatabaseBoundaryAndEveryLegacyVersionHasExplicitMigration() throws Exception {
+        Path helper = root().resolve(
+                "feature/data/src/main/java/app/yukine/data/EchoDatabaseHelper.java");
+        Path settingsStore = root().resolve(
+                "feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
+        String database = read(
+                "feature/data/src/main/java/app/yukine/data/room/YukineDatabase.kt");
+        String migrations = read(
+                "feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt");
+        String libraryFacade = read(
+                "feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java");
+
+        assertFalse(Files.exists(helper));
+        assertFalse(Files.exists(settingsStore));
+        assertTrue(database.contains("abstract class YukineDatabase : RoomDatabase()"));
+        assertTrue(database.contains(".addMigrations(*YukineMigrations.all)"));
+        assertFalse(database.contains("fallbackToDestructiveMigration"));
+        assertTrue(migrations.contains("TARGET_VERSION: Int = 15"));
+        assertTrue(migrations.contains("(1 until TARGET_VERSION)"));
+        assertFalse(libraryFacade.contains("SQLiteDatabase"));
+        assertFalse(libraryFacade.contains("rawQuery"));
+        assertFalse(libraryFacade.contains("execSQL"));
+        assertFalse(libraryFacade.contains("EchoDatabaseHelper"));
+        for (String repository : new String[]{
+                "LibraryRepository.java",
+                "PlaylistRepository.java",
+                "HistoryRepository.java",
+                "PlaybackPersistenceRepository.java",
+                "SettingsRepository.java",
+                "RemoteSourceRepository.java"
+        }) {
+            assertTrue(Files.isRegularFile(root().resolve(
+                    "feature/data/src/main/java/app/yukine/data/" + repository)));
+        }
+    }
+
+    @Test
     public void navigationHasOneTypedPersistentRouteOwner() throws Exception {
         String hostState = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavHostState.kt");
         String graph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");

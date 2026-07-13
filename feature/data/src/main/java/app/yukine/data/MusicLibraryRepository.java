@@ -31,6 +31,7 @@ import app.yukine.playback.AudioEffectSettings;
 import app.yukine.streaming.StreamingQualityPreference;
 import app.yukine.TrackShareStyle;
 import app.yukine.common.StreamingDataPathParser;
+import app.yukine.data.room.YukineDatabase;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -40,8 +41,12 @@ public final class MusicLibraryRepository {
     private static final String TAG = "MusicLibraryRepository";
     private static final int AUDIO_SPEC_UPDATE_BATCH_SIZE = 24;
 
-    private final EchoDatabaseHelper database;
-    private final EchoSettingsStore settingsStore;
+    private final LibraryRepository libraryRepository;
+    private final PlaybackPersistenceRepository playbackPersistenceRepository;
+    private final SettingsRepository settingsRepository;
+    private final HistoryRepository historyRepository;
+    private final PlaylistRepository playlistRepository;
+    private final RemoteSourceRepository remoteSourceRepository;
     private final MediaStoreMusicScanner scanner;
     private final DocumentMusicImporter documentImporter;
     private final AudioSpecParser audioSpecParser;
@@ -51,8 +56,13 @@ public final class MusicLibraryRepository {
     @Inject
     public MusicLibraryRepository(@ApplicationContext Context context, StreamingDataPathParser streamingDataPathParser) {
         Context appContext = context.getApplicationContext();
-        database = new EchoDatabaseHelper(appContext);
-        settingsStore = new EchoSettingsStore(database);
+        YukineDatabase database = YukineDatabase.getInstance(appContext);
+        libraryRepository = new LibraryRepository(database);
+        playbackPersistenceRepository = new PlaybackPersistenceRepository(database);
+        settingsRepository = new SettingsRepository(database.settingsDao());
+        historyRepository = new HistoryRepository(database.historyDao());
+        playlistRepository = new PlaylistRepository(database);
+        remoteSourceRepository = new RemoteSourceRepository(database, libraryRepository);
         scanner = new MediaStoreMusicScanner(appContext);
         documentImporter = new DocumentMusicImporter(appContext);
         audioSpecParser = new AudioSpecParser(appContext);
@@ -61,195 +71,198 @@ public final class MusicLibraryRepository {
     }
 
     public List<Track> loadCachedTracks() {
-        return database.loadTracks();
+        return libraryRepository.loadTracks();
     }
 
     public List<Track> loadRecentlyAdded(int limit) {
-        return database.loadRecentlyAdded(limit);
+        return libraryRepository.loadRecentlyAdded(limit);
     }
 
     public List<Track> loadLongUnplayed(int limit) {
-        return database.loadLongUnplayed(limit);
+        return libraryRepository.loadLongUnplayed(limit);
     }
 
     public PlaybackQueueState loadPlaybackQueue() {
-        return new PlaybackQueueState(database.loadPlaybackQueueTracks(), database.loadPlaybackQueueIndex());
+        return new PlaybackQueueState(
+                playbackPersistenceRepository.loadQueue(),
+                playbackPersistenceRepository.loadQueueIndex()
+        );
     }
 
     public void savePlaybackQueue(List<Track> tracks, int currentIndex) {
-        database.savePlaybackQueue(tracks, currentIndex);
+        playbackPersistenceRepository.saveQueue(tracks, currentIndex);
     }
 
     public long loadPlaybackPositionTrackId() {
-        return database.loadPlaybackPositionTrackId();
+        return playbackPersistenceRepository.loadPositionTrackId();
     }
 
     public long loadPlaybackPositionMs() {
-        return database.loadPlaybackPositionMs();
+        return playbackPersistenceRepository.loadPositionMs();
     }
 
     public void savePlaybackPosition(long trackId, long positionMs) {
-        database.savePlaybackPosition(trackId, positionMs);
+        playbackPersistenceRepository.savePosition(trackId, positionMs);
     }
 
     public boolean loadShuffleEnabled() {
-        return database.loadShuffleEnabled();
+        return settingsRepository.loadShuffleEnabled();
     }
 
     public void saveShuffleEnabled(boolean enabled) {
-        database.saveShuffleEnabled(enabled);
+        settingsRepository.saveShuffleEnabled(enabled);
     }
 
     public int loadRepeatMode() {
-        return normalizeRepeatMode(database.loadRepeatMode());
+        return normalizeRepeatMode(settingsRepository.loadRepeatMode());
     }
 
     public void saveRepeatMode(int repeatMode) {
-        database.saveRepeatMode(normalizeRepeatMode(repeatMode));
+        settingsRepository.saveRepeatMode(normalizeRepeatMode(repeatMode));
     }
 
     public boolean loadPlaybackResumeRequested() {
-        return settingsStore.loadPlaybackResumeRequested();
+        return settingsRepository.loadPlaybackResumeRequested();
     }
 
     public void savePlaybackResumeRequested(boolean requested) {
-        settingsStore.savePlaybackResumeRequested(requested);
+        settingsRepository.savePlaybackResumeRequested(requested);
     }
 
     public AudioEffectSettings loadAudioEffectSettings() {
-        return settingsStore.loadAudioEffectSettings();
+        return settingsRepository.loadAudioEffectSettings();
     }
 
     public void saveAudioEffectSettings(AudioEffectSettings settings) {
-        settingsStore.saveAudioEffectSettings(settings);
+        settingsRepository.saveAudioEffectSettings(settings);
     }
 
     public boolean loadStatusBarLyricsEnabled() {
-        return settingsStore.loadStatusBarLyricsEnabled();
+        return settingsRepository.loadStatusBarLyricsEnabled();
     }
 
     public void saveStatusBarLyricsEnabled(boolean enabled) {
-        settingsStore.saveStatusBarLyricsEnabled(enabled);
+        settingsRepository.saveStatusBarLyricsEnabled(enabled);
     }
 
     public boolean loadSystemMediaLyricsTitleEnabled() {
-        return settingsStore.loadSystemMediaLyricsTitleEnabled();
+        return settingsRepository.loadSystemMediaLyricsTitleEnabled();
     }
 
     public void saveSystemMediaLyricsTitleEnabled(boolean enabled) {
-        settingsStore.saveSystemMediaLyricsTitleEnabled(enabled);
+        settingsRepository.saveSystemMediaLyricsTitleEnabled(enabled);
     }
 
     public boolean loadFloatingLyricsEnabled() {
-        return settingsStore.loadFloatingLyricsEnabled();
+        return settingsRepository.loadFloatingLyricsEnabled();
     }
 
     public void saveFloatingLyricsEnabled(boolean enabled) {
-        settingsStore.saveFloatingLyricsEnabled(enabled);
+        settingsRepository.saveFloatingLyricsEnabled(enabled);
     }
 
     public boolean loadNowPlayingGesturesEnabled() {
-        return settingsStore.loadNowPlayingGesturesEnabled();
+        return settingsRepository.loadNowPlayingGesturesEnabled();
     }
 
     public void saveNowPlayingGesturesEnabled(boolean enabled) {
-        settingsStore.saveNowPlayingGesturesEnabled(enabled);
+        settingsRepository.saveNowPlayingGesturesEnabled(enabled);
     }
 
     public boolean loadPlaybackRestoreEnabled() {
-        return settingsStore.loadPlaybackRestoreEnabled();
+        return settingsRepository.loadPlaybackRestoreEnabled();
     }
 
     public void savePlaybackRestoreEnabled(boolean enabled) {
-        settingsStore.savePlaybackRestoreEnabled(enabled);
+        settingsRepository.savePlaybackRestoreEnabled(enabled);
     }
 
     public boolean loadReplayGainEnabled() {
-        return settingsStore.loadReplayGainEnabled();
+        return settingsRepository.loadReplayGainEnabled();
     }
 
     public void saveReplayGainEnabled(boolean enabled) {
-        settingsStore.saveReplayGainEnabled(enabled);
+        settingsRepository.saveReplayGainEnabled(enabled);
     }
 
     public boolean loadDebugPromptsEnabled() {
-        return settingsStore.loadDebugPromptsEnabled();
+        return settingsRepository.loadDebugPromptsEnabled();
     }
 
     public void saveDebugPromptsEnabled(boolean enabled) {
-        settingsStore.saveDebugPromptsEnabled(enabled);
+        settingsRepository.saveDebugPromptsEnabled(enabled);
     }
 
     public boolean loadCustomBackgroundBlurEnabled() {
-        return settingsStore.loadCustomBackgroundBlurEnabled();
+        return settingsRepository.loadCustomBackgroundBlurEnabled();
     }
 
     public float loadCustomBackgroundBlurRadiusDp() {
-        return settingsStore.loadCustomBackgroundBlurRadiusDp();
+        return settingsRepository.loadCustomBackgroundBlurRadiusDp();
     }
 
     public void saveCustomBackgroundBlurEnabled(boolean enabled) {
-        settingsStore.saveCustomBackgroundBlurEnabled(enabled);
+        settingsRepository.saveCustomBackgroundBlurEnabled(enabled);
     }
 
     public void saveCustomBackgroundBlurRadiusDp(float radiusDp) {
-        settingsStore.saveCustomBackgroundBlurRadiusDp(radiusDp);
+        settingsRepository.saveCustomBackgroundBlurRadiusDp(radiusDp);
     }
 
     public boolean loadGlassBlurEnabled() {
-        return settingsStore.loadGlassBlurEnabled();
+        return settingsRepository.loadGlassBlurEnabled();
     }
 
     public float loadGlassBlurRadiusDp() {
-        return settingsStore.loadGlassBlurRadiusDp();
+        return settingsRepository.loadGlassBlurRadiusDp();
     }
 
     public void saveGlassBlurEnabled(boolean enabled) {
-        settingsStore.saveGlassBlurEnabled(enabled);
+        settingsRepository.saveGlassBlurEnabled(enabled);
     }
 
     public void saveGlassBlurRadiusDp(float radiusDp) {
-        settingsStore.saveGlassBlurRadiusDp(radiusDp);
+        settingsRepository.saveGlassBlurRadiusDp(radiusDp);
     }
 
     public float loadGlassSurfaceOpacity() {
-        return settingsStore.loadGlassSurfaceOpacity();
+        return settingsRepository.loadGlassSurfaceOpacity();
     }
 
     public void saveGlassSurfaceOpacity(float opacity) {
-        settingsStore.saveGlassSurfaceOpacity(opacity);
+        settingsRepository.saveGlassSurfaceOpacity(opacity);
     }
 
     public String loadShareStyle() {
-        return settingsStore.loadShareStyle();
+        return settingsRepository.loadShareStyle();
     }
 
     public void saveShareStyle(String style) {
-        settingsStore.saveShareStyle(style);
+        settingsRepository.saveShareStyle(style);
     }
 
     public PageBackgrounds loadPageBackgrounds() {
-        return settingsStore.loadPageBackgrounds();
+        return settingsRepository.loadPageBackgrounds();
     }
 
     public void savePageBackgrounds(PageBackgrounds backgrounds) {
-        settingsStore.savePageBackgrounds(backgrounds);
+        settingsRepository.savePageBackgrounds(backgrounds);
     }
 
     public boolean loadOnboardingCompleted() {
-        return settingsStore.loadOnboardingCompleted();
+        return settingsRepository.loadOnboardingCompleted();
     }
 
     public void saveOnboardingCompleted(boolean completed) {
-        settingsStore.saveOnboardingCompleted(completed);
+        settingsRepository.saveOnboardingCompleted(completed);
     }
 
     public List<RemoteSource> loadRemoteSources() {
-        return database.loadRemoteSources();
+        return remoteSourceRepository.loadSources();
     }
 
     public RemoteSource loadRemoteSource(long sourceId) {
-        return database.loadRemoteSource(sourceId);
+        return remoteSourceRepository.loadSource(sourceId);
     }
 
     public long saveWebDavSource(String name, String baseUrl, String username, String password, String rootPath) {
@@ -268,33 +281,33 @@ public final class MusicLibraryRepository {
                 sourceId > 0L ? "已更新，等待测试" : "已保存，等待测试",
                 System.currentTimeMillis()
         );
-        return database.saveRemoteSource(source);
+        return remoteSourceRepository.save(source);
     }
 
     public String testRemoteSource(long sourceId) {
-        RemoteSource source = database.loadRemoteSource(sourceId);
+        RemoteSource source = remoteSourceRepository.loadSource(sourceId);
         if (source == null) {
             return "远程源不存在";
         }
         String status = webDavClient.test(source);
-        database.updateRemoteSourceStatus(sourceId, status);
+        remoteSourceRepository.updateStatus(sourceId, status);
         return status;
     }
 
     public WebDavSyncResult syncRemoteSource(long sourceId) {
-        RemoteSource source = database.loadRemoteSource(sourceId);
+        RemoteSource source = remoteSourceRepository.loadSource(sourceId);
         if (source == null) {
             return new WebDavSyncResult(Collections.<Track>emptyList(), 0, 0, 0);
         }
         try {
-            List<Track> oldTracks = database.loadRemoteSourceTracks(sourceId);
+            List<Track> oldTracks = remoteSourceRepository.loadTracks(sourceId);
             List<Track> tracks = webDavClient.listAudioTracks(source);
             WebDavSyncResult result = syncResult(oldTracks, tracks);
-            database.replaceRemoteSourceTracks(sourceId, tracks);
-            database.updateRemoteSourceStatus(sourceId, "已同步 WebDAV：" + result.summary());
+            remoteSourceRepository.replaceTracks(sourceId, tracks);
+            remoteSourceRepository.updateStatus(sourceId, "已同步 WebDAV：" + result.summary());
             return result;
         } catch (RuntimeException error) {
-            database.updateRemoteSourceStatus(sourceId, "同步失败：" + safeMessage(error));
+            remoteSourceRepository.updateStatus(sourceId, "同步失败：" + safeMessage(error));
             throw error;
         }
     }
@@ -327,7 +340,7 @@ public final class MusicLibraryRepository {
     }
 
     public void deleteRemoteSource(long sourceId) {
-        database.deleteRemoteSource(sourceId);
+        remoteSourceRepository.delete(sourceId);
     }
 
     public Track addStreamUrl(String title, String url) {
@@ -339,7 +352,7 @@ public final class MusicLibraryRepository {
         Track track = M3uPlaylistParser.streamTrack(cleanTitle, cleanUrl);
         ArrayList<Track> tracks = new ArrayList<>();
         tracks.add(track);
-        database.upsertTracks(tracks);
+        libraryRepository.upsertTracks(tracks);
         return track;
     }
 
@@ -350,7 +363,7 @@ public final class MusicLibraryRepository {
         }
         String dataPath = "stream:" + cleanUrl;
         // 使用 SQL EXISTS 查询代替全表加载，O(1) 而非 O(n)。
-        return database.trackExistsByDataPath(dataPath);
+        return libraryRepository.trackExistsByDataPath(dataPath);
     }
 
     public Track updateStreamUrl(long oldTrackId, String title, String url) {
@@ -360,14 +373,14 @@ public final class MusicLibraryRepository {
         }
         String cleanTitle = title == null || title.trim().isEmpty() ? "网络流媒体" : title.trim();
         Track track = M3uPlaylistParser.streamTrack(cleanTitle, cleanUrl);
-        database.replaceTrackAndMigrateReferences(oldTrackId, track);
+        libraryRepository.replaceTrackAndMigrateReferences(oldTrackId, track);
         return track;
     }
 
     public String loadStreamingTrackMatch(Track track, String provider) {
         String cleanProvider = provider == null ? "" : provider;
         for (String key : streamingTrackMatchKeys(track)) {
-            String match = database.loadStreamingTrackMatch(key, cleanProvider);
+            String match = libraryRepository.loadStreamingTrackMatch(key, cleanProvider);
             if (match != null && !match.trim().isEmpty()) {
                 return match.trim();
             }
@@ -379,7 +392,7 @@ public final class MusicLibraryRepository {
         String cleanProvider = provider == null ? "" : provider;
         String cleanProviderTrackId = providerTrackId == null ? "" : providerTrackId.trim();
         for (String key : streamingTrackMatchKeys(track)) {
-            database.saveStreamingTrackMatch(key, cleanProvider, cleanProviderTrackId, track);
+            libraryRepository.saveStreamingTrackMatch(key, cleanProvider, cleanProviderTrackId, track);
         }
     }
 
@@ -494,7 +507,7 @@ public final class MusicLibraryRepository {
             return new PlaylistImportResult(-1L, playlistName, parsedTracks.size(), 0, 0, parsedTracks.size());
         }
 
-        List<Track> existingTracks = database.loadTracks();
+        List<Track> existingTracks = libraryRepository.loadTracks();
         ArrayList<Track> newStreamTracks = new ArrayList<>();
         ArrayList<Track> playlistTracks = new ArrayList<>();
         Set<String> existingStreamPaths = streamDataPaths(existingTracks);
@@ -520,12 +533,12 @@ public final class MusicLibraryRepository {
         }
 
         if (!newStreamTracks.isEmpty()) {
-            database.upsertTracks(newStreamTracks);
+            libraryRepository.upsertTracks(newStreamTracks);
         }
 
         int playlistAddedCount = 0;
         for (Track track : playlistTracks) {
-            if (database.addTrackToPlaylist(playlistId, track.id)) {
+            if (playlistRepository.addTrack(playlistId, track.id)) {
                 playlistAddedCount++;
             } else {
                 duplicateCount++;
@@ -543,7 +556,7 @@ public final class MusicLibraryRepository {
     }
 
     public int deleteAllStreams() {
-        return database.deleteStreamTracks();
+        return libraryRepository.deleteTracksByDataPathPattern("stream:%");
     }
 
     /**
@@ -563,14 +576,14 @@ public final class MusicLibraryRepository {
             }
         }
         if (!toUpsert.isEmpty()) {
-            database.upsertTracks(toUpsert);
+            libraryRepository.upsertTracks(toUpsert);
         }
         cacheStreamingTrackMatches(streamingTracks);
         // Replace playlist tracks
-        database.clearPlaylistTracks(playlistId);
+        playlistRepository.clearTracks(playlistId);
         int added = 0;
         for (Track track : streamingTracks) {
-            if (track != null && database.addTrackToPlaylist(playlistId, track.id)) {
+            if (track != null && playlistRepository.addTrack(playlistId, track.id)) {
                 added++;
             }
         }
@@ -595,7 +608,7 @@ public final class MusicLibraryRepository {
             return new PlaylistImportResult(-1L, cleanName, streamingTracks.size(), 0, 0, streamingTracks.size());
         }
 
-        List<Track> existingTracks = database.loadTracks();
+        List<Track> existingTracks = libraryRepository.loadTracks();
         Set<String> existingDataPaths = dataPathSet(existingTracks);
         ArrayList<Track> newTracks = new ArrayList<>();
         int streamAddedCount = 0;
@@ -610,7 +623,7 @@ public final class MusicLibraryRepository {
             }
         }
         if (!newTracks.isEmpty()) {
-            database.upsertTracks(newTracks);
+            libraryRepository.upsertTracks(newTracks);
         }
         cacheStreamingTrackMatches(streamingTracks);
 
@@ -620,7 +633,7 @@ public final class MusicLibraryRepository {
             if (track == null) {
                 continue;
             }
-            if (database.addTrackToPlaylist(playlistId, track.id)) {
+            if (playlistRepository.addTrack(playlistId, track.id)) {
                 playlistAddedCount++;
             } else {
                 duplicateCount++;
@@ -638,103 +651,103 @@ public final class MusicLibraryRepository {
     }
 
     public int deleteTrack(long trackId) {
-        return database.deleteTrack(trackId);
+        return libraryRepository.deleteTrack(trackId);
     }
 
     public int hideTracks(List<Track> tracks) {
-        return database.hideTracks(tracks);
+        return libraryRepository.hideTracks(tracks);
     }
 
     public List<LibraryExclusion> loadLibraryExclusions() {
-        return database.loadLibraryExclusions();
+        return libraryRepository.loadExclusions();
     }
 
     public boolean restoreLibraryExclusion(String sourceKey) {
-        return database.restoreLibraryExclusion(sourceKey);
+        return libraryRepository.restoreExclusion(sourceKey);
     }
 
     public int restoreAllLibraryExclusions() {
-        return database.restoreAllLibraryExclusions();
+        return libraryRepository.restoreAllExclusions();
     }
 
     public String loadThemeMode() {
-        return settingsStore.loadThemeMode();
+        return settingsRepository.loadThemeMode();
     }
 
     public void saveThemeMode(String mode) {
-        settingsStore.saveThemeMode(mode);
+        settingsRepository.saveThemeMode(mode);
     }
 
     public String loadAccentMode() {
-        return settingsStore.loadAccentMode();
+        return settingsRepository.loadAccentMode();
     }
 
     public void saveAccentMode(String mode) {
-        settingsStore.saveAccentMode(mode);
+        settingsRepository.saveAccentMode(mode);
     }
 
     public String loadLanguageMode() {
-        return settingsStore.loadLanguageMode();
+        return settingsRepository.loadLanguageMode();
     }
 
     public void saveLanguageMode(String mode) {
-        settingsStore.saveLanguageMode(mode);
+        settingsRepository.saveLanguageMode(mode);
     }
 
     public float loadPlaybackSpeed() {
-        return normalizePlaybackSpeed(settingsStore.loadPlaybackSpeed());
+        return normalizePlaybackSpeed(settingsRepository.loadPlaybackSpeed());
     }
 
     public void savePlaybackSpeed(float speed) {
-        settingsStore.savePlaybackSpeed(normalizePlaybackSpeed(speed));
+        settingsRepository.savePlaybackSpeed(normalizePlaybackSpeed(speed));
     }
 
     public float loadAppVolume() {
-        return normalizeAppVolume(settingsStore.loadAppVolume());
+        return normalizeAppVolume(settingsRepository.loadAppVolume());
     }
 
     public void saveAppVolume(float volume) {
-        settingsStore.saveAppVolume(normalizeAppVolume(volume));
+        settingsRepository.saveAppVolume(normalizeAppVolume(volume));
     }
 
     public String loadStreamingAudioQuality() {
-        return StreamingQualityPreference.normalize(settingsStore.loadStreamingAudioQuality());
+        return StreamingQualityPreference.normalize(settingsRepository.loadStreamingAudioQuality());
     }
 
     public void saveStreamingAudioQuality(String quality) {
-        settingsStore.saveStreamingAudioQuality(StreamingQualityPreference.normalize(quality));
+        settingsRepository.saveStreamingAudioQuality(StreamingQualityPreference.normalize(quality));
     }
 
     public boolean loadRefuseAutomaticQualityDowngrade() {
-        return settingsStore.loadRefuseAutomaticQualityDowngrade();
+        return settingsRepository.loadRefuseAutomaticQualityDowngrade();
     }
 
     public void saveRefuseAutomaticQualityDowngrade(boolean refuse) {
-        settingsStore.saveRefuseAutomaticQualityDowngrade(refuse);
+        settingsRepository.saveRefuseAutomaticQualityDowngrade(refuse);
     }
 
     public boolean loadOnlineLyricsEnabled() {
-        return settingsStore.loadOnlineLyricsEnabled();
+        return settingsRepository.loadOnlineLyricsEnabled();
     }
 
     public void saveOnlineLyricsEnabled(boolean enabled) {
-        settingsStore.saveOnlineLyricsEnabled(enabled);
+        settingsRepository.saveOnlineLyricsEnabled(enabled);
     }
 
     public boolean loadConcurrentPlaybackEnabled() {
-        return settingsStore.loadConcurrentPlaybackEnabled();
+        return settingsRepository.loadConcurrentPlaybackEnabled();
     }
 
     public void saveConcurrentPlaybackEnabled(boolean enabled) {
-        settingsStore.saveConcurrentPlaybackEnabled(enabled);
+        settingsRepository.saveConcurrentPlaybackEnabled(enabled);
     }
 
     public long loadLyricsOffsetMs() {
-        return normalizeLyricsOffsetMs(settingsStore.loadLyricsOffsetMs());
+        return normalizeLyricsOffsetMs(settingsRepository.loadLyricsOffsetMs());
     }
 
     public void saveLyricsOffsetMs(long offsetMs) {
-        settingsStore.saveLyricsOffsetMs(normalizeLyricsOffsetMs(offsetMs));
+        settingsRepository.saveLyricsOffsetMs(normalizeLyricsOffsetMs(offsetMs));
     }
 
     public List<Track> refreshFromDevice() {
@@ -751,11 +764,11 @@ public final class MusicLibraryRepository {
         reportRefreshProgress(progressListener, LibraryRefreshPhase.CHECKING, -1, startedAtNanos);
         throwIfRefreshInterrupted();
         long generation = scanner.generation();
-        if (generation >= 0L && generation == database.loadMediaStoreGeneration()) {
+        if (generation >= 0L && generation == settingsRepository.loadMediaStoreGeneration()) {
             // The full DB list also contains document, stream, streaming and WebDAV rows, so it
             // remains the single source of truth while avoiding a redundant MediaStore rewrite.
             reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, -1, startedAtNanos);
-            List<Track> cachedTracks = database.loadTracks();
+            List<Track> cachedTracks = libraryRepository.loadTracks();
             reportRefreshCompleted(cachedTracks.size(), startedAtNanos, true);
             return cachedTracks;
         }
@@ -763,13 +776,13 @@ public final class MusicLibraryRepository {
         List<Track> tracks = scanner.scan();
         throwIfRefreshInterrupted();
         reportRefreshProgress(progressListener, LibraryRefreshPhase.REPLACING, tracks.size(), startedAtNanos);
-        database.replaceTracks(tracks);
+        libraryRepository.replaceScanManagedTracks(tracks);
         throwIfRefreshInterrupted();
         // Persist only after the replacement transaction succeeds. If the scan or write fails,
         // the old token forces a safe retry next time.
-        database.saveMediaStoreGeneration(generation);
+        settingsRepository.saveMediaStoreGeneration(generation);
         reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, tracks.size(), startedAtNanos);
-        List<Track> refreshedTracks = database.loadTracks();
+        List<Track> refreshedTracks = libraryRepository.loadTracks();
         reportRefreshCompleted(refreshedTracks.size(), startedAtNanos, false);
         return refreshedTracks;
     }
@@ -810,18 +823,18 @@ public final class MusicLibraryRepository {
 
     public List<Track> importAudioUris(List<Uri> uris) {
         List<Track> tracks = documentImporter.importAudioUris(uris);
-        database.upsertTracks(tracks);
+        libraryRepository.upsertTracks(tracks);
         return tracks;
     }
 
     public List<Track> importAudioTree(Uri treeUri) {
         List<Track> tracks = documentImporter.importAudioTree(treeUri);
-        database.upsertTracks(tracks);
+        libraryRepository.upsertTracks(tracks);
         return tracks;
     }
 
     public int parseMissingAudioSpecs() {
-        List<Track> tracks = database.loadTracksNeedingAudioSpecs(Integer.MAX_VALUE);
+        List<Track> tracks = libraryRepository.loadTracksNeedingAudioSpecs(Integer.MAX_VALUE);
         ArrayList<Track> enriched = new ArrayList<>();
         int updated = 0;
         for (Track track : tracks) {
@@ -835,13 +848,13 @@ public final class MusicLibraryRepository {
             if (parsed != null && parsed.hasAudioSpec()) {
                 enriched.add(parsed);
                 if (enriched.size() >= AUDIO_SPEC_UPDATE_BATCH_SIZE) {
-                    updated += database.updateAudioSpecs(enriched);
+                    updated += libraryRepository.updateAudioSpecs(enriched);
                     enriched.clear();
                 }
             }
         }
         if (!enriched.isEmpty()) {
-            updated += database.updateAudioSpecs(enriched);
+            updated += libraryRepository.updateAudioSpecs(enriched);
         }
         return updated;
     }
@@ -863,27 +876,27 @@ public final class MusicLibraryRepository {
     }
 
     public void markPlayed(long trackId) {
-        database.markPlayed(trackId);
+        historyRepository.markPlayed(trackId);
     }
 
     public List<TrackPlayRecord> loadRecentlyPlayed(int limit) {
-        return database.loadRecentlyPlayed(limit);
+        return historyRepository.loadRecentlyPlayed(limit);
     }
 
     public List<TrackPlayRecord> loadPlayedSince(long startMs, int limit) {
-        return database.loadPlayedSince(startMs, limit);
+        return historyRepository.loadPlayedSince(startMs, limit);
     }
 
     public List<TrackPlayRecord> loadMostPlayed(int limit) {
-        return database.loadMostPlayed(limit);
+        return historyRepository.loadMostPlayed(limit);
     }
 
     public int clearPlayHistory() {
-        return database.clearPlayHistory();
+        return historyRepository.clear();
     }
 
     public void setFavorite(long trackId, boolean favorite) {
-        database.setFavorite(trackId, favorite);
+        libraryRepository.setFavorite(trackId, favorite);
     }
 
     public void setFavorite(Track track, boolean favorite) {
@@ -893,38 +906,38 @@ public final class MusicLibraryRepository {
         if (favorite) {
             ArrayList<Track> tracks = new ArrayList<>();
             tracks.add(track);
-            database.upsertTracks(tracks);
+            libraryRepository.upsertTracks(tracks);
             cacheStreamingTrackMatches(tracks);
         }
-        database.setFavorite(track.id, favorite);
+        libraryRepository.setFavorite(track.id, favorite);
     }
 
     public boolean isFavorite(long trackId) {
-        return database.isFavorite(trackId);
+        return libraryRepository.isFavorite(trackId);
     }
 
     public Set<Long> loadFavoriteIds() {
-        return database.loadFavoriteIds();
+        return libraryRepository.loadFavoriteIds();
     }
 
     public List<Track> loadFavoriteTracks() {
-        return database.loadFavoriteTracks();
+        return libraryRepository.loadFavoriteTracks();
     }
 
     public List<Playlist> loadPlaylists() {
-        return database.loadPlaylists();
+        return playlistRepository.loadPlaylists();
     }
 
     public long createPlaylist(String name) {
-        return database.createPlaylist(name);
+        return playlistRepository.create(name);
     }
 
     private long ensurePlaylistNamed(String name) {
-        long created = database.createPlaylist(name);
+        long created = playlistRepository.create(name);
         if (created >= 0L) {
             return created;
         }
-        for (Playlist playlist : database.loadPlaylists()) {
+        for (Playlist playlist : playlistRepository.loadPlaylists()) {
             if (playlist.name.equals(name)) {
                 return playlist.id;
             }
@@ -933,44 +946,44 @@ public final class MusicLibraryRepository {
     }
 
     public boolean renamePlaylist(long playlistId, String name) {
-        return database.renamePlaylist(playlistId, name);
+        return playlistRepository.rename(playlistId, name);
     }
 
     public boolean deletePlaylist(long playlistId) {
-        return database.deletePlaylist(playlistId);
+        return playlistRepository.delete(playlistId);
     }
 
     public long ensureDefaultPlaylist() {
-        List<Playlist> playlists = database.loadPlaylists();
+        List<Playlist> playlists = playlistRepository.loadPlaylists();
         if (!playlists.isEmpty()) {
             return playlists.get(0).id;
         }
-        long created = database.createPlaylist("我的 Yukine 歌单");
+        long created = playlistRepository.create("我的 Yukine 歌单");
         if (created != -1L) {
             return created;
         }
-        playlists = database.loadPlaylists();
+        playlists = playlistRepository.loadPlaylists();
         return playlists.isEmpty() ? -1L : playlists.get(0).id;
     }
 
     public boolean addTrackToPlaylist(long playlistId, long trackId) {
-        return database.addTrackToPlaylist(playlistId, trackId);
+        return playlistRepository.addTrack(playlistId, trackId);
     }
 
     public boolean removeTrackFromPlaylist(long playlistId, long trackId) {
-        return database.removeTrackFromPlaylist(playlistId, trackId);
+        return playlistRepository.removeTrack(playlistId, trackId);
     }
 
     public boolean movePlaylistTrack(long playlistId, long trackId, int direction) {
-        return database.movePlaylistTrack(playlistId, trackId, direction);
+        return playlistRepository.moveTrack(playlistId, trackId, direction);
     }
 
     public boolean movePlaylistTrackAt(long playlistId, int trackIndex, int direction) {
-        return database.movePlaylistTrackAt(playlistId, trackIndex, direction);
+        return playlistRepository.moveAt(playlistId, trackIndex, direction);
     }
 
     public List<Track> loadPlaylistTracks(long playlistId) {
-        return database.loadPlaylistTracks(playlistId);
+        return playlistRepository.loadTracks(playlistId);
     }
 
     public List<Track> immutableCopy(List<Track> tracks) {
@@ -981,7 +994,7 @@ public final class MusicLibraryRepository {
         if (parsedTracks == null || parsedTracks.isEmpty()) {
             return emptyStreamImportResult();
         }
-        Set<String> existingDataPaths = streamDataPaths(database.loadTracks());
+        Set<String> existingDataPaths = streamDataPaths(libraryRepository.loadTracks());
         ArrayList<Track> newTracks = new ArrayList<>();
         int duplicateCount = 0;
         for (Track track : parsedTracks) {
@@ -992,7 +1005,7 @@ public final class MusicLibraryRepository {
                 existingDataPaths.add(track.dataPath);
             }
         }
-        database.upsertTracks(newTracks);
+        libraryRepository.upsertTracks(newTracks);
         return new StreamImportResult(newTracks, parsedTracks.size(), newTracks.size(), duplicateCount);
     }
 
