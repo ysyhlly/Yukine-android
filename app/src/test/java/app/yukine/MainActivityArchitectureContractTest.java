@@ -312,6 +312,35 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void libraryStateAndMutationsAreSplitIntoFocusedOwners() throws Exception {
+        String viewModel = read("app/src/main/java/app/yukine/LibraryViewModel.kt");
+        String classBody = viewModel.substring(viewModel.indexOf("class LibraryViewModel"));
+        String presentation = read("app/src/main/java/app/yukine/LibraryPresentationStateOwner.kt");
+        String loading = read("app/src/main/java/app/yukine/LibraryLoadStateOwner.kt");
+        String playlists = read("app/src/main/java/app/yukine/LibraryPlaylistStateOwner.kt");
+        String favorites = read("app/src/main/java/app/yukine/LibraryFavoriteStateOwner.kt");
+        String mutations = read("app/src/main/java/app/yukine/LibraryMutationContext.kt");
+
+        assertTrue(viewModel.lines().count() < 350);
+        assertFalse(classBody.contains("MutableStateFlow"));
+        assertFalse(classBody.contains("fun loadLibrary("));
+        assertFalse(classBody.contains("fun createPlaylist("));
+        assertFalse(classBody.contains("fun updateTrackList("));
+        assertFalse(classBody.contains("fun onLibraryAction("));
+        assertTrue(classBody.contains("internal val presentation = LibraryPresentationStateOwner"));
+        assertTrue(classBody.contains("internal val loading = LibraryLoadStateOwner"));
+        assertTrue(classBody.contains("internal val playlists = LibraryPlaylistStateOwner"));
+        assertTrue(classBody.contains("internal val favorites = LibraryFavoriteStateOwner"));
+        assertTrue(presentation.contains("private val trackListState = MutableStateFlow"));
+        assertTrue(presentation.contains("private val groupsState = MutableStateFlow"));
+        assertTrue(presentation.contains("private val uiState = MutableStateFlow"));
+        assertTrue(loading.contains("class LibraryLoadStateOwner("));
+        assertTrue(playlists.contains("class LibraryPlaylistStateOwner("));
+        assertTrue(favorites.contains("class LibraryFavoriteStateOwner("));
+        assertTrue(mutations.contains("private val mutex = Mutex()"));
+    }
+
+    @Test
     public void nowPlayingPresentationUsesFocusedImmutableSubstates() throws Exception {
         String nowBar = read("feature/ui-common/src/main/java/app/yukine/ui/NowBar.kt");
         String nowPlaying = read("feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt");

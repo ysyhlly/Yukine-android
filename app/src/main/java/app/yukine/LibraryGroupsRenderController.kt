@@ -156,19 +156,19 @@ internal class LibraryGroupsRenderController(
                     Runnable { listener.selectLibraryGroup(key, title) },
                     Runnable { listener.playTrackList(tracks, 0) },
                     true,
-                    Runnable { viewModel.onLibraryAction(LibraryAction.ToggleGroupSelection(rowId)) }
+                    Runnable { viewModel.presentation.onAction(LibraryAction.ToggleGroupSelection(rowId)) }
                 )
             )
         }
 
-        viewModel.updateVisibleGroupTargets(groups.mapKeys { (key, _) ->
+        viewModel.presentation.updateVisibleGroupTargets(groups.mapKeys { (key, _) ->
             "$libraryMode:${if (key.isEmpty()) "unknown" else key}"
         })
 
         val title = LibraryGrouping.modeTitle(libraryMode, languageMode)
         val emptyText = AppLanguage.text(languageMode, "no.library.groups").replace("%s", title)
-        viewModel.clearTrackList()
-        viewModel.updateLibraryGroups(title, groupRows)
+        viewModel.presentation.clearTrackList()
+        viewModel.presentation.updateLibraryGroups(title, groupRows)
         listener.publishLibraryGroupsChrome(groupActions, emptyText, modeActions)
     }
 

@@ -119,7 +119,7 @@ internal class TrackListRenderController(
         buildContent: () -> BuiltTrackListContent
     ) {
         rowBuildJob?.cancel()
-        viewModel.clearLibraryGroups()
+        viewModel.presentation.clearLibraryGroups()
         if (trackCount < BACKGROUND_ROW_BUILD_THRESHOLD) {
             publishTrackListContent(title, buildContent())
             return
@@ -131,8 +131,8 @@ internal class TrackListRenderController(
     }
 
     private fun publishTrackListContent(title: String, content: BuiltTrackListContent) {
-        viewModel.updateVisibleTrackTargets(content.tracks, content.rows.map { it.key })
-        viewModel.updateTrackListContentAndChrome(
+        viewModel.presentation.updateVisibleTrackTargets(content.tracks, content.rows.map { it.key })
+        viewModel.presentation.updateTrackListContentAndChrome(
             title,
             content.rows,
             content.footerAlbums,

@@ -68,7 +68,7 @@ internal class UnifiedSearchOwner @JvmOverloads constructor(
         streamingViewModel.search.clearStreamingSearchSession()
         streamingPlaybackGeneration++
         libraryStore.applySearch("")
-        libraryViewModel.syncSearchQuery("")
+        libraryViewModel.presentation.syncSearchQuery("")
     }
 
     fun playLocalTrack(track: Track) {

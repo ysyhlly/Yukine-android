@@ -15,7 +15,7 @@ class PlaylistMutationOwnerTest {
 
         assertEquals(-1L, fixture.routeController.selectedPlaylistId())
         assertEquals(
-            fixture.viewModel.playlistDeletedPresentation("Mix", true, AppLanguage.MODE_ENGLISH).status,
+            LibraryPlaylistStatusFactory.deleted("Mix", true, AppLanguage.MODE_ENGLISH).status,
             fixture.statuses.single()
         )
         assertEquals(1, fixture.collectionsLoads)
@@ -30,7 +30,7 @@ class PlaylistMutationOwnerTest {
 
         assertEquals(9L, fixture.routeController.selectedPlaylistId())
         assertEquals(
-            fixture.viewModel.selectedPlaylistTrackMovedPresentation(
+            LibraryPlaylistStatusFactory.moved(
                 track,
                 -1,
                 true,
@@ -55,13 +55,12 @@ class PlaylistMutationOwnerTest {
             PlaylistMutationOwner.StatusSink(statuses::add),
             PlaylistMutationOwner.CollectionsLoader { collectionsLoads++ }
         )
-        return Fixture(owner, routeController, viewModel, statuses) { collectionsLoads }
+        return Fixture(owner, routeController, statuses) { collectionsLoads }
     }
 
     private class Fixture(
         val owner: PlaylistMutationOwner,
         val routeController: MainRouteController,
-        val viewModel: LibraryViewModel,
         val statuses: List<String>,
         private val collectionsLoadCount: () -> Int
     ) {

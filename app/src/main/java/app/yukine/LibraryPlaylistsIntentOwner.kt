@@ -40,7 +40,7 @@ internal class LibraryPlaylistsIntentOwner(
     }
 
     override fun publishLibraryGroupsChrome(state: LibraryGroupsChromeState) {
-        libraryViewModel.updateLibraryGroupsChrome(
+        libraryViewModel.presentation.updateLibraryGroupsChrome(
             LibraryGroupsDestinationState(
                 "",
                 Collections.emptyList(),

@@ -77,9 +77,9 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
     private fun render(inputs: LibraryRenderInputs) {
         val route = inputs.route
         val languageMode = inputs.languageMode
-        viewModel.updateLibraryLabels(libraryUiLabels(languageMode))
-        viewModel.syncLibraryMode(route.libraryMode)
-        viewModel.syncSearchQuery(route.searchQuery)
+        viewModel.presentation.updateLibraryLabels(libraryUiLabels(languageMode))
+        viewModel.presentation.syncLibraryMode(route.libraryMode)
+        viewModel.presentation.syncSearchQuery(route.searchQuery)
         if (!audioPermissionReader.hasAudioPermission()) {
             statusSink.showStatus(
                 AppLanguage.text(languageMode, "audio.permission.required") + ": " +

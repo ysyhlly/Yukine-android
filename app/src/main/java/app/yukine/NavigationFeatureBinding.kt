@@ -135,7 +135,7 @@ internal class NavigationFeatureBinding(
         realtimeBandsProvider = playbackConnection::realtimeBands,
         visualMotionEnabled = true,
         queueSheetVisibilityListener = { },
-        libraryActionHandler = viewModels.libraryViewModel::onLibraryAction
+        libraryActionHandler = viewModels.libraryViewModel.presentation::onAction
     )
 
     private fun installBackNavigation() {

@@ -165,7 +165,7 @@ final class LibraryFeatureBinding {
         );
         deletionCompletionOwner = new LibraryDeletionCompletionOwner(
                 playback.getNowPlayingViewModel()::removeQueueTracks,
-                () -> viewModel.onLibraryAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE),
+                () -> viewModel.presentationOwner().onAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE),
                 this::languageMode,
                 statusMessages::setStatus,
                 importOwner::loadLibrary
@@ -378,14 +378,14 @@ final class LibraryFeatureBinding {
                         streaming::importFavoritesToStreaming,
                         streaming::showImportStreamingFavoritesProviderPicker,
                         streaming::syncSelectedPlaylistFromStreaming,
-                        (playlistId, track, trackIndex, direction) -> viewModel.moveSelectedPlaylistTrackJava(
+                        (playlistId, track, trackIndex, direction) -> viewModel.playlistOwner().moveSelectedPlaylistTrackJava(
                                 playlistId,
                                 track,
                                 trackIndex,
                                 direction,
                                 playlistMutationOwner::onSelectedPlaylistTrackMoved
                         ),
-                        (playlistId, track) -> viewModel.removeSelectedPlaylistTrackJava(
+                        (playlistId, track) -> viewModel.playlistOwner().removeSelectedPlaylistTrackJava(
                                 playlistId,
                                 track,
                                 playlistMutationOwner::onSelectedPlaylistTrackRemoved
@@ -472,7 +472,7 @@ final class LibraryFeatureBinding {
     }
 
     void exportPlaylist(android.net.Uri uri, long playlistId, String playlistName) {
-        viewModel.exportPlaylistJava(uri, playlistId, playlistName);
+        viewModel.loadOwner().exportPlaylistJava(uri, playlistId, playlistName);
     }
 
     void clearPlayHistory() {

@@ -35,7 +35,7 @@ class TrackListRenderControllerTest {
     @Test
     fun playlistDetailDoesNotAddDuplicatePlayAllAction() {
         val viewModel = LibraryViewModel()
-        viewModel.onLibraryAction(LibraryAction.ModeChanged(LibraryMode.Playlists))
+        viewModel.presentation.onAction(LibraryAction.ModeChanged(LibraryMode.Playlists))
         val controller = TrackListRenderController(viewModel, FakeListener())
         val labels = TrackListLabels()
         val playPlaylist = TrackListHeaderAction("播放歌单", Runnable { })

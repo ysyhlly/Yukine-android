@@ -7,11 +7,11 @@ internal class HiddenLibraryRestoreOwner(
     private val refreshSettings: Runnable
 ) {
     fun restore(sourceKey: String) {
-        libraryViewModel.restoreHiddenLibraryItemJava(sourceKey, ::onRestored)
+        libraryViewModel.loading.restoreHiddenItemJava(sourceKey, ::onRestored)
     }
 
     fun restoreAll() {
-        libraryViewModel.restoreAllHiddenLibraryItemsJava(::onRestored)
+        libraryViewModel.loading.restoreAllHiddenItemsJava(::onRestored)
     }
 
     internal fun onRestored(changed: Boolean) {

@@ -44,7 +44,7 @@ internal class LibraryImportOwner(
         if (!canScan) {
             statusSink.setStatus(text("audio.permission.required"))
         }
-        viewModel.loadLibraryJava(
+        viewModel.loading.loadLibraryJava(
             allowCachedFirst,
             canScan,
             { result ->
@@ -63,7 +63,7 @@ internal class LibraryImportOwner(
     }
 
     fun cancelLibraryLoad() {
-        viewModel.cancelLibraryLoad()
+        viewModel.loading.cancelLibraryLoad()
     }
 
     fun importAudioUris(uris: List<Uri>) {
@@ -72,21 +72,21 @@ internal class LibraryImportOwner(
             return
         }
         statusSink.setStatus(text("importing.audio.files"))
-        viewModel.importAudioUrisJava(uris) { result ->
+        viewModel.loading.importAudioUrisJava(uris) { result ->
             replaceLibrary(result.tracks, result.favorites, result.status)
         }
     }
 
     fun importAudioFolder(treeUri: Uri) {
         statusSink.setStatus(text("importing.audio.folder"))
-        viewModel.importAudioTreeJava(treeUri) { result ->
+        viewModel.loading.importAudioTreeJava(treeUri) { result ->
             replaceLibrary(result.tracks, result.favorites, result.status)
         }
     }
 
     fun importStreamM3u(playlistUri: Uri) {
         statusSink.setStatus(text("importing.m3u.playlist"))
-        viewModel.importStreamM3uJava(playlistUri) { result ->
+        viewModel.loading.importStreamM3uJava(playlistUri) { result ->
             replaceLibrary(result.tracks, result.favorites, result.status)
             networkNavigator.openStreaming()
         }
@@ -94,7 +94,7 @@ internal class LibraryImportOwner(
 
     fun importPlaylistM3u(playlistUri: Uri) {
         statusSink.setStatus(text("import.playlist.m3u"))
-        viewModel.importPlaylistM3uJava(playlistUri) { result ->
+        viewModel.loading.importPlaylistM3uJava(playlistUri) { result ->
             if (result.playlistId >= 0L) {
                 routeController.setSelectedPlaylistId(result.playlistId)
             }
@@ -111,7 +111,7 @@ internal class LibraryImportOwner(
     ) {
         applyLibraryReplacement(tracks, favorites) {
             statusSink.setStatus(status)
-            viewModel.parseMissingAudioSpecsJava { result ->
+            viewModel.loading.parseMissingAudioSpecsJava { result ->
                 applyLibraryReplacement(result.tracks, result.favorites) {
                     if (result.updatedCount > 0) {
                         statusSink.setStatus(text("audio.specs.updated") + " (${result.updatedCount})")

@@ -9,7 +9,7 @@ internal class PlayHistoryActionController(
 ) {
     fun clearPlayHistory() {
         statusSink(text("clearing.play.history"))
-        viewModel.clearPlayHistory { removed ->
+        viewModel.playlists.clearPlayHistory { removed ->
             libraryStateStore.clearPlayHistory()
             statusSink(text("cleared.play.history.prefix") + removed)
             collectionsReloadAction.run()

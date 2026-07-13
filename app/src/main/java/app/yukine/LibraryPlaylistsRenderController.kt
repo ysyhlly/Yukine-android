@@ -125,8 +125,8 @@ internal class LibraryPlaylistsRenderController(
         }
 
         val title = AppLanguage.text(languageMode, "playlists")
-        viewModel.clearTrackList()
-        viewModel.updateLibraryGroups(title, rows)
+        viewModel.presentation.clearTrackList()
+        viewModel.presentation.updateLibraryGroups(title, rows)
         listener.publishLibraryGroupsChrome(
             LibraryGroupsChromeState(
                 actions = actions,

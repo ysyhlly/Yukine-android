@@ -35,21 +35,21 @@ class LibraryViewModelTest {
         val viewModel = LibraryViewModel()
         val tracks = listOf(track(1L), track(2L))
         viewModel.bindGateway(gateway)
-        viewModel.updateVisibleTrackTargets(tracks, listOf("one", "two"))
+        viewModel.presentation.updateVisibleTrackTargets(tracks, listOf("one", "two"))
 
-        viewModel.onLibraryAction(LibraryAction.RevealTrack("one"))
+        viewModel.presentation.onAction(LibraryAction.RevealTrack("one"))
         assertEquals("one", viewModel.libraryUi.value.revealedRowKey)
 
-        viewModel.onLibraryAction(LibraryAction.ToggleTrackSelection("one"))
+        viewModel.presentation.onAction(LibraryAction.ToggleTrackSelection("one"))
         assertTrue(viewModel.libraryUi.value.selectionActive)
         assertEquals(null, viewModel.libraryUi.value.revealedRowKey)
 
-        viewModel.onLibraryAction(LibraryAction.SelectAllVisible)
+        viewModel.presentation.onAction(LibraryAction.SelectAllVisible)
         assertEquals(setOf("one", "two"), viewModel.libraryUi.value.selectedTrackKeys)
-        viewModel.onLibraryAction(LibraryAction.DeleteSelected)
+        viewModel.presentation.onAction(LibraryAction.DeleteSelected)
 
         assertEquals("delete:1,2", gateway.calls.last())
-        viewModel.onLibraryAction(LibraryAction.ClearSelection)
+        viewModel.presentation.onAction(LibraryAction.ClearSelection)
         assertFalse(viewModel.libraryUi.value.selectionActive)
     }
 
@@ -59,8 +59,8 @@ class LibraryViewModelTest {
         val viewModel = LibraryViewModel()
         viewModel.bindGateway(gateway)
 
-        viewModel.onLibraryAction(LibraryAction.SortChanged(LibrarySort.DurationDescending))
-        viewModel.onLibraryAction(LibraryAction.FilterChanged(LibraryFilter.Local))
+        viewModel.presentation.onAction(LibraryAction.SortChanged(LibrarySort.DurationDescending))
+        viewModel.presentation.onAction(LibraryAction.FilterChanged(LibraryFilter.Local))
 
         assertEquals(LibrarySort.DurationDescending, viewModel.libraryUi.value.sort)
         assertEquals(LibraryFilter.Local, viewModel.libraryUi.value.filter)
@@ -83,11 +83,11 @@ class LibraryViewModelTest {
             favoriteWrites += track.id
             track.id != 2L
         }
-        viewModel.updateVisibleTrackTargets(tracks, listOf("1", "2", "3"))
-        viewModel.onLibraryAction(LibraryAction.SelectAllVisible)
+        viewModel.presentation.updateVisibleTrackTargets(tracks, listOf("1", "2", "3"))
+        viewModel.presentation.onAction(LibraryAction.SelectAllVisible)
 
-        viewModel.onLibraryAction(LibraryAction.FavoriteSelected)
-        viewModel.onLibraryAction(LibraryAction.AddSelectedToPlaylist)
+        viewModel.presentation.onAction(LibraryAction.FavoriteSelected)
+        viewModel.presentation.onAction(LibraryAction.AddSelectedToPlaylist)
         advanceUntilIdle()
 
         assertEquals(listOf(1L, 2L, 3L), favoriteWrites)
@@ -114,9 +114,9 @@ class LibraryViewModelTest {
             }
         })
 
-        viewModel.restoreHiddenLibraryItem("document:1") { results += it }
+        viewModel.loading.restoreHiddenItem("document:1") { results += it }
         advanceUntilIdle()
-        viewModel.restoreAllHiddenLibraryItems { results += it }
+        viewModel.loading.restoreAllHiddenItems { results += it }
         advanceUntilIdle()
 
         assertEquals(listOf("one:document:1", "all"), calls)
@@ -347,17 +347,17 @@ class LibraryViewModelTest {
         )
         val groupRows = listOf(LibraryGroupUiState("artist:a", "Artist A", "1 song"))
 
-        viewModel.updateTrackList("Songs", trackRows)
-        viewModel.clearTrackList()
-        viewModel.updateLibraryGroups("Artists", groupRows)
+        viewModel.presentation.updateTrackList("Songs", trackRows)
+        viewModel.presentation.clearTrackList()
+        viewModel.presentation.updateLibraryGroups("Artists", groupRows)
 
         assertEquals("", viewModel.trackList.value.title)
         assertEquals(emptyList<TrackRowUiState>(), viewModel.trackList.value.rows)
         assertEquals("Artists", viewModel.libraryGroups.value.title)
         assertEquals(groupRows, viewModel.libraryGroups.value.rows)
 
-        viewModel.clearLibraryGroups()
-        viewModel.updateTrackList("Songs", trackRows)
+        viewModel.presentation.clearLibraryGroups()
+        viewModel.presentation.updateTrackList("Songs", trackRows)
 
         assertEquals("", viewModel.libraryGroups.value.title)
         assertEquals(emptyList<LibraryGroupUiState>(), viewModel.libraryGroups.value.rows)
@@ -386,7 +386,7 @@ class LibraryViewModelTest {
         val loaded = mutableListOf<LibraryCollectionsResult>()
         viewModel.bindCollectionGateway(gateway)
 
-        viewModel.loadCollections(12L) { result -> loaded += result }
+        viewModel.playlists.loadCollections(12L) { result -> loaded += result }
         advanceUntilIdle()
 
         assertEquals(listOf("load:12"), gateway.calls)
@@ -402,8 +402,8 @@ class LibraryViewModelTest {
         val loaded = mutableListOf<Long>()
         viewModel.bindCollectionGateway(gateway)
 
-        viewModel.loadCollections(11L) { loaded += it.selectedPlaylistId }
-        viewModel.loadCollections(12L) { loaded += it.selectedPlaylistId }
+        viewModel.playlists.loadCollections(11L) { loaded += it.selectedPlaylistId }
+        viewModel.playlists.loadCollections(12L) { loaded += it.selectedPlaylistId }
         advanceUntilIdle()
 
         assertEquals(listOf(12L), loaded)
@@ -418,7 +418,7 @@ class LibraryViewModelTest {
         val removed = mutableListOf<Int>()
         viewModel.bindCollectionGateway(gateway)
 
-        viewModel.clearPlayHistory { count -> removed += count }
+        viewModel.playlists.clearPlayHistory { count -> removed += count }
         advanceUntilIdle()
 
         assertEquals(listOf("clear"), gateway.calls)
@@ -435,7 +435,7 @@ class LibraryViewModelTest {
         viewModel.bindCollectionGateway(collectionGateway)
         viewModel.bindGateway(libraryGateway)
 
-        viewModel.clearPlayHistory { removed += it }
+        viewModel.playlists.clearPlayHistory { removed += it }
         advanceUntilIdle()
 
         assertTrue(removed.isEmpty())
@@ -450,7 +450,7 @@ class LibraryViewModelTest {
         val loaded = mutableListOf<LibraryLoadResultUi>()
         viewModel.bindImportGateway(gateway)
 
-        viewModel.loadLibrary(
+        viewModel.loading.loadLibrary(
             allowCachedFirst = true,
             canScan = true,
             onLoaded = { result -> loaded += result }
@@ -470,7 +470,7 @@ class LibraryViewModelTest {
         val failures = mutableListOf<String>()
         viewModel.bindImportGateway(gateway)
 
-        viewModel.loadLibrary(
+        viewModel.loading.loadLibrary(
             allowCachedFirst = false,
             canScan = true,
             onFailed = { status -> failures += status }
@@ -497,7 +497,7 @@ class LibraryViewModelTest {
         viewModel.bindGateway(statusGateway)
         viewModel.bindImportGateway(importGateway)
 
-        viewModel.loadLibrary(allowCachedFirst = false, canScan = true)
+        viewModel.loading.loadLibrary(allowCachedFirst = false, canScan = true)
         advanceUntilIdle()
 
         assertEquals(
@@ -520,13 +520,13 @@ class LibraryViewModelTest {
         val failures = mutableListOf<String>()
         viewModel.bindImportGateway(gateway)
 
-        viewModel.loadLibrary(
+        viewModel.loading.loadLibrary(
             allowCachedFirst = false,
             canScan = true,
             onLoaded = { result -> loaded += result },
             onFailed = { status -> failures += status }
         )
-        viewModel.cancelLibraryLoad()
+        viewModel.loading.cancelLibraryLoad()
         advanceUntilIdle()
 
         assertTrue(gateway.calls.isEmpty())
@@ -542,7 +542,7 @@ class LibraryViewModelTest {
         val loaded = mutableListOf<String>()
         viewModel.bindImportGateway(gateway)
 
-        viewModel.importAudioUris(emptyList()) { result -> loaded += result.status }
+        viewModel.loading.importAudioUris(emptyList()) { result -> loaded += result.status }
         advanceUntilIdle()
 
         assertEquals(listOf("uris:0"), gateway.calls)
@@ -558,7 +558,7 @@ class LibraryViewModelTest {
         viewModel.bindImportGateway(importGateway)
         viewModel.bindGateway(libraryGateway)
 
-        viewModel.importAudioUris(emptyList())
+        viewModel.loading.importAudioUris(emptyList())
         advanceUntilIdle()
 
         assertTrue(libraryGateway.calls.contains("status:library.import.failed"))
@@ -573,10 +573,10 @@ class LibraryViewModelTest {
         viewModel.bindImportGateway(gateway)
 
         gateway.audioSpecsResult = LibraryAudioSpecsResultUi(0)
-        viewModel.parseMissingAudioSpecs { result -> parsed += result.updatedCount }
+        viewModel.loading.parseMissingAudioSpecs { result -> parsed += result.updatedCount }
         advanceUntilIdle()
         gateway.audioSpecsResult = LibraryAudioSpecsResultUi(2, listOf(track(2L)), setOf(2L))
-        viewModel.parseMissingAudioSpecs { result -> parsed += result.updatedCount }
+        viewModel.loading.parseMissingAudioSpecs { result -> parsed += result.updatedCount }
         advanceUntilIdle()
 
         assertEquals(listOf("specs", "specs"), gateway.calls)
@@ -593,9 +593,9 @@ class LibraryViewModelTest {
         val exportResults = mutableListOf<Boolean>()
         viewModel.bindDocumentGateway(gateway)
 
-        viewModel.importStreamM3u(null) { result -> streamStatuses += result.status }
-        viewModel.importPlaylistM3u(null) { result -> playlistResults += result }
-        viewModel.exportPlaylist(null, 9L, "Daily Mix") { exported -> exportResults += exported }
+        viewModel.loading.importStreamM3u(null) { result -> streamStatuses += result.status }
+        viewModel.loading.importPlaylistM3u(null) { result -> playlistResults += result }
+        viewModel.loading.exportPlaylist(null, 9L, "Daily Mix") { exported -> exportResults += exported }
         advanceUntilIdle()
 
         assertEquals(listOf("stream:null", "playlist:null", "export:null:9:Daily Mix"), gateway.calls)
@@ -620,13 +620,13 @@ class LibraryViewModelTest {
         val track = track(7L)
         viewModel.bindPlaylistActionGateway(gateway)
 
-        viewModel.addToDefaultPlaylist(track) { result -> defaultAdds += result }
-        viewModel.createPlaylist("Daily Mix") { playlistId -> created += playlistId }
-        viewModel.renamePlaylist(42L, "Renamed") { result -> renamed += result }
-        viewModel.deletePlaylist(42L, "Renamed") { result -> deleted += result }
-        viewModel.removeSelectedPlaylistTrack(42L, track) { result -> removed += result }
-        viewModel.moveSelectedPlaylistTrack(42L, track, 3, -1) { result -> moved += result }
-        viewModel.addTrackToPlaylist(42L, 7L) { result -> added += result }
+        viewModel.playlists.addToDefaultPlaylist(track) { result -> defaultAdds += result }
+        viewModel.playlists.createPlaylist("Daily Mix") { playlistId -> created += playlistId }
+        viewModel.playlists.renamePlaylist(42L, "Renamed") { result -> renamed += result }
+        viewModel.playlists.deletePlaylist(42L, "Renamed") { result -> deleted += result }
+        viewModel.playlists.removeSelectedPlaylistTrack(42L, track) { result -> removed += result }
+        viewModel.playlists.moveSelectedPlaylistTrack(42L, track, 3, -1) { result -> moved += result }
+        viewModel.playlists.addTrackToPlaylist(42L, 7L) { result -> added += result }
         advanceUntilIdle()
 
         assertEquals(
@@ -662,13 +662,13 @@ class LibraryViewModelTest {
         viewModel.bindPlaylistActionGateway(actionGateway)
         viewModel.bindGateway(libraryGateway)
 
-        viewModel.addToDefaultPlaylist(track) { callbacks += "default" }
-        viewModel.createPlaylist("Daily Mix") { callbacks += "create" }
-        viewModel.renamePlaylist(42L, "Renamed") { callbacks += "rename" }
-        viewModel.deletePlaylist(42L, "Renamed") { callbacks += "delete" }
-        viewModel.removeSelectedPlaylistTrack(42L, track) { callbacks += "remove" }
-        viewModel.moveSelectedPlaylistTrack(42L, track, 3, -1) { callbacks += "move" }
-        viewModel.addTrackToPlaylist(42L, 7L) { callbacks += "add" }
+        viewModel.playlists.addToDefaultPlaylist(track) { callbacks += "default" }
+        viewModel.playlists.createPlaylist("Daily Mix") { callbacks += "create" }
+        viewModel.playlists.renamePlaylist(42L, "Renamed") { callbacks += "rename" }
+        viewModel.playlists.deletePlaylist(42L, "Renamed") { callbacks += "delete" }
+        viewModel.playlists.removeSelectedPlaylistTrack(42L, track) { callbacks += "remove" }
+        viewModel.playlists.moveSelectedPlaylistTrack(42L, track, 3, -1) { callbacks += "move" }
+        viewModel.playlists.addTrackToPlaylist(42L, 7L) { callbacks += "add" }
         advanceUntilIdle()
 
         assertTrue(callbacks.isEmpty())
@@ -680,57 +680,56 @@ class LibraryViewModelTest {
 
     @Test
     fun playlistActionPresentationsBuildLocalizedStatuses() {
-        val viewModel = LibraryViewModel()
         val languageMode = AppLanguage.MODE_ENGLISH
         val track = track(7L)
 
         assertEquals(
             AppLanguage.text(languageMode, "added.to.playlist"),
-            viewModel.defaultPlaylistAddPresentation(true, languageMode).status
+            LibraryPlaylistStatusFactory.defaultAdd(true, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "could.not.add.to.playlist"),
-            viewModel.defaultPlaylistAddPresentation(false, languageMode).status
+            LibraryPlaylistStatusFactory.defaultAdd(false, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "playlist.created"),
-            viewModel.playlistCreatedPresentation(languageMode).status
+            LibraryPlaylistStatusFactory.created(languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "playlist.renamed"),
-            viewModel.playlistRenamedPresentation(true, languageMode).status
+            LibraryPlaylistStatusFactory.renamed(true, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "playlist.rename.failed"),
-            viewModel.playlistRenamedPresentation(false, languageMode).status
+            LibraryPlaylistStatusFactory.renamed(false, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "deleted.playlist.prefix") + "Mix",
-            viewModel.playlistDeletedPresentation("Mix", true, languageMode).status
+            LibraryPlaylistStatusFactory.deleted("Mix", true, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "could.not.delete.playlist"),
-            viewModel.playlistDeletedPresentation("Mix", false, languageMode).status
+            LibraryPlaylistStatusFactory.deleted("Mix", false, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "removed.from.playlist.prefix") + track.title,
-            viewModel.selectedPlaylistTrackRemovedPresentation(track, languageMode).status
+            LibraryPlaylistStatusFactory.removed(track, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "moved.up.prefix") + track.title,
-            viewModel.selectedPlaylistTrackMovedPresentation(track, -1, true, languageMode).status
+            LibraryPlaylistStatusFactory.moved(track, -1, true, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "moved.down.prefix") + track.title,
-            viewModel.selectedPlaylistTrackMovedPresentation(track, 1, true, languageMode).status
+            LibraryPlaylistStatusFactory.moved(track, 1, true, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "move.failed"),
-            viewModel.selectedPlaylistTrackMovedPresentation(track, 1, false, languageMode).status
+            LibraryPlaylistStatusFactory.moved(track, 1, false, languageMode).status
         )
         assertEquals(
             AppLanguage.text(languageMode, "added.to.playlist"),
-            viewModel.trackAddedToPlaylistPresentation(true, languageMode).status
+            LibraryPlaylistStatusFactory.defaultAdd(true, languageMode).status
         )
     }
 

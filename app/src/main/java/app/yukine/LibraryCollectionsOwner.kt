@@ -7,7 +7,7 @@ internal class LibraryCollectionsOwner(
     private val libraryStore: MainLibraryStore
 ) {
     fun load() {
-        viewModel.loadCollections(routeController.selectedPlaylistId()) { result ->
+        viewModel.playlists.loadCollections(routeController.selectedPlaylistId()) { result ->
             routeController.setSelectedPlaylistId(result.selectedPlaylistId)
             libraryStore.applyCollections(result)
         }
