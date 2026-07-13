@@ -107,51 +107,57 @@ public final class MainActivityArchitectureContractTest {
     public void settingsPageIsRouteFlowDrivenInsteadOfActivityRendered() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
-        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
         assertFalse(activity.contains("private void renderSettings()"));
         assertFalse(activity.contains("renderPageFromHost"));
         assertTrue(settings.contains("fun bindRouteState("));
         assertTrue(settings.contains(".map { it.selectedTab to it.settingsPage }"));
-        assertFalse(dispatcher.contains("renderSettingsAction"));
     }
 
     @Test
     public void unifiedSearchResultsAreFlowDrivenInsteadOfTabRendered() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String search = read("app/src/main/java/app/yukine/SearchViewModel.kt");
-        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
         assertFalse(activity.contains("private void renderSearch()"));
         assertFalse(activity.contains("refreshUnifiedSearch("));
         assertTrue(search.contains("fun bindStateSources("));
         assertTrue(search.contains("routeState.map { it.searchQuery }"));
         assertTrue(search.contains("libraryState.map { it.allTracks }"));
-        assertFalse(dispatcher.contains("renderSearchAction"));
     }
 
     @Test
     public void networkPagesAreFlowDrivenInsteadOfActivityRendered() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String network = read("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt");
-        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
         assertFalse(activity.contains("private void renderNetwork()"));
         assertTrue(network.contains("fun bindStateSources("));
         assertTrue(network.contains("routeState.map(::networkRenderRoute)"));
         assertTrue(network.contains("settingsState.map { it.preferences.languageMode }"));
-        assertFalse(dispatcher.contains("renderNetworkAction"));
     }
 
     @Test
     public void libraryPagesAreFlowDrivenInsteadOfActivityRendered() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String library = read("app/src/main/java/app/yukine/LibraryRenderOwner.kt");
-        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
         assertFalse(activity.contains("private void renderLibrary()"));
         assertFalse(activity.contains("private void renderLibraryGroups()"));
         assertFalse(activity.contains("private void renderLibraryPlaylists()"));
         assertTrue(library.contains("fun bindStateSources("));
         assertTrue(library.contains("playback.state.map { it.currentTrack }"));
         assertFalse(library.contains("positionMs"));
-        assertFalse(dispatcher.contains("renderLibraryAction"));
+    }
+
+    @Test
+    public void collectionsAreFlowDrivenAndManualTabDispatcherIsDeleted() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String collections = read("app/src/main/java/app/yukine/CollectionsRenderController.kt");
+        assertFalse(activity.contains("private void renderCollections()"));
+        assertFalse(activity.contains("renderSelectedTabForNavHostState"));
+        assertFalse(activity.contains("MainTabRenderDispatcher"));
+        assertTrue(collections.contains("fun bindStateSources("));
+        assertTrue(collections.contains("withContext(ioDispatcher) { insightsLoader.load() }"));
+        assertTrue(collections.contains("playback.state.map { it.currentTrack }"));
+        assertFalse(collections.contains("playback.state.map { it.positionMs }"));
+        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt")));
     }
 
     @Test

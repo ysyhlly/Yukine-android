@@ -3,6 +3,8 @@ package app.yukine
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
+import app.yukine.navigation.CollectionsTab
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.CollectionActionUiState
 import app.yukine.ui.CollectionMetricUiState
@@ -21,11 +23,41 @@ import app.yukine.ui.TrackRowUiState
 import java.text.DateFormat
 import java.util.ArrayList
 import java.util.Date
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-internal class CollectionsRenderController(
+internal data class CollectionsInsightSnapshot(
+    val recentlyAdded: List<Track> = emptyList(),
+    val longUnplayed: List<Track> = emptyList()
+)
+
+internal fun interface CollectionsInsightsLoader {
+    fun load(): CollectionsInsightSnapshot
+}
+
+internal class CollectionsRenderController @JvmOverloads constructor(
     private val viewModel: CollectionsViewModel,
-    private val listener: Listener
+    private val listener: Listener,
+    private val scope: CoroutineScope = MainScope(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
+    private val insights = MutableStateFlow(CollectionsInsightSnapshot())
+    private var renderJob: Job? = null
+    private var insightsJob: Job? = null
+    private var playbackReadModel: PlaybackReadModel? = null
+
     interface Listener {
         fun showCreatePlaylist()
 
@@ -64,6 +96,78 @@ internal class CollectionsRenderController(
         fun moveSelectedPlaylistTrack(playlistId: Long, track: Track, trackIndex: Int, direction: Int)
 
         fun removeSelectedPlaylistTrack(playlistId: Long, track: Track)
+    }
+
+    fun bindStateSources(
+        routeState: StateFlow<NavigationRouteState>?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        settingsState: StateFlow<SettingsState>?,
+        playback: PlaybackReadModel?,
+        insightsLoader: CollectionsInsightsLoader?
+    ) {
+        renderJob?.cancel()
+        insightsJob?.cancel()
+        renderJob = null
+        insightsJob = null
+        playbackReadModel = playback
+        if (
+            routeState == null || libraryState == null || settingsState == null ||
+            playback == null || insightsLoader == null
+        ) {
+            return
+        }
+        val route = routeState.map(::collectionsRenderRoute).distinctUntilChanged()
+        renderJob = scope.launch {
+            combine(
+                route,
+                libraryState,
+                settingsState.map { it.preferences.languageMode }.distinctUntilChanged(),
+                playback.state.map { it.currentTrack }.distinctUntilChanged(),
+                insights
+            ) { routeInput, library, languageMode, _, insightSnapshot ->
+                CollectionsRenderInputs(routeInput, library, languageMode, insightSnapshot)
+            }.collect { input ->
+                if (input.route.active) {
+                    renderFromState(input)
+                }
+            }
+        }
+        insightsJob = scope.launch {
+            combine(
+                route.map { it.active }.distinctUntilChanged(),
+                libraryState
+            ) { active, library -> active to library }
+                .collectLatest { (active, _) ->
+                    if (active) {
+                        insights.value = withContext(ioDispatcher) { insightsLoader.load() }
+                    }
+                }
+        }
+    }
+
+    fun release() {
+        renderJob?.cancel()
+        insightsJob?.cancel()
+        renderJob = null
+        insightsJob = null
+        playbackReadModel = null
+        scope.cancel()
+    }
+
+    private fun renderFromState(input: CollectionsRenderInputs) {
+        render(
+            input.languageMode,
+            input.library.favoriteTracks,
+            input.library.recentRecords,
+            input.library.mostPlayedRecords,
+            input.library.playlists,
+            input.library.selectedPlaylistTracks,
+            input.route.selectedPlaylistId,
+            playbackReadModel?.state?.value,
+            input.library.favoriteTrackIds,
+            input.insights.recentlyAdded,
+            input.insights.longUnplayed
+        )
     }
 
     fun render(
@@ -414,3 +518,21 @@ internal class CollectionsRenderController(
 
     private fun text(languageMode: String, key: String): String = AppLanguage.text(languageMode, key)
 }
+
+private data class CollectionsRenderRoute(
+    val active: Boolean,
+    val selectedPlaylistId: Long
+)
+
+private data class CollectionsRenderInputs(
+    val route: CollectionsRenderRoute,
+    val library: LibraryStoreState,
+    val languageMode: String,
+    val insights: CollectionsInsightSnapshot
+)
+
+private fun collectionsRenderRoute(state: NavigationRouteState): CollectionsRenderRoute =
+    CollectionsRenderRoute(
+        active = state.selectedTab == CollectionsTab,
+        selectedPlaylistId = state.selectedPlaylistId
+    )

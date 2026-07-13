@@ -165,7 +165,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
     private PlaybackServiceConnectionController playbackServiceConnectionController;
     private PlaybackStateEventController playbackStateEventController;
-    private MainTabRenderDispatcher tabRenderDispatcher;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private TrackListRenderController trackListRenderController;
@@ -528,9 +527,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeNavigationRendering() {
-        tabRenderDispatcher = new MainTabRenderDispatcher(
-                this::renderCollections
-        );
         searchViewModel.updateActions(new app.yukine.ui.UnifiedSearchActions(
                 this::updateUnifiedSearchQuery,
                 this::performUnifiedSearch,
@@ -589,7 +585,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
                 () -> {
                     routeController.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true);
-                    renderCollections();
                     renderSelectedTab();
                 },
                 () -> {
@@ -973,6 +968,16 @@ public abstract class MainActivityBase extends ComponentActivity {
                 (playlistId, track) ->
                         libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, MainActivityBase.this::onSelectedPlaylistTrackRemoved)
         ));
+        collectionsRenderController.bindStateSources(
+                navigationViewModel.getState(),
+                viewModel.getLibrary(),
+                settingsViewModel.getState(),
+                playbackServiceConnectionController,
+                () -> new CollectionsInsightSnapshot(
+                        repository.loadRecentlyAdded(30),
+                        repository.loadLongUnplayed(30)
+                )
+        );
         streamingViewModel.bindStreamingLocalPlaylistOperations(streamingLocalPlaylistOperations);
         streamingViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
         streamingRecommendationViewModel.bindStreamingTrackMatchStore(streamingTrackMatchUseCase);
@@ -1329,6 +1334,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (libraryRenderOwner != null) {
             libraryRenderOwner.release();
         }
+        if (collectionsRenderController != null) {
+            collectionsRenderController.release();
+        }
         if (playbackServiceConnectionController != null) {
             playbackServiceConnectionController.release();
         }
@@ -1602,14 +1610,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                 MainActivityBase.this.handleAppBack();
             }
         });
-        renderSelectedTabForNavHostState();
         syncNavHostState();
         navHostInstalled = true;
         EchoAppHost.installNavHost(this, new ActivityNavHostMount());
-    }
-
-    private void renderSelectedTabForNavHostState() {
-        tabRenderDispatcher.render(selectedTab());
     }
 
     private void syncNavHostState() {
@@ -1997,7 +2000,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (libraryViewModel != null) {
             libraryViewModel.syncSearchQuery("");
         }
-        renderSelectedTabForNavHostState();
     }
 
     private void playUnifiedSearchTrack(Track track) {
@@ -2132,7 +2134,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         nowPlayingViewModel.replaceCurrentSourceAndResume(current.id, replacement, positionMs);
         statusMessageController.showFeedback("\u5df2\u5207\u6362\u97f3\u6e90\uff1a" + replacement.title);
-        renderSelectedTabForNavHostState();
     }
 
     private void loadLyrics(final Track track) {
@@ -2267,7 +2268,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void renderSelectedTab() {
-        renderSelectedTabForNavHostState();
         syncNavHostState();
     }
 
@@ -2404,22 +2404,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackSnapshot(),
                 libraryStore.favoriteIds(),
                 footerAlbums
-        );
-    }
-
-    private void renderCollections() {
-        collectionsRenderController.render(
-                settingsStore.languageMode(),
-                libraryStore.favoriteTracks(),
-                libraryStore.recentRecords(),
-                libraryStore.mostPlayedRecords(),
-                libraryStore.playlists(),
-                libraryStore.selectedPlaylistTracks(),
-                selectedPlaylistId(),
-                playbackSnapshot(),
-                libraryStore.favoriteIds(),
-                repository.loadRecentlyAdded(30),
-                repository.loadLongUnplayed(30)
         );
     }
 
