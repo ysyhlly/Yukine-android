@@ -100,7 +100,11 @@ dependencies {
     implementation project(":feature:streaming")
     implementation project(":feature:data")
     implementation project(":feature:playback")
-    implementation project(":feature:ui-common")
+    implementation project(":core:designsystem")
+    implementation project(":feature:player-ui")
+    implementation project(":feature:library-ui")
+    implementation project(":feature:settings-ui")
+    implementation project(":feature:streaming-ui")
     implementation project(":feature:navigation")
 
     // Compose BOM

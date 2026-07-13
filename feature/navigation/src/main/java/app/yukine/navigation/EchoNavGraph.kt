@@ -60,7 +60,7 @@ fun EchoNavGraph(
     nowBar: (@Composable () -> Unit)? = null,
     topBar: @Composable () -> Unit = {}
 ) {
-    val playbackState by hostState.playbackSnapshotProvider.playbackSnapshot.collectAsState()
+    val playbackState by hostState.player.playbackSnapshotProvider.playbackSnapshot.collectAsState()
     val route by hostState.routeState.collectAsState()
     val playbackQuality = StreamingDataPathMetadata.quality(playbackState.currentTrack?.dataPath)
     val pagerTabs = tabs.map { it.tab }
@@ -74,7 +74,7 @@ fun EchoNavGraph(
     var realtimeBands by remember(hostState) {
         mutableStateOf(EmptyRealtimeBands)
     }
-    val realtimeVisualsActive = hostState.visualMotionEnabled &&
+    val realtimeVisualsActive = hostState.player.visualMotionEnabled &&
         playbackState.playing &&
         realtimeVisualsVisible(selectedTab, route.networkPage)
     LaunchedEffect(hostState, realtimeVisualsActive) {
@@ -88,8 +88,8 @@ fun EchoNavGraph(
             return@LaunchedEffect
         }
         while (true) {
-            val nextBeat = hostState.realtimeBeatProvider().coerceIn(0f, 1f)
-            val nextBands = hostState.realtimeBandsProvider()
+            val nextBeat = hostState.player.realtimeBeatProvider().coerceIn(0f, 1f)
+            val nextBands = hostState.player.realtimeBandsProvider()
             if (realtimeBeat != nextBeat) {
                 realtimeBeat = nextBeat
             }
@@ -110,21 +110,21 @@ fun EchoNavGraph(
         playing = playbackState.playing,
         realtimeBeat = max(playbackState.realtimeBeat, realtimeBeat),
         realtimeBands = realtimeBands,
-        visualMotionEnabled = hostState.visualMotionEnabled
+        visualMotionEnabled = hostState.player.visualMotionEnabled
     )
-    val nowBarState by hostState.nowBarStateProvider.nowBarState.collectAsState()
-    val settingsChromeState by hostState.settingsChromeState.collectAsState()
-    var activeDownload by remember(hostState.trackDownloadController) {
+    val nowBarState by hostState.player.nowPlayingStateProvider.nowBarState.collectAsState()
+    val settingsChromeState by hostState.settings.settingsChromeState.collectAsState()
+    var activeDownload by remember(hostState.player.trackDownloadController) {
         mutableStateOf<TrackDownloadItem?>(null)
     }
     val activeDownloadVisible = selectedInPager || selectedTab == SearchTab || selectedTab == NowTab
-    LaunchedEffect(hostState.trackDownloadController, activeDownloadVisible) {
+    LaunchedEffect(hostState.player.trackDownloadController, activeDownloadVisible) {
         if (!activeDownloadVisible) {
             activeDownload = null
             return@LaunchedEffect
         }
         while (true) {
-            activeDownload = hostState.trackDownloadController
+            activeDownload = hostState.player.trackDownloadController
                 ?.snapshot()
                 ?.firstOrNull { it.status != TrackDownloadStatus.Finished }
             delay(1000L)
@@ -205,19 +205,19 @@ fun EchoNavGraph(
             // directly so navigating to them never leaves the pager showing a stale page.
             Box(modifier = contentModifier) {
                 when (selectedTab) {
-                    CollectionsTab -> CollectionsDestination(hostState.collectionsStateProvider)
+                    CollectionsTab -> CollectionsDestination(hostState.library.collectionsStateProvider)
                     NetworkTab -> {
-                        val networkMenuState by hostState.networkMenuState.collectAsState()
+                        val networkMenuState by hostState.settings.networkMenuState.collectAsState()
                         NetworkDestination(
                             networkPage = route.networkPage,
                             menuState = networkMenuState,
-                            sourcesState = hostState.networkSourcesState,
-                            trackListState = hostState.libraryTrackListState,
+                            sourcesState = hostState.settings.networkSourcesState,
+                            trackListState = hostState.library.libraryTrackListState,
                             activeDownload = activeDownload,
                             playbackQuality = playbackQuality,
                             audioMotion = audioMotion,
                             streamingContent = {
-                                val streamingState by hostState.streamingState.collectAsState()
+                                val streamingState by hostState.streaming.streamingState.collectAsState()
                                 StreamingSearchScreen(
                                     state = streamingState,
                                     labels = streamingState.searchChromeLabels,
@@ -228,15 +228,15 @@ fun EchoNavGraph(
                     }
                     DownloadsTab -> {
                         DownloadsDestination(
-                            state = hostState.downloadsState,
-                            openDirectoryRequests = hostState.downloadsOpenDirectoryRequests,
-                            actions = hostState.downloadsActions
+                            state = hostState.library.downloadsState,
+                            openDirectoryRequests = hostState.library.downloadsOpenDirectoryRequests,
+                            actions = hostState.library.downloadsActions
                         )
                     }
                     SearchTab -> {
-                        val streamingState by hostState.streamingState.collectAsState()
+                        val streamingState by hostState.streaming.streamingState.collectAsState()
                         SearchDestination(
-                            searchState = hostState.searchState,
+                            searchState = hostState.library.searchState,
                             streamingState = streamingState.toUnifiedSearchStreamingState(),
                             activeDownload = activeDownload,
                             playbackQuality = playbackQuality,
@@ -244,7 +244,7 @@ fun EchoNavGraph(
                         )
                     }
                     NowTab -> NowPlayingDestination(
-                        state = hostState.nowPlayingUiState,
+                        state = hostState.player.nowPlayingStateProvider.uiState,
                         immersive = nowPlayingImmersive,
                         onImmersiveChanged = { nowPlayingImmersive = it },
                         gesturesEnabled = settingsChromeState.nowPlayingGesturesEnabled,
@@ -256,7 +256,7 @@ fun EchoNavGraph(
                             )
                         },
                         sourceCandidates = { track ->
-                            hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
+                            hostState.player.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
                         onSwitchLocalSource = { current, replacement ->
                             nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
@@ -265,7 +265,7 @@ fun EchoNavGraph(
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
                 }
             }
         } else {
@@ -276,18 +276,18 @@ fun EchoNavGraph(
             ) { page ->
                 val tab = pagerTabs[page]
                 when (tab) {
-                    HomeTab -> HomeDestination(hostState.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    HomeTab -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
                     LibraryTab -> LibraryDestination(
-                        groupsState = hostState.libraryGroupsState,
-                        trackListState = hostState.libraryTrackListState,
+                        groupsState = hostState.library.libraryGroupsState,
+                        trackListState = hostState.library.libraryTrackListState,
                         openSearchAction = openSearchAction,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion,
-                        actionHandler = hostState.libraryActionHandler
+                        actionHandler = hostState.library.libraryActionHandler
                     )
                     QueueTab -> NowPlayingDestination(
-                        state = hostState.nowPlayingUiState,
+                        state = hostState.player.nowPlayingStateProvider.uiState,
                         immersive = nowPlayingImmersive,
                         onImmersiveChanged = { nowPlayingImmersive = it },
                         gesturesEnabled = settingsChromeState.nowPlayingGesturesEnabled,
@@ -299,7 +299,7 @@ fun EchoNavGraph(
                             )
                         },
                         sourceCandidates = { track ->
-                            hostState.nowPlayingStateProvider.sourceCandidatesFor(track)
+                            hostState.player.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
                         onSwitchLocalSource = { current, replacement ->
                             nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
@@ -309,13 +309,13 @@ fun EchoNavGraph(
                         audioMotion = audioMotion
                     )
                     SettingsTab -> SettingsDestination(
-                        state = hostState.settingsState,
-                        scrollState = hostState.settingsScrollState,
+                        state = hostState.settings.settingsState,
+                        scrollState = hostState.settings.settingsScrollState,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
                 }
             }
         }
@@ -329,7 +329,7 @@ fun EchoNavGraph(
             containerColor = p.surface
         ) {
             QueueDestination(
-                hostState.queueStateProvider,
+                hostState.player.queueStateProvider,
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f)
             )
         }

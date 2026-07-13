@@ -131,14 +131,67 @@ public final class MainActivityArchitectureContractTest {
         for (String module : new String[]{
                 "core/common/build.gradle",
                 "core/model/build.gradle",
+                "core/designsystem/build.gradle",
                 "feature/data/build.gradle",
                 "feature/navigation/build.gradle",
                 "feature/playback/build.gradle",
                 "feature/streaming/build.gradle",
-                "feature/ui-common/build.gradle"
+                "feature/player-ui/build.gradle",
+                "feature/library-ui/build.gradle",
+                "feature/settings-ui/build.gradle",
+                "feature/streaming-ui/build.gradle"
         }) {
             assertFalse(module + " must not depend on :app", read(module).contains("project(\":app\")"));
         }
+    }
+
+    @Test
+    public void businessUiLivesInFocusedModulesAndUiCommonIsGone() throws Exception {
+        String settings = read("settings.gradle");
+        assertTrue(settings.contains("include \":core:designsystem\""));
+        assertTrue(settings.contains("include \":feature:player-ui\""));
+        assertTrue(settings.contains("include \":feature:library-ui\""));
+        assertTrue(settings.contains("include \":feature:settings-ui\""));
+        assertTrue(settings.contains("include \":feature:streaming-ui\""));
+        assertFalse(settings.contains("include \":feature:ui-common\""));
+        assertFalse(Files.exists(root().resolve("feature/ui-common/build.gradle")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/streaming-ui/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")));
+        assertFalse(Files.exists(root().resolve(
+                "feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt")));
+        assertFalse(Files.exists(root().resolve(
+                "feature/navigation/src/main/java/app/yukine/SettingsDestinationContracts.kt")));
+    }
+
+    @Test
+    public void navigationHostConsumesFocusedFeatureBindings() throws Exception {
+        String hostState = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavHostState.kt");
+        String graph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");
+        int constructorStart = hostState.indexOf("class EchoNavHostState");
+        int constructorEnd = hostState.indexOf(") {", constructorStart);
+        String constructor = hostState.substring(constructorStart, constructorEnd);
+
+        assertTrue(hostState.contains("data class PlayerNavBinding("));
+        assertTrue(hostState.contains("data class LibraryNavBinding("));
+        assertTrue(hostState.contains("data class SettingsNavBinding("));
+        assertTrue(hostState.contains("data class StreamingNavBinding("));
+        assertTrue(constructor.contains("val player: PlayerNavBinding"));
+        assertTrue(constructor.contains("val library: LibraryNavBinding"));
+        assertTrue(constructor.contains("val settings: SettingsNavBinding"));
+        assertTrue(constructor.contains("val streaming: StreamingNavBinding"));
+        assertFalse(constructor.contains("val homeDashboardState"));
+        assertFalse(constructor.contains("val settingsState"));
+        assertFalse(constructor.contains("val streamingState"));
+        assertTrue(graph.contains("hostState.player.nowPlayingStateProvider"));
+        assertTrue(graph.contains("hostState.library.homeDashboardState"));
+        assertTrue(graph.contains("hostState.settings.settingsState"));
+        assertTrue(graph.contains("hostState.streaming.streamingState"));
     }
 
     @Test
@@ -342,13 +395,14 @@ public final class MainActivityArchitectureContractTest {
 
     @Test
     public void nowPlayingPresentationUsesFocusedImmutableSubstates() throws Exception {
-        String nowBar = read("feature/ui-common/src/main/java/app/yukine/ui/NowBar.kt");
-        String nowPlaying = read("feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt");
+        String nowBar = read("feature/player-ui/src/main/java/app/yukine/ui/NowBar.kt");
+        String nowBarStateSource = read("feature/player-ui/src/main/java/app/yukine/ui/NowBarState.kt");
+        String nowPlaying = read("feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt");
         String factory = read("app/src/main/java/app/yukine/NowBarStateFactory.kt");
 
-        String nowBarState = nowBar.substring(
-                nowBar.indexOf("data class NowBarState("),
-                nowBar.indexOf("private data class NowBarProgressSlice")
+        String nowBarState = nowBarStateSource.substring(
+                nowBarStateSource.indexOf("data class NowBarState("),
+                nowBarStateSource.indexOf("internal data class NowBarProgressSlice")
         );
         assertTrue(nowBarState.contains("val track: NowBarTrackState"));
         assertTrue(nowBarState.contains("val progress: NowBarProgressState"));
@@ -357,8 +411,15 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowBarState.contains("val labels: NowBarLabels"));
         assertTrue(nowBarState.contains("val artwork: NowBarArtworkState"));
         assertFalse(nowBarState.contains("val waveformBars: FloatArray"));
-        assertTrue(nowBar.contains("class WaveformSamples private constructor"));
+        assertTrue(nowBarStateSource.contains("class WaveformSamples private constructor"));
         assertTrue(factory.contains("WaveformSamples.of(playbackState.waveform.bars)"));
+        assertTrue(nowBar.lines().count() < 700);
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/player-ui/src/main/java/app/yukine/ui/NowBarComponents.kt")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/player-ui/src/main/java/app/yukine/ui/NowBarGestures.kt")));
+        assertTrue(Files.isRegularFile(root().resolve(
+                "feature/player-ui/src/main/java/app/yukine/ui/NowBarWaveform.kt")));
 
         String nowPlayingState = nowPlaying.substring(
                 nowPlaying.indexOf("data class NowPlayingUiState("),

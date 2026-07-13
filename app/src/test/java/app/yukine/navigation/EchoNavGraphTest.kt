@@ -111,21 +111,27 @@ class EchoNavGraphTest {
         }
         return EchoNavHostState(
             routeState = navigationViewModel.state,
-            homeDashboardState = homeDashboard.uiState,
-            nowPlayingStateProvider = nowPlayingStateProvider,
-            libraryGroupsState = library.libraryGroups,
-            libraryTrackListState = library.trackList,
-            collectionsStateProvider = collections,
-            settingsState = settings.state,
-            settingsChromeState = settings.chromeState,
-            settingsScrollState = settings.scrollState,
-            networkMenuState = networkMenu.uiState,
-            networkSourcesState = networkSources.uiState,
-            streamingState = streaming.streaming,
-            playbackSnapshotProvider = playbackSnapshotProvider,
-            realtimeBeatProvider = realtimeBeatProvider,
-            realtimeBandsProvider = realtimeBandsProvider,
-            visualMotionEnabled = visualMotionEnabled,
+            player = PlayerNavBinding(
+                nowPlayingStateProvider = nowPlayingStateProvider,
+                playbackSnapshotProvider = playbackSnapshotProvider,
+                realtimeBeatProvider = realtimeBeatProvider,
+                realtimeBandsProvider = realtimeBandsProvider,
+                visualMotionEnabled = visualMotionEnabled
+            ),
+            library = LibraryNavBinding(
+                homeDashboardState = homeDashboard.uiState,
+                libraryGroupsState = library.libraryGroups,
+                libraryTrackListState = library.trackList,
+                collectionsStateProvider = collections
+            ),
+            settings = SettingsNavBinding(
+                settingsState = settings.state,
+                settingsChromeState = settings.chromeState,
+                settingsScrollState = settings.scrollState,
+                networkMenuState = networkMenu.uiState,
+                networkSourcesState = networkSources.uiState
+            ),
+            streaming = StreamingNavBinding(streaming.streaming),
             queueSheetVisibilityListener = queueSheetVisibilityListener
         )
     }

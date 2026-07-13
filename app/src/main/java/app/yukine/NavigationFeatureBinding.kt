@@ -4,6 +4,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import app.yukine.navigation.EchoNavHostState
 import app.yukine.navigation.HomeTab
+import app.yukine.navigation.LibraryNavBinding
+import app.yukine.navigation.PlayerNavBinding
+import app.yukine.navigation.SettingsNavBinding
+import app.yukine.navigation.StreamingNavBinding
 import app.yukine.navigation.TabRoute
 import app.yukine.ui.OnboardingActions
 
@@ -106,36 +110,42 @@ internal class NavigationFeatureBinding(
         playbackConnection: PlaybackServiceConnectionController
     ): EchoNavHostState = EchoNavHostState(
         routeState = viewModels.navigationViewModel.state,
-        homeDashboardState = viewModels.homeDashboardViewModel.uiState,
-        nowPlayingStateProvider = viewModels.nowPlayingViewModel,
-        queueStateProvider = viewModels.queueViewModel,
-        libraryGroupsState = viewModels.libraryViewModel.libraryGroups,
-        libraryTrackListState = viewModels.libraryViewModel.trackList,
-        collectionsStateProvider = viewModels.collectionsViewModel,
-        settingsState = viewModels.settingsViewModel.state,
-        settingsChromeState = viewModels.settingsViewModel.chromeState,
-        settingsScrollState = viewModels.settingsViewModel.scrollState,
-        networkMenuState = viewModels.networkMenuViewModel.uiState,
-        networkSourcesState = viewModels.networkSourcesViewModel.uiState,
-        streamingState = viewModels.streamingViewModel.streaming,
-        playbackSnapshotProvider = viewModels.playbackViewModel,
-        downloadsState = viewModels.downloadsViewModel.uiState,
-        downloadsOpenDirectoryRequests = viewModels.downloadsViewModel.openDirectoryRequests(),
-        downloadsActions = DownloadsDestinationOwner(
-            viewModels.downloadsViewModel,
-            trackDownloadManager,
-            openDirectoryPicker = {
-                documentPickerController.openDownloadFolderPicker()
-                Unit
-            }
-        ).actions(),
-        searchState = viewModels.searchViewModel.uiState,
-        trackDownloadController = trackDownloadManager,
-        realtimeBeatProvider = playbackConnection::realtimeBeat,
-        realtimeBandsProvider = playbackConnection::realtimeBands,
-        visualMotionEnabled = true,
+        player = PlayerNavBinding(
+            nowPlayingStateProvider = viewModels.nowPlayingViewModel,
+            queueStateProvider = viewModels.queueViewModel,
+            playbackSnapshotProvider = viewModels.playbackViewModel,
+            trackDownloadController = trackDownloadManager,
+            realtimeBeatProvider = playbackConnection::realtimeBeat,
+            realtimeBandsProvider = playbackConnection::realtimeBands,
+            visualMotionEnabled = true
+        ),
+        library = LibraryNavBinding(
+            homeDashboardState = viewModels.homeDashboardViewModel.uiState,
+            libraryGroupsState = viewModels.libraryViewModel.libraryGroups,
+            libraryTrackListState = viewModels.libraryViewModel.trackList,
+            collectionsStateProvider = viewModels.collectionsViewModel,
+            downloadsState = viewModels.downloadsViewModel.uiState,
+            downloadsOpenDirectoryRequests = viewModels.downloadsViewModel.openDirectoryRequests(),
+            downloadsActions = DownloadsDestinationOwner(
+                viewModels.downloadsViewModel,
+                trackDownloadManager,
+                openDirectoryPicker = {
+                    documentPickerController.openDownloadFolderPicker()
+                    Unit
+                }
+            ).actions(),
+            searchState = viewModels.searchViewModel.uiState,
+            libraryActionHandler = viewModels.libraryViewModel.presentation::onAction
+        ),
+        settings = SettingsNavBinding(
+            settingsState = viewModels.settingsViewModel.state,
+            settingsChromeState = viewModels.settingsViewModel.chromeState,
+            settingsScrollState = viewModels.settingsViewModel.scrollState,
+            networkMenuState = viewModels.networkMenuViewModel.uiState,
+            networkSourcesState = viewModels.networkSourcesViewModel.uiState
+        ),
+        streaming = StreamingNavBinding(viewModels.streamingViewModel.streaming),
         queueSheetVisibilityListener = { },
-        libraryActionHandler = viewModels.libraryViewModel.presentation::onAction
     )
 
     private fun installBackNavigation() {

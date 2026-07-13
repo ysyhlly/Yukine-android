@@ -79,19 +79,25 @@ class EchoNavHostBridgeTest {
         val settings = SettingsViewModel()
         return EchoNavHostState(
             routeState = navigationViewModel.state,
-            homeDashboardState = homeDashboard.uiState,
-            nowPlayingStateProvider = NowPlayingViewModel(),
-            libraryGroupsState = library.libraryGroups,
-            libraryTrackListState = library.trackList,
-            collectionsStateProvider = collections,
-            settingsState = settings.state,
-            settingsChromeState = settings.chromeState,
-            settingsScrollState = settings.scrollState,
-            networkMenuState = networkMenu.uiState,
-            networkSourcesState = networkSources.uiState,
-            streamingState = streaming.streaming,
-            playbackSnapshotProvider = app.yukine.PlaybackViewModel(),
-            visualMotionEnabled = false
+            player = PlayerNavBinding(
+                nowPlayingStateProvider = NowPlayingViewModel(),
+                playbackSnapshotProvider = app.yukine.PlaybackViewModel(),
+                visualMotionEnabled = false
+            ),
+            library = LibraryNavBinding(
+                homeDashboardState = homeDashboard.uiState,
+                libraryGroupsState = library.libraryGroups,
+                libraryTrackListState = library.trackList,
+                collectionsStateProvider = collections
+            ),
+            settings = SettingsNavBinding(
+                settingsState = settings.state,
+                settingsChromeState = settings.chromeState,
+                settingsScrollState = settings.scrollState,
+                networkMenuState = networkMenu.uiState,
+                networkSourcesState = networkSources.uiState
+            ),
+            streaming = StreamingNavBinding(streaming.streaming)
         )
     }
 

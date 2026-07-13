@@ -34,36 +34,49 @@ fun interface QueueSheetVisibilityListener {
     fun onQueueSheetVisibilityChanged(visible: Boolean)
 }
 
-class EchoNavHostState @JvmOverloads constructor(
-    val routeState: StateFlow<NavigationRouteState>,
-    val homeDashboardState: StateFlow<HomeDashboardDestinationState>,
+data class PlayerNavBinding(
     val nowPlayingStateProvider: NowPlayingScreenStateProvider,
     val queueStateProvider: QueueDestinationStateProvider = EmptyQueueDestinationStateProvider,
+    val playbackSnapshotProvider: PlaybackSnapshotProvider,
+    val trackDownloadController: TrackDownloadController? = null,
+    val realtimeBeatProvider: () -> Float = { 0f },
+    val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
+    val visualMotionEnabled: Boolean = true
+)
+
+data class LibraryNavBinding(
+    val homeDashboardState: StateFlow<HomeDashboardDestinationState>,
     val libraryGroupsState: StateFlow<LibraryGroupsDestinationState>,
     val libraryTrackListState: StateFlow<LibraryTrackListDestinationState>,
     val collectionsStateProvider: CollectionsDestinationStateProvider,
-    val settingsState: StateFlow<SettingsDestinationState>,
-    val settingsChromeState: StateFlow<SettingsChromeState>,
-    val settingsScrollState: SettingsListScrollState,
-    val networkMenuState: StateFlow<NetworkMenuUiState>,
-    val networkSourcesState: StateFlow<NetworkSourcesUiState>,
-    val streamingState: StateFlow<StreamingSearchState>,
-    val playbackSnapshotProvider: PlaybackSnapshotProvider,
     val downloadsState: StateFlow<DownloadsUiState> = MutableStateFlow(DownloadsUiState()),
     val downloadsOpenDirectoryRequests: Flow<Unit> = emptyFlow(),
     val downloadsActions: DownloadsDestinationActions = DownloadsDestinationActions(),
     val searchState: StateFlow<UnifiedSearchUiState> = MutableStateFlow(UnifiedSearchUiState()),
-    val trackDownloadController: TrackDownloadController? = null,
-    val realtimeBeatProvider: () -> Float = { 0f },
-    val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
-    val visualMotionEnabled: Boolean = true,
-    private val queueSheetVisibilityListener: QueueSheetVisibilityListener =
-        QueueSheetVisibilityListener { },
     val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { }
-) {
-    val nowBarStateProvider: NowPlayingScreenStateProvider = nowPlayingStateProvider
-    val nowPlayingUiState: StateFlow<app.yukine.NowPlayingUiState> = nowPlayingStateProvider.uiState
+)
 
+data class SettingsNavBinding(
+    val settingsState: StateFlow<SettingsDestinationState>,
+    val settingsChromeState: StateFlow<SettingsChromeState>,
+    val settingsScrollState: SettingsListScrollState,
+    val networkMenuState: StateFlow<NetworkMenuUiState>,
+    val networkSourcesState: StateFlow<NetworkSourcesUiState>
+)
+
+data class StreamingNavBinding(
+    val streamingState: StateFlow<StreamingSearchState>
+)
+
+class EchoNavHostState @JvmOverloads constructor(
+    val routeState: StateFlow<NavigationRouteState>,
+    val player: PlayerNavBinding,
+    val library: LibraryNavBinding,
+    val settings: SettingsNavBinding,
+    val streaming: StreamingNavBinding,
+    private val queueSheetVisibilityListener: QueueSheetVisibilityListener =
+        QueueSheetVisibilityListener { }
+) {
     var queueSheetVisible by mutableStateOf(false)
         private set
 
