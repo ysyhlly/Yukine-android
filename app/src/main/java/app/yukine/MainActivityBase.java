@@ -12,7 +12,6 @@ import androidx.activity.OnBackPressedCallback;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import javax.inject.Inject;
 
 import app.yukine.data.MusicLibraryRepository;
@@ -187,6 +186,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LibraryGroupsRenderController libraryGroupsRenderController;
     private LibraryPlaylistsRenderController libraryPlaylistsRenderController;
     private LibraryRenderOwner libraryRenderOwner;
+    private LibraryImportOwner libraryImportOwner;
     private CollectionsRenderController collectionsRenderController;
     private PlayHistoryActionController playHistoryActionController;
     private LyricsViewModel lyricsViewModel;
@@ -329,7 +329,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 routeController,
                 this::applySearch,
                 () -> documentPickerController.openAudioFilePicker(),
-                allowCachedFirst -> loadLibrary(allowCachedFirst),
+                allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
                 tracks -> libraryFileDeleteLauncher.request(tracks, selectedPlaylistId()),
                 tracks -> downloadRequestController.downloadTracks(tracks)
         ));
@@ -381,20 +381,35 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         permissionController = new MainPermissionController(this, permissionListenerFactory.create(
                 () -> permissionController != null && permissionController.hasAudioPermission(),
-                allowCachedFirst -> loadLibrary(allowCachedFirst),
+                allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
                 () -> {
                     if (onboardingController != null) {
                         onboardingController.onPermissionsChanged();
                     }
                 }
         ));
+        libraryImportOwner = new LibraryImportOwner(
+                libraryViewModel,
+                libraryStore,
+                routeController,
+                () -> permissionController != null && permissionController.hasAudioPermission(),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                status -> statusMessageController.setStatus(status),
+                this::loadCollections,
+                canScan -> {
+                    if (onboardingController != null) {
+                        onboardingController.onLibraryScanResult(canScan);
+                    }
+                },
+                () -> navigateToNetworkTabPage(NETWORK_STREAMING)
+        );
         documentPickerController = new DocumentPickerController(this, documentPickerListenerFactory.create(
-                this::importSelectedAudioUris,
-                this::importSelectedAudioFolder,
+                libraryImportOwner::importAudioUris,
+                libraryImportOwner::importAudioFolder,
                 this::setCustomDownloadFolder,
-                this::importSelectedM3uFile,
+                libraryImportOwner::importStreamM3u,
                 (exportUri, playlistId, playlistName) -> libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName),
-                this::importSelectedPlaylistM3uFile,
+                libraryImportOwner::importPlaylistM3u,
                 uris -> luoxueSourceImportController.importSelectedUris(uris)
         ));
         backgroundImagePickerController = new BackgroundImagePickerController(
@@ -434,7 +449,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                                     .replace("%f", String.valueOf(failed))
                                     .replace("%s", String.valueOf(skipped))
                     );
-                    loadLibrary(true);
+                    libraryImportOwner.loadLibrary(true);
                     return kotlin.Unit.INSTANCE;
                 }
         );
@@ -582,7 +597,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::continueDashboardPlayback,
                 () -> navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
                 this::playTrackListFromHost,
-                () -> loadLibrary(true),
+                () -> libraryImportOwner.loadLibrary(true),
                 () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
                 () -> routeController.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
@@ -694,7 +709,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                     permissionController.requestNeededPermissions();
                 }
             } else if (effect == SettingsEffect.LoadLibrary.INSTANCE) {
-                loadLibrary(false);
+                libraryImportOwner.loadLibrary(false);
             } else if (effect == SettingsEffect.OpenAudioFilePicker.INSTANCE) {
                 documentPickerController.openAudioFilePicker();
             } else if (effect == SettingsEffect.OpenAudioFolderPicker.INSTANCE) {
@@ -774,7 +789,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> routeController.selectedPlaylistId(),
                         playlistId -> routeController.setSelectedPlaylistId(playlistId),
                         () -> MainActivityBase.this.loadCollections(),
-                        () -> loadLibrary(true),
+                        () -> libraryImportOwner.loadLibrary(true),
                         () -> MainActivityBase.this.selectedPlaylistName(),
                         () -> libraryStore.selectedPlaylistTracks(),
                         () -> libraryStore.favoriteTracks(),
@@ -1034,7 +1049,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         networkActionsViewModel.bindUseCases(networkActionUseCases);
         networkActionsViewModel.bindListener(networkActionsListenerFactory.create(
                 nowPlayingViewModel,
-                this::replaceLibrary,
+                libraryImportOwner::replaceLibrary,
                 this::navigateToNetworkTabPage,
                 this::loadCollections,
                 status -> statusMessageController.setStatus(status)
@@ -1228,7 +1243,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
             @Override
             public void loadLibrary(boolean allowCachedFirst) {
-                MainActivityBase.this.loadLibrary(allowCachedFirst);
+                libraryImportOwner.loadLibrary(allowCachedFirst);
             }
 
             @Override
@@ -1279,12 +1294,12 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (!showOnboarding()) {
             permissionController.requestNeededPermissions();
             if (permissionController.hasAudioPermission()) {
-                loadLibrary(false);
+                libraryImportOwner.loadLibrary(false);
             } else {
-                loadLibrary(true);
+                libraryImportOwner.loadLibrary(true);
             }
         } else {
-            loadLibrary(true);
+            libraryImportOwner.loadLibrary(true);
         }
         loadCollections();
     }
@@ -1751,50 +1766,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         return true;
     }
 
-    private void loadLibrary(final boolean allowCachedFirst) {
-        final boolean canScan = permissionController.hasAudioPermission();
-        if (!canScan) {
-            statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "audio.permission.required"));
-        }
-        libraryViewModel.loadLibraryJava(
-                allowCachedFirst,
-                canScan,
-                result -> {
-                    replaceLibrary(
-                            result.getTracks(),
-                            result.getFavorites(),
-                            result.getStatus(),
-                            () -> {
-                                if (canScan && !allowCachedFirst) {
-                                    statusMessageController.setStatus(libraryScanResultStatus(result.getTracks().size()));
-                                }
-                                if (onboardingController != null) {
-                                    onboardingController.onLibraryScanResult(canScan);
-                                }
-                            }
-                    );
-                },
-                statusKey -> {
-                    statusMessageController.setStatus(
-                            AppLanguage.text(settingsStore.languageMode(), statusKey)
-                    );
-                    if (onboardingController != null) {
-                        onboardingController.onLibraryScanResult(false);
-                    }
-                }
-        );
-    }
-
-    private String libraryScanResultStatus(int trackCount) {
-        if (trackCount <= 0) {
-            return AppLanguage.text(settingsStore.languageMode(), "no.music");
-        }
-        String languageMode = settingsStore.languageMode();
-        return AppLanguage.text(languageMode, "library.scan.found.prefix")
-                + trackCount
-                + AppLanguage.text(languageMode, "library.scan.found.suffix");
-    }
-
     private void setCustomDownloadFolder(final Uri treeUri) {
         if (trackDownloadManager == null || treeUri == null) {
             statusMessageController.showFeedback("\u65e0\u6cd5\u4fdd\u5b58\u4e0b\u8f7d\u76ee\u5f55");
@@ -1805,86 +1776,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             downloadsViewModel.refresh(trackDownloadManager);
         }
         statusMessageController.showFeedback("\u5df2\u8bbe\u7f6e\u4e0b\u8f7d\u76ee\u5f55\uff1a" + trackDownloadManager.downloadDirectoryLabel());
-    }
-
-    private void importSelectedAudioUris(final List<Uri> uris) {
-        if (uris.isEmpty()) {
-            statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "no.audio.files.selected"));
-            return;
-        }
-        statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.files"));
-        libraryViewModel.importAudioUrisJava(
-                uris,
-                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus())
-        );
-    }
-
-    private void importSelectedAudioFolder(final Uri treeUri) {
-        statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.audio.folder"));
-        libraryViewModel.importAudioTreeJava(
-                treeUri,
-                result -> replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus())
-        );
-    }
-
-    private void importSelectedM3uFile(final Uri playlistUri) {
-        statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "importing.m3u.playlist"));
-        libraryViewModel.importStreamM3uJava(
-                playlistUri,
-                result -> {
-                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
-                    navigateToNetworkTabPage(NETWORK_STREAMING);
-                }
-        );
-    }
-
-    private void importSelectedPlaylistM3uFile(final Uri playlistUri) {
-        statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "import.playlist.m3u"));
-        libraryViewModel.importPlaylistM3uJava(
-                playlistUri,
-                result -> {
-                    if (result.getPlaylistId() >= 0L) {
-                        routeController.setSelectedPlaylistId(result.getPlaylistId());
-                    }
-                    replaceLibrary(result.getTracks(), result.getFavorites(), result.getStatus());
-                }
-        );
-    }
-
-    private void replaceLibrary(List<Track> tracks, Set<Long> favorites, String status) {
-        replaceLibrary(tracks, favorites, status, () -> { });
-    }
-
-    private void replaceLibrary(
-            List<Track> tracks,
-            Set<Long> favorites,
-            String status,
-            Runnable onApplied
-    ) {
-        applyLibraryReplacement(tracks, favorites, () -> {
-            statusMessageController.setStatus(status);
-            libraryViewModel.parseMissingAudioSpecsJava(result -> applyBackgroundAudioSpecs(
-                    result.getTracks(),
-                    result.getFavorites(),
-                    result.getUpdatedCount()
-            ));
-            onApplied.run();
-        });
-    }
-
-    private void applyLibraryReplacement(List<Track> tracks, Set<Long> favorites, Runnable onApplied) {
-        libraryStore.replaceLibraryAsync(tracks, favorites, searchQuery(), () -> {
-            loadCollections();
-            onApplied.run();
-        });
-    }
-
-    private void applyBackgroundAudioSpecs(List<Track> tracks, Set<Long> favorites, int updatedCount) {
-        applyLibraryReplacement(tracks, favorites, () -> {
-            if (updatedCount > 0) {
-                statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "audio.specs.updated") + " (" + updatedCount + ")");
-            }
-        });
     }
 
     private void loadCollections() {
@@ -2282,7 +2173,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void refreshAfterHiddenLibraryRestore(boolean changed) {
         if (changed) {
-            loadLibrary(true);
+            libraryImportOwner.loadLibrary(true);
         }
         settingsViewModel.refreshSettingsContext();
     }

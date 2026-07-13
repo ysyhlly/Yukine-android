@@ -5,6 +5,7 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -24,9 +25,10 @@ internal data class PreparedLibraryReplacement(
     val favoriteTrackIds: Set<Long>
 )
 
-internal class MainLibraryStore(
+internal class MainLibraryStore @JvmOverloads constructor(
     private val searchUseCase: LibrarySearchUseCase,
-    private val viewModel: MainActivityViewModel
+    private val viewModel: MainActivityViewModel,
+    private val preparationDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
     private val combinedSearchUseCase = LibraryCombinedSearchUseCase(searchUseCase)
     private var replacementJob: Job? = null
@@ -102,13 +104,13 @@ internal class MainLibraryStore(
         replacementJob?.cancel()
         searchJob?.cancel()
         replacementJob = viewModel.viewModelScope.launch {
-            val base = withContext(Dispatchers.Default) {
+            val base = withContext(preparationDispatcher) {
                 prepareLibraryBase(tracks, favorites)
             }
             var prepared: PreparedLibraryReplacement
             while (true) {
                 val query = latestSearchQuery
-                prepared = withContext(Dispatchers.Default) {
+                prepared = withContext(preparationDispatcher) {
                     base.toReplacement(query)
                 }
                 if (query == latestSearchQuery) {
@@ -174,7 +176,7 @@ internal class MainLibraryStore(
                 val queryForSearch = latestSearchQuery
                 val source = state()
                 val revision = libraryRevision
-                val visibleTracks = withContext(Dispatchers.Default) {
+                val visibleTracks = withContext(preparationDispatcher) {
                     searchVisibleTracks(source, queryForSearch)
                 }
                 if (queryForSearch == latestSearchQuery && revision == libraryRevision) {

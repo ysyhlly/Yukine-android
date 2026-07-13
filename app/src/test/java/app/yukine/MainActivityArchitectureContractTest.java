@@ -174,6 +174,18 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void libraryImportPipelineIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/LibraryImportOwner.kt");
+        assertFalse(activity.contains("private void loadLibrary("));
+        assertFalse(activity.contains("private void importSelectedAudio"));
+        assertFalse(activity.contains("private void replaceLibrary("));
+        assertTrue(owner.contains("class LibraryImportOwner"));
+        assertTrue(owner.contains("libraryStore.replaceLibraryAsync"));
+        assertTrue(owner.contains("viewModel.parseMissingAudioSpecsJava"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
