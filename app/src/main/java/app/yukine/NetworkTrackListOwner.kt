@@ -4,7 +4,7 @@ import app.yukine.model.RemoteSource
 
 /** Owns navigation, source actions and typed publication for network track lists. */
 internal class NetworkTrackListOwner(
-    private val navigate: (String) -> Unit,
+    private val navigate: (NetworkPage) -> Unit,
     private val clearSelectedSource: () -> Unit,
     private val syncSource: (Long) -> Unit,
     private val playSource: (RemoteSource) -> Unit,
@@ -22,11 +22,11 @@ internal class NetworkTrackListOwner(
         publishRequest = publisher::publishNetwork
     )
 
-    override fun navigateNetworkPage(page: String) {
+    override fun navigateNetworkPage(page: NetworkPage) {
         navigate(page)
     }
 
-    override fun clearRemoteSourceAndNavigateNetworkPage(page: String) {
+    override fun clearRemoteSourceAndNavigateNetworkPage(page: NetworkPage) {
         clearSelectedSource()
         navigate(page)
     }

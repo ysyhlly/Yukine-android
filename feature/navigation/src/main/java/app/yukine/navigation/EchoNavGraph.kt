@@ -1,5 +1,7 @@
 package app.yukine.navigation
 
+import app.yukine.NetworkPage
+
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -386,13 +388,13 @@ private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {
     else -> ""
 }
 
-private fun realtimeVisualsVisible(selectedTab: TabRoute, networkPage: String): Boolean = when (selectedTab) {
+private fun realtimeVisualsVisible(selectedTab: TabRoute, networkPage: NetworkPage): Boolean = when (selectedTab) {
     HomeTab, LibraryTab, QueueTab, SettingsTab, SearchTab, NowTab -> true
-    NetworkTab -> networkPage == MainRoutes.NETWORK_HOME ||
-        networkPage == MainRoutes.NETWORK_WEBDAV ||
-        networkPage == MainRoutes.NETWORK_STREAM_LIST ||
-        networkPage == MainRoutes.NETWORK_WEBDAV_TRACKS ||
-        networkPage == MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS
+    NetworkTab -> networkPage == NetworkPage.Home ||
+        networkPage == NetworkPage.WebDav ||
+        networkPage == NetworkPage.StreamList ||
+        networkPage == NetworkPage.WebDavTracks ||
+        networkPage == NetworkPage.WebDavSourceTracks
     else -> false
 }
 

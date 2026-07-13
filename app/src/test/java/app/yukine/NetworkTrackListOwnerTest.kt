@@ -41,14 +41,20 @@ class NetworkTrackListOwnerTest {
             publishRequest = published::add
         )
 
-        owner.navigateNetworkPage("streams")
-        owner.clearRemoteSourceAndNavigateNetworkPage("sources")
+        owner.navigateNetworkPage(NetworkPage.StreamList)
+        owner.clearRemoteSourceAndNavigateNetworkPage(NetworkPage.Sources)
         owner.syncRemoteSource(source.id)
         owner.playRemoteSourceTracks(source)
         owner.publish(request)
 
         assertEquals(
-            listOf("navigate:streams", "clear", "navigate:sources", "sync:8", "play:8"),
+            listOf(
+                "navigate:${NetworkPage.StreamList}",
+                "clear",
+                "navigate:${NetworkPage.Sources}",
+                "sync:8",
+                "play:8"
+            ),
             calls
         )
         assertSame(request, published.single())

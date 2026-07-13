@@ -6,7 +6,7 @@ import java.util.function.IntConsumer
 internal data class SettingsNavigationEffectActions(
     val showStatus: Consumer<String>,
     val navigatePage: Consumer<SettingsPage>,
-    val openNetworkPage: Consumer<String>,
+    val openNetworkPage: Consumer<NetworkPage>,
     val openDownloads: Runnable
 )
 

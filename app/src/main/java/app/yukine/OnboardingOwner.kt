@@ -37,7 +37,7 @@ internal class OnboardingLibraryAccess(
 }
 
 internal fun interface OnboardingNetworkNavigator {
-    fun navigate(page: String)
+    fun navigate(page: NetworkPage)
 }
 
 internal class OnboardingCompletionStore(
@@ -118,7 +118,7 @@ internal class OnboardingOwner(
         statusSink.setStatus(AppLanguage.text(languageSource.languageMode(), "library.scan.timeout"))
     }
 
-    override fun navigateToNetworkTabPage(page: String) = networkNavigator.navigate(page)
+    override fun navigateToNetworkTabPage(page: NetworkPage) = networkNavigator.navigate(page)
 
     override fun openPlaylistM3uFilePicker() = playlistPicker.run()
 

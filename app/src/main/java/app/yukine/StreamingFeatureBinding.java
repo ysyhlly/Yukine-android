@@ -266,7 +266,7 @@ final class StreamingFeatureBinding {
                         libraryStore::favoriteTracks,
                         () -> viewModel.getStreaming().getValue().getSelectedProvider(),
                         playlistDialogController::showStreamingProviderPicker,
-                        () -> navigation.navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING),
+                        () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming),
                         playlistDialogController::showStreamingPlaylistLoadedDialog,
                         playlistDialogController::showAccountPlaylistImportPicker,
                         statusMessages::setStatus

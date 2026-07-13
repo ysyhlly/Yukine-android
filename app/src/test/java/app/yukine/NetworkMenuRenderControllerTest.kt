@@ -16,7 +16,7 @@ class NetworkMenuRenderControllerTest {
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "settings.group.sources"), listener.title)
         assertEquals(
-            listOf(MainRoutes.NETWORK_STREAMING, MainRoutes.NETWORK_WEBDAV, MainRoutes.NETWORK_SOURCES),
+            listOf(NetworkPage.Streaming, NetworkPage.WebDav, NetworkPage.Sources),
             listener.pages
         )
     }
@@ -38,10 +38,10 @@ class NetworkMenuRenderControllerTest {
     private class RecordingListener : NetworkMenuRenderController.Listener {
         var title = ""
         var actions = emptyList<SettingsAction>()
-        val pages = mutableListOf<String>()
+        val pages = mutableListOf<NetworkPage>()
         var backCount = 0
 
-        override fun navigateNetworkPage(page: String) { pages += page }
+        override fun navigateNetworkPage(page: NetworkPage) { pages += page }
         override fun backFromNetworkPage() { backCount += 1 }
         override fun showAddStream() = Unit
         override fun showImportM3u() = Unit

@@ -112,7 +112,7 @@ class OnboardingControllerTest {
             scanTimedOutCalls++
         }
 
-        override fun navigateToNetworkTabPage(page: String) {
+        override fun navigateToNetworkTabPage(page: NetworkPage) {
         }
 
         override fun openPlaylistM3uFilePicker() {

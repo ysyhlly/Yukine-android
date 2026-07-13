@@ -36,7 +36,7 @@ internal class OnboardingController @JvmOverloads constructor(
 
         fun onLibraryScanTimedOut()
 
-        fun navigateToNetworkTabPage(page: String)
+        fun navigateToNetworkTabPage(page: NetworkPage)
 
         fun openPlaylistM3uFilePicker()
 
@@ -74,7 +74,7 @@ internal class OnboardingController @JvmOverloads constructor(
     }
 
     fun openStreamingFromOnboarding() {
-        completeOnboarding { listener.navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING) }
+        completeOnboarding { listener.navigateToNetworkTabPage(NetworkPage.Streaming) }
     }
 
     fun scanLibraryFromOnboarding() {

@@ -3,7 +3,7 @@ package app.yukine
 internal object MainBackNavigationPolicy {
     fun resolve(
         selectedTab: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: SettingsPage,
         selectedLibraryGroupKey: String?,
         selectedPlaylistId: Long
@@ -27,20 +27,20 @@ internal object MainBackNavigationPolicy {
         if (MainRoutes.TAB_SETTINGS == selectedTab && SettingsPage.Home != settingsPage) {
             return Result.render(selectedTab, networkPage, SettingsBackStack.parent(settingsPage).route, false, false)
         }
-        if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_STREAM_LIST == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_STREAMING, settingsPage.route, false, false)
+        if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.StreamList == networkPage) {
+            return Result.render(selectedTab, NetworkPage.Streaming, settingsPage.route, false, false)
         }
-        if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_WEBDAV_TRACKS == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_WEBDAV, settingsPage.route, false, false)
+        if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.WebDavTracks == networkPage) {
+            return Result.render(selectedTab, NetworkPage.WebDav, settingsPage.route, false, false)
         }
-        if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS == networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_SOURCES, settingsPage.route, true, false)
+        if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.WebDavSourceTracks == networkPage) {
+            return Result.render(selectedTab, NetworkPage.Sources, settingsPage.route, true, false)
         }
-        if (MainRoutes.TAB_NETWORK == selectedTab && MainRoutes.NETWORK_HOME != networkPage) {
-            return Result.render(selectedTab, MainRoutes.NETWORK_HOME, settingsPage.route, true, false)
+        if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.Home != networkPage) {
+            return Result.render(selectedTab, NetworkPage.Home, settingsPage.route, true, false)
         }
         if (MainRoutes.TAB_HOME != selectedTab) {
-            return Result.navigate(MainRoutes.TAB_HOME, MainRoutes.NETWORK_HOME, settingsPage.route, true)
+            return Result.navigate(MainRoutes.TAB_HOME, NetworkPage.Home, settingsPage.route, true)
         }
         return Result.notHandled()
     }
@@ -49,7 +49,7 @@ internal object MainBackNavigationPolicy {
         @JvmField val handled: Boolean,
         @JvmField val navigateTab: Boolean,
         @JvmField val selectedTab: String,
-        @JvmField val networkPage: String,
+        @JvmField val networkPage: NetworkPage,
         @JvmField val settingsPage: String,
         @JvmField val clearSelectedRemoteSource: Boolean,
         @JvmField val clearLibraryGroup: Boolean,
@@ -58,7 +58,7 @@ internal object MainBackNavigationPolicy {
         companion object {
             fun render(
                 selectedTab: String,
-                networkPage: String,
+                networkPage: NetworkPage,
                 settingsPage: String,
                 clearSelectedRemoteSource: Boolean,
                 clearLibraryGroup: Boolean,
@@ -78,7 +78,7 @@ internal object MainBackNavigationPolicy {
 
             fun navigate(
                 selectedTab: String,
-                networkPage: String,
+                networkPage: NetworkPage,
                 settingsPage: String,
                 clearSelectedRemoteSource: Boolean
             ): Result {
@@ -95,7 +95,7 @@ internal object MainBackNavigationPolicy {
             }
 
             fun notHandled(): Result {
-                return Result(false, false, "", "", "", false, false, false)
+                return Result(false, false, "", NetworkPage.Home, "", false, false, false)
             }
         }
     }

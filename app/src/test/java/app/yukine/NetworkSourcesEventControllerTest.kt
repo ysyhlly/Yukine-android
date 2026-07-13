@@ -24,7 +24,7 @@ class NetworkSourcesEventControllerTest {
         controller.backToNetwork()
 
         assertEquals(emptyList<String>(), fakes.events)
-        assertEquals(MainRoutes.NETWORK_SOURCES, fakes.navigationViewModel.state.value.networkPage)
+        assertEquals(NetworkPage.Sources, fakes.navigationViewModel.state.value.networkPage)
         assertEquals(-1L, fakes.navigationViewModel.state.value.selectedRemoteSourceId)
     }
 
@@ -100,7 +100,7 @@ class NetworkSourcesEventControllerTest {
             routeController.persist(
                 NavigationRouteState(
                     selectedTab = NetworkTab,
-                    networkPage = MainRoutes.NETWORK_SOURCES
+                    networkPage = NetworkPage.Sources
                 )
             )
         }
@@ -125,7 +125,7 @@ class NetworkSourcesEventControllerTest {
                     settingsPage = SettingsPage.SourcesGroup
                 )
             )
-            routeController.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)
+            routeController.navigateToNetworkPageFromCurrent(NetworkPage.Sources)
             routeController.persist()
         }
     }

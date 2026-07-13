@@ -43,7 +43,7 @@ internal class NetworkSourcesEventController(
         val result = routeController.applyBackNavigation()
         if (!result.handled) {
             routeController.clearSelectedRemoteSource()
-            routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
+            routeController.setNetworkPage(NetworkPage.Home)
         }
     }
 
@@ -66,7 +66,7 @@ internal class NetworkSourcesEventController(
 
     override fun openRemoteSourceTracks(sourceId: Long) {
         routeController.setSelectedRemoteSourceId(sourceId)
-        routeController.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
+        routeController.setNetworkPage(NetworkPage.WebDavSourceTracks)
     }
 
     override fun showEditWebDav(source: RemoteSource) {

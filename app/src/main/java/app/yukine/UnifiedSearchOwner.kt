@@ -113,8 +113,8 @@ internal class UnifiedSearchOwner @JvmOverloads constructor(
         }
         if (
             route.selectedTab == NetworkTab &&
-            (route.networkPage == MainRoutes.NETWORK_STREAMING ||
-                route.networkPage == MainRoutes.NETWORK_STREAMING_HUB)
+            (route.networkPage == NetworkPage.Streaming ||
+                route.networkPage == NetworkPage.StreamingHub)
         ) {
             streamingSearch.search(query)
         }

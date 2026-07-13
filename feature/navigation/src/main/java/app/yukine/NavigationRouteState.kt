@@ -12,7 +12,7 @@ data class NavigationRouteState(
     val selectedLibraryGroupTitle: String = "",
     val selectedPlaylistId: Long = -1L,
     val searchQuery: String = "",
-    val networkPage: String = MainRoutes.NETWORK_HOME,
+    val networkPage: NetworkPage = NetworkPage.Home,
     val settingsPage: SettingsPage = SettingsPage.Home,
     val selectedRemoteSourceId: Long = -1L
 )

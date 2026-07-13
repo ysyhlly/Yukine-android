@@ -336,7 +336,7 @@ class SettingsPageStateBuilderTest {
     @Test
     fun sourcesGroupBuildsNetworkAndProviderActions() {
         val navigated = mutableListOf<SettingsPage>()
-        val openedNetworkPages = mutableListOf<String>()
+        val openedNetworkPages = mutableListOf<NetworkPage>()
         val lxActions = mutableListOf<String>()
 
         val content = SettingsPageStateBuilder.sourcesGroup(
@@ -369,9 +369,9 @@ class SettingsPageStateBuilderTest {
 
         assertEquals(
             listOf(
-                MainRoutes.NETWORK_STREAMING,
-                MainRoutes.NETWORK_SOURCES,
-                MainRoutes.NETWORK_WEBDAV
+                NetworkPage.Streaming,
+                NetworkPage.Sources,
+                NetworkPage.WebDav
             ),
             openedNetworkPages
         )

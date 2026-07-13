@@ -160,7 +160,7 @@ final class LibraryFeatureBinding {
                 statusMessages::setStatus,
                 collectionsOwner::load,
                 onboardingScanResult::accept,
-                () -> navigation.navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING)
+                () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming)
         );
         deletionCompletionOwner = new LibraryDeletionCompletionOwner(
                 playback.getNowPlayingViewModel()::removeQueueTracks,
@@ -281,7 +281,7 @@ final class LibraryFeatureBinding {
                 (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),
                 () -> importOwner.loadLibrary(true),
                 () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
-                () -> navigation.navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
+                () -> navigation.navigateToNetworkTabPage(NetworkPage.StreamingHub),
                 () -> navigation.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
                 () -> navigation.navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
                 () -> streaming.runRecommendationAction(

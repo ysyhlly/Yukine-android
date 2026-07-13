@@ -43,7 +43,7 @@ class SettingsEffectOwnerTest {
         listOf(
             SettingsEffect.ShowStatus("ready"),
             SettingsEffect.NavigatePage(SettingsPage.Appearance),
-            SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV),
+            SettingsEffect.OpenNetworkPage(NetworkPage.WebDav),
             SettingsEffect.OpenDownloads,
             SettingsEffect.RequestNeededPermissions,
             SettingsEffect.LoadLibrary,
@@ -67,7 +67,7 @@ class SettingsEffectOwnerTest {
             listOf(
                 "status:ready",
                 "page:${SettingsPage.Appearance.route}",
-                "network:${MainRoutes.NETWORK_WEBDAV}",
+                "network:${NetworkPage.WebDav}",
                 "downloads",
                 "permissions",
                 "library",

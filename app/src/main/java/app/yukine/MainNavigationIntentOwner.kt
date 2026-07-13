@@ -57,7 +57,7 @@ internal class MainNavigationIntentOwner(
         val libraryMode: String? = null,
         val selectedLibraryGroupKey: String? = null,
         val selectedPlaylistId: Long? = null,
-        val networkPage: String? = null,
+        val networkPage: NetworkPage? = null,
         val selectedRemoteSourceId: Long? = null,
         val settingsPage: SettingsPage? = null
     )

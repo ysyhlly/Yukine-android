@@ -10,7 +10,7 @@ internal class NetworkMenuRenderController(
     private val listener: Listener
 ) {
     interface Listener {
-        fun navigateNetworkPage(page: String)
+        fun navigateNetworkPage(page: NetworkPage)
 
         fun backFromNetworkPage()
 
@@ -42,17 +42,17 @@ internal class NetworkMenuRenderController(
         val actions = ArrayList<SettingsAction>()
         actions.add(SettingsAction(
             label = text(languageMode, "streaming"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.Streaming) },
             icon = EchoIconKind.Network
         ))
         actions.add(SettingsAction(
             label = text(languageMode, "webdav"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.WebDav) },
             icon = EchoIconKind.Folder
         ))
         actions.add(SettingsAction(
             label = text(languageMode, "remote.sources"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.Sources) },
             icon = EchoIconKind.Network
         ))
         val title = text(languageMode, "settings.group.sources")
@@ -93,7 +93,7 @@ internal class NetworkMenuRenderController(
         ))
         actions.add(SettingsAction(
             label = text(languageMode, "browse.streams"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_STREAM_LIST) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.StreamList) },
             icon = EchoIconKind.Collections
         ))
         actions.add(SettingsAction(
@@ -136,12 +136,12 @@ internal class NetworkMenuRenderController(
         ))
         actions.add(SettingsAction(
             label = text(languageMode, "browse.tracks"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV_TRACKS) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.WebDavTracks) },
             icon = EchoIconKind.Collections
         ))
         actions.add(SettingsAction(
             label = text(languageMode, "manage.sources"),
-            onClick = Runnable { listener.navigateNetworkPage(MainRoutes.NETWORK_SOURCES) },
+            onClick = Runnable { listener.navigateNetworkPage(NetworkPage.Sources) },
             icon = EchoIconKind.Edit
         ))
         val title = text(languageMode, "webdav")

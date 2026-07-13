@@ -61,23 +61,23 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
 
     fun render(
         languageMode: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         selectedRemoteSourceId: Long,
         searchQuery: String
     ) {
         when (networkPage) {
-            MainRoutes.NETWORK_STREAMING -> renderStreamingNetwork()
-            MainRoutes.NETWORK_STREAMING_HUB -> renderStreamingNetwork()
-            MainRoutes.NETWORK_STREAM_LIST -> renderStreamList(languageMode, searchQuery)
-            MainRoutes.NETWORK_WEBDAV -> renderWebDavNetwork(languageMode)
-            MainRoutes.NETWORK_WEBDAV_TRACKS -> renderWebDavTrackList(languageMode, searchQuery)
-            MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS -> {
+            NetworkPage.Streaming -> renderStreamingNetwork()
+            NetworkPage.StreamingHub -> renderStreamingNetwork()
+            NetworkPage.StreamList -> renderStreamList(languageMode, searchQuery)
+            NetworkPage.WebDav -> renderWebDavNetwork(languageMode)
+            NetworkPage.WebDavTracks -> renderWebDavTrackList(languageMode, searchQuery)
+            NetworkPage.WebDavSourceTracks -> {
                 renderWebDavSourceTrackList(languageMode, selectedRemoteSourceId, searchQuery)
             }
-            MainRoutes.NETWORK_SOURCES -> {
+            NetworkPage.Sources -> {
                 sourcesRenderer.render(languageMode, libraryStore.remoteSources(), libraryStore.allTracks())
             }
-            else -> renderNetworkHome(languageMode)
+            NetworkPage.Home -> renderNetworkHome(languageMode)
         }
     }
 
@@ -150,7 +150,7 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
 
 private data class NetworkRenderInputs(
     val active: Boolean,
-    val networkPage: String,
+    val networkPage: NetworkPage,
     val selectedRemoteSourceId: Long,
     val searchQuery: String,
     val languageMode: String = AppLanguage.MODE_SYSTEM

@@ -40,7 +40,7 @@ class SettingsViewModelTest {
     fun focusedPageOwnersEmitLibraryAndExternalActionEffects() {
         val viewModel = SettingsViewModel()
 
-        viewModel.network.openPage(MainRoutes.NETWORK_SOURCES)
+        viewModel.network.openPage(NetworkPage.Sources)
         viewModel.platform.requestNeededPermissions()
         viewModel.library.loadLibrary()
         viewModel.library.openAudioFilePicker()
@@ -63,7 +63,7 @@ class SettingsViewModelTest {
         val effects = viewModel.drainEffects()
         assertEquals(
             listOf(
-                SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_SOURCES),
+                SettingsEffect.OpenNetworkPage(NetworkPage.Sources),
                 SettingsEffect.RequestNeededPermissions,
                 SettingsEffect.LoadLibrary,
                 SettingsEffect.OpenAudioFilePicker,
@@ -112,7 +112,7 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel()
         viewModel.bindEffectListener { effect -> effects += effect }
 
-        viewModel.network.openPage(MainRoutes.NETWORK_WEBDAV)
+        viewModel.network.openPage(NetworkPage.WebDav)
         viewModel.platform.openDownloads()
         viewModel.platform.requestNeededPermissions()
         viewModel.library.loadLibrary()
@@ -128,7 +128,7 @@ class SettingsViewModelTest {
         viewModel.network.applyStreamingGatewayEndpoint("http://127.0.0.1:43990")
 
         val expected = listOf(
-            SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV),
+            SettingsEffect.OpenNetworkPage(NetworkPage.WebDav),
             SettingsEffect.OpenDownloads,
             SettingsEffect.RequestNeededPermissions,
             SettingsEffect.LoadLibrary,

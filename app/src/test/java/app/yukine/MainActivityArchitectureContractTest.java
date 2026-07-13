@@ -54,6 +54,12 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(featureViewModel.contains("class NavigationViewModel"));
         assertTrue(savedStateOwner.contains("object NavigationRouteStateStore"));
         assertFalse(savedStateOwner.contains("LibraryGrouping"));
+        String routeState = read("feature/navigation/src/main/java/app/yukine/NavigationRouteState.kt");
+        String networkPage = read("core/model/src/main/java/app/yukine/NetworkPage.kt");
+        assertTrue(routeState.contains("val networkPage: NetworkPage"));
+        assertTrue(networkPage.contains("enum class NetworkPage"));
+        assertTrue(savedStateOwner.contains("NetworkPage.fromRoute"));
+        assertTrue(savedStateOwner.contains("state.networkPage.route"));
     }
 
     @Test

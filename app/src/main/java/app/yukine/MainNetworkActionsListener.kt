@@ -14,7 +14,7 @@ internal class MainNetworkActionsListener(
     }
 
     fun interface NetworkNavigator {
-        fun navigateToNetworkPage(page: String)
+        fun navigateToNetworkPage(page: NetworkPage)
     }
 
     fun interface CollectionsReloader {
@@ -38,30 +38,30 @@ internal class MainNetworkActionsListener(
     ) {
         if (updated != null) nowPlayingViewModel.replaceQueuedTrack(oldTrackId, updated)
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAM_LIST)
+        networkNavigator.navigateToNetworkPage(NetworkPage.StreamList)
     }
 
     override fun onStreamPlaylistImported(cached: List<Track>, favorites: Set<Long>, status: String) {
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAMING)
+        networkNavigator.navigateToNetworkPage(NetworkPage.Streaming)
     }
 
     override fun onAllStreamsDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
         nowPlayingViewModel.retainTracks(cached)
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAMING)
+        networkNavigator.navigateToNetworkPage(NetworkPage.Streaming)
     }
 
     override fun onTrackDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
         nowPlayingViewModel.retainTracks(cached)
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAM_LIST)
+        networkNavigator.navigateToNetworkPage(NetworkPage.StreamList)
     }
 
     override fun onRemoteSourceDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
         nowPlayingViewModel.retainTracks(cached)
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_SOURCES)
+        networkNavigator.navigateToNetworkPage(NetworkPage.Sources)
         collectionsReloader.loadCollections()
     }
 
@@ -69,7 +69,7 @@ internal class MainNetworkActionsListener(
         nowPlayingViewModel.retainTracks(cached)
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
         networkNavigator.navigateToNetworkPage(
-            if (sourceId > 0L) MainRoutes.NETWORK_SOURCES else MainRoutes.NETWORK_WEBDAV
+            if (sourceId > 0L) NetworkPage.Sources else NetworkPage.WebDav
         )
         collectionsReloader.loadCollections()
     }
@@ -81,11 +81,11 @@ internal class MainNetworkActionsListener(
 
     override fun onRemoteSourceSynced(cached: List<Track>, favorites: Set<Long>, status: String) {
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_SOURCES)
+        networkNavigator.navigateToNetworkPage(NetworkPage.Sources)
     }
 
     override fun onAllWebDavSourcesSynced(cached: List<Track>, favorites: Set<Long>, status: String) {
         libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_WEBDAV)
+        networkNavigator.navigateToNetworkPage(NetworkPage.WebDav)
     }
 }

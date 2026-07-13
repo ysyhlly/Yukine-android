@@ -34,7 +34,7 @@ object NavigationRouteStateStore {
             selectedLibraryGroupTitle = savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] ?: "",
             selectedPlaylistId = savedStateHandle[SELECTED_PLAYLIST_ID] ?: -1L,
             searchQuery = savedStateHandle[SEARCH_QUERY] ?: "",
-            networkPage = savedStateHandle[NETWORK_PAGE] ?: MainRoutes.NETWORK_HOME,
+            networkPage = NetworkPage.fromRoute(savedStateHandle[NETWORK_PAGE]),
             settingsPage = SettingsPage.fromRoute(savedStateHandle[SETTINGS_PAGE]),
             selectedRemoteSourceId = savedStateHandle[SELECTED_REMOTE_SOURCE_ID] ?: -1L
         )
@@ -47,7 +47,7 @@ object NavigationRouteStateStore {
         savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] = state.selectedLibraryGroupTitle
         savedStateHandle[SELECTED_PLAYLIST_ID] = state.selectedPlaylistId
         savedStateHandle[SEARCH_QUERY] = state.searchQuery
-        savedStateHandle[NETWORK_PAGE] = state.networkPage
+        savedStateHandle[NETWORK_PAGE] = state.networkPage.route
         savedStateHandle[SETTINGS_PAGE] = state.settingsPage.route
         savedStateHandle[SELECTED_REMOTE_SOURCE_ID] = state.selectedRemoteSourceId
     }

@@ -310,7 +310,7 @@ object SettingsPageStateBuilder {
         luoxueImportedSourceCount: Int,
         luoxueEnabledSourceCount: Int,
         onNavigate: (SettingsPage) -> Unit,
-        onOpenNetworkPage: (String) -> Unit,
+        onOpenNetworkPage: (NetworkPage) -> Unit,
         onManageLuoxueSources: () -> Unit,
         onImportLuoxueSource: () -> Unit
     ): SettingsPageStateContent {
@@ -329,7 +329,7 @@ object SettingsPageStateBuilder {
             backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
                 label = text(languageMode, "streaming.providers.manage"),
-                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_STREAMING) },
+                onClick = Runnable { onOpenNetworkPage(NetworkPage.Streaming) },
                 description = text(languageMode, "streaming.providers.manage.hint"),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Network
@@ -364,14 +364,14 @@ object SettingsPageStateBuilder {
             ),
             SettingsAction(
                 label = text(languageMode, "remote.music.sources"),
-                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_SOURCES) },
+                onClick = Runnable { onOpenNetworkPage(NetworkPage.Sources) },
                 description = text(languageMode, "remote.music.sources.hint"),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Folder
             ),
             SettingsAction(
                 label = text(languageMode, "webdav"),
-                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_WEBDAV) },
+                onClick = Runnable { onOpenNetworkPage(NetworkPage.WebDav) },
                 description = text(languageMode, "settings.sources.webdav.hint"),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Folder

@@ -299,7 +299,7 @@ class LibrarySettingsStateOwner internal constructor(private val context: Settin
 }
 
 class NetworkSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
-    fun openPage(page: String) = context.emit(SettingsEffect.OpenNetworkPage(page))
+    fun openPage(page: NetworkPage) = context.emit(SettingsEffect.OpenNetworkPage(page))
     fun openLuoxueSourceManager() = context.emit(SettingsEffect.OpenLuoxueSourceManager)
     fun importLuoxueSource() = context.emit(SettingsEffect.ImportLuoxueSource)
     fun applyStreamingGatewayEndpoint(endpoint: String) =

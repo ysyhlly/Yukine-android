@@ -16,7 +16,7 @@ class OnboardingOwnerTest {
         fixture.owner.openStreaming()
 
         assertFalse(fixture.owner.state.value.visible)
-        assertEquals(listOf("load:false", "completed", "navigate:${MainRoutes.NETWORK_STREAMING}"), fixture.calls)
+        assertEquals(listOf("load:false", "completed", "navigate:${NetworkPage.Streaming}"), fixture.calls)
     }
 
     @Test

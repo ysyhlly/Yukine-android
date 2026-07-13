@@ -134,7 +134,7 @@ data class SettingsAppliedStatusText(
 sealed interface SettingsEffect {
     data class ShowStatus(val message: String) : SettingsEffect
     data class NavigatePage(val page: SettingsPage) : SettingsEffect
-    data class OpenNetworkPage(val page: String) : SettingsEffect
+    data class OpenNetworkPage(val page: NetworkPage) : SettingsEffect
     data object OpenDownloads : SettingsEffect
     data object RequestNeededPermissions : SettingsEffect
     data object LoadLibrary : SettingsEffect

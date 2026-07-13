@@ -22,9 +22,9 @@ internal data class NetworkTrackListRequest(
 
 internal class NetworkTrackListRenderController(private val listener: Listener) {
     interface Listener {
-        fun navigateNetworkPage(page: String)
+        fun navigateNetworkPage(page: NetworkPage)
 
-        fun clearRemoteSourceAndNavigateNetworkPage(page: String)
+        fun clearRemoteSourceAndNavigateNetworkPage(page: NetworkPage)
 
         fun syncRemoteSource(sourceId: Long)
 
@@ -42,7 +42,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back"), Runnable {
-                listener.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
+                listener.navigateNetworkPage(NetworkPage.Streaming)
             }, icon = EchoIconKind.Back, isBack = true)
         )
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
@@ -80,7 +80,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.webdav"), Runnable {
-                listener.navigateNetworkPage(MainRoutes.NETWORK_WEBDAV)
+                listener.navigateNetworkPage(NetworkPage.WebDav)
             }, icon = EchoIconKind.Back, isBack = true)
         )
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
@@ -119,7 +119,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
             TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.sources"), Runnable {
-                listener.clearRemoteSourceAndNavigateNetworkPage(MainRoutes.NETWORK_SOURCES)
+                listener.clearRemoteSourceAndNavigateNetworkPage(NetworkPage.Sources)
             }, icon = EchoIconKind.Back, isBack = true)
         )
         if (source == null) {

@@ -32,7 +32,7 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ): NavigationRouteState {
@@ -64,7 +64,7 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ) {
@@ -107,7 +107,7 @@ internal class MainRouteController(
         return state.searchQuery
     }
 
-    fun networkPage(): String {
+    fun networkPage(): NetworkPage {
         return state.networkPage
     }
 
@@ -147,7 +147,7 @@ internal class MainRouteController(
         var nextRemoteSourceId = selectedRemoteSourceId()
         var nextLibraryMode = libraryMode()
         if (userInitiated && MainRoutes.TAB_NETWORK == normalizedTab) {
-            nextNetworkPage = MainRoutes.NETWORK_HOME
+            nextNetworkPage = NetworkPage.Home
             nextRemoteSourceId = -1L
         } else if (userInitiated && MainRoutes.TAB_SETTINGS == normalizedTab) {
             nextSettingsPage = MainRoutes.SETTINGS_HOME
@@ -168,7 +168,7 @@ internal class MainRouteController(
         return sameTab
     }
 
-    fun navigateToNetworkPageFromCurrent(networkPage: String) {
+    fun navigateToNetworkPageFromCurrent(networkPage: NetworkPage) {
         if (selectedTab() != MainRoutes.TAB_NETWORK) {
             networkEntry = NetworkEntry(state, networkPage)
         }
@@ -245,7 +245,7 @@ internal class MainRouteController(
         )
     }
 
-    fun setNetworkPage(networkPage: String) {
+    fun setNetworkPage(networkPage: NetworkPage) {
         update(
             selectedTab(),
             libraryMode(),
@@ -342,7 +342,7 @@ internal class MainRouteController(
 
     private data class NetworkEntry(
         val origin: NavigationRouteState,
-        val entryPage: String
+        val entryPage: NetworkPage
     )
 
     private fun update(
@@ -352,7 +352,7 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ) {

@@ -7,21 +7,27 @@ import app.yukine.navigation.NetworkTab
 import app.yukine.navigation.SettingsTab
 import app.yukine.navigation.TabRoute
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class MainRouteControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun savedStateKeepsLegacyStringsAtSerializationBoundaryOnly() {
         val handle = SavedStateHandle(
             mapOf(
                 "selectedTab" to MainRoutes.TAB_SETTINGS,
-                "settingsPage" to MainRoutes.SETTINGS_APPEARANCE
+                "settingsPage" to MainRoutes.SETTINGS_APPEARANCE,
+                "networkPage" to NetworkPage.Sources.route
             )
         )
         val viewModel = NavigationViewModel(handle)
 
         assertEquals(SettingsTab, viewModel.state.value.selectedTab)
         assertEquals(SettingsPage.Appearance, viewModel.state.value.settingsPage)
+        assertEquals(NetworkPage.Sources, viewModel.state.value.networkPage)
 
         viewModel.updateRoute(
             viewModel.state.value.copy(
@@ -32,6 +38,7 @@ class MainRouteControllerTest {
 
         assertEquals(MainRoutes.TAB_NETWORK, handle.get<String>("selectedTab"))
         assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, handle.get<String>("settingsPage"))
+        assertEquals(NetworkPage.Sources.route, handle.get<String>("networkPage"))
     }
 
     @Test
@@ -48,7 +55,7 @@ class MainRouteControllerTest {
     fun nonUserTabNavigationPreservesNetworkSubpage() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_SETTINGS,
-            networkPage = MainRoutes.NETWORK_STREAM_LIST,
+            networkPage = NetworkPage.StreamList,
             selectedRemoteSourceId = 42L
         )
 
@@ -56,7 +63,7 @@ class MainRouteControllerTest {
 
         val state = controller.current()
         assertEquals(NetworkTab, state.selectedTab)
-        assertEquals(MainRoutes.NETWORK_STREAM_LIST, state.networkPage)
+        assertEquals(NetworkPage.StreamList, state.networkPage)
         assertEquals(42L, state.selectedRemoteSourceId)
     }
 
@@ -67,10 +74,10 @@ class MainRouteControllerTest {
             settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
         )
 
-        controller.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_HOME)
+        controller.navigateToNetworkPageFromCurrent(NetworkPage.Home)
 
         assertEquals(NetworkTab, controller.current().selectedTab)
-        assertEquals(MainRoutes.NETWORK_HOME, controller.current().networkPage)
+        assertEquals(NetworkPage.Home, controller.current().networkPage)
 
         val result = controller.applyBackNavigation()
 
@@ -86,13 +93,13 @@ class MainRouteControllerTest {
             selectedTab = MainRoutes.TAB_SETTINGS,
             settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
         )
-        controller.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)
-        controller.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
+        controller.navigateToNetworkPageFromCurrent(NetworkPage.Sources)
+        controller.setNetworkPage(NetworkPage.WebDavSourceTracks)
 
         controller.applyBackNavigation()
 
         assertEquals(NetworkTab, controller.current().selectedTab)
-        assertEquals(MainRoutes.NETWORK_SOURCES, controller.current().networkPage)
+        assertEquals(NetworkPage.Sources, controller.current().networkPage)
 
         controller.applyBackNavigation()
 
@@ -157,14 +164,14 @@ class MainRouteControllerTest {
     fun userTabNavigationStillResetsExplicitRootDestinations() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_HOME,
-            networkPage = MainRoutes.NETWORK_STREAM_LIST,
+            networkPage = NetworkPage.StreamList,
             settingsPage = MainRoutes.SETTINGS_APPEARANCE,
             selectedRemoteSourceId = 42L
         )
 
         controller.navigateToTab(app.yukine.navigation.NetworkTab, userInitiated = true)
         var state = controller.current()
-        assertEquals(MainRoutes.NETWORK_HOME, state.networkPage)
+        assertEquals(NetworkPage.Home, state.networkPage)
         assertEquals(-1L, state.selectedRemoteSourceId)
 
         controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = true)
@@ -228,7 +235,7 @@ class MainRouteControllerTest {
     fun backNavigationReturnsStreamingHubToNetworkHome() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_NETWORK,
-            networkPage = MainRoutes.NETWORK_STREAMING_HUB,
+            networkPage = NetworkPage.StreamingHub,
             selectedRemoteSourceId = 42L
         )
 
@@ -238,7 +245,7 @@ class MainRouteControllerTest {
         assertEquals(false, result.navigateTab)
         val state = controller.current()
         assertEquals(NetworkTab, state.selectedTab)
-        assertEquals(MainRoutes.NETWORK_HOME, state.networkPage)
+        assertEquals(NetworkPage.Home, state.networkPage)
         assertEquals(-1L, state.selectedRemoteSourceId)
     }
 
@@ -246,7 +253,7 @@ class MainRouteControllerTest {
     fun backNavigationReturnsStreamListToStreamingEntry() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_NETWORK,
-            networkPage = MainRoutes.NETWORK_STREAM_LIST,
+            networkPage = NetworkPage.StreamList,
             selectedRemoteSourceId = 42L
         )
 
@@ -256,7 +263,7 @@ class MainRouteControllerTest {
         assertEquals(false, result.navigateTab)
         val state = controller.current()
         assertEquals(NetworkTab, state.selectedTab)
-        assertEquals(MainRoutes.NETWORK_STREAMING, state.networkPage)
+        assertEquals(NetworkPage.Streaming, state.networkPage)
         assertEquals(42L, state.selectedRemoteSourceId)
     }
 
@@ -300,7 +307,7 @@ class MainRouteControllerTest {
         selectedLibraryGroupKey: String = "",
         selectedLibraryGroupTitle: String = "",
         selectedPlaylistId: Long = -1L,
-        networkPage: String = MainRoutes.NETWORK_HOME,
+        networkPage: NetworkPage = NetworkPage.Home,
         settingsPage: String = MainRoutes.SETTINGS_HOME,
         selectedRemoteSourceId: Long = -1L
     ): MainRouteController {
