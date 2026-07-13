@@ -11,6 +11,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 
 /** Owns streaming playback URL resolution, recovery, pre-resolution and track-match persistence. */
 class StreamingPlaybackResolutionStateOwner internal constructor(
@@ -22,8 +23,9 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
     private var playbackPlanner: StreamingPlaybackResolvePlanner? = null
     private var playbackTaskQueue: StreamingPlaybackTaskQueue? = null
     private var trackMatchStore: StreamingTrackMatchStore? = null
-    private val queueWindowPreResolveInFlight =
-        ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
+    private val queueWindowPreResolveInFlight = Collections.newSetFromMap(
+        ConcurrentHashMap<StreamingQueuePreResolveKey, Boolean>()
+    )
 
     fun bindPlaybackCoordinator(
         planner: StreamingPlaybackResolvePlanner?,

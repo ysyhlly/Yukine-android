@@ -6,6 +6,7 @@ import app.yukine.streaming.StreamingProviderName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -25,7 +26,9 @@ class StreamingAuthSessionMaintenance(
         StreamingProviderName.QQ_MUSIC
     )
 ) {
-    private val inFlight = ConcurrentHashMap.newKeySet<StreamingProviderName>()
+    private val inFlight = Collections.newSetFromMap(
+        ConcurrentHashMap<StreamingProviderName, Boolean>()
+    )
 
     fun maintain(): Job = scope.launch {
         providers.forEach { provider ->
