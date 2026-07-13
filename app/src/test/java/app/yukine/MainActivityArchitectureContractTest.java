@@ -409,10 +409,12 @@ public final class MainActivityArchitectureContractTest {
         String adapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
         String connection = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
         String reactions = read("app/src/main/java/app/yukine/PlaybackDomainReactionOwner.kt");
+        String binding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
         assertFalse(activity.contains("nowPlayingPlaybackGatewayFactory"));
         assertFalse(activity.contains("playbackServiceHostFactory"));
         assertFalse(activity.contains("playbackStateEventListenerFactory"));
-        assertTrue(activity.contains("new NowPlayingPlaybackGatewayAdapter("));
+        assertFalse(activity.contains("new NowPlayingPlaybackGatewayAdapter("));
+        assertTrue(binding.contains("nowPlayingViewModel.bindPlaybackGateway(NowPlayingPlaybackGatewayAdapter("));
         assertTrue(activity.contains("playbackServiceCommandQueue"));
         assertFalse(module.contains("Factory"));
         assertFalse(adapter.contains("class MainNowPlayingPlaybackGatewayFactory"));
@@ -423,16 +425,20 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(connection.contains("nextService.snapshot()?.let(::publishReadModel)"));
         assertFalse(activity.contains("PlaybackStateEventController"));
         assertFalse(activity.contains("MainPlaybackStateEventListener"));
-        assertTrue(activity.contains("new PlaybackDomainReactionOwner("));
+        assertFalse(activity.contains("new PlaybackDomainReactionOwner("));
+        assertTrue(binding.contains("PlaybackDomainReactionOwner("));
         assertTrue(reactions.contains(") : PlaybackStateListener"));
         assertTrue(reactions.contains("UI rendering observes"));
         assertFalse(activity.contains("playTrackListFromHost"));
-        assertTrue(activity.contains("playbackStartController.playTrackList(tracks, index)"));
+        assertFalse(activity.contains("playbackStartController.playTrackList(tracks, index)"));
+        assertTrue(read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt")
+                .contains("playbackStartController = PlaybackStartController("));
     }
 
     @Test
     public void libraryAndSettingsConstructionFactoriesAreDeleted() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
         String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
         String runtimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
@@ -453,13 +459,15 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void collectionAndLyricsReactionsDoNotRouteThroughActivityMethods() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
         String collectionsOwner = read("app/src/main/java/app/yukine/LibraryCollectionsOwner.kt");
         String lyricsViewModel = read("app/src/main/java/app/yukine/LyricsViewModel.kt");
         assertFalse(activity.contains("private void loadCollections()"));
         assertFalse(activity.contains("private void loadLyrics("));
         assertFalse(activity.contains("neteaseProviderTrackIdForLyrics"));
-        assertTrue(activity.contains("libraryCollectionsOwner::load"));
-        assertTrue(activity.contains("lyricsViewModel.loadPlaybackTrack(track)"));
+        assertFalse(activity.contains("lyricsViewModel.loadPlaybackTrack(track)"));
+        assertTrue(playbackBinding.contains("libraryCollectionsOwner::load"));
+        assertTrue(playbackBinding.contains("lyricsViewModel::loadPlaybackTrack"));
         assertTrue(collectionsOwner.contains("viewModel.loadCollections(routeController.selectedPlaylistId())"));
         assertTrue(lyricsViewModel.contains("fun loadPlaybackTrack(track: Track?)"));
         assertTrue(
@@ -517,13 +525,14 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void activityClearsRetainedViewModelHostCallbacksBeforeRelease() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
         int onDestroy = activity.indexOf("protected void onDestroy()");
         int releaseBindings = activity.indexOf("releaseViewModelHostBindings();", onDestroy);
-        int releaseConnection = activity.indexOf("playbackServiceConnectionController.release();", onDestroy);
+        int releasePlayback = activity.indexOf("playbackFeatureBinding.release();", onDestroy);
 
         assertTrue(onDestroy >= 0);
         assertTrue(releaseBindings > onDestroy);
-        assertTrue(releaseConnection > releaseBindings);
+        assertTrue(releasePlayback > releaseBindings);
         assertFalse(activity.contains("lyricsViewModel.bindListener("));
         assertTrue(activity.contains("settingsViewModel.bindEffectListener(null)"));
         assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
@@ -531,7 +540,45 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(activity.contains("navigationFeatureBinding.release()"));
         assertTrue(read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt")
                 .contains("boundQueueViewModel?.bindIntentListener(null)"));
+        assertFalse(activity.contains("nowPlayingViewModel.bindStateSources(null"));
+        assertFalse(activity.contains("playbackViewModel.bind(null)"));
+        assertFalse(activity.contains("playbackServiceConnectionController.release()"));
+        assertTrue(playbackBinding.contains("nowPlayingViewModel.bindStateSources(null"));
+        assertTrue(playbackBinding.contains("playbackViewModel.bind(null)"));
+        assertTrue(playbackBinding.contains("connection.release()"));
         assertTrue(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
+    }
+
+    @Test
+    public void playbackAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
+
+        for (String forbidden : new String[]{
+                "private PlaybackViewModel playbackViewModel",
+                "private NowPlayingViewModel nowPlayingViewModel",
+                "private app.yukine.queue.QueueViewModel queueViewModel",
+                "private PlaybackServiceConnectionController playbackServiceConnectionController",
+                "private PlaybackActionController playbackActionController",
+                "private PlaybackStartController playbackStartController",
+                "private QueueActionController queueActionController",
+                "private NowPlayingEffectOwner nowPlayingEffectOwner",
+                "private void initializePlaybackLifecycleControllers()",
+                "private void initializeNowPlayingGateways()",
+                "private PlaybackStateSnapshot playbackSnapshot()",
+                "private List<Track> playbackQueueSnapshot()"
+        }) {
+            assertFalse(forbidden + " must leave Activity", activity.contains(forbidden));
+        }
+        assertTrue(activity.contains("private PlaybackFeatureBinding playbackFeatureBinding"));
+        assertTrue(activity.contains("playbackFeatureBinding.bindConnection("));
+        assertTrue(activity.contains("playbackFeatureBinding.bindActions("));
+        assertTrue(binding.contains("connection = PlaybackServiceConnectionController("));
+        assertTrue(binding.contains("playbackViewModel.bind(connection)"));
+        assertTrue(binding.contains("nowPlayingViewModel.bindPlaybackGateway("));
+        assertTrue(binding.contains("queueActionController = QueueActionController("));
+        assertTrue(binding.contains("fun setAppVisible(visible: Boolean)"));
+        assertTrue(binding.contains("fun release()"));
     }
 
     @Test
