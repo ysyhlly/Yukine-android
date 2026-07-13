@@ -379,6 +379,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void streamingConstructionFactoriesAreDeleted() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String module = read("app/src/main/java/app/yukine/StreamingModule.kt");
+        assertFalse(activity.contains("streamingActionGatewayFactory"));
+        assertFalse(activity.contains("streamingSearchRenderListenerFactory"));
+        assertFalse(activity.contains("streamingPlaylistListenerFactory"));
+        assertTrue(activity.contains("new MainStreamingActionGateway("));
+        assertTrue(activity.contains("new MainStreamingPlaylistListener("));
+        assertFalse(module.contains("ListenerFactory"));
+        assertFalse(module.contains("ActionGatewayFactory"));
+        assertFalse(module.contains("ActionHandlerFactory"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

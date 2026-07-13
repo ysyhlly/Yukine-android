@@ -22,16 +22,6 @@ internal fun interface RecommendationSeedMissLogger {
     fun logSeedMiss(request: HeartbeatRecommendationSeedRequest)
 }
 
-internal fun interface MainRecommendationActionCallbacksFactory {
-    fun create(
-        statusSink: RecommendationStatusSink,
-        dailyPlayerSink: DailyRecommendationPlayerSink,
-        seedRequestProvider: RecommendationSeedRequestProvider,
-        heartbeatPlayerSink: RecommendationHeartbeatPlayerSink,
-        seedMissLogger: RecommendationSeedMissLogger
-    ): RecommendationActionCallbacks
-}
-
 internal class MainRecommendationActionCallbacks(
     private val statusSink: RecommendationStatusSink,
     private val dailyPlayerSink: DailyRecommendationPlayerSink,

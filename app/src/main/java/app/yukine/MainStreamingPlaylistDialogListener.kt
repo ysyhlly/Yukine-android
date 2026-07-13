@@ -27,15 +27,6 @@ internal fun interface StreamingLikedTracksImportSink {
     fun importStreamingLikedTracks(provider: StreamingProviderName)
 }
 
-internal fun interface MainStreamingPlaylistDialogListenerFactory {
-    fun create(
-        statusSink: StreamingPlaylistDialogStatusSink,
-        playlistImportRunner: StreamingPlaylistImportRunner,
-        accountPlaylistImportSink: AccountPlaylistImportSink,
-        likedTracksImportSink: StreamingLikedTracksImportSink
-    ): StreamingPlaylistDialogController.Listener
-}
-
 internal class MainStreamingPlaylistDialogListener(
     private val statusSink: StreamingPlaylistDialogStatusSink,
     private val playlistImportRunner: StreamingPlaylistImportRunner,

@@ -36,9 +36,9 @@ class MainStreamingManualCookieListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingManualCookieControllerListener() {
+    fun directConstructionCreatesStreamingManualCookieControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = StreamingModule.provideMainStreamingManualCookieListenerFactory().create(
+        val listener = MainStreamingManualCookieListener(
             ManualCookieSelectedProviderSource { StreamingProviderName.KUGOU },
             ManualCookieDialogPresenter { calls += "dialog:${it.provider?.wireName}" },
             ManualCookieLoginSuccessHandler { calls += "login:${it.wireName}" },

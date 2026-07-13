@@ -14,14 +14,6 @@ internal fun interface StreamingPlaylistLinkImportSink {
     fun importStreamingPlaylistFromLink(linkOrId: String?)
 }
 
-internal fun interface MainStreamingPlaylistImportDialogListenerFactory {
-    fun create(
-        selectedProviderSource: StreamingImportSelectedProviderSource,
-        luoxueDialogPresenter: LuoxueSourceImportDialogPresenter,
-        playlistLinkImportSink: StreamingPlaylistLinkImportSink
-    ): StreamingPlaylistImportDialogController.Listener
-}
-
 internal class MainStreamingPlaylistImportDialogListener(
     private val selectedProviderSource: StreamingImportSelectedProviderSource,
     private val luoxueDialogPresenter: LuoxueSourceImportDialogPresenter,

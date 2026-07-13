@@ -64,9 +64,9 @@ class MainStreamingSearchRenderListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingSearchRenderControllerListener() {
+    fun directConstructionCreatesStreamingSearchRenderControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = StreamingModule.provideMainStreamingSearchRenderListenerFactory().create(
+        val listener = MainStreamingSearchRenderListener(
             StreamingSearchNetworkNavigator { calls += "back" },
             FakeStreamingSearchActionHandler(calls),
             StreamingSearchSelectedProviderSource { StreamingProviderName.NETEASE },

@@ -29,9 +29,9 @@ class MainStreamingPlaylistImportDialogListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingPlaylistImportDialogControllerListener() {
+    fun directConstructionCreatesStreamingPlaylistImportDialogControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = StreamingModule.provideMainStreamingPlaylistImportDialogListenerFactory().create(
+        val listener = MainStreamingPlaylistImportDialogListener(
             StreamingImportSelectedProviderSource { StreamingProviderName.NETEASE },
             LuoxueSourceImportDialogPresenter { calls += "luoxue" },
             StreamingPlaylistLinkImportSink { calls += "link:$it" }

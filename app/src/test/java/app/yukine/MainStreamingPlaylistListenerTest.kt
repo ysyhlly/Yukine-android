@@ -50,9 +50,9 @@ class MainStreamingPlaylistListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingPlaylistControllerListener() {
+    fun directConstructionCreatesStreamingPlaylistControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = StreamingModule.provideMainStreamingPlaylistListenerFactory().create(
+        val listener = MainStreamingPlaylistListener(
             StreamingPlaylistIdSource { 7L },
             StreamingPlaylistIdSink { calls += "set:$it" },
             StreamingCollectionsLoader { calls += "collections" },

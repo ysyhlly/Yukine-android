@@ -56,24 +56,6 @@ internal fun interface StreamingPlaylistStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface MainStreamingPlaylistListenerFactory {
-    fun create(
-        playlistIdSource: StreamingPlaylistIdSource,
-        playlistIdSink: StreamingPlaylistIdSink,
-        collectionsLoader: StreamingCollectionsLoader,
-        libraryRefreshSink: StreamingLibraryRefreshSink,
-        playlistNameSource: StreamingSelectedPlaylistNameSource,
-        playlistTracksSource: StreamingSelectedPlaylistTracksSource,
-        favoriteTracksSource: StreamingFavoriteTracksSource,
-        selectedProviderSource: StreamingSelectedProviderSource,
-        providerPickerPresenter: StreamingProviderPickerPresenter,
-        navigationSink: StreamingNavigationSink,
-        loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
-        accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
-        statusSink: StreamingPlaylistStatusSink
-    ): StreamingPlaylistController.Listener
-}
-
 internal class MainStreamingPlaylistListener(
     private val playlistIdSource: StreamingPlaylistIdSource,
     private val playlistIdSink: StreamingPlaylistIdSink,

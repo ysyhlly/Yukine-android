@@ -57,15 +57,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject LoadSettingsPreferencesUseCase loadSettingsPreferencesUseCase;
     @Inject ApplySettingsPreferenceUseCase applySettingsPreferenceUseCase;
     @Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;
-    @Inject MainHeartbeatRecommendationListenerFactory heartbeatRecommendationListenerFactory;
-    @Inject MainRecommendationActionCallbacksFactory recommendationActionCallbacksFactory;
-    @Inject MainStreamingPlaylistDialogListenerFactory streamingPlaylistDialogListenerFactory;
-    @Inject MainStreamingPlaylistListenerFactory streamingPlaylistListenerFactory;
-    @Inject MainStreamingPlaylistImportDialogListenerFactory streamingPlaylistImportDialogListenerFactory;
-    @Inject MainStreamingManualCookieListenerFactory streamingManualCookieListenerFactory;
-    @Inject MainStreamingActionGatewayFactory streamingActionGatewayFactory;
-    @Inject MainStreamingSearchActionHandlerFactory streamingSearchActionHandlerFactory;
-    @Inject MainStreamingSearchRenderListenerFactory streamingSearchRenderListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
     @Inject LyricsLoader lyricsLoader;
@@ -232,7 +223,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private MainActivityStreamingActionGateway createStreamingActionGateway() {
-        return streamingActionGatewayFactory.create(
+        return new MainStreamingActionGateway(
                 streamingPlaybackQualityPolicy::adaptive,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
@@ -576,7 +567,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         : playbackViewModel.getPlayback().getValue().getQueue(),
                 this::heartbeatLibraryContextTracks
         );
-        recommendationActionCallbacks = recommendationActionCallbacksFactory.create(
+        recommendationActionCallbacks = new MainRecommendationActionCallbacks(
                 status -> statusMessageController.setStatus(status),
                 presentation -> playbackStartController.playRecommendation(presentation),
                 provider -> heartbeatSeedBinder == null
@@ -613,7 +604,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         heartbeatRecommendationController = new HeartbeatRecommendationController(
                 streamingRecommendationViewModel,
                 () -> settingsStore.languageMode(),
-                heartbeatRecommendationListenerFactory.create(
+                new MainHeartbeatRecommendationListener(
                         () -> playbackService != null,
                         provider -> heartbeatSeedBinder == null
                                 ? new HeartbeatRecommendationSeedRequest()
@@ -748,7 +739,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         return AppLanguage.text(languageMode(), key);
                     }
                 },
-                streamingPlaylistDialogListenerFactory.create(
+                new MainStreamingPlaylistDialogListener(
                         status -> statusMessageController.setStatus(status),
                         (provider, playlistName, tracks) -> {
                             if (streamingPlaylistControllerRef[0] != null) {
@@ -770,7 +761,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingPlaylistController = new StreamingPlaylistController(
                 streamingViewModel,
                 () -> settingsStore.languageMode(),
-                streamingPlaylistListenerFactory.create(
+                new MainStreamingPlaylistListener(
                         () -> routeController.selectedPlaylistId(),
                         playlistId -> routeController.setSelectedPlaylistId(playlistId),
                         () -> MainActivityBase.this.loadCollections(),
@@ -803,7 +794,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         return AppLanguage.text(languageMode(), key);
                     }
                 },
-                streamingPlaylistImportDialogListenerFactory.create(
+                new MainStreamingPlaylistImportDialogListener(
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         () -> luoxueSourceImportDialogController.showImportDialog(),
                         linkOrId -> streamingPlaylistController.importStreamingPlaylistFromLink(linkOrId)
@@ -820,7 +811,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingManualCookieController = new StreamingManualCookieController(
                 streamingViewModel,
                 () -> settingsStore.languageMode(),
-                streamingManualCookieListenerFactory.create(
+                new MainStreamingManualCookieListener(
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         dialogState -> streamingManualCookieDialogController.show(dialogState),
                         provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
@@ -850,7 +841,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 status -> { statusMessageController.setStatus(status); return kotlin.Unit.INSTANCE; },
                 () -> loadCollections()
         );
-        streamingSearchActionHandler = streamingSearchActionHandlerFactory.create(streamingViewModel, streamingActionGateway);
+        streamingSearchActionHandler = new DefaultStreamingSearchActionHandler(streamingViewModel, streamingActionGateway);
         unifiedSearchOwner = new UnifiedSearchOwner(
                 routeController,
                 searchViewModel,
@@ -874,7 +865,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         initializeLibraryGateway();
         StreamingSearchRenderController streamingSearchRenderController = new StreamingSearchRenderController(
                 () -> settingsStore.languageMode(),
-                streamingSearchRenderListenerFactory.create(
+                new MainStreamingSearchRenderListener(
                         navigationIntentOwner::handleBack,
                         streamingSearchActionHandler,
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),

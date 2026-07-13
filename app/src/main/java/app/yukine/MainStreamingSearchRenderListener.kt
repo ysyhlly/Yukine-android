@@ -45,22 +45,6 @@ internal fun interface StreamingSearchChromePublisher {
     fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
 }
 
-internal fun interface MainStreamingSearchRenderListenerFactory {
-    fun create(
-        networkNavigator: StreamingSearchNetworkNavigator,
-        actionHandler: StreamingSearchActionHandler,
-        selectedProviderSource: StreamingSearchSelectedProviderSource,
-        playlistImporter: StreamingPlaylistProviderRefImporter,
-        accountPlaylistSyncPicker: StreamingAccountPlaylistSyncPicker,
-        likedTracksImporter: StreamingLikedTracksImporter,
-        recommendationActionRunner: StreamingRecommendationActionRunner,
-        playlistImportDialogPresenter: StreamingPlaylistImportDialogPresenter,
-        luoxueSourceManagerPresenter: LuoxueSourceManagerPresenter,
-        manualCookiePresenter: StreamingManualCookiePresenter,
-        chromePublisher: StreamingSearchChromePublisher
-    ): StreamingSearchRenderController.Listener
-}
-
 internal class MainStreamingSearchRenderListener(
     private val networkNavigator: StreamingSearchNetworkNavigator,
     private val actionHandler: StreamingSearchActionHandler,

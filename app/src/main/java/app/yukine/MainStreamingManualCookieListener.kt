@@ -18,15 +18,6 @@ internal fun interface ManualCookieStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface MainStreamingManualCookieListenerFactory {
-    fun create(
-        selectedProviderSource: ManualCookieSelectedProviderSource,
-        dialogPresenter: ManualCookieDialogPresenter,
-        loginSuccessHandler: ManualCookieLoginSuccessHandler,
-        statusSink: ManualCookieStatusSink
-    ): StreamingManualCookieController.Listener
-}
-
 internal class MainStreamingManualCookieListener(
     private val selectedProviderSource: ManualCookieSelectedProviderSource,
     private val dialogPresenter: ManualCookieDialogPresenter,

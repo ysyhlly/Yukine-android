@@ -36,9 +36,9 @@ class MainRecommendationActionCallbacksTest {
     }
 
     @Test
-    fun factoryCreatesRecommendationActionCallbacks() {
+    fun directConstructionCreatesRecommendationActionCallbacks() {
         val calls = mutableListOf<String>()
-        val callbacks = StreamingModule.provideMainRecommendationActionCallbacksFactory().create(
+        val callbacks = MainRecommendationActionCallbacks(
             RecommendationStatusSink { calls += "status:$it" },
             DailyRecommendationPlayerSink { calls += "daily:${it.tracks.size}" },
             RecommendationSeedRequestProvider {

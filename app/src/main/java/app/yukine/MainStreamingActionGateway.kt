@@ -4,18 +4,6 @@ import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 
-internal fun interface MainStreamingActionGatewayFactory {
-    fun create(
-        qualityProvider: MainStreamingActionGateway.QualityProvider,
-        languageModeProvider: MainStreamingActionGateway.LanguageModeProvider,
-        authLauncher: MainStreamingActionGateway.AuthLauncher,
-        trackPlayer: MainStreamingActionGateway.TrackPlayer,
-        loginSuccessHandler: MainStreamingActionGateway.LoginSuccessHandler,
-        providerSelector: MainStreamingActionGateway.ProviderSelector,
-        manualCookiePresenter: MainStreamingActionGateway.ManualCookiePresenter
-    ): MainActivityStreamingActionGateway
-}
-
 internal class MainStreamingActionGateway(
     private val qualityProvider: QualityProvider,
     private val languageModeProvider: LanguageModeProvider,
