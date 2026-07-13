@@ -145,6 +145,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private PlaybackStateEventController playbackStateEventController;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
+    private SettingsEffectOwner settingsEffectOwner;
     private TrackListRenderController trackListRenderController;
     private TrackListStatePublisher trackListStatePublisher;
     private QueueActionController queueActionController;
@@ -691,56 +692,47 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeSettingsEffects() {
-        settingsViewModel.bindEffectListener(effect -> {
-            if (effect instanceof SettingsEffect.ShowStatus) {
-                statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage());
-            } else if (effect instanceof SettingsEffect.NavigatePage) {
-                routeController.setSettingsPage(((SettingsEffect.NavigatePage) effect).getPage());
-            } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
-                navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
-            } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
-                navigationIntentOwner.navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true);
-            } else if (effect == SettingsEffect.RequestNeededPermissions.INSTANCE) {
-                if (permissionController != null) {
-                    permissionController.requestNeededPermissions();
-                }
-            } else if (effect == SettingsEffect.LoadLibrary.INSTANCE) {
-                libraryImportOwner.loadLibrary(false);
-            } else if (effect == SettingsEffect.OpenAudioFilePicker.INSTANCE) {
-                documentPickerController.openAudioFilePicker();
-            } else if (effect == SettingsEffect.OpenAudioFolderPicker.INSTANCE) {
-                documentPickerController.openAudioFolderPicker();
-            } else if (effect == SettingsEffect.OpenLuoxueSourceManager.INSTANCE) {
-                luoxueSourceImportDialogController.showSourceManager();
-            } else if (effect == SettingsEffect.ImportLuoxueSource.INSTANCE) {
-                luoxueSourceImportDialogController.showImportDialog();
-            } else if (effect == SettingsEffect.ReloadCurrentLyrics.INSTANCE) {
-                lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode());
-            } else if (effect instanceof SettingsEffect.StartSleepTimer) {
-                applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(((SettingsEffect.StartSleepTimer) effect).getMinutes()));
-            } else if (effect == SettingsEffect.CancelSleepTimer.INSTANCE) {
-                applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer());
-            } else if (effect == SettingsEffect.OpenFloatingLyricsPermission.INSTANCE) {
-                settingsViewModel.openFloatingLyricsPermission();
-            } else if (effect instanceof SettingsEffect.ChoosePageBackground) {
-                backgroundImagePickerController.open(((SettingsEffect.ChoosePageBackground) effect).getPage());
-            } else if (effect == SettingsEffect.ExportBackup.INSTANCE) {
-                backupRestoreLauncher.exportBackup();
-            } else if (effect == SettingsEffect.ImportBackup.INSTANCE) {
-                backupRestoreLauncher.importBackup();
-            } else if (effect instanceof SettingsEffect.ApplyStreamingGatewayEndpoint) {
-                applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint());
-            } else if (effect instanceof SettingsEffect.RestoreHiddenLibraryItem) {
-                libraryViewModel.restoreHiddenLibraryItemJava(
-                        ((SettingsEffect.RestoreHiddenLibraryItem) effect).getSourceKey(),
-                        changed -> refreshAfterHiddenLibraryRestore(changed)
-                );
-            } else if (effect == SettingsEffect.RestoreAllHiddenLibraryItems.INSTANCE) {
-                libraryViewModel.restoreAllHiddenLibraryItemsJava(
-                        changed -> refreshAfterHiddenLibraryRestore(changed)
-                );
-            }
-        });
+        settingsEffectOwner = new SettingsEffectOwner(
+                new SettingsNavigationEffectActions(
+                        statusMessageController::setStatus,
+                        routeController::setSettingsPage,
+                        this::navigateToNetworkTabPage,
+                        () -> navigationIntentOwner.navigateToTab(
+                                app.yukine.navigation.DownloadsTab.INSTANCE,
+                                true
+                        )
+                ),
+                new SettingsLibraryEffectActions(
+                        permissionController::requestNeededPermissions,
+                        () -> libraryImportOwner.loadLibrary(false),
+                        documentPickerController::openAudioFilePicker,
+                        documentPickerController::openAudioFolderPicker,
+                        luoxueSourceImportDialogController::showSourceManager,
+                        luoxueSourceImportDialogController::showImportDialog,
+                        sourceKey ->
+                                libraryViewModel.restoreHiddenLibraryItemJava(
+                                        sourceKey,
+                                        this::refreshAfterHiddenLibraryRestore
+                                ),
+                        () ->
+                                libraryViewModel.restoreAllHiddenLibraryItemsJava(
+                                        this::refreshAfterHiddenLibraryRestore
+                                )
+                ),
+                new SettingsPlaybackEffectActions(
+                        () -> lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode()),
+                        minutes -> applyPlaybackActionResult(nowPlayingViewModel.startSleepTimer(minutes)),
+                        () -> applyPlaybackActionResult(nowPlayingViewModel.cancelSleepTimer()),
+                        settingsViewModel::openFloatingLyricsPermission
+                ),
+                new SettingsFileEffectActions(
+                        backgroundImagePickerController::open,
+                        backupRestoreLauncher::exportBackup,
+                        backupRestoreLauncher::importBackup
+                ),
+                this::applyStreamingGatewayEndpoint
+        );
+        settingsViewModel.bindEffectListener(settingsEffectOwner);
     }
 
     private void initializeStreamingOwners(MainActivityStreamingActionGateway streamingActionGateway) {

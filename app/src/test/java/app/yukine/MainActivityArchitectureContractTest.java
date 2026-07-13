@@ -277,6 +277,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void settingsEffectsAreDispatchedByFocusedActionGroups() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/SettingsEffectOwner.kt");
+        assertFalse(activity.contains("effect instanceof SettingsEffect"));
+        assertTrue(activity.contains("settingsViewModel.bindEffectListener(settingsEffectOwner)"));
+        assertTrue(owner.contains("private val navigation: SettingsNavigationEffectActions"));
+        assertTrue(owner.contains("private val library: SettingsLibraryEffectActions"));
+        assertTrue(owner.contains("private val playback: SettingsPlaybackEffectActions"));
+        assertTrue(owner.contains("private val files: SettingsFileEffectActions"));
+        assertTrue(owner.contains("private val streaming: SettingsStreamingEffectActions"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
