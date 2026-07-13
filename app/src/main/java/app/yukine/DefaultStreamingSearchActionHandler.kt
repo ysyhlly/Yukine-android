@@ -70,7 +70,7 @@ internal class DefaultStreamingSearchActionHandler(
             )
             return
         }
-        streamingViewModel.resolveStreamingPlaybackTrack(
+        streamingViewModel.playbackResolution.resolveStreamingPlaybackTrack(
             provider = track.provider,
             providerTrackId = track.providerTrackId,
             quality = actionGateway.streamingPlaybackQuality(),

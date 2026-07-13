@@ -215,6 +215,7 @@ public final class MainActivityArchitectureContractTest {
         String stateOwner = read("app/src/main/java/app/yukine/StreamingFeatureStateOwner.kt");
         String authOwner = read("app/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
         String searchOwner = read("app/src/main/java/app/yukine/StreamingSearchStateOwner.kt");
+        String resolutionOwner = read("app/src/main/java/app/yukine/StreamingPlaybackResolutionStateOwner.kt");
         String actions = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
 
         assertTrue(viewModel.contains("private val streamingState = StreamingFeatureStateOwner()"));
@@ -228,10 +229,17 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(searchOwner.contains("fun searchAllStreaming("));
         assertTrue(searchOwner.contains("private fun mergeStreamingSearchResults("));
         assertTrue(searchOwner.contains("private fun levenshteinDistance("));
+        assertTrue(resolutionOwner.contains("class StreamingPlaybackResolutionStateOwner("));
+        assertTrue(resolutionOwner.contains("private var playbackPlanner:"));
+        assertTrue(resolutionOwner.contains("private val queueWindowPreResolveInFlight"));
+        assertTrue(resolutionOwner.contains("fun recoverStreamingBuffering("));
+        assertTrue(resolutionOwner.contains("fun resolveStreamingTrackListForPlayback("));
         assertTrue(actions.contains("streamingViewModel.auth.startAuth("));
         assertTrue(actions.contains("streamingViewModel.auth.signOut(provider)"));
         assertTrue(actions.contains("streamingViewModel.search.searchAllStreaming("));
         assertFalse(viewModel.contains("private fun mergeStreamingSearchResults("));
+        assertFalse(viewModel.contains("private var streamingPlaybackPlanner"));
+        assertFalse(viewModel.contains("private val queueWindowPreResolveInFlight"));
     }
 
     @Test

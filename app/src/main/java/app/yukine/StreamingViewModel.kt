@@ -33,10 +33,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
-private const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
+internal const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 // Kept as source-compatible aliases for existing callers/tests; the coordinator owns the limits.
 internal const val STREAMING_PLAYLIST_PAGE_SIZE =
     StreamingPlaylistDataCoordinator.STREAMING_PLAYLIST_PAGE_SIZE
@@ -51,18 +50,13 @@ class StreamingViewModel @Inject constructor(
 
     private val streamingState = StreamingFeatureStateOwner()
     private var streamingRepository: StreamingRepository = streamingRepositorySource.current()
-    private var streamingPlaybackPlanner: StreamingPlaybackResolvePlanner? = null
-    private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
     private var streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations? = null
-    private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     private val streamingPlaylistDataCoordinator = StreamingPlaylistDataCoordinator(
         repositoryProvider = { streamingRepository },
         localOperationsProvider = { streamingLocalPlaylistOperations },
         ioDispatcherProvider = { ioDispatcher }
     )
-    private val queueWindowPreResolveInFlight =
-        ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
     internal val auth = StreamingAuthStateOwner(
         scope = viewModelScope,
         stateOwner = streamingState,
@@ -73,6 +67,14 @@ class StreamingViewModel @Inject constructor(
         stateOwner = streamingState,
         repository = { streamingRepository }
     )
+    internal val playbackResolution = StreamingPlaybackResolutionStateOwner(
+        scope = viewModelScope,
+        stateOwner = streamingState,
+        repository = { streamingRepository },
+        ioDispatcher = { ioDispatcher }
+    )
+    @JvmName("playbackResolutionOwner")
+    internal fun playbackResolutionOwner(): StreamingPlaybackResolutionStateOwner = playbackResolution
     @JvmName("searchOwner")
     internal fun searchOwner(): StreamingSearchStateOwner = search
     val streaming: StateFlow<StreamingSearchState> = streamingState.state
@@ -110,8 +112,7 @@ class StreamingViewModel @Inject constructor(
         planner: StreamingPlaybackResolvePlanner?,
         taskQueue: StreamingPlaybackTaskQueue?
     ) {
-        streamingPlaybackPlanner = planner
-        streamingPlaybackTaskQueue = taskQueue
+        playbackResolution.bindPlaybackCoordinator(planner, taskQueue)
     }
 
     fun bindStreamingLocalPlaylistOperations(operations: StreamingLocalPlaylistOperations?) {
@@ -119,7 +120,7 @@ class StreamingViewModel @Inject constructor(
     }
 
     fun bindStreamingTrackMatchStore(store: StreamingTrackMatchStore?) {
-        streamingTrackMatchStore = store
+        playbackResolution.bindTrackMatchStore(store)
     }
     fun updateStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) =
         search.updateStreamingSearchChrome(labels, actions)
@@ -186,45 +187,18 @@ class StreamingViewModel @Inject constructor(
         cookieHeader: String? = null,
         onAuthSuccess: StreamingCallback<StreamingProviderName>? = null
     ) = auth.completeAuth(provider, callbackUri, cookieHeader, onAuthSuccess)
-
     fun resolveStreamingPlayback(
         provider: StreamingProviderName,
         providerTrackId: String,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS
-    ): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                streamingRepository.resolvePlayback(provider, providerTrackId, quality)
-            }.onSuccess { source ->
-                updateStreamingPlaybackSource(source)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    ): Job = playbackResolution.resolveStreamingPlayback(provider, providerTrackId, quality)
 
     fun resolveStreamingPlaybackTrack(
         provider: StreamingProviderName,
         providerTrackId: String,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         metadata: StreamingTrack? = null
-    ): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                streamingRepository.resolvePlaybackTrack(provider, providerTrackId, quality, metadata)
-            }.onSuccess { result ->
-                updateStreamingPlaybackTrack(result.source, result.track)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    ): Job = playbackResolution.resolveStreamingPlaybackTrack(provider, providerTrackId, quality, metadata)
 
     fun resolveStreamingTrackForPlayback(
         provider: StreamingProviderName,
@@ -232,72 +206,16 @@ class StreamingViewModel @Inject constructor(
         metadata: StreamingTrack? = null,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         onResolved: StreamingCallback<Track?>
-    ): Job = resolveStreamingTrackForPlaybackInternal(
-        provider,
-        providerTrackId,
-        metadata,
-        quality,
-        forceRefresh = false,
-        onResolved
+    ): Job = playbackResolution.resolveStreamingTrackForPlayback(
+        provider, providerTrackId, metadata, quality, onResolved
     )
-
-    private fun resolveStreamingTrackForPlaybackInternal(
-        provider: StreamingProviderName,
-        providerTrackId: String,
-        metadata: StreamingTrack?,
-        quality: StreamingAudioQuality,
-        forceRefresh: Boolean,
-        onResolved: StreamingCallback<Track?>
-    ): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                streamingRepository.resolvePlaybackTrack(
-                    provider,
-                    providerTrackId,
-                    quality,
-                    metadata,
-                    forceRefresh = forceRefresh
-                )
-            }.onSuccess { result ->
-                updateStreamingPlaybackTrack(result.source, result.track)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-                onResolved.onResult(result.track)
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-                onResolved.onResult(null)
-            }
-        }
-    }
 
     fun preResolveNextStreamingTrack(
         snapshot: PlaybackStateSnapshot?,
         queue: List<Track>?,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         onResolved: StreamingBiCallback<Long, Track?>
-    ): Boolean {
-        val planner = streamingPlaybackPlanner ?: return false
-        val taskQueue = streamingPlaybackTaskQueue ?: return false
-        val request = planner.prepareNextPreResolve(snapshot, queue) ?: return false
-        taskQueue.scheduleNextUrlResolve(
-            StreamingPlaybackTask { onComplete ->
-                val job = resolveStreamingTrackForPlayback(
-                    request.provider,
-                    request.providerTrackId,
-                    request.metadata,
-                    quality
-                ) { resolved ->
-                    onResolved.onResult(request.oldTrackId, resolved)
-                }
-                job.invokeOnCompletion {
-                    planner.clearPreResolve(request.key)
-                    onComplete.run()
-                }
-            }
-        )
-        return true
-    }
+    ): Boolean = playbackResolution.preResolveNextStreamingTrack(snapshot, queue, quality, onResolved)
 
     fun preResolveStreamingQueueWindow(
         snapshot: PlaybackStateSnapshot?,
@@ -305,16 +223,9 @@ class StreamingViewModel @Inject constructor(
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         maxCount: Int = STREAMING_QUEUE_PRE_RESOLVE_LIMIT,
         onResolved: StreamingBiCallback<Long, Track?>
-    ): Job? = preResolveStreamingQueueWindowBatch(
-        snapshot,
-        queue,
-        quality,
-        maxCount
-    ) { resolvedTracks ->
-        resolvedTracks.forEach { (oldTrackId, resolved) ->
-            onResolved.onResult(oldTrackId, resolved)
-        }
-    }
+    ): Job? = playbackResolution.preResolveStreamingQueueWindow(
+        snapshot, queue, quality, maxCount, onResolved
+    )
 
     /**
      * Foreground maintenance for local NetEase/QQ sessions. The repository/store throttle actual
@@ -322,168 +233,30 @@ class StreamingViewModel @Inject constructor(
      * the app never feels blocked by a background cookie check.
      */
     fun maintainStreamingAuthSessions(): Job = auth.maintainSessions()
-
     fun preResolveStreamingQueueWindowBatch(
         snapshot: PlaybackStateSnapshot?,
         queue: List<Track>?,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         maxCount: Int = STREAMING_QUEUE_PRE_RESOLVE_LIMIT,
         onResolved: (Map<Long, Track>) -> Unit
-    ): Job? {
-        if (snapshot == null || !snapshot.playing || queue.isNullOrEmpty() || maxCount <= 0) {
-            return null
-        }
-        val targets = streamingQueuePreResolveTargets(snapshot, queue, maxCount)
-        if (targets.isEmpty()) {
-            return null
-        }
-        val eligibleTargets = targets.filter { target ->
-            queueWindowPreResolveInFlight.add(target.inFlightKey(quality))
-        }
-        if (eligibleTargets.isEmpty()) {
-            return null
-        }
-        return viewModelScope.launch {
-            try {
-                val resolvedTracks = linkedMapOf<Long, Track>()
-                eligibleTargets.map { target ->
-                    async(ioDispatcher) {
-                        target to runCatching {
-                            streamingRepository.resolvePlaybackTrack(
-                                target.provider,
-                                target.providerTrackId,
-                                quality,
-                                target.metadata
-                            )
-                        }.getOrNull()
-                    }
-                }.awaitAll().forEach { (target, result) ->
-                    result?.let {
-                        updateStreamingPlaybackTrack(it.source, it.track)
-                        resolvedTracks[target.oldTrackId] = it.track
-                    }
-                }
-                if (resolvedTracks.isNotEmpty()) {
-                    onResolved(resolvedTracks)
-                }
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            } finally {
-                eligibleTargets.forEach { target ->
-                    queueWindowPreResolveInFlight.remove(target.inFlightKey(quality))
-                }
-            }
-        }
-    }
+    ): Job? = playbackResolution.preResolveStreamingQueueWindowBatch(
+        snapshot, queue, quality, maxCount, onResolved
+    )
 
     fun resolveStreamingTrackListForPlayback(
         tracks: List<Track>?,
         index: Int,
         quality: StreamingAudioQuality = StreamingAudioQuality.LOSSLESS,
         onResolved: StreamingCallback<ResolvedStreamingTrackList?>
-    ): Boolean {
-        val planner = streamingPlaybackPlanner ?: return false
-        val taskQueue = streamingPlaybackTaskQueue ?: return false
-        val request = planner.prepare(tracks, index) ?: return false
-        taskQueue.scheduleCurrentUrlResolve(
-            StreamingPlaybackTask { onComplete ->
-                val job = resolveStreamingTrackForPlayback(
-                    request.provider,
-                    request.providerTrackId,
-                    request.metadata,
-                    quality
-                ) { resolved ->
-                    if (resolved == null) {
-                        onResolved.onResult(null)
-                        return@resolveStreamingTrackForPlayback
-                    }
-                    onResolved.onResult(
-                        ResolvedStreamingTrackList(
-                            tracks = planner.replaceResolvedTrack(request, resolved),
-                            index = request.index
-                        )
-                    )
-                }
-                job.invokeOnCompletion { onComplete.run() }
-            }
-        )
-        return true
-    }
+    ): Boolean = playbackResolution.resolveStreamingTrackListForPlayback(
+        tracks, index, quality, onResolved
+    )
 
     fun prepareCurrentStreamingQueueResolveTarget(
         snapshot: PlaybackStateSnapshot?,
         queue: List<Track>?
-    ): StreamingQueueResolveTarget? {
-        if (snapshot?.currentTrack == null) {
-            return null
-        }
-        // A paused stream with a concrete playback URI is already loaded by ExoPlayer and must
-        // resume directly. Re-resolving it here turns a simple play command into an asynchronous
-        // source replacement and can leave the player paused when the resolver declines/retries.
-        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(snapshot.currentTrack)) {
-            return null
-        }
-        if (queue.isNullOrEmpty()) {
-            return StreamingQueueResolveTarget(
-                tracks = listOf(snapshot.currentTrack),
-                index = 0
-            )
-        }
-        return StreamingQueueResolveTarget(
-            tracks = queue,
-            index = snapshot.currentIndex.coerceIn(0, queue.size - 1)
-        )
-    }
-
-    private data class StreamingQueuePreResolveTarget(
-        val oldTrackId: Long,
-        val provider: StreamingProviderName,
-        val providerTrackId: String,
-        val metadata: StreamingTrack?
-    ) {
-        fun inFlightKey(quality: StreamingAudioQuality): StreamingQueuePreResolveKey =
-            StreamingQueuePreResolveKey(oldTrackId, provider, providerTrackId, quality)
-    }
-
-    private data class StreamingQueuePreResolveKey(
-        val oldTrackId: Long,
-        val provider: StreamingProviderName,
-        val providerTrackId: String,
-        val quality: StreamingAudioQuality
-    )
-
-    private fun streamingQueuePreResolveTargets(
-        snapshot: PlaybackStateSnapshot,
-        queue: List<Track>,
-        maxCount: Int
-    ): List<StreamingQueuePreResolveTarget> {
-        if (queue.size <= 2) {
-            return emptyList()
-        }
-        val startIndex = (snapshot.currentIndex + 2).floorMod(queue.size)
-        return (0 until queue.size)
-            .asSequence()
-            .map { offset -> (startIndex + offset).floorMod(queue.size) }
-            .filter { index -> index != snapshot.currentIndex }
-            .map { queue[it] }
-            .filter { StreamingPlaybackAdapter.isUnresolvedStreamingTrack(it) }
-            .distinctBy { it.dataPath }
-            .mapNotNull { track ->
-                val provider = StreamingPlaybackAdapter.streamingProviderName(track.dataPath) ?: return@mapNotNull null
-                val providerTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath)
-                    .takeIf { it.isNotBlank() }
-                    ?: return@mapNotNull null
-                StreamingQueuePreResolveTarget(
-                    oldTrackId = track.id,
-                    provider = provider,
-                    providerTrackId = providerTrackId,
-                    metadata = ResolveStreamingPlaybackUseCase().metadataFor(track, provider, providerTrackId)
-                )
-            }
-            .take(maxCount)
-            .toList()
-    }
-
-    private fun Int.floorMod(modulus: Int): Int = ((this % modulus) + modulus) % modulus
+    ): StreamingQueueResolveTarget? =
+        playbackResolution.prepareCurrentStreamingQueueResolveTarget(snapshot, queue)
 
     fun recoverStreamingBuffering(
         snapshot: PlaybackStateSnapshot?,
@@ -491,80 +264,28 @@ class StreamingViewModel @Inject constructor(
         adaptiveQuality: StreamingAudioQuality,
         refuseAutomaticQualityDowngrade: Boolean,
         onResolved: StreamingCallback<StreamingRecoveryResolution?>
-    ): StreamingAudioQuality? {
-        val planner = streamingPlaybackPlanner ?: return null
-        val taskQueue = streamingPlaybackTaskQueue ?: return null
-        val request = planner.prepareRecovery(
-            snapshot,
-            selectedQuality,
-            adaptiveQuality,
-            refuseAutomaticQualityDowngrade
-        ) ?: return null
-        taskQueue.scheduleCurrentPlaybackRecovery(
-            StreamingPlaybackTask { onComplete ->
-                val job = resolveStreamingTrackForPlaybackInternal(
-                    request.provider,
-                    request.providerTrackId,
-                    request.metadata,
-                    request.quality,
-                    forceRefresh = true
-                ) { resolved ->
-                    onResolved.onResult(
-                        resolved?.let {
-                            StreamingRecoveryResolution(
-                                expectedTrackId = request.expectedTrackId,
-                                track = it,
-                                quality = request.quality,
-                                positionMs = snapshot?.positionMs ?: 0L
-                            )
-                        }
-                    )
-                }
-                job.invokeOnCompletion {
-                    planner.clearRecovery(request.key)
-                    onComplete.run()
-                }
-            }
-        )
-        return request.quality
-    }
+    ): StreamingAudioQuality? = playbackResolution.recoverStreamingBuffering(
+        snapshot,
+        selectedQuality,
+        adaptiveQuality,
+        refuseAutomaticQualityDowngrade,
+        onResolved
+    )
 
     fun loadStreamingProviderTrackId(
         track: Track,
         provider: StreamingProviderName,
         onResolved: StreamingCallback<String>
-    ): Job {
-        return viewModelScope.launch {
-            val providerTrackId = withContext(ioDispatcher) {
-                streamingTrackMatchStore?.providerTrackIdFor(track, provider).orEmpty()
-            }
-            onResolved.onResult(providerTrackId)
-        }
-    }
+    ): Job = playbackResolution.loadStreamingProviderTrackId(track, provider, onResolved)
 
-    fun streamingProviderTrackIdFor(track: Track?, provider: StreamingProviderName?): String {
-        if (track == null || provider == null) {
-            return ""
-        }
-        return streamingTrackMatchStore?.providerTrackIdFor(track, provider).orEmpty()
-    }
+    fun streamingProviderTrackIdFor(track: Track?, provider: StreamingProviderName?): String =
+        playbackResolution.streamingProviderTrackIdFor(track, provider)
 
     fun saveStreamingProviderTrackId(
         track: Track?,
         provider: StreamingProviderName?,
         providerTrackId: String?
-    ): Job {
-        return viewModelScope.launch {
-            val cleanTrackId = providerTrackId?.trim().orEmpty()
-            if (track == null || provider == null || cleanTrackId.isEmpty()) {
-                return@launch
-            }
-            withContext(ioDispatcher) {
-                streamingTrackMatchStore?.saveProviderTrackId(track, provider, cleanTrackId)
-            }
-        }
-    }
-
+    ): Job = playbackResolution.saveStreamingProviderTrackId(track, provider, providerTrackId)
     fun prepareRecommendationTrackList(
         tracks: List<StreamingTrack>?
     ): StreamingRecommendationTrackList {
@@ -1385,25 +1106,11 @@ class StreamingViewModel @Inject constructor(
         )
     }
 
-    fun updateStreamingPlaybackSource(source: StreamingPlaybackSource) {
-        streamingState.value = streamingState.value.copy(
-            resolvedPlaybackSource = source,
-            resolvedPlaybackTrack = null,
-            loading = false,
-            loadingMore = false,
-            errorMessage = null
-        )
-    }
+    fun updateStreamingPlaybackSource(source: StreamingPlaybackSource) =
+        playbackResolution.updatePlaybackSource(source)
 
-    fun updateStreamingPlaybackTrack(source: StreamingPlaybackSource, track: Track) {
-        streamingState.value = streamingState.value.copy(
-            resolvedPlaybackSource = source,
-            resolvedPlaybackTrack = track,
-            loading = false,
-            loadingMore = false,
-            errorMessage = null
-        )
-    }
+    fun updateStreamingPlaybackTrack(source: StreamingPlaybackSource, track: Track) =
+        playbackResolution.updatePlaybackTrack(source, track)
 
     fun updateStreamingAuthState(provider: StreamingProviderName, authState: StreamingAuthState) =
         auth.updateAuthState(provider, authState)

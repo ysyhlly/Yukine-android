@@ -28,7 +28,7 @@ internal class UnifiedSearchOwner @JvmOverloads constructor(
             metadata,
             selectedQuality,
             callback ->
-        streamingViewModel.resolveStreamingTrackForPlayback(
+        streamingViewModel.playbackResolution.resolveStreamingTrackForPlayback(
             provider,
             providerTrackId,
             metadata,

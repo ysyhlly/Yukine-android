@@ -39,7 +39,7 @@ internal class NowPlayingSourceSwitchOwner(
     ) : this(
         planner = planner,
         resolver = StreamingSourceResolver { provider, providerTrackId, metadata, selectedQuality, callback ->
-            streamingViewModel.resolveStreamingTrackForPlayback(
+            streamingViewModel.playbackResolution.resolveStreamingTrackForPlayback(
                 provider,
                 providerTrackId,
                 metadata,

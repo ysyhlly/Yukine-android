@@ -213,7 +213,8 @@ final class StreamingFeatureBinding {
                 () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 clearQueueConfirmer,
                 lyricsViewModel,
-                track -> viewModel.streamingProviderTrackIdFor(track, StreamingProviderName.NETEASE)
+                track -> viewModel.playbackResolutionOwner()
+                        .streamingProviderTrackIdFor(track, StreamingProviderName.NETEASE)
         );
         bindStores();
     }
@@ -372,7 +373,7 @@ final class StreamingFeatureBinding {
     }
 
     StreamingDownloadResolver downloadResolver() {
-        return (request, quality, callback) -> viewModel.resolveStreamingTrackForPlayback(
+        return (request, quality, callback) -> viewModel.playbackResolutionOwner().resolveStreamingTrackForPlayback(
                 request.getProvider(),
                 request.getProviderTrackId(),
                 request.getMetadata(),
@@ -398,7 +399,7 @@ final class StreamingFeatureBinding {
             return false;
         }
         PlaybackStateSnapshot snapshot = playback.snapshot();
-        StreamingQueueResolveTarget target = viewModel.prepareCurrentStreamingQueueResolveTarget(
+        StreamingQueueResolveTarget target = viewModel.playbackResolutionOwner().prepareCurrentStreamingQueueResolveTarget(
                 snapshot,
                 playback.queueSnapshot()
         );
