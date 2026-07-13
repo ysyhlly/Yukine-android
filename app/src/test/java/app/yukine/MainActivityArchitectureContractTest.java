@@ -161,6 +161,17 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void trackListPresentationContextIsOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String publisher = read("app/src/main/java/app/yukine/TrackListStatePublisher.kt");
+        assertFalse(activity.contains("renderComposeTrackList"));
+        assertFalse(activity.contains("trackListLabels()"));
+        assertTrue(publisher.contains("private val libraryState: StateFlow<LibraryStoreState>"));
+        assertTrue(publisher.contains("private val settingsState: StateFlow<SettingsState>"));
+        assertTrue(publisher.contains("private val playbackReadModel: PlaybackReadModel"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

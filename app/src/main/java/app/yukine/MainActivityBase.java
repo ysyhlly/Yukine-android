@@ -32,11 +32,9 @@ import app.yukine.streaming.StreamingTrack;
 import app.yukine.streaming.cache.StreamingCacheRepository;
 import app.yukine.ui.LibraryGroupActions;
 import app.yukine.ui.LibraryGroupUiState;
-import app.yukine.ui.TrackListAlbumCardUiState;
 import app.yukine.ui.TrackListHeaderAction;
 import app.yukine.ui.TrackListHeaderMetric;
 import app.yukine.ui.TrackListLabels;
-import app.yukine.ui.TrackListModeAction;
 import app.yukine.ui.TrackRowActions;
 import app.yukine.ui.TrackRowUiState;
 import app.yukine.streaming.StreamingQualityPreference;
@@ -168,6 +166,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private TrackListRenderController trackListRenderController;
+    private TrackListStatePublisher trackListStatePublisher;
     private QueueActionController queueActionController;
     private PlaybackActionController playbackActionController;
     private PlaybackStartController playbackStartController;
@@ -551,6 +550,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                         selectedPlaylistId()
                 )
         ));
+        trackListStatePublisher = new TrackListStatePublisher(
+                trackListRenderController,
+                viewModel.getLibrary(),
+                settingsViewModel.getState(),
+                playbackServiceConnectionController
+        );
     }
 
     private void initializePlaybackControllers() {
@@ -887,7 +892,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                         (title, tracks) -> libraryFileDeleteLauncher.request(tracks, -1L),
                         this::publishLibraryGroupsChromeState,
-                        this::renderLibraryGroupTrackList
+                        trackListStatePublisher::publishLibraryGroup
                 ),
                 artistInfoRepository,
                 action -> mainHandler.post(action)
@@ -935,7 +940,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
             @Override
             public void renderPlaylistTracks(LibraryPlaylistTrackListRequest request) {
-                renderLibraryPlaylistTrackList(request);
+                trackListStatePublisher.publishLibraryPlaylist(request);
             }
         });
         collectionsRenderController = new CollectionsRenderController(collectionsViewModel, collectionsRenderListenerFactory.create(
@@ -1186,7 +1191,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                             String emptyText,
                             TrackListLabels labels
                     ) {
-                        renderNetworkTrackList(new NetworkTrackListRequest(
+                        trackListStatePublisher.publishNetwork(new NetworkTrackListRequest(
                                 title,
                                 tracks,
                                 showPlaylistAction,
@@ -1521,36 +1526,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private void renderLibraryGroupTrackList(LibraryGroupTrackListRequest request) {
-        renderComposeTrackList(
-                request.getTitle(),
-                request.getTracks(),
-                true,
-                new ArrayList<String>(),
-                false,
-                request.getHeaderMetrics(),
-                request.getHeaderActions(),
-                "",
-                new ArrayList<TrackListModeAction>(),
-                trackListLabels(),
-                request.getFooterAlbums()
-        );
-    }
-
-    private void renderLibraryPlaylistTrackList(LibraryPlaylistTrackListRequest request) {
-        renderComposeTrackList(
-                request.getTitle(),
-                request.getTracks(),
-                true,
-                new ArrayList<String>(),
-                false,
-                request.getHeaderMetrics(),
-                request.getHeaderActions(),
-                request.getEmptyText(),
-                request.getModeActions()
-        );
-    }
-
     private void publishLibraryGroupsChromeState(LibraryGroupsChromeState state) {
         libraryViewModel.updateLibraryGroupsChrome(
                 new LibraryGroupsDestinationState(
@@ -1560,20 +1535,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         state.getEmptyText(),
                         new ArrayList<>(state.getModeActions())
                 )
-        );
-    }
-
-    private void renderNetworkTrackList(NetworkTrackListRequest request) {
-        renderComposeTrackList(
-                request.getTitle(),
-                request.getTracks(),
-                request.getShowPlaylistAction(),
-                request.getDetails(),
-                request.getShowStreamActions(),
-                request.getHeaderMetrics(),
-                request.getHeaderActions(),
-                request.getEmptyText(),
-                request.getLabels()
         );
     }
 
@@ -2269,142 +2230,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void renderSelectedTab() {
         syncNavHostState();
-    }
-
-    private void renderComposeTrackList(String title, final List<Track> tracks, boolean showPlaylistAction) {
-        ArrayList<String> details = new ArrayList<>();
-        for (int i = 0; i < tracks.size(); i++) {
-            details.add("");
-        }
-        renderComposeTrackList(title, tracks, showPlaylistAction, details);
-    }
-
-    private void renderComposeTrackList(String title, final List<Track> tracks, boolean showPlaylistAction, List<String> details) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, false, new ArrayList<TrackListHeaderMetric>(), new ArrayList<TrackListHeaderAction>(), "", new ArrayList<TrackListModeAction>());
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions
-    ) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, new ArrayList<TrackListHeaderMetric>(), new ArrayList<TrackListHeaderAction>(), "", new ArrayList<TrackListModeAction>());
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions,
-            List<TrackListHeaderMetric> headerMetrics,
-            List<TrackListHeaderAction> headerActions,
-            String emptyText
-    ) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, headerMetrics, headerActions, emptyText, new ArrayList<TrackListModeAction>());
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions,
-            List<TrackListHeaderMetric> headerMetrics,
-            List<TrackListHeaderAction> headerActions,
-            String emptyText,
-            List<TrackListModeAction> modeActions
-    ) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, headerMetrics, headerActions, emptyText, modeActions, trackListLabels());
-    }
-
-    private TrackListLabels trackListLabels() {
-        String languageMode = settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-        return new TrackListLabels(
-                AppLanguage.text(languageMode, "favorite"),
-                AppLanguage.text(languageMode, "remove.favorite"),
-                AppLanguage.text(languageMode, "add.to.playlist"),
-                AppLanguage.text(languageMode, "edit"),
-                AppLanguage.text(languageMode, "delete"),
-                AppLanguage.text(languageMode, "download"),
-                AppLanguage.text(languageMode, "download.current.list"),
-                AppLanguage.text(languageMode, "all.albums"),
-                AppLanguage.text(languageMode, "play.all"),
-                AppLanguage.text(languageMode, "shuffle")
-        );
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions,
-            List<TrackListHeaderMetric> headerMetrics,
-            List<TrackListHeaderAction> headerActions,
-            String emptyText,
-            TrackListLabels labels
-    ) {
-        renderComposeTrackList(title, tracks, showPlaylistAction, details, showStreamActions, headerMetrics, headerActions, emptyText, new ArrayList<TrackListModeAction>(), labels);
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions,
-            List<TrackListHeaderMetric> headerMetrics,
-            List<TrackListHeaderAction> headerActions,
-            String emptyText,
-            List<TrackListModeAction> modeActions,
-            TrackListLabels labels
-    ) {
-        renderComposeTrackList(
-                title,
-                tracks,
-                showPlaylistAction,
-                details,
-                showStreamActions,
-                headerMetrics,
-                headerActions,
-                emptyText,
-                modeActions,
-                labels,
-                new ArrayList<TrackListAlbumCardUiState>()
-        );
-    }
-
-    private void renderComposeTrackList(
-            String title,
-            final List<Track> tracks,
-            boolean showPlaylistAction,
-            List<String> details,
-            boolean showStreamActions,
-            List<TrackListHeaderMetric> headerMetrics,
-            List<TrackListHeaderAction> headerActions,
-            String emptyText,
-            List<TrackListModeAction> modeActions,
-            TrackListLabels labels,
-            List<TrackListAlbumCardUiState> footerAlbums
-    ) {
-        trackListRenderController.render(
-                title,
-                tracks,
-                showPlaylistAction,
-                details,
-                showStreamActions,
-                headerMetrics,
-                headerActions,
-                emptyText,
-                modeActions,
-                labels,
-                playbackSnapshot(),
-                libraryStore.favoriteIds(),
-                footerAlbums
-        );
     }
 
     private String selectedPlaylistName() {
