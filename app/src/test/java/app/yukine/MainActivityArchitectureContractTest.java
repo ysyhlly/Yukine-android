@@ -205,6 +205,24 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playbackServiceIsOnlyTheAndroidPlatformBoundary() throws Exception {
+        String service = read("app/src/main/java/app/yukine/playback/EchoPlaybackService.java");
+        String connection = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
+
+        assertTrue(service.lines().count() < 220);
+        assertTrue(service.contains("extends MediaLibraryService"));
+        assertTrue(service.contains("runtime.handleServiceAction"));
+        assertTrue(service.contains("runtime.handleTaskRemoved"));
+        assertTrue(service.contains("runtime.destroy()"));
+        assertTrue(service.contains("public PlaybackServiceHostPort getService()"));
+        assertFalse(service.contains("PlaybackQueueManager"));
+        assertFalse(service.contains("PlaybackRuntimeStateManager"));
+        assertFalse(service.contains("PlaybackMediaSourceProvider"));
+        assertFalse(service.contains("MusicLibraryRepository"));
+        assertTrue(connection.contains("val nextService: PlaybackServiceHostPort"));
+    }
+
+    @Test
     public void navigationHasOneTypedPersistentRouteOwner() throws Exception {
         String hostState = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavHostState.kt");
         String graph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");

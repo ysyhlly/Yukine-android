@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCoordinator.PlaybackResources {
     private final Runnable releaseLyrics;
     private final Runnable releaseWifiLock;
+    private final Runnable releaseSession;
     private final Runnable releasePlayer;
     private final Runnable resetQueueMirrorState;
     private final Runnable resetRuntimePreparingState;
@@ -15,7 +16,7 @@ final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCo
             Runnable releaseWifiLock,
             Runnable releasePlayer
     ) {
-        this(releaseLyrics, releaseWifiLock, releasePlayer, null, null);
+        this(releaseLyrics, releaseWifiLock, null, releasePlayer, null, null);
     }
 
     PlaybackShutdownPlaybackResourcesOwner(
@@ -25,8 +26,27 @@ final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCo
             Runnable resetQueueMirrorState,
             Runnable resetRuntimePreparingState
     ) {
+        this(
+                releaseLyrics,
+                releaseWifiLock,
+                null,
+                releasePlayer,
+                resetQueueMirrorState,
+                resetRuntimePreparingState
+        );
+    }
+
+    PlaybackShutdownPlaybackResourcesOwner(
+            Runnable releaseLyrics,
+            Runnable releaseWifiLock,
+            Runnable releaseSession,
+            Runnable releasePlayer,
+            Runnable resetQueueMirrorState,
+            Runnable resetRuntimePreparingState
+    ) {
         this.releaseLyrics = safe(releaseLyrics);
         this.releaseWifiLock = safe(releaseWifiLock);
+        this.releaseSession = safe(releaseSession);
         this.releasePlayer = safe(releasePlayer);
         this.resetQueueMirrorState = safe(resetQueueMirrorState);
         this.resetRuntimePreparingState = safe(resetRuntimePreparingState);
@@ -40,6 +60,11 @@ final class PlaybackShutdownPlaybackResourcesOwner implements PlaybackShutdownCo
     @Override
     public void releaseWifiLock() {
         releaseWifiLock.run();
+    }
+
+    @Override
+    public void releaseSession() {
+        releaseSession.run();
     }
 
     @Override

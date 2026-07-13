@@ -11,7 +11,7 @@ class PlaybackShutdownCoordinatorTest {
 
         coordinator.releasePlaybackResources()
 
-        assertEquals(listOf("lyrics", "wifi", "player"), calls)
+        assertEquals(listOf("lyrics", "wifi", "session", "player"), calls)
     }
 
     @Test
@@ -22,7 +22,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.releasePlaybackResources()
         coordinator.releasePlaybackResources()
 
-        assertEquals(listOf("lyrics", "wifi", "player"), calls)
+        assertEquals(listOf("lyrics", "wifi", "session", "player"), calls)
     }
 
     @Test
@@ -33,7 +33,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -76,7 +76,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -90,7 +90,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("position", "queue", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "schedulers", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "state", "wifi", "player"),
+            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -109,6 +109,10 @@ class PlaybackShutdownCoordinatorTest {
 
                 override fun releaseWifiLock() {
                     calls.add("wifi")
+                }
+
+                override fun releaseSession() {
+                    calls.add("session")
                 }
 
                 override fun releasePlayer() {
@@ -199,6 +203,10 @@ class PlaybackShutdownCoordinatorTest {
 
                 override fun publishPlaybackNotification() {
                     calls.add("notification")
+                }
+
+                override fun clearPlaybackNotification() {
+                    calls.add("notification-clear")
                 }
             }
         )

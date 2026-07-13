@@ -33,6 +33,7 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
     private final PlaybackStateProvider playbackStateProvider;
     private final NotificationStateProvider notificationStateProvider;
     private final NotificationPublisher notificationPublisher;
+    private final Runnable notificationCleaner;
 
     PlaybackShutdownLifecycleResourcesOwner(
             PlaybackPositionPersister playbackPositionPersister,
@@ -41,11 +42,30 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
             NotificationStateProvider notificationStateProvider,
             NotificationPublisher notificationPublisher
     ) {
+        this(
+                playbackPositionPersister,
+                playbackQueueLifecycleStore,
+                playbackStateProvider,
+                notificationStateProvider,
+                notificationPublisher,
+                null
+        );
+    }
+
+    PlaybackShutdownLifecycleResourcesOwner(
+            PlaybackPositionPersister playbackPositionPersister,
+            PlaybackQueueLifecycleStore playbackQueueLifecycleStore,
+            PlaybackStateProvider playbackStateProvider,
+            NotificationStateProvider notificationStateProvider,
+            NotificationPublisher notificationPublisher,
+            Runnable notificationCleaner
+    ) {
         this.playbackPositionPersister = playbackPositionPersister;
         this.playbackQueueLifecycleStore = playbackQueueLifecycleStore;
         this.playbackStateProvider = playbackStateProvider;
         this.notificationStateProvider = notificationStateProvider;
         this.notificationPublisher = notificationPublisher;
+        this.notificationCleaner = notificationCleaner;
     }
 
     static PlaybackStateProvider playbackStateProviderFromPlaybackState(
@@ -133,6 +153,13 @@ final class PlaybackShutdownLifecycleResourcesOwner implements PlaybackShutdownC
     public void publishPlaybackNotification() {
         if (notificationPublisher != null) {
             notificationPublisher.publishPlaybackNotification();
+        }
+    }
+
+    @Override
+    public void clearPlaybackNotification() {
+        if (notificationCleaner != null) {
+            notificationCleaner.run();
         }
     }
 }

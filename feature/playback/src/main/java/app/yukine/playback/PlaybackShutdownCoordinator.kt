@@ -8,6 +8,7 @@ internal class PlaybackShutdownCoordinator(
     interface PlaybackResources {
         fun releaseLyrics()
         fun releaseWifiLock()
+        fun releaseSession()
         fun releasePlayer()
     }
 
@@ -36,6 +37,7 @@ internal class PlaybackShutdownCoordinator(
         fun isPreparing(): Boolean
         fun hasNotificationWorthyState(): Boolean
         fun publishPlaybackNotification()
+        fun clearPlaybackNotification()
     }
 
     private var lyricsReleased = false
@@ -61,6 +63,7 @@ internal class PlaybackShutdownCoordinator(
         }
         transportResourcesReleased = true
         playbackResources.releaseWifiLock()
+        playbackResources.releaseSession()
         playbackResources.releasePlayer()
     }
 
@@ -80,8 +83,10 @@ internal class PlaybackShutdownCoordinator(
             return
         }
         serviceResourcesReleased = true
+        serviceResources.releaseStatePublisher()
         lifecycleResources.persistPlaybackPosition()
         lifecycleResources.persistPlaybackQueue()
+        lifecycleResources.clearPlaybackNotification()
         releaseServiceResources()
     }
 
@@ -91,7 +96,6 @@ internal class PlaybackShutdownCoordinator(
         serviceResources.releaseWarmup()
         serviceResources.releaseVisualizationAnalyzer()
         serviceResources.releaseRecoveryScheduler()
-        serviceResources.shutdownTaskSchedulers()
         serviceResources.releasePrecache()
         serviceResources.releaseErrorRecovery()
         serviceResources.releaseProgressUpdates()
@@ -100,7 +104,7 @@ internal class PlaybackShutdownCoordinator(
         serviceResources.clearMainCallbacks()
         serviceResources.releaseVisualizationCache()
         serviceResources.releaseNotificationArtwork()
-        serviceResources.releaseStatePublisher()
         releaseTransportResourcesOnce()
+        serviceResources.shutdownTaskSchedulers()
     }
 }
