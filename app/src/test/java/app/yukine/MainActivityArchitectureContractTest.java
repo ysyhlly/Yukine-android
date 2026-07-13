@@ -214,6 +214,7 @@ public final class MainActivityArchitectureContractTest {
         String viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
         String stateOwner = read("app/src/main/java/app/yukine/StreamingFeatureStateOwner.kt");
         String authOwner = read("app/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
+        String searchOwner = read("app/src/main/java/app/yukine/StreamingSearchStateOwner.kt");
         String actions = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
 
         assertTrue(viewModel.contains("private val streamingState = StreamingFeatureStateOwner()"));
@@ -223,8 +224,14 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(authOwner.contains("fun refreshProviders(): Job"));
         assertTrue(authOwner.contains("fun completeAuth("));
         assertTrue(authOwner.contains("fun maintainSessions(): Job"));
+        assertTrue(searchOwner.contains("class StreamingSearchStateOwner("));
+        assertTrue(searchOwner.contains("fun searchAllStreaming("));
+        assertTrue(searchOwner.contains("private fun mergeStreamingSearchResults("));
+        assertTrue(searchOwner.contains("private fun levenshteinDistance("));
         assertTrue(actions.contains("streamingViewModel.auth.startAuth("));
         assertTrue(actions.contains("streamingViewModel.auth.signOut(provider)"));
+        assertTrue(actions.contains("streamingViewModel.search.searchAllStreaming("));
+        assertFalse(viewModel.contains("private fun mergeStreamingSearchResults("));
     }
 
     @Test

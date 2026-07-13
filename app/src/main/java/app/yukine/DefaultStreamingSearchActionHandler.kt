@@ -16,7 +16,7 @@ internal class DefaultStreamingSearchActionHandler(
     }
 
     override fun search(query: String) {
-        streamingViewModel.searchAllStreaming(
+        streamingViewModel.search.searchAllStreaming(
             query = query,
             mediaTypes = setOf(StreamingMediaType.TRACK),
             pageSize = 12
@@ -90,7 +90,7 @@ internal class DefaultStreamingSearchActionHandler(
             streamingViewModel.failStreamingRequest(sourceMessage(descriptor.displayName, "streaming.search.unavailable"))
             return
         }
-        streamingViewModel.searchNextStreamingPage()
+        streamingViewModel.search.searchNextStreamingPage()
     }
 
     private fun sourceMessage(displayName: String, suffixKey: String): String {

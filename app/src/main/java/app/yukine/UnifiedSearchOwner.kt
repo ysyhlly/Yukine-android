@@ -65,7 +65,7 @@ internal class UnifiedSearchOwner @JvmOverloads constructor(
             routeController.setSearchQuery("")
         }
         searchViewModel.clearSearch()
-        streamingViewModel.clearStreamingSearchSession()
+        streamingViewModel.search.clearStreamingSearchSession()
         streamingPlaybackGeneration++
         libraryStore.applySearch("")
         libraryViewModel.syncSearchQuery("")

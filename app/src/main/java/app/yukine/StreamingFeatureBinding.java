@@ -323,7 +323,7 @@ final class StreamingFeatureBinding {
                         playlistImportDialogController::showImportDialog,
                         luoxueSourceImportDialogController::showSourceManager,
                         manualCookieController::showStreamingCookieDialog,
-                        viewModel::updateStreamingSearchChrome
+                        viewModel.searchOwner()::updateStreamingSearchChrome
                 )
         );
     }
