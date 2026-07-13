@@ -530,7 +530,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         tabRenderDispatcher = new MainTabRenderDispatcher(
                 this::renderLibrary,
                 this::renderCollections,
-                this::renderQueue,
                 this::renderNetwork,
                 this::renderSettings,
                 this::renderSearch
@@ -2589,17 +2588,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryViewModel.trackAddedToPlaylistPresentation(added, settingsStore.languageMode()).getStatus()
         );
         loadCollections();
-    }
-
-    private void renderQueue() {
-        if (playbackService == null) {
-            statusMessageController.showFeedback(
-                    AppLanguage.text(settingsStore.languageMode(), "playback.service.unavailable")
-                            + ": "
-                            + AppLanguage.text(settingsStore.languageMode(), "playback.service.unavailable.description")
-            );
-            return;
-        }
     }
 
     private void renderNetwork() {

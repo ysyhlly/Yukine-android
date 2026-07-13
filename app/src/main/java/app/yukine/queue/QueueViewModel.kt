@@ -11,6 +11,7 @@ import app.yukine.TrackRowKeyPolicy
 import app.yukine.TrackRowStateFactory
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackReadModel
+import app.yukine.playback.PlaybackConnectionState
 import app.yukine.ui.QueueScreenLabels
 import app.yukine.ui.QueueTrackUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -108,19 +109,21 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
             .map { it.preferences.languageMode }
             .distinctUntilChanged()
         stateSourcesBinding = viewModelScope.launch {
-            combine(playbackReadModel.queue, selection, favorites, language) {
+            combine(playbackReadModel.queue, selection, favorites, language, playbackReadModel.connection) {
                     queue,
                     playback,
                     favoriteIds,
-                    languageMode ->
-                QueueStateInputs(queue.tracks, playback, favoriteIds, languageMode)
+                    languageMode,
+                    connection ->
+                QueueStateInputs(queue.tracks, playback, favoriteIds, languageMode, connection)
             }.collect { inputs ->
                 bindRows(
                     inputs.tracks,
                     inputs.playback.currentTrack,
                     inputs.playback.currentIndex,
                     inputs.favoriteIds,
-                    inputs.languageMode
+                    inputs.languageMode,
+                    inputs.connection
                 )
             }
         }
@@ -131,7 +134,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         currentTrack: Track?,
         currentIndex: Int?,
         favoriteIds: Set<Long>,
-        languageMode: String
+        languageMode: String,
+        connection: PlaybackConnectionState
     ) {
         boundTracks = tracks
         val currentQueueIndex = currentIndex?.takeIf { it in tracks.indices }
@@ -176,8 +180,18 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
             title = AppLanguage.text(languageMode, "tab.queue"),
             back = AppLanguage.text(languageMode, "back"),
             clearQueue = AppLanguage.text(languageMode, "clear.queue.title"),
-            empty = AppLanguage.text(languageMode, "queue.empty"),
-            emptyDescription = AppLanguage.text(languageMode, "queue.empty.description"),
+            empty = AppLanguage.text(
+                languageMode,
+                if (connection == PlaybackConnectionState.Connected) "queue.empty" else "playback.service.unavailable"
+            ),
+            emptyDescription = AppLanguage.text(
+                languageMode,
+                if (connection == PlaybackConnectionState.Connected) {
+                    "queue.empty.description"
+                } else {
+                    "playback.service.unavailable.description"
+                }
+            ),
             tracks = AppLanguage.text(languageMode, "tracks"),
             favorite = AppLanguage.text(languageMode, "favorite"),
             addToPlaylist = AppLanguage.text(languageMode, "add.to.playlist"),
@@ -195,7 +209,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val tracks: List<Track>,
         val playback: QueuePlaybackSelection,
         val favoriteIds: Set<Long>,
-        val languageMode: String
+        val languageMode: String,
+        val connection: PlaybackConnectionState
     )
 
     /** The tracks backing the current rows; used by the screen to build positional intents. */

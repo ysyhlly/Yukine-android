@@ -95,6 +95,15 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void queueConnectionStateIsFlowDrivenInsteadOfTabRendered() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String queue = read("app/src/main/java/app/yukine/queue/QueueViewModel.kt");
+        assertFalse(activity.contains("private void renderQueue()"));
+        assertTrue(queue.contains("playbackReadModel.connection"));
+        assertTrue(queue.contains("PlaybackConnectionState.Connected"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

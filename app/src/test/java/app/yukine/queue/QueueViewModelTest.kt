@@ -137,6 +137,23 @@ class QueueViewModelTest {
     }
 
     @Test
+    fun disconnectedPlaybackPublishesInlineAvailabilityState() {
+        val vm = QueueViewModel()
+
+        bind(
+            vm,
+            emptyList(),
+            snapshot(null),
+            emptySet(),
+            "en",
+            PlaybackConnectionState.Disconnected
+        )
+
+        assertEquals("Playback is not ready", vm.labels.value.empty)
+        assertTrue(vm.labels.value.emptyDescription.isNotBlank())
+    }
+
+    @Test
     fun onPlayAt_emitsPlayIntentWithBoundTracksAndIndex() = runTest {
         val vm = QueueViewModel()
         val tracks = listOf(track(1L), track(2L))
@@ -220,7 +237,8 @@ class QueueViewModelTest {
         tracks: List<Track>?,
         playbackState: PlaybackStateSnapshot,
         favoriteIds: Set<Long>,
-        languageMode: String
+        languageMode: String,
+        connection: PlaybackConnectionState = PlaybackConnectionState.Connected
     ) {
         val readModel = FakePlaybackReadModel().apply {
             state.value = playbackState
@@ -228,6 +246,7 @@ class QueueViewModelTest {
                 tracks = tracks.orEmpty(),
                 revision = 1L
             )
+            this.connection.value = connection
         }
         viewModel.bindStateSources(
             readModel,
