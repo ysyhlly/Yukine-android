@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
@@ -201,24 +202,26 @@ object EchoTheme {
     const val ACCENT_INDIGO  = "indigo"
     const val ACCENT_PINE    = "pine"
     const val ACCENT_PEACH   = "peach"
+    const val ACCENT_DYNAMIC_SYSTEM = "dynamic_system"
+    const val ACCENT_DYNAMIC_BACKGROUND = "dynamic_background"
 
     private val modeState   = mutableStateOf(MODE_SYSTEM)
     private val accentState = mutableStateOf(ACCENT_BLUE)
+    private val customBackgroundAccentState = mutableStateOf<Int?>(null)
 
     @JvmStatic fun setMode(mode: String?)    { modeState.value   = normalizeMode(mode) }
     @JvmStatic fun currentMode(): String      { return modeState.value }
     @JvmStatic fun setAccent(accent: String?) { accentState.value = normalizeAccent(accent) }
     @JvmStatic fun currentAccent(): String    { return accentState.value }
+    @JvmStatic fun setCustomBackgroundAccentArgb(argb: Int?) {
+        customBackgroundAccentState.value = argb?.or(0xFF000000.toInt())
+    }
 
     @JvmStatic fun dynamicColorAvailable(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    private fun dynamicOption(): Array<String> =
-        if (dynamicColorAvailable()) arrayOf(MODE_DYNAMIC) else emptyArray()
-
     @JvmStatic fun modeOptions(): Array<String> = arrayOf(
         MODE_SYSTEM,
-        *dynamicOption(),
         MODE_DARK,
         MODE_LIGHT,
         MODE_AMOLED,
@@ -234,7 +237,6 @@ object EchoTheme {
 
     @JvmStatic fun primaryModeOptions(): Array<String> = arrayOf(
         MODE_SYSTEM,
-        *dynamicOption(),
         MODE_LIGHT,
         MODE_DARK,
         MODE_AMOLED
@@ -284,6 +286,8 @@ object EchoTheme {
         ACCENT_LIME -> ACCENT_LIME; ACCENT_RED -> ACCENT_RED
         ACCENT_INDIGO -> ACCENT_INDIGO; ACCENT_PINE -> ACCENT_PINE
         ACCENT_PEACH -> ACCENT_PEACH
+        ACCENT_DYNAMIC_SYSTEM -> ACCENT_DYNAMIC_SYSTEM
+        ACCENT_DYNAMIC_BACKGROUND -> ACCENT_DYNAMIC_BACKGROUND
         else -> ACCENT_BLUE
     }
 
@@ -294,6 +298,7 @@ object EchoTheme {
         ACCENT_CYAN -> ACCENT_LIME; ACCENT_LIME -> ACCENT_RED
         ACCENT_RED -> ACCENT_INDIGO; ACCENT_INDIGO -> ACCENT_PINE
         ACCENT_PINE -> ACCENT_PEACH
+        ACCENT_PEACH -> ACCENT_DYNAMIC_BACKGROUND
         else -> ACCENT_BLUE
     }
 
@@ -304,6 +309,8 @@ object EchoTheme {
         ACCENT_LIME -> "Lime"; ACCENT_RED -> "Red"
         ACCENT_INDIGO -> "Indigo"; ACCENT_PINE -> "Pine"
         ACCENT_PEACH -> "Peach"
+        ACCENT_DYNAMIC_SYSTEM -> "System wallpaper"
+        ACCENT_DYNAMIC_BACKGROUND -> "Custom background"
         else -> "Blue"
     }
 
@@ -338,6 +345,7 @@ object EchoTheme {
         val accent = accentState.value
         val context = LocalContext.current
         val systemDark = isSystemInDarkTheme()
+        val customBackgroundAccent = customBackgroundAccentState.value
         val dark = when (mode) {
             MODE_DARK -> true; MODE_LIGHT -> false
             MODE_AMOLED -> true; MODE_CONTRAST -> true
@@ -346,11 +354,8 @@ object EchoTheme {
             MODE_OCEAN -> true; MODE_DAYLIGHT -> false
             else -> systemDark
         }
-        return remember(mode, accent, dark) {
-            if (mode == MODE_DYNAMIC) {
-                dynamicPalette(context, dark)?.let { return@remember it }
-            }
-            paletteForMode(mode, dark, accent)
+        return remember(mode, accent, dark, customBackgroundAccent, context) {
+            paletteForMode(mode, dark, resolveAccent(context, dark, accent), isDynamicAccent(accent))
         }
     }
 
@@ -426,52 +431,44 @@ object EchoTheme {
 
     private fun paletteForContext(context: Context): EchoPalette {
         val mode = normalizeMode(modeState.value)
-        if (mode == MODE_DYNAMIC) {
-            dynamicPalette(context, isDark(context))?.let { return it }
-        }
-        return paletteForMode(mode, isDark(context), accentState.value)
-    }
-
-    /**
-     * Material You: derive a full [EchoPalette] from the device's wallpaper-based dynamic color
-     * scheme (Android 12 / API 31+). Returns null on older devices so callers fall back to the
-     * curated palettes.
-     */
-    private fun dynamicPalette(context: Context, dark: Boolean): EchoPalette? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            return null
-        }
-        val scheme = if (dark) {
-            dynamicDarkColorScheme(context)
-        } else {
-            dynamicLightColorScheme(context)
-        }
-        return EchoPalette(
-            background = scheme.background,
-            surface = scheme.surface,
-            surfaceVariant = scheme.surfaceVariant,
-            panel = scheme.surfaceVariant,
-            accent = scheme.primary,
-            accentSoft = scheme.primary.copy(alpha = if (dark) 0.20f else 0.14f),
-            text = scheme.onSurface,
-            muted = scheme.onSurfaceVariant,
-            highlight = scheme.primary.copy(alpha = 0.12f),
-            border = scheme.outlineVariant,
-            onAccent = scheme.onPrimary,
-            backgroundAlt = scheme.surface,
-            backgroundDeep = scheme.background,
-            heading = scheme.onSurface,
-            subtle = scheme.onSurfaceVariant,
-            accentStrong = scheme.primary,
-            secondary = scheme.secondary,
-            success = scheme.tertiary,
-            shadow = Color.Black
+        val dark = isDark(context)
+        return paletteForMode(
+            mode,
+            dark,
+            resolveAccent(context, dark, accentState.value),
+            isDynamicAccent(accentState.value)
         )
     }
 
-    private fun paletteForMode(mode: String, dark: Boolean, accent: String): EchoPalette {
+    private fun resolveAccent(context: Context, dark: Boolean, accent: String): Color =
+        when (normalizeAccent(accent)) {
+            ACCENT_DYNAMIC_SYSTEM -> dynamicAccent(context, dark)
+                ?: AccentPalettes.accent(dark, ACCENT_BLUE)
+            ACCENT_DYNAMIC_BACKGROUND -> customBackgroundAccentState.value?.let(::Color)
+                ?: AccentPalettes.accent(dark, ACCENT_BLUE)
+            else -> AccentPalettes.accent(dark, accent)
+        }
+
+    private fun dynamicAccent(context: Context, dark: Boolean): Color? {
+        if (!dynamicColorAvailable()) return null
+        return if (dark) dynamicDarkColorScheme(context).primary else dynamicLightColorScheme(context).primary
+    }
+
+    private fun isDynamicAccent(accent: String): Boolean = when (normalizeAccent(accent)) {
+        ACCENT_DYNAMIC_SYSTEM, ACCENT_DYNAMIC_BACKGROUND -> true
+        else -> false
+    }
+
+    private fun paletteForMode(
+        mode: String,
+        dark: Boolean,
+        accent: Color,
+        overridePresetAccent: Boolean
+    ): EchoPalette {
         val normalized = normalizeMode(mode)
-        EchoThemePresets.paletteFor(normalized, dark)?.let { return it }
+        EchoThemePresets.paletteFor(normalized, dark)?.let { preset ->
+            return if (overridePresetAccent) preset.withDynamicAccent(accent, dark) else preset
+        }
         return when (normalized) {
             MODE_AMOLED   -> amoledPalette(accent)
             MODE_CONTRAST -> contrastPalette(accent)
@@ -484,6 +481,14 @@ object EchoTheme {
             else          -> defaultPalette(dark, accent)
         }
     }
+
+    private fun EchoPalette.withDynamicAccent(accent: Color, dark: Boolean): EchoPalette = copy(
+        accent = accent,
+        accentSoft = accent.copy(alpha = if (dark) 0.18f else 0.11f),
+        highlight = accent.copy(alpha = if (dark) 0.13f else 0.08f),
+        accentStrong = accent,
+        onAccent = if (accent.luminance() > 0.48f) Color.Black else Color.White
+    )
 
     private fun colorSchemeFrom(p: EchoPalette): ColorScheme = when {
         // dark scheme
@@ -533,8 +538,8 @@ object EchoTheme {
 
     // ── Palette definitions ─────────────────────────────────────────────────
 
-    private fun defaultPalette(dark: Boolean, accent: String): EchoPalette {
-        val a = AccentPalettes.accent(dark, accent)
+    private fun defaultPalette(dark: Boolean, accent: Color): EchoPalette {
+        val a = accent
         return if (dark) EchoPalette(
             background = blendWithAccent(Color(0xFF0C1018), a, 0.16f),
             surface = blendWithAccent(Color(0xFF141820), a, 0.14f),
@@ -571,8 +576,8 @@ object EchoTheme {
         )
     }
 
-    private fun amoledPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun amoledPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF000000), surface = Color(0xFF08090C),
             surfaceVariant = Color(0xFF101318), panel = Color(0xFF151820), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFF5F7FA),
@@ -580,8 +585,8 @@ object EchoTheme {
             border = Color(0xFF262A36), onAccent = Color.Black)
     }
 
-    private fun contrastPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun contrastPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF050607), surface = Color(0xFF11131A),
             surfaceVariant = Color(0xFF191D27), panel = Color(0xFF242B3A), accent = a,
             accentSoft = a.copy(alpha = 0.2f), text = Color(0xFFFFFFFF),
@@ -589,8 +594,8 @@ object EchoTheme {
             border = Color(0xFF353D50), onAccent = Color.Black)
     }
 
-    private fun graphitePalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun graphitePalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF0E0F10), surface = Color(0xFF1A1C1E),
             surfaceVariant = Color(0xFF222528), panel = Color(0xFF292D31), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFF1F3F5),
@@ -598,8 +603,8 @@ object EchoTheme {
             border = Color(0xFF353A3F), onAccent = Color.Black)
     }
 
-    private fun mistPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.lightAccent(accent)
+    private fun mistPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFFF2F5F4), surface = Color(0xFFFFFFFF),
             surfaceVariant = Color(0xFFE8EDEB), panel = Color(0xFFE1E8E5), accent = a,
             accentSoft = a.copy(alpha = 0.12f), text = Color(0xFF17201D),
@@ -607,8 +612,8 @@ object EchoTheme {
             border = Color(0xFFD5DCD9), onAccent = Color.White)
     }
 
-    private fun midnightPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun midnightPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF080A12), surface = Color(0xFF111827),
             surfaceVariant = Color(0xFF1A2238), panel = Color(0xFF1E293B), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFEAF0FF),
@@ -616,8 +621,8 @@ object EchoTheme {
             border = Color(0xFF2D3B54), onAccent = Color.Black)
     }
 
-    private fun forestPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun forestPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF07110D), surface = Color(0xFF102019),
             surfaceVariant = Color(0xFF182B22), panel = Color(0xFF1C3328), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFE8F3ED),
@@ -625,8 +630,8 @@ object EchoTheme {
             border = Color(0xFF2C4D3E), onAccent = Color.Black)
     }
 
-    private fun oceanPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.darkAccent(accent)
+    private fun oceanPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFF061017), surface = Color(0xFF0E2230),
             surfaceVariant = Color(0xFF152E40), panel = Color(0xFF17384B), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFE6F5FB),
@@ -634,8 +639,8 @@ object EchoTheme {
             border = Color(0xFF254F68), onAccent = Color.Black)
     }
 
-    private fun daylightPalette(accent: String): EchoPalette {
-        val a = AccentPalettes.lightAccent(accent)
+    private fun daylightPalette(accent: Color): EchoPalette {
+        val a = accent
         return EchoPalette(background = Color(0xFFFBFCF8), surface = Color(0xFFFFFFFF),
             surfaceVariant = Color(0xFFF0F3ED), panel = Color(0xFFEAF0E7), accent = a,
             accentSoft = a.copy(alpha = 0.12f), text = Color(0xFF18201A),

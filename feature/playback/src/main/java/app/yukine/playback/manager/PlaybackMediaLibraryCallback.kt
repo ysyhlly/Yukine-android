@@ -12,6 +12,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import app.yukine.model.Playlist
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.model.TrackPlayRecord
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -147,7 +148,7 @@ internal class PlaybackMediaLibraryCallback(
             )
             else -> {
                 val trackId = trackIdFromAutoMediaId(mediaId)
-                if (trackId >= 0L) {
+                if (TrackIdentity.isUsable(trackId)) {
                     val track = dataSource.loadCachedTracks().firstOrNull { it.id == trackId }
                     if (track != null) autoMediaItemForTrack(track) else null
                 } else {
@@ -350,10 +351,10 @@ internal class PlaybackMediaLibraryCallback(
             return null
         }
         var trackId = trackIdFromAutoMediaId(mediaItem.mediaId)
-        if (trackId < 0L) {
+        if (!TrackIdentity.isUsable(trackId)) {
             trackId = parseLong(mediaItem.mediaId, -1L)
         }
-        return if (trackId < 0L) null else tracksById[trackId]
+        return if (!TrackIdentity.isUsable(trackId)) null else tracksById[trackId]
     }
 
     private fun trackIdFromAutoMediaId(mediaId: String?): Long {

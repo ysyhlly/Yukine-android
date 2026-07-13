@@ -71,6 +71,15 @@ data class PageBackgrounds @JvmOverloads constructor(
 
     fun clear(page: String): PageBackgrounds = withUri(page, "")
 
+    /** Stable source used by global dynamic accent extraction. */
+    fun accentSourceUri(): String = listOf(
+        sharedUri,
+        settingsUri,
+        homeUri,
+        libraryUri,
+        playerUri
+    ).firstOrNull { it.isNotBlank() }.orEmpty()
+
     companion object {
         const val PAGE_ALL = "all"
         const val PAGE_HOME = "home"

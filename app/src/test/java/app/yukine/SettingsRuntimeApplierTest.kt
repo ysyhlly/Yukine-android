@@ -73,12 +73,14 @@ class SettingsRuntimeApplierTest {
         }
         val applier = SettingsRuntimeApplier(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
+            customBackgroundAccentRefresher = SettingsCustomBackgroundAccentRefresher { calls += "accent:${it.accentSourceUri()}" },
             playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { playbackControls },
             lyricsControlsProvider = SettingsLyricsControlsProvider { lyricsControls },
             floatingLyricsControlsProvider = SettingsFloatingLyricsControlsProvider { floatingControls }
         )
 
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))
+        assertTrue(applier.apply(SettingsRuntimeEffect.RefreshCustomBackgroundAccent(PageBackgrounds(sharedUri = "content://all"))))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.25f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAppVolume(0.75f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)))
@@ -97,6 +99,7 @@ class SettingsRuntimeApplierTest {
         assertEquals(
             listOf(
                 "theme",
+                "accent:content://all",
                 "speed:1.25",
                 "volume:0.75",
                 "concurrent:true",
@@ -121,6 +124,7 @@ class SettingsRuntimeApplierTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val applier = MainSettingsRuntimeApplierFactory(context).create(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
+            customBackgroundAccentRefresher = SettingsCustomBackgroundAccentRefresher { calls += "accent" },
             playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { null },
             lyricsViewModelProvider = { null },
             permissionControllerProvider = { null }

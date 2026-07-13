@@ -719,9 +719,14 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             throwIfInterrupted();
+            String localWhere =
+                    "data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ?";
+            String[] localWhereArgs = new String[]{"document:%", "stream:%", "streaming:%", "webdav:%"};
+            HashSet<Long> removedTrackIds = new HashSet<>(loadTrackIdsWhere(db, localWhere, localWhereArgs));
+            ArrayList<Long> queuedTrackIdsBeforeDelete = loadPlaybackQueueTrackIds(db);
             db.delete(TABLE_TRACKS,
-                    "data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ? AND data_path NOT LIKE ?",
-                    new String[]{"document:%", "stream:%", "streaming:%", "webdav:%"});
+                    localWhere,
+                    localWhereArgs);
             long now = System.currentTimeMillis();
             SQLiteStatement insert = db.compileStatement(trackInsertSql());
             try {
@@ -734,11 +739,16 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                     if (exclusions.contains(librarySourceKey(track))) {
                         continue;
                     }
+                    removedTrackIds.remove(track.id);
                     bindTrack(insert, track, now);
                     insert.executeInsert();
                 }
             } finally {
                 insert.close();
+            }
+            if (!removedTrackIds.isEmpty()) {
+                deleteTrackReferences(db, removedTrackIds);
+                reconcilePlaybackStateAfterTrackDelete(db, removedTrackIds, queuedTrackIdsBeforeDelete);
             }
             db.setTransactionSuccessful();
         } finally {
@@ -1522,6 +1532,18 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
     }
 
     private int deleteTracksWhere(SQLiteDatabase db, String whereClause, String[] whereArgs) {
+        ArrayList<Long> trackIds = loadTrackIdsWhere(db, whereClause, whereArgs);
+        ArrayList<Long> queuedTrackIds = loadPlaybackQueueTrackIds(db);
+        HashSet<Long> deletedTrackIds = new HashSet<>(trackIds);
+        int removed = db.delete(TABLE_TRACKS, whereClause, whereArgs);
+        if (removed > 0) {
+            deleteTrackReferences(db, deletedTrackIds);
+            reconcilePlaybackStateAfterTrackDelete(db, deletedTrackIds, queuedTrackIds);
+        }
+        return removed;
+    }
+
+    private ArrayList<Long> loadTrackIdsWhere(SQLiteDatabase db, String whereClause, String[] whereArgs) {
         ArrayList<Long> trackIds = new ArrayList<>();
         try (Cursor cursor = db.query(
                 TABLE_TRACKS,
@@ -1536,8 +1558,10 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 trackIds.add(cursor.getLong(0));
             }
         }
-        ArrayList<Long> queuedTrackIds = loadPlaybackQueueTrackIds(db);
-        HashSet<Long> deletedTrackIds = new HashSet<>(trackIds);
+        return trackIds;
+    }
+
+    private void deleteTrackReferences(SQLiteDatabase db, Set<Long> trackIds) {
         for (Long trackId : trackIds) {
             String[] args = new String[]{String.valueOf(trackId)};
             db.delete(TABLE_FAVORITES, "track_id = ?", args);
@@ -1546,11 +1570,6 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
             db.delete(TABLE_PLAYLIST_TRACKS, "track_id = ?", args);
             db.delete(TABLE_PLAYBACK_QUEUE, "track_id = ?", args);
         }
-        int removed = db.delete(TABLE_TRACKS, whereClause, whereArgs);
-        if (removed > 0) {
-            reconcilePlaybackStateAfterTrackDelete(db, deletedTrackIds, queuedTrackIds);
-        }
-        return removed;
     }
 
     private ArrayList<Long> loadPlaybackQueueTrackIds(SQLiteDatabase db) {
@@ -2163,13 +2182,13 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
-    public void removeTrackFromPlaylist(long playlistId, long trackId) {
+    public boolean removeTrackFromPlaylist(long playlistId, long trackId) {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
             if (!playlistExists(db, playlistId)) {
                 db.setTransactionSuccessful();
-                return;
+                return false;
             }
             int removed = db.delete(
                     TABLE_PLAYLIST_TRACKS,
@@ -2180,6 +2199,7 @@ public final class EchoDatabaseHelper extends SQLiteOpenHelper {
                 touchPlaylist(db, playlistId, System.currentTimeMillis());
             }
             db.setTransactionSuccessful();
+            return removed > 0;
         } finally {
             db.endTransaction();
         }

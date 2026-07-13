@@ -233,6 +233,7 @@ class SettingsPageStateBuilderTest {
         val content = SettingsPageStateBuilder.accent(
             languageMode = AppLanguage.MODE_ENGLISH,
             accentMode = EchoTheme.ACCENT_ROSE,
+            pageBackgrounds = PageBackgrounds(sharedUri = "content://background/all"),
             onNavigate = { page -> navigated += page },
             onApplyAccent = { accent -> applied += accent }
         )
@@ -240,12 +241,13 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "accent"), content.uiState.title)
         assertEquals(2, content.uiState.metrics.size)
         assertEquals(AppLanguage.accentLabel(EchoTheme.ACCENT_ROSE, AppLanguage.MODE_ENGLISH), content.uiState.metrics[0].value)
-        assertEquals(13, content.actions.size)
-        assertEquals(AppLanguage.accentLabel(EchoTheme.ACCENT_ROSE, AppLanguage.MODE_ENGLISH) + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[3].label)
+        val fixedAccentOffset = if (EchoTheme.dynamicColorAvailable()) 3 else 2
+        assertEquals(13 + fixedAccentOffset - 1, content.actions.size)
+        assertEquals(AppLanguage.accentLabel(EchoTheme.ACCENT_ROSE, AppLanguage.MODE_ENGLISH) + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[fixedAccentOffset + 2].label)
 
         content.actions[0].onClick.run()
-        content.actions[1].onClick.run()
-        content.actions[3].onClick.run()
+        content.actions[fixedAccentOffset].onClick.run()
+        content.actions[fixedAccentOffset + 2].onClick.run()
 
         assertEquals(listOf(SettingsPage.AppearanceGroup), navigated)
         assertEquals(listOf(EchoTheme.ACCENT_BLUE, EchoTheme.ACCENT_ROSE), applied)
@@ -334,36 +336,46 @@ class SettingsPageStateBuilderTest {
     fun sourcesGroupBuildsNetworkAndProviderActions() {
         val navigated = mutableListOf<SettingsPage>()
         val openedNetworkPages = mutableListOf<String>()
+        val lxActions = mutableListOf<String>()
 
         val content = SettingsPageStateBuilder.sourcesGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
             quality = StreamingQualityPreference.LOSSLESS,
             shareStyle = TrackShareStyle.CARD,
             gatewayConfigured = false,
+            luoxueImportedSourceCount = 4,
+            luoxueEnabledSourceCount = 3,
             onNavigate = { page -> navigated += page },
-            onOpenNetworkPage = { page -> openedNetworkPages += page }
+            onOpenNetworkPage = { page -> openedNetworkPages += page },
+            onManageLuoxueSources = { lxActions += "manage" },
+            onImportLuoxueSource = { lxActions += "import" }
         )
 
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.sources"), content.uiState.title)
-        assertEquals(4, content.uiState.metrics.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[0].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.settings"), content.uiState.title)
+        assertEquals(3, content.uiState.metrics.size)
+        assertEquals("3 of 4 enabled", content.uiState.metrics[0].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[1].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[2].value)
-        assertEquals(7, content.actions.size)
+        assertEquals(9, content.actions.size)
 
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[5].onClick.run()
         content.actions[6].onClick.run()
+        content.actions[7].onClick.run()
+        content.actions[8].onClick.run()
 
         assertEquals(
             listOf(
                 MainRoutes.NETWORK_STREAMING,
-                MainRoutes.NETWORK_WEBDAV,
-                MainRoutes.NETWORK_SOURCES
+                MainRoutes.NETWORK_SOURCES,
+                MainRoutes.NETWORK_WEBDAV
             ),
             openedNetworkPages
         )
-        assertEquals(listOf(SettingsPage.StreamingGateway), navigated)
+        assertEquals(listOf("manage", "import"), lxActions)
+        assertEquals(listOf(SettingsPage.StreamingGateway, SettingsPage.ShareStyle), navigated)
     }
 
     @Test

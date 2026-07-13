@@ -13,10 +13,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.ui.LibraryUiLabels;
+import app.yukine.ui.EchoTheme;
 import app.yukine.model.Playlist;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
@@ -59,6 +61,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private static final String NETWORK_WEBDAV_SOURCE_TRACKS = MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS;
     private static final String NETWORK_SOURCES = MainRoutes.NETWORK_SOURCES;
     private static final String SETTINGS_HOME = MainRoutes.SETTINGS_HOME;
+    private final AtomicInteger customAccentRefreshGeneration = new AtomicInteger();
     private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final String LIBRARY_HOME = LibraryGrouping.HOME;
     private static final String LIBRARY_SONGS = LibraryGrouping.SONGS;
@@ -723,6 +726,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                 documentPickerController.openAudioFilePicker();
             } else if (effect == SettingsEffect.OpenAudioFolderPicker.INSTANCE) {
                 documentPickerController.openAudioFolderPicker();
+            } else if (effect == SettingsEffect.OpenLuoxueSourceManager.INSTANCE) {
+                luoxueSourceImportDialogController.showSourceManager();
+            } else if (effect == SettingsEffect.ImportLuoxueSource.INSTANCE) {
+                luoxueSourceImportDialogController.showImportDialog();
             } else if (effect == SettingsEffect.ReloadCurrentLyrics.INSTANCE) {
                 lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode());
             } else if (effect instanceof SettingsEffect.StartSleepTimer) {
@@ -740,11 +747,14 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect instanceof SettingsEffect.ApplyStreamingGatewayEndpoint) {
                 applyStreamingGatewayEndpoint(((SettingsEffect.ApplyStreamingGatewayEndpoint) effect).getEndpoint());
             } else if (effect instanceof SettingsEffect.RestoreHiddenLibraryItem) {
-                repository.restoreLibraryExclusion(((SettingsEffect.RestoreHiddenLibraryItem) effect).getSourceKey());
-                refreshAfterHiddenLibraryRestore();
+                libraryViewModel.restoreHiddenLibraryItemJava(
+                        ((SettingsEffect.RestoreHiddenLibraryItem) effect).getSourceKey(),
+                        changed -> refreshAfterHiddenLibraryRestore(changed)
+                );
             } else if (effect == SettingsEffect.RestoreAllHiddenLibraryItems.INSTANCE) {
-                repository.restoreAllLibraryExclusions();
-                refreshAfterHiddenLibraryRestore();
+                libraryViewModel.restoreAllHiddenLibraryItemsJava(
+                        changed -> refreshAfterHiddenLibraryRestore(changed)
+                );
             }
         });
     }
@@ -852,6 +862,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     ) {
         libraryStore = libraryStoreFactory.create(viewModel);
         settingsStore.load(loadSettingsPreferencesUseCase.execute());
+        if (EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
+            refreshCustomBackgroundAccent(settingsStore.pageBackgrounds());
+        }
         libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
         playHistoryActionController = playHistoryActionControllerFactory.create(
                 libraryViewModel,
@@ -873,6 +886,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         provider -> streamingPlaylistController.importStreamingLikedTracks(provider),
                         action -> runRecommendationAction(action),
                         () -> streamingPlaylistImportDialogController.showImportDialog(),
+                        () -> luoxueSourceImportDialogController.showSourceManager(),
                         () -> streamingManualCookieController.showStreamingCookieDialog(),
                         (labels, actions) -> streamingViewModel.updateStreamingSearchChrome(labels, actions)
                 ));
@@ -889,7 +903,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE),
                         () -> settingsStore.languageMode(),
                         (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
-                        (title, tracks) -> confirmationDialogController.confirmDeleteTracks(title, tracks),
+                        (title, tracks) -> libraryFileDeleteLauncher.request(tracks, -1L),
                         this::publishLibraryGroupsChromeState,
                         this::renderLibraryGroupTrackList
                 ),
@@ -990,16 +1004,40 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryViewModel.bindCollectionGateway(libraryCollectionGateway);
         libraryViewModel.bindImportGateway(libraryImportGateway);
         libraryViewModel.bindDocumentGateway(libraryDocumentGateway);
+        libraryViewModel.bindExclusionGateway(new LibraryExclusionGateway() {
+            @Override
+            public boolean restoreLibraryExclusion(String sourceKey) {
+                return repository.restoreLibraryExclusion(sourceKey);
+            }
+
+            @Override
+            public int restoreAllLibraryExclusions() {
+                return repository.restoreAllLibraryExclusions();
+            }
+        });
         settingsViewModel.bindPreferenceGateway(applySettingsPreferenceUseCase::execute);
         settingsViewModel.bindStoreMirror(settingsStore::sync);
         SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
                 () -> uiShellController.applyThemeSurface(),
+                this::refreshCustomBackgroundAccent,
                 () -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService),
                 () -> lyricsViewModel,
                 () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         playlistDialogController = createPlaylistDialogController();
+    }
+
+    private void refreshCustomBackgroundAccent(PageBackgrounds backgrounds) {
+        final int generation = customAccentRefreshGeneration.incrementAndGet();
+        executors.io(() -> {
+            Integer color = CustomBackgroundAccentExtractor.INSTANCE.extract(getContentResolver(), backgrounds);
+            mainHandler.post(() -> {
+                if (generation == customAccentRefreshGeneration.get()) {
+                    EchoTheme.setCustomBackgroundAccentArgb(color);
+                }
+            });
+        });
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
@@ -1030,8 +1068,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackStore,
                 lyricsViewModel,
                 streamingGatewaySettingsStore,
+                luoxueSourceStore,
                 repository
         );
+        settingsViewModel.bindContextLoader(settingsContextProvider);
         refreshSettingsContext();
         DialogLanguageProvider dialogLanguageProvider =
                 () -> settingsStore.languageMode();
@@ -1997,6 +2037,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (libraryStore != null) {
             libraryStore.applySearch("");
         }
+        if (libraryViewModel != null) {
+            libraryViewModel.syncSearchQuery("");
+        }
         renderSelectedTabForNavHostState();
     }
 
@@ -2326,6 +2369,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 AppLanguage.text(languageMode, "library.sort.duration.desc")
         ));
         libraryViewModel.syncLibraryMode(libraryMode());
+        libraryViewModel.syncSearchQuery(searchQuery());
         if (!permissionController.hasAudioPermission()) {
             statusMessageController.setStatus(
                     AppLanguage.text(settingsStore.languageMode(), "audio.permission.required") + ": "
@@ -2692,25 +2736,26 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (settingsContextProvider == null) {
             return;
         }
+        SettingsState context = settingsViewModel.getState().getValue();
         settingsViewModel.renderPageFromHost(
                 routeController.settingsPageModel(),
-                settingsContextProvider.preferencesSnapshot(),
-                settingsContextProvider.runtimeStatus()
+                context.getPreferences(),
+                context.getRuntime()
         );
+        refreshSettingsContext();
     }
 
     private void refreshSettingsContext() {
         if (settingsContextProvider == null) {
             return;
         }
-        settingsViewModel.updateSettingsContext(
-                settingsContextProvider.preferencesSnapshot(),
-                settingsContextProvider.runtimeStatus()
-        );
+        settingsViewModel.refreshSettingsContext();
     }
 
-    private void refreshAfterHiddenLibraryRestore() {
-        loadLibrary(true);
+    private void refreshAfterHiddenLibraryRestore(boolean changed) {
+        if (changed) {
+            loadLibrary(true);
+        }
         refreshSettingsContext();
     }
 

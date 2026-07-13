@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.ui.LibrarySourceKind
 import javax.inject.Inject
 
@@ -16,13 +17,12 @@ internal class LibraryDeletionUseCase @Inject constructor(
     private val repository: MusicLibraryRepository
 ) {
     fun removeFromLibrary(tracks: List<Track>): LibraryDeletionResult {
-        val unique = tracks.filter { it.id >= 0L }.distinctBy { it.id to it.dataPath }
+        val unique = tracks.filter { TrackIdentity.isUsable(it.id) }.distinctBy { it.id to it.dataPath }
         val local = unique.filter { LibraryTrackPresentationPolicy.sourceKind(it) in LOCAL_SOURCES }
         val remote = unique - local.toSet()
         val removed = ArrayList<Track>()
-        if (local.isNotEmpty()) {
-            repository.hideTracks(local)
-            removed.addAll(local)
+        local.forEach { track ->
+            if (repository.hideTracks(listOf(track)) > 0) removed.add(track)
         }
         remote.forEach { track ->
             if (repository.deleteTrack(track.id) > 0) removed.add(track)
@@ -35,9 +35,9 @@ internal class LibraryDeletionUseCase @Inject constructor(
 
     fun removeFromPlaylist(playlistId: Long, tracks: List<Track>): LibraryDeletionResult {
         if (playlistId < 0L) return LibraryDeletionResult(emptyList(), tracks)
-        val unique = tracks.filter { it.id >= 0L }.distinctBy { it.id }
-        unique.forEach { repository.removeTrackFromPlaylist(playlistId, it.id) }
-        return LibraryDeletionResult(unique)
+        val unique = tracks.filter { TrackIdentity.isUsable(it.id) }.distinctBy { it.id }
+        val removed = unique.filter { repository.removeTrackFromPlaylist(playlistId, it.id) }
+        return LibraryDeletionResult(removed, unique - removed.toSet())
     }
 
     fun finalizeDeletedFiles(tracks: List<Track>): LibraryDeletionResult {

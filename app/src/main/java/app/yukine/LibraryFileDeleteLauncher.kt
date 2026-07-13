@@ -16,8 +16,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.ui.EchoDialog
 import app.yukine.ui.LibrarySourceKind
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,13 +40,13 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
     private val intentLauncher = intentLauncher ?: ActivityResultDeleteIntentLauncher(activity)
 
     fun request(tracks: List<Track>, playlistId: Long = -1L) {
-        val unique = tracks.filter { it.id >= 0L }.distinctBy { it.id to it.dataPath }
+        val unique = tracks.filter { TrackIdentity.isUsable(it.id) }.distinctBy { it.id to it.dataPath }
         if (unique.isEmpty()) return
         if (playlistId >= 0L) {
             confirm(
                 text("library.remove.playlist.title"),
                 countMessage("library.remove.playlist.message", unique.size)
-            ) { runMutation { useCase.removeFromPlaylist(playlistId, unique) } }
+            ) { runMutation(unique) { useCase.removeFromPlaylist(playlistId, unique) } }
             return
         }
         val local = unique.filter { LibraryTrackPresentationPolicy.sourceKind(it) in LOCAL_SOURCES }
@@ -52,7 +54,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
             confirm(
                 text("library.delete.records.title"),
                 countMessage("library.delete.records.message", unique.size)
-            ) { runMutation { useCase.removeFromLibrary(unique) } }
+            ) { runMutation(unique) { useCase.removeFromLibrary(unique) } }
             return
         }
         val message = countMessage("library.delete.choose.message", unique.size)
@@ -63,7 +65,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                 arrayOf(text("library.hide.action"), text("library.delete.file.action"))
             ) { _, which ->
                 if (which == 0) {
-                    runMutation { useCase.removeFromLibrary(unique) }
+                    runMutation(unique) { useCase.removeFromLibrary(unique) }
                 } else {
                     deleteFiles(local, unique - local.toSet())
                 }
@@ -223,7 +225,15 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
 
     private fun finalizeDeleted(deleted: List<Track>, failed: List<Track>, skipped: List<Track>) {
         activity.lifecycleScope.launch {
-            val finalized = withContext(Dispatchers.IO) { useCase.finalizeDeletedFiles(deleted) }
+            val finalized = withContext(Dispatchers.IO) {
+                try {
+                    useCase.finalizeDeletedFiles(deleted)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    LibraryDeletionResult(emptyList(), deleted)
+                }
+            }
             onCompleted(
                 LibraryDeletionResult(
                     removed = finalized.removed,
@@ -234,9 +244,18 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
         }
     }
 
-    private fun runMutation(block: () -> LibraryDeletionResult) {
+    private fun runMutation(tracks: List<Track>, block: () -> LibraryDeletionResult) {
         activity.lifecycleScope.launch {
-            onCompleted(withContext(Dispatchers.IO) { block() })
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    block()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    LibraryDeletionResult(emptyList(), failed = tracks)
+                }
+            }
+            onCompleted(result)
         }
     }
 

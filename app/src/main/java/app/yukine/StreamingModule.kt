@@ -242,6 +242,7 @@ internal object StreamingModule {
                 likedTracksImporter,
                 recommendationActionRunner,
                 playlistImportDialogPresenter,
+                luoxueSourceManagerPresenter,
                 manualCookiePresenter,
                 chromePublisher ->
             MainStreamingSearchRenderListener(
@@ -253,6 +254,7 @@ internal object StreamingModule {
                 likedTracksImporter,
                 recommendationActionRunner,
                 playlistImportDialogPresenter,
+                luoxueSourceManagerPresenter,
                 manualCookiePresenter,
                 chromePublisher
             )

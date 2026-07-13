@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.streaming.StreamingPlaylistSyncStore
 
 internal data class DefaultPlaylistAddResult(
@@ -15,7 +16,7 @@ internal interface PlaylistActionOperations {
     fun renamePlaylist(playlistId: Long, name: String): Boolean
     fun deletePlaylist(playlistId: Long): Boolean
     fun addTrackToPlaylist(playlistId: Long, trackId: Long): Boolean
-    fun removeTrackFromPlaylist(playlistId: Long, trackId: Long)
+    fun removeTrackFromPlaylist(playlistId: Long, trackId: Long): Boolean
     fun movePlaylistTrackAt(playlistId: Long, trackIndex: Int, direction: Int): Boolean
 }
 
@@ -41,9 +42,8 @@ internal class MusicLibraryPlaylistActionOperations(
     override fun addTrackToPlaylist(playlistId: Long, trackId: Long): Boolean =
         repository.addTrackToPlaylist(playlistId, trackId)
 
-    override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long) {
+    override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long): Boolean =
         repository.removeTrackFromPlaylist(playlistId, trackId)
-    }
 
     override fun movePlaylistTrackAt(playlistId: Long, trackIndex: Int, direction: Int): Boolean =
         repository.movePlaylistTrackAt(playlistId, trackIndex, direction)
@@ -94,7 +94,7 @@ internal class AddTrackToPlaylistUseCase(
     private val operations: PlaylistActionOperations
 ) {
     fun execute(playlistId: Long, trackId: Long): Boolean {
-        if (playlistId < 0L || trackId < 0L) {
+        if (playlistId < 0L || !TrackIdentity.isUsable(trackId)) {
             return false
         }
         return operations.addTrackToPlaylist(playlistId, trackId)
@@ -108,8 +108,7 @@ internal class RemoveTrackFromPlaylistUseCase(
         if (playlistId < 0L || track == null) {
             return false
         }
-        operations.removeTrackFromPlaylist(playlistId, track.id)
-        return true
+        return operations.removeTrackFromPlaylist(playlistId, track.id)
     }
 }
 

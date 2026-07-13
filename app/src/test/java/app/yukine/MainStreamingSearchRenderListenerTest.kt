@@ -34,6 +34,7 @@ class MainStreamingSearchRenderListenerTest {
         listener.playDailyRecommendations()
         listener.playHeartbeatRecommendations()
         listener.pasteImportPlaylist()
+        listener.manageLuoxueSources()
         listener.inputProviderCookie()
         listener.publishStreamingSearchChrome(StreamingSearchLabels.empty(), StreamingSearchActions.empty())
 
@@ -54,6 +55,7 @@ class MainStreamingSearchRenderListenerTest {
                 "recommend:PlayDaily:qqmusic",
                 "recommend:PlayHeartbeat:qqmusic",
                 "paste",
+                "manageLx",
                 "cookie",
                 "chrome"
             ),
@@ -77,6 +79,7 @@ class MainStreamingSearchRenderListenerTest {
                 calls += "recommend:${it.javaClass.simpleName}:${it.provider?.wireName}"
             },
             StreamingPlaylistImportDialogPresenter { calls += "paste" },
+            LuoxueSourceManagerPresenter { calls += "manageLx" },
             StreamingManualCookiePresenter { calls += "cookie" },
             StreamingSearchChromePublisher { _, _ -> calls += "chrome" }
         )
@@ -84,9 +87,13 @@ class MainStreamingSearchRenderListenerTest {
         listener.selectProvider(StreamingProviderName.KUGOU)
         listener.loadUserPlaylists()
         listener.playDailyRecommendations()
+        listener.manageLuoxueSources()
         listener.publishStreamingSearchChrome(StreamingSearchLabels.empty(), StreamingSearchActions.empty())
 
-        assertEquals(listOf("select:kugou", "account:netease", "recommend:PlayDaily:netease", "chrome"), calls)
+        assertEquals(
+            listOf("select:kugou", "account:netease", "recommend:PlayDaily:netease", "manageLx", "chrome"),
+            calls
+        )
     }
 
     private fun listener(calls: MutableList<String>): StreamingSearchRenderController.Listener =
@@ -103,6 +110,7 @@ class MainStreamingSearchRenderListenerTest {
                 calls += "recommend:${it.javaClass.simpleName}:${it.provider?.wireName}"
             },
             playlistImportDialogPresenter = StreamingPlaylistImportDialogPresenter { calls += "paste" },
+            luoxueSourceManagerPresenter = LuoxueSourceManagerPresenter { calls += "manageLx" },
             manualCookiePresenter = StreamingManualCookiePresenter { calls += "cookie" },
             chromePublisher = StreamingSearchChromePublisher { _, _ -> calls += "chrome" }
         )

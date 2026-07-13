@@ -68,6 +68,63 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun batchFavoriteAndPlaylistActionsIsolateIndividualFailures() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val libraryGateway = FakeGateway()
+        val playlistGateway = FakePlaylistActionGateway().apply {
+            failedDefaultIds += 2L
+        }
+        val favoriteWrites = mutableListOf<Long>()
+        val viewModel = LibraryViewModel(dispatcher)
+        val tracks = listOf(track(1L), track(2L), track(3L))
+        viewModel.bindGateway(libraryGateway)
+        viewModel.bindPlaylistActionGateway(playlistGateway)
+        viewModel.bindFavoriteWriter { track, _ ->
+            favoriteWrites += track.id
+            track.id != 2L
+        }
+        viewModel.updateVisibleTrackTargets(tracks, listOf("1", "2", "3"))
+        viewModel.onLibraryAction(LibraryAction.SelectAllVisible)
+
+        viewModel.onLibraryAction(LibraryAction.FavoriteSelected)
+        viewModel.onLibraryAction(LibraryAction.AddSelectedToPlaylist)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L, 2L, 3L), favoriteWrites)
+        assertTrue(libraryGateway.calls.contains("refresh"))
+        assertTrue(libraryGateway.calls.contains("status:library.favorite.failed"))
+        assertTrue(libraryGateway.calls.contains("status:could.not.add.to.playlist"))
+        assertEquals(listOf("default:1", "default:2", "default:3"), playlistGateway.calls)
+    }
+
+    @Test
+    fun hiddenLibraryRestoreRunsThroughMutationGateway() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = LibraryViewModel(dispatcher)
+        val calls = mutableListOf<String>()
+        val results = mutableListOf<Boolean>()
+        viewModel.bindExclusionGateway(object : LibraryExclusionGateway {
+            override fun restoreLibraryExclusion(sourceKey: String): Boolean {
+                calls += "one:$sourceKey"
+                return true
+            }
+
+            override fun restoreAllLibraryExclusions(): Int {
+                calls += "all"
+                return 2
+            }
+        })
+
+        viewModel.restoreHiddenLibraryItem("document:1") { results += it }
+        advanceUntilIdle()
+        viewModel.restoreAllHiddenLibraryItems { results += it }
+        advanceUntilIdle()
+
+        assertEquals(listOf("one:document:1", "all"), calls)
+        assertEquals(listOf(true, true), results)
+    }
+
+    @Test
     fun trackEventsCallGateway() {
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel()
@@ -160,6 +217,44 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun toggleFavoriteDoesNotUpdateUiWhenPersistenceFails() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindFavoriteWriter { _, _ -> false }
+
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        advanceUntilIdle()
+
+        assertEquals(listOf("status:library.favorite.failed"), gateway.calls)
+    }
+
+    @Test
+    fun rapidFavoriteTogglesReadTheLatestPersistedStateSerially() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val favorites = mutableSetOf<Long>()
+        val writes = mutableListOf<Boolean>()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindFavoriteIdsProvider { favorites.toSet() }
+        viewModel.bindFavoriteWriter { track, favorite ->
+            writes += favorite
+            if (favorite) favorites += track.id else favorites -= track.id
+            true
+        }
+
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false), writes)
+        assertEquals(listOf("favorite:2:true", "favorite:2:false"), gateway.calls)
+        assertTrue(favorites.isEmpty())
+    }
+
+    @Test
     fun playPlaylistLoadsTracksBeforeCallingGateway() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val gateway = FakeGateway()
@@ -189,6 +284,20 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("status:no.tracks.in.playlist"), gateway.calls)
+    }
+
+    @Test
+    fun playPlaylistReportsLoaderFailureWithoutEscapingScope() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindPlaylistTrackLoader { throw IllegalStateException("database unavailable") }
+
+        viewModel.onEvent(LibraryEvent.PlayPlaylist(8L))
+        advanceUntilIdle()
+
+        assertEquals(listOf("status:library.playlist.load.failed"), gateway.calls)
     }
 
     @Test
@@ -287,6 +396,22 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun newerCollectionLoadCancelsTheStaleRequest() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = LibraryViewModel(dispatcher)
+        val gateway = FakeCollectionGateway()
+        val loaded = mutableListOf<Long>()
+        viewModel.bindCollectionGateway(gateway)
+
+        viewModel.loadCollections(11L) { loaded += it.selectedPlaylistId }
+        viewModel.loadCollections(12L) { loaded += it.selectedPlaylistId }
+        advanceUntilIdle()
+
+        assertEquals(listOf(12L), loaded)
+        assertEquals(listOf("load:12"), gateway.calls)
+    }
+
+    @Test
     fun clearPlayHistoryDelegatesToBoundGateway() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = LibraryViewModel(dispatcher)
@@ -299,6 +424,23 @@ class LibraryViewModelTest {
 
         assertEquals(listOf("clear"), gateway.calls)
         assertEquals(listOf(3), removed)
+    }
+
+    @Test
+    fun clearPlayHistoryReportsFailureWithoutCallingSuccessCallback() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val collectionGateway = FakeCollectionGateway().apply { failClear = true }
+        val libraryGateway = FakeGateway()
+        val removed = mutableListOf<Int>()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindCollectionGateway(collectionGateway)
+        viewModel.bindGateway(libraryGateway)
+
+        viewModel.clearPlayHistory { removed += it }
+        advanceUntilIdle()
+
+        assertTrue(removed.isEmpty())
+        assertEquals(listOf("status:library.history.clear.failed"), libraryGateway.calls)
     }
 
     @Test
@@ -409,6 +551,21 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun importFailureIsReportedWithoutEscapingTheViewModelScope() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = LibraryViewModel(dispatcher)
+        val importGateway = FakeImportGateway().apply { failImport = true }
+        val libraryGateway = FakeGateway()
+        viewModel.bindImportGateway(importGateway)
+        viewModel.bindGateway(libraryGateway)
+
+        viewModel.importAudioUris(emptyList())
+        advanceUntilIdle()
+
+        assertTrue(libraryGateway.calls.contains("status:library.import.failed"))
+    }
+
+    @Test
     fun parseMissingAudioSpecsSkipsEmptyResultAndSerializesRuns() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = LibraryViewModel(dispatcher)
@@ -496,6 +653,33 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun playlistActionFailuresAreContainedAndDoNotPublishSuccess() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val actionGateway = FakePlaylistActionGateway().apply { failAll = true }
+        val libraryGateway = FakeGateway()
+        val callbacks = mutableListOf<String>()
+        val viewModel = LibraryViewModel(dispatcher)
+        val track = track(7L)
+        viewModel.bindPlaylistActionGateway(actionGateway)
+        viewModel.bindGateway(libraryGateway)
+
+        viewModel.addToDefaultPlaylist(track) { callbacks += "default" }
+        viewModel.createPlaylist("Daily Mix") { callbacks += "create" }
+        viewModel.renamePlaylist(42L, "Renamed") { callbacks += "rename" }
+        viewModel.deletePlaylist(42L, "Renamed") { callbacks += "delete" }
+        viewModel.removeSelectedPlaylistTrack(42L, track) { callbacks += "remove" }
+        viewModel.moveSelectedPlaylistTrack(42L, track, 3, -1) { callbacks += "move" }
+        viewModel.addTrackToPlaylist(42L, 7L) { callbacks += "add" }
+        advanceUntilIdle()
+
+        assertTrue(callbacks.isEmpty())
+        assertEquals(
+            7,
+            libraryGateway.calls.count { it == "status:library.playlist.action.failed" }
+        )
+    }
+
+    @Test
     fun playlistActionPresentationsBuildLocalizedStatuses() {
         val viewModel = LibraryViewModel()
         val languageMode = AppLanguage.MODE_ENGLISH
@@ -557,6 +741,7 @@ class LibraryViewModelTest {
 
     private class FakeCollectionGateway : LibraryCollectionGateway {
         val calls = ArrayList<String>()
+        var failClear = false
 
         override fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult {
             calls.add("load:$selectedPlaylistId")
@@ -569,6 +754,7 @@ class LibraryViewModelTest {
 
         override fun clearPlayHistory(): Int {
             calls.add("clear")
+            if (failClear) throw IllegalStateException("database unavailable")
             return 3
         }
 
@@ -576,6 +762,7 @@ class LibraryViewModelTest {
     private class FakeImportGateway : LibraryImportGateway, LibraryRefreshProgressGateway {
         val calls = ArrayList<String>()
         var failRefresh = false
+        var failImport = false
         var refreshProgress: List<LibraryRefreshProgress> = emptyList()
         var audioSpecsResult = LibraryAudioSpecsResultUi(1, listOf(Track(1L, "Track 1", "Artist", "Album", 1000L, Uri.EMPTY, "file:1")), setOf(1L))
 
@@ -603,6 +790,7 @@ class LibraryViewModelTest {
 
         override fun importAudioUris(uris: List<Uri>): LibraryLoadResultUi {
             calls.add("uris:${uris.size}")
+            if (failImport) throw SecurityException("revoked")
             return LibraryLoadResultUi(status = "uris")
         }
 
@@ -638,39 +826,48 @@ class LibraryViewModelTest {
 
     private class FakePlaylistActionGateway : LibraryPlaylistActionGateway {
         val calls = ArrayList<String>()
+        val failedDefaultIds = mutableSetOf<Long>()
+        var failAll = false
 
         override fun addToDefaultPlaylist(track: Track?): LibraryDefaultPlaylistAddResultUi? {
             calls.add("default:${track?.id}")
-            return LibraryDefaultPlaylistAddResultUi(42L, true)
+            if (failAll) throw IllegalStateException("database unavailable")
+            return LibraryDefaultPlaylistAddResultUi(42L, track?.id !in failedDefaultIds)
         }
 
         override fun createPlaylist(name: String): Long {
             calls.add("create:$name")
+            if (failAll) throw IllegalStateException("database unavailable")
             return 42L
         }
 
         override fun renamePlaylist(playlistId: Long, name: String): Boolean {
             calls.add("rename:$playlistId:$name")
+            if (failAll) throw IllegalStateException("database unavailable")
             return true
         }
 
         override fun deletePlaylist(playlistId: Long): Boolean {
             calls.add("delete:$playlistId")
+            if (failAll) throw IllegalStateException("database unavailable")
             return true
         }
 
         override fun removeTrackFromPlaylist(playlistId: Long, track: Track?): Boolean {
             calls.add("remove:$playlistId:${track?.id}")
+            if (failAll) throw IllegalStateException("database unavailable")
             return true
         }
 
         override fun movePlaylistTrack(playlistId: Long, track: Track?, trackIndex: Int, direction: Int): Boolean {
             calls.add("move:$playlistId:${track?.id}:$trackIndex:$direction")
+            if (failAll) throw IllegalStateException("database unavailable")
             return true
         }
 
         override fun addTrackToPlaylist(playlistId: Long, trackId: Long): Boolean {
             calls.add("add:$playlistId:$trackId")
+            if (failAll) throw IllegalStateException("database unavailable")
             return true
         }
     }

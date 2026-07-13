@@ -33,6 +33,10 @@ internal fun interface StreamingPlaylistImportDialogPresenter {
     fun showImportDialog()
 }
 
+internal fun interface LuoxueSourceManagerPresenter {
+    fun showSourceManager()
+}
+
 internal fun interface StreamingManualCookiePresenter {
     fun showStreamingCookieDialog()
 }
@@ -51,6 +55,7 @@ internal fun interface MainStreamingSearchRenderListenerFactory {
         likedTracksImporter: StreamingLikedTracksImporter,
         recommendationActionRunner: StreamingRecommendationActionRunner,
         playlistImportDialogPresenter: StreamingPlaylistImportDialogPresenter,
+        luoxueSourceManagerPresenter: LuoxueSourceManagerPresenter,
         manualCookiePresenter: StreamingManualCookiePresenter,
         chromePublisher: StreamingSearchChromePublisher
     ): StreamingSearchRenderController.Listener
@@ -65,6 +70,7 @@ internal class MainStreamingSearchRenderListener(
     private val likedTracksImporter: StreamingLikedTracksImporter,
     private val recommendationActionRunner: StreamingRecommendationActionRunner,
     private val playlistImportDialogPresenter: StreamingPlaylistImportDialogPresenter,
+    private val luoxueSourceManagerPresenter: LuoxueSourceManagerPresenter,
     private val manualCookiePresenter: StreamingManualCookiePresenter,
     private val chromePublisher: StreamingSearchChromePublisher
 ) : StreamingSearchRenderController.Listener {
@@ -133,6 +139,10 @@ internal class MainStreamingSearchRenderListener(
 
     override fun pasteImportPlaylist() {
         playlistImportDialogPresenter.showImportDialog()
+    }
+
+    override fun manageLuoxueSources() {
+        luoxueSourceManagerPresenter.showSourceManager()
     }
 
     override fun inputProviderCookie() {

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentity;
 
 public final class M3uPlaylistParser {
     private M3uPlaylistParser() {
@@ -206,6 +207,6 @@ public final class M3uPlaylistParser {
         for (int i = 0; i < value.length(); i++) {
             hash = 31L * hash + value.charAt(i);
         }
-        return -Math.abs(hash);
+        return TrackIdentity.stableNegative(-Math.abs(hash));
     }
 }

@@ -139,6 +139,22 @@ class NowPlayingViewModelTest {
     }
 
     @Test
+    fun stableNegativeTrackCanBeFavoritedAndAddedToPlaylist() {
+        val gateway = FakeGateway()
+        val track = Track(-42L, "Imported", "Artist", "Album", 180_000L, Uri.EMPTY, "document:content://song")
+        val viewModel = NowPlayingViewModel()
+        viewModel.bindGateway(gateway)
+        viewModel.updateState(snapshotWithTrack(track = track), emptySet(), null)
+
+        viewModel.onEvent(NowPlayingEvent.ToggleFavorite)
+        viewModel.onEvent(NowPlayingEvent.AddToPlaylist)
+
+        assertEquals(listOf("favorite"), gateway.calls)
+        val effect = viewModel.drainEffects().single() as NowPlayingEffect.OpenAddToPlaylist
+        assertEquals(-42L, effect.track.id)
+    }
+
+    @Test
     fun downloadCurrentTrackEmitsCurrentTrackEffect() {
         val viewModel = NowPlayingViewModel()
         viewModel.updateState(snapshotWithTrack(), emptySet(), null)

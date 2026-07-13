@@ -9,11 +9,14 @@ import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsMetric
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -69,6 +72,8 @@ data class RuntimeSettingsStatus(
     val libraryArtistCount: Int = 0,
     val streamingGatewayEndpoint: String = StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT,
     val streamingGatewayConfigured: Boolean = false,
+    val luoxueImportedSourceCount: Int = 0,
+    val luoxueEnabledSourceCount: Int = 0,
     val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
 )
 
@@ -126,6 +131,8 @@ sealed interface SettingsEffect {
     data object LoadLibrary : SettingsEffect
     data object OpenAudioFilePicker : SettingsEffect
     data object OpenAudioFolderPicker : SettingsEffect
+    data object OpenLuoxueSourceManager : SettingsEffect
+    data object ImportLuoxueSource : SettingsEffect
     data object ReloadCurrentLyrics : SettingsEffect
     data class StartSleepTimer(val minutes: Int) : SettingsEffect
     data object CancelSleepTimer : SettingsEffect
@@ -146,6 +153,8 @@ sealed interface SettingsEvent {
     data object LoadLibrary : SettingsEvent
     data object OpenAudioFilePicker : SettingsEvent
     data object OpenAudioFolderPicker : SettingsEvent
+    data object OpenLuoxueSourceManager : SettingsEvent
+    data object ImportLuoxueSource : SettingsEvent
     data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEvent
     data object RestoreAllHiddenLibraryItems : SettingsEvent
     data class SetOnlineLyricsEnabled(val enabled: Boolean) : SettingsEvent
@@ -200,6 +209,15 @@ fun interface SettingsPreferenceGateway {
     fun save(update: SettingsPreferenceUpdate): Boolean
 }
 
+data class SettingsContextSnapshot(
+    val preferences: SettingsPreferencesSnapshot,
+    val runtime: RuntimeSettingsStatus
+)
+
+fun interface SettingsContextLoader {
+    fun load(): SettingsContextSnapshot
+}
+
 class SettingsViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
@@ -215,6 +233,9 @@ class SettingsViewModel @JvmOverloads constructor(
     private var storeMirror: SettingsStoreMirror? = null
     private var effectListener: SettingsEffectListener? = null
     private var runtimeEffectListener: SettingsRuntimeEffectListener? = null
+    private var contextLoader: SettingsContextLoader? = null
+    private var contextLoadJob: Job? = null
+    private var nextContextLoadId = 0L
     private val preferenceWriteMutex = Mutex()
     /**
      * Last values confirmed by the persistence gateway. UI state is optimistic so controls remain
@@ -238,6 +259,37 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun bindRuntimeEffectListener(nextListener: SettingsRuntimeEffectListener?) {
         runtimeEffectListener = nextListener
+    }
+
+    fun bindContextLoader(nextLoader: SettingsContextLoader?) {
+        contextLoader = nextLoader
+    }
+
+    fun refreshSettingsContext() {
+        val loader = contextLoader ?: return
+        val loadId = ++nextContextLoadId
+        contextLoadJob?.cancel()
+        contextLoadJob = viewModelScope.launch {
+            try {
+                val snapshot = runInterruptible(ioDispatcher) { loader.load() }
+                if (loadId == nextContextLoadId) {
+                    val renderedPage = _state.value.page
+                    val refreshRenderedPage = _state.value.ui != SettingsUiState()
+                    updateSettingsContext(snapshot.preferences, snapshot.runtime)
+                    if (refreshRenderedPage) {
+                        renderCurrentPage(renderedPage, snapshot.preferences, snapshot.runtime)
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Keep the last valid snapshot; a later render retries the refresh.
+            } finally {
+                if (loadId == nextContextLoadId) {
+                    contextLoadJob = null
+                }
+            }
+        }
     }
 
     fun scrollToTopOnNextRender() {
@@ -314,6 +366,8 @@ class SettingsViewModel @JvmOverloads constructor(
             SettingsEvent.LoadLibrary -> emitEffect(SettingsEffect.LoadLibrary)
             SettingsEvent.OpenAudioFilePicker -> emitEffect(SettingsEffect.OpenAudioFilePicker)
             SettingsEvent.OpenAudioFolderPicker -> emitEffect(SettingsEffect.OpenAudioFolderPicker)
+            SettingsEvent.OpenLuoxueSourceManager -> emitEffect(SettingsEffect.OpenLuoxueSourceManager)
+            SettingsEvent.ImportLuoxueSource -> emitEffect(SettingsEffect.ImportLuoxueSource)
             is SettingsEvent.RestoreHiddenLibraryItem ->
                 emitEffect(SettingsEffect.RestoreHiddenLibraryItem(event.sourceKey))
             SettingsEvent.RestoreAllHiddenLibraryItems -> emitEffect(SettingsEffect.RestoreAllHiddenLibraryItems)
@@ -469,8 +523,12 @@ class SettingsViewModel @JvmOverloads constructor(
                     preferences.streamingAudioQuality,
                     preferences.shareStyle,
                     runtime.streamingGatewayConfigured,
+                    runtime.luoxueImportedSourceCount,
+                    runtime.luoxueEnabledSourceCount,
                     onNavigate = ::navigateSettingsPage,
-                    onOpenNetworkPage = { page -> onEvent(SettingsEvent.OpenNetworkPage(page)) }
+                    onOpenNetworkPage = { page -> onEvent(SettingsEvent.OpenNetworkPage(page)) },
+                    onManageLuoxueSources = { onEvent(SettingsEvent.OpenLuoxueSourceManager) },
+                    onImportLuoxueSource = { onEvent(SettingsEvent.ImportLuoxueSource) }
                 )
             SettingsPage.AboutGroup ->
                 SettingsPageStateBuilder.aboutGroup(
@@ -504,6 +562,7 @@ class SettingsViewModel @JvmOverloads constructor(
                 SettingsPageStateBuilder.accent(
                     languageMode,
                     preferences.accentMode,
+                    preferences.pageBackgrounds,
                     onNavigate = ::navigateSettingsPage,
                     onApplyAccent = { accent -> onEvent(SettingsEvent.ApplyAccentMode(accent)) }
                 )
@@ -756,6 +815,9 @@ class SettingsViewModel @JvmOverloads constructor(
     fun applyAccentMode(nextAccent: String) {
         val accent = EchoTheme.normalizeAccent(nextAccent)
         EchoTheme.setAccent(accent)
+        if (accent == EchoTheme.ACCENT_DYNAMIC_BACKGROUND) {
+            applyRuntimeEffect(SettingsRuntimeEffect.RefreshCustomBackgroundAccent(_state.value.preferences.pageBackgrounds))
+        }
         updatePreferences { it.copy(accentMode = accent) }
         emitAppliedStatus(currentAppliedStatusText().accentApplied)
         savePreference(SettingsPreferenceKey.AccentMode, accent)
@@ -990,6 +1052,9 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun applyPageBackgrounds(backgrounds: PageBackgrounds, page: String, cleared: Boolean) {
         updatePreferences { it.copy(pageBackgrounds = backgrounds) }
+        if (_state.value.preferences.accentMode == EchoTheme.ACCENT_DYNAMIC_BACKGROUND) {
+            applyRuntimeEffect(SettingsRuntimeEffect.RefreshCustomBackgroundAccent(backgrounds))
+        }
         emitAppliedStatus(pageBackgroundAppliedStatus(page, cleared))
         savePreference(SettingsPreferenceKey.PageBackgrounds, backgrounds)
     }

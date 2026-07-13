@@ -5,6 +5,7 @@ import app.yukine.FloatingLyricsPublisher
 import app.yukine.FloatingLyricsState
 import app.yukine.LiveLyricsNotificationService
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.playback.PlaybackStateSnapshot
 
 internal class PlaybackLyricsManager(
@@ -177,7 +178,7 @@ internal class PlaybackLyricsManager(
     }
 
     private fun floatingLyricsTrackMatches(state: FloatingLyricsState, track: Track): Boolean {
-        return if (state.trackId >= 0L) {
+        return if (TrackIdentity.isUsable(state.trackId)) {
             state.trackId == track.id
         } else {
             track.title == state.trackTitle && track.artist == state.artist

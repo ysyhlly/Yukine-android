@@ -103,6 +103,10 @@ internal class LuoxueSourceImportController(
         return sourceStore.remove(sourceId).also(::publishSourceChange)
     }
 
+    fun setAllSourcesEnabled(enabled: Boolean): Boolean {
+        return sourceStore.setAllEnabled(enabled).also(::publishSourceChange)
+    }
+
     private fun publishSourceChange(changed: Boolean) {
         statusSink.setStatus(
             text(

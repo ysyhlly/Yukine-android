@@ -7,8 +7,13 @@ internal fun interface SettingsThemeSurfaceApplier {
     fun apply()
 }
 
+internal fun interface SettingsCustomBackgroundAccentRefresher {
+    fun refresh(backgrounds: PageBackgrounds)
+}
+
 sealed interface SettingsRuntimeEffect {
     data object ApplyThemeSurface : SettingsRuntimeEffect
+    data class RefreshCustomBackgroundAccent(val backgrounds: PageBackgrounds) : SettingsRuntimeEffect
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
     data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
     data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
@@ -28,12 +33,14 @@ internal class MainSettingsRuntimeApplierFactory(
 ) {
     fun create(
         applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
+        customBackgroundAccentRefresher: SettingsCustomBackgroundAccentRefresher,
         playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
         lyricsViewModelProvider: () -> LyricsViewModel?,
         permissionControllerProvider: () -> MainPermissionController?
     ): SettingsRuntimeApplier =
         SettingsRuntimeApplier(
             applyThemeSurfaceAction,
+            customBackgroundAccentRefresher,
             playbackServiceControlsProvider,
             SettingsLyricsControlsProvider {
                 lyricsViewModelProvider()?.let(::MainSettingsLyricsControls)
@@ -84,6 +91,7 @@ internal class MainSettingsFloatingLyricsControls(
 
 internal class SettingsRuntimeApplier(
     private val applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
+    private val customBackgroundAccentRefresher: SettingsCustomBackgroundAccentRefresher,
     private val playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
     private val lyricsControlsProvider: SettingsLyricsControlsProvider,
     private val floatingLyricsControlsProvider: SettingsFloatingLyricsControlsProvider
@@ -92,6 +100,10 @@ internal class SettingsRuntimeApplier(
         return when (effect) {
             SettingsRuntimeEffect.ApplyThemeSurface -> {
                 applyThemeSurfaceAction.apply()
+                true
+            }
+            is SettingsRuntimeEffect.RefreshCustomBackgroundAccent -> {
+                customBackgroundAccentRefresher.refresh(effect.backgrounds)
                 true
             }
             is SettingsRuntimeEffect.ApplyPlaybackSpeed -> {

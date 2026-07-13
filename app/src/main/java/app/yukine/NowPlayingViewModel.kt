@@ -3,6 +3,7 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
@@ -201,7 +202,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             NowPlayingEvent.ToggleLyrics -> toggleLyrics()
             NowPlayingEvent.OpenQueue -> emitEffect(NowPlayingEffect.OpenQueue)
             NowPlayingEvent.ToggleFavorite -> {
-                if (_uiState.value.trackId >= 0L) {
+                if (TrackIdentity.isUsable(_uiState.value.trackId)) {
                     gateway?.toggleFavorite()
                 } else {
                     emitNoTrackMessage()
@@ -209,7 +210,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             }
             NowPlayingEvent.AddToPlaylist -> {
                 val track = _uiState.value.currentTrack
-                if (track != null && track.id >= 0L) {
+                if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.OpenAddToPlaylist(track))
                 } else {
                     emitNoTrackMessage()
@@ -217,7 +218,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             }
             NowPlayingEvent.ShareCurrentTrack -> {
                 val track = _uiState.value.currentTrack
-                if (track != null && track.id >= 0L) {
+                if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.ShareTrack(track))
                 } else {
                     emitNoTrackMessage()
@@ -225,7 +226,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             }
             NowPlayingEvent.DownloadCurrentTrack -> {
                 val track = _uiState.value.currentTrack
-                if (track != null && track.id >= 0L) {
+                if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.DownloadTrack(track))
                 } else {
                     emitNoTrackMessage()

@@ -113,6 +113,7 @@ class LuoxueSourceImportControllerTest {
         )
 
         assertEquals(true, fixture.controller.setSourceEnabled("one", false))
+        assertEquals(true, fixture.controller.setAllSourcesEnabled(true))
         assertEquals(true, fixture.controller.moveSource("two", -1))
         assertEquals(true, fixture.controller.removeSource("one"))
 
@@ -121,11 +122,12 @@ class LuoxueSourceImportControllerTest {
             listOf(
                 "streaming.lx.source.updated",
                 "streaming.lx.source.updated",
+                "streaming.lx.source.updated",
                 "streaming.lx.source.updated"
             ),
             fixture.statuses
         )
-        assertEquals(3, fixture.completions)
+        assertEquals(4, fixture.completions)
     }
 
     private class Fixture(
@@ -193,6 +195,14 @@ class LuoxueSourceImportControllerTest {
             val index = sources.indexOfFirst { it.id == sourceId }
             if (index < 0) return false
             sources[index] = sources[index].copy(enabled = enabled)
+            return true
+        }
+
+        override fun setAllEnabled(enabled: Boolean): Boolean {
+            if (sources.isEmpty()) return false
+            sources.indices.forEach { index ->
+                sources[index] = sources[index].copy(enabled = enabled)
+            }
             return true
         }
 

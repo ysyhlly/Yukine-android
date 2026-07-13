@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,6 +57,7 @@ data class StreamingSearchActions(
     val onDailyRecommend: Runnable,
     val onHeartbeatRecommend: Runnable,
     val onPasteImport: Runnable,
+    val onManageLuoxueSources: Runnable,
     val onInputCookie: Runnable
 ) {
     companion object {
@@ -74,6 +78,7 @@ data class StreamingSearchActions(
             onDailyRecommend = Runnable {},
             onHeartbeatRecommend = Runnable {},
             onPasteImport = Runnable {},
+            onManageLuoxueSources = Runnable {},
             onInputCookie = Runnable {}
         )
     }
@@ -90,6 +95,7 @@ data class StreamingSearchLabels(
     val searchUnavailableSuffix: String,
     val importPlaylistFromStreaming: String,
     val importLuoxueSource: String,
+    val manageLuoxueSources: String,
     val luoxueImportHint: String,
     val loadAccountPlaylists: String,
     val importLikedTracks: String,
@@ -157,6 +163,7 @@ data class StreamingSearchLabels(
             searchUnavailableSuffix = "\u6682\u4e0d\u652f\u6301\u641c\u7d22",
             importPlaylistFromStreaming = "\u5bfc\u5165\u6b4c\u5355",
             importLuoxueSource = "\u5bfc\u5165 LX \u97f3\u6e90 / \u6b4c\u5355",
+            manageLuoxueSources = "LX \u97f3\u6e90\u7ba1\u7406",
             luoxueImportHint = "\u53ef\u5bfc\u5165 LX \u97f3\u6e90 JS \u6587\u4ef6\u6216\u5206\u4eab\u94fe\u63a5\u3002",
             loadAccountPlaylists = "\u52a0\u8f7d\u8d26\u53f7\u6b4c\u5355",
             importLikedTracks = "\u5bfc\u5165\u6536\u85cf\u6b4c\u66f2",
@@ -236,7 +243,6 @@ fun StreamingSearchScreen(
     labels: StreamingSearchLabels,
     actions: StreamingSearchActions
 ) {
-    val p = EchoTheme.colors()
     val provider = state.providers.firstOrNull { it.name == state.selectedProvider }
     val selectedCapability = state.providerCapabilities.firstOrNull { it.provider == state.selectedProvider }
     val selectedHealth = state.providerHealth.firstOrNull { it.provider == state.selectedProvider }
@@ -259,39 +265,58 @@ fun StreamingSearchScreen(
                 onBack = actions.onBack
             )
         }
-        item(key = "streaming-usage-notice") {
-            StreamingUsageNotice(labels.usageNotice)
-        }
-        if (hasLocalPendingProviders) {
-            item(key = "local-first-hint") {
-                MessageRow("已启用本机优先：网易云、QQ 音乐登录后本机直连；LX/洛雪可粘贴导入酷我子源歌单；酷狗、B 站等暂可用网关作为备用。")
-            }
+        item(key = "search-hero") {
+            StreamingSearchHero(
+                providerName = provider?.displayName ?: labels.sourceDefault,
+                providerStatus = provider?.let {
+                    streamingProviderStatusText(it.statusMessage, it.status, selectedHealth, selectedAuthState, labels)
+                }.orEmpty(),
+                query = state.searchQuery.ifBlank { "echo" },
+                canSearch = canSearch,
+                labels = labels,
+                onSearch = actions.onSearch
+            )
         }
         if (state.providers.isNotEmpty()) {
-            if (provider != null && selectedAuthState?.connected != true) {
-                item(key = "manual-account-connect:${provider.name.wireName}") {
-                    ActionRow(labels.openLoginPrefix + provider.displayName + labels.openLoginSuffix, EchoIconKind.Action) {
-                        actions.onLogin.run(provider.name)
+            item(key = "provider-picker-title") { SectionTitle(labels.sourceDefault) }
+            item(key = "provider-picker") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(state.providers, key = { it.name.wireName }) { item ->
+                        val health = state.providerHealth.firstOrNull { it.provider == item.name }
+                        val authState = state.authStates[item.name] ?: item.auth
+                        ProviderPickerChip(
+                            name = item.displayName,
+                            status = streamingProviderStatusText(item.statusMessage, item.status, health, authState, labels),
+                            selected = item.name == state.selectedProvider,
+                            connected = authState.connected,
+                            onClick = { actions.onSelectProvider.run(item.name) }
+                        )
                     }
                 }
             }
-            itemsIndexed(
-                items = state.providers,
-                key = { _, item -> "provider:${item.name.wireName}" }
-            ) { _, item ->
-                val capability = state.providerCapabilities.firstOrNull { it.provider == item.name }
-                val health = state.providerHealth.firstOrNull { it.provider == item.name }
-                val authState = state.authStates[item.name] ?: item.auth
-                ProviderRow(
-                    name = item.displayName,
-                    selected = item.name == state.selectedProvider,
-                    status = streamingProviderStatusText(item.statusMessage, item.status, health, authState, labels),
-                    supportsAuth = capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(item),
-                    connected = authState.connected,
-                    onSelect = { actions.onSelectProvider.run(item.name) },
-                    onLogin = { actions.onLogin.run(item.name) },
-                    onSignOut = { actions.onSignOut.run(item.name) }
-                )
+            provider?.let { selected ->
+                val supportsAuth = selectedCapability?.supportsAuth
+                    ?: StreamingCapabilityResolver.canAuth(selected)
+                if (supportsAuth) {
+                    item(key = "selected-provider:${selected.name.wireName}") {
+                        ProviderRow(
+                            name = selected.displayName,
+                            selected = true,
+                            status = streamingProviderStatusText(
+                                selected.statusMessage,
+                                selected.status,
+                                selectedHealth,
+                                selectedAuthState,
+                                labels
+                            ),
+                            supportsAuth = true,
+                            connected = selectedAuthState?.connected == true,
+                            onSelect = {},
+                            onLogin = { actions.onLogin.run(selected.name) },
+                            onSignOut = { actions.onSignOut.run(selected.name) }
+                        )
+                    }
+                }
             }
         }
         state.pendingAuthLaunch?.let { launch ->
@@ -301,22 +326,9 @@ fun StreamingSearchScreen(
                 }
             }
         }
-        item(key = "account-actions-title") {
-            SectionTitle(labels.accountActions)
-        }
-        if (state.selectedProvider == StreamingProviderName.NETEASE) {
-            item(key = "daily-recommend") {
-                ActionRow(labels.dailyRecommendations, EchoIconKind.Sparkle) { actions.onDailyRecommend.run() }
-            }
-            item(key = "heartbeat-recommend") {
-                ActionRow(labels.heartbeatRecommendations, EchoIconKind.Heart) { actions.onHeartbeatRecommend.run() }
-            }
-        }
-        item(key = "load-account-playlists") {
-            ActionRow(labels.loadAccountPlaylists, EchoIconKind.Collections) { actions.onLoadUserPlaylists.run() }
-        }
-        item(key = "import-liked-tracks") {
-            ActionRow(labels.importLikedTracks, EchoIconKind.Heart) { actions.onImportLikedTracks.run() }
+        item(key = "quick-actions-title") { SectionTitle(labels.discoverMusic) }
+        item(key = "quick-actions") {
+            StreamingQuickActions(state, labels, actions)
         }
         if (state.userPlaylistsLoading) {
             item(key = "account-playlists-loading") {
@@ -333,28 +345,6 @@ fun StreamingSearchScreen(
             ) { _, item ->
                 StreamingPlaylistRow(item, labels) { actions.onImportPlaylist.run(item) }
             }
-        }
-        item(key = "discover-title") {
-            SectionTitle(labels.discoverMusic)
-        }
-        if (state.selectedProvider == StreamingProviderName.LUOXUE) {
-            item(key = "luoxue-import-hint") {
-                MessageRow(labels.luoxueImportHint)
-            }
-            item(key = "luoxue-import-source") {
-                ActionRow(labels.importLuoxueSource, EchoIconKind.PlaylistAdd) { actions.onPasteImport.run() }
-            }
-        }
-        item(key = "search") {
-            val query = state.searchQuery.ifBlank { "echo" }
-            if (canSearch) {
-                ActionRow(labels.searchPrefix + query + labels.searchSuffix, EchoIconKind.Search) { actions.onSearch.run(query) }
-            } else {
-                MessageRow((provider?.displayName ?: labels.sourceDefault) + labels.searchUnavailableSuffix)
-            }
-        }
-        item(key = "import-from-streaming") {
-            ActionRow(labels.importPlaylistFromStreaming, EchoIconKind.PlaylistAdd) { actions.onPasteImport.run() }
         }
         if (state.loading && !state.loadingMore) {
             item(key = "loading") {
@@ -449,6 +439,202 @@ fun StreamingSearchScreen(
             item(key = "manual-account-connect") {
                 ActionRow(labels.backupAccountConnection, EchoIconKind.Edit) { actions.onInputCookie.run() }
             }
+        }
+        if (hasLocalPendingProviders) {
+            item(key = "local-first-hint") {
+                MessageRow("本机音源优先：网易云、QQ 音乐可登录直连；LX 可管理多个自定义音源，网关仅作为补充。")
+            }
+        }
+        item(key = "streaming-usage-notice") {
+            StreamingUsageNotice(labels.usageNotice)
+        }
+    }
+}
+
+private data class StreamingQuickAction(
+    val label: String,
+    val icon: EchoIconKind,
+    val action: Runnable
+)
+
+@Composable
+private fun StreamingSearchHero(
+    providerName: String,
+    providerStatus: String,
+    query: String,
+    canSearch: Boolean,
+    labels: StreamingSearchLabels,
+    onSearch: QueryAction
+) {
+    val p = EchoTheme.colors()
+    EchoGlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = EchoShapes.large,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EchoIcon(EchoIconKind.Network, Modifier.size(24.dp), p.accent)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        providerName,
+                        style = EchoTypography.title,
+                        color = p.heading,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (providerStatus.isNotBlank()) {
+                        Text(
+                            providerStatus,
+                            style = EchoTypography.caption,
+                            color = p.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            if (canSearch) {
+                val searchLabel = labels.searchPrefix + query + labels.searchSuffix
+                Surface(
+                    onClick = { onSearch.run(query) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = searchLabel },
+                    shape = EchoShapes.medium,
+                    color = p.accentSoft
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        EchoIcon(EchoIconKind.Search, Modifier.size(22.dp), p.accent)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            searchLabel,
+                            style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = p.text,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        EchoIcon(EchoIconKind.Next, Modifier.size(16.dp), p.accent)
+                    }
+                }
+            } else {
+                Text(
+                    providerName + labels.searchUnavailableSuffix,
+                    style = EchoTypography.bodyMedium,
+                    color = p.muted
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderPickerChip(
+    name: String,
+    status: String,
+    selected: Boolean,
+    connected: Boolean,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .widthIn(min = 128.dp, max = 188.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium)
+            .semantics { contentDescription = name },
+        shape = EchoShapes.medium,
+        color = if (selected) p.accentSoft else Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EchoIcon(
+                    if (connected) EchoIconKind.Heart else EchoIconKind.Network,
+                    Modifier.size(16.dp),
+                    if (selected || connected) p.accent else p.muted
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    name,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                status,
+                style = EchoTypography.caption,
+                color = if (connected) p.accent else p.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun StreamingQuickActions(
+    state: StreamingSearchState,
+    labels: StreamingSearchLabels,
+    actions: StreamingSearchActions
+) {
+    val quickActions = buildList {
+        if (state.selectedProvider == StreamingProviderName.NETEASE) {
+            add(StreamingQuickAction(labels.dailyRecommendations, EchoIconKind.Sparkle, actions.onDailyRecommend))
+            add(StreamingQuickAction(labels.heartbeatRecommendations, EchoIconKind.Heart, actions.onHeartbeatRecommend))
+        }
+        add(StreamingQuickAction(labels.loadAccountPlaylists, EchoIconKind.Collections, actions.onLoadUserPlaylists))
+        add(StreamingQuickAction(labels.importLikedTracks, EchoIconKind.Heart, actions.onImportLikedTracks))
+        if (state.selectedProvider == StreamingProviderName.LUOXUE) {
+            add(StreamingQuickAction(labels.manageLuoxueSources, EchoIconKind.Network, actions.onManageLuoxueSources))
+            add(StreamingQuickAction(labels.importLuoxueSource, EchoIconKind.PlaylistAdd, actions.onPasteImport))
+        } else {
+            add(StreamingQuickAction(labels.importPlaylistFromStreaming, EchoIconKind.PlaylistAdd, actions.onPasteImport))
+        }
+    }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(quickActions, key = { it.label }) { item ->
+            QuickActionCard(item)
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(item: StreamingQuickAction) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = { item.action.run() },
+        modifier = Modifier
+            .width(176.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium)
+            .semantics { contentDescription = item.label },
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            EchoIcon(item.icon, Modifier.size(22.dp), p.accent)
+            Text(
+                item.label,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.text,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

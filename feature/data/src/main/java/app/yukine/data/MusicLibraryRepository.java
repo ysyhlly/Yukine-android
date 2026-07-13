@@ -38,7 +38,7 @@ import javax.inject.Singleton;
 @Singleton
 public final class MusicLibraryRepository {
     private static final String TAG = "MusicLibraryRepository";
-    private static final int AUDIO_SPEC_PARSE_BATCH_LIMIT = 24;
+    private static final int AUDIO_SPEC_UPDATE_BATCH_SIZE = 24;
 
     private final EchoDatabaseHelper database;
     private final EchoSettingsStore settingsStore;
@@ -821,18 +821,29 @@ public final class MusicLibraryRepository {
     }
 
     public int parseMissingAudioSpecs() {
-        List<Track> tracks = database.loadTracksNeedingAudioSpecs(AUDIO_SPEC_PARSE_BATCH_LIMIT);
+        List<Track> tracks = database.loadTracksNeedingAudioSpecs(Integer.MAX_VALUE);
         ArrayList<Track> enriched = new ArrayList<>();
+        int updated = 0;
         for (Track track : tracks) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new java.util.concurrent.CancellationException("Audio spec parsing cancelled");
+            }
             if (track == null || !track.needsAudioSpecParsing()) {
                 continue;
             }
             Track parsed = audioSpecParser.enrich(track);
             if (parsed != null && parsed.hasAudioSpec()) {
                 enriched.add(parsed);
+                if (enriched.size() >= AUDIO_SPEC_UPDATE_BATCH_SIZE) {
+                    updated += database.updateAudioSpecs(enriched);
+                    enriched.clear();
+                }
             }
         }
-        return database.updateAudioSpecs(enriched);
+        if (!enriched.isEmpty()) {
+            updated += database.updateAudioSpecs(enriched);
+        }
+        return updated;
     }
 
     public List<Track> search(List<Track> source, String query) {
@@ -946,8 +957,8 @@ public final class MusicLibraryRepository {
         return database.addTrackToPlaylist(playlistId, trackId);
     }
 
-    public void removeTrackFromPlaylist(long playlistId, long trackId) {
-        database.removeTrackFromPlaylist(playlistId, trackId);
+    public boolean removeTrackFromPlaylist(long playlistId, long trackId) {
+        return database.removeTrackFromPlaylist(playlistId, trackId);
     }
 
     public boolean movePlaylistTrack(long playlistId, long trackId, int direction) {

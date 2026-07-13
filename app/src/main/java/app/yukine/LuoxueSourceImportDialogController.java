@@ -6,6 +6,7 @@ import android.widget.EditText;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.net.URI;
 
 import app.yukine.streaming.LuoxueImportedSource;
 import app.yukine.ui.EchoDialog;
@@ -74,23 +75,44 @@ final class LuoxueSourceImportDialogController {
                 .show();
     }
 
-    private void showSourceManager() {
+    void showSourceManager() {
         final List<LuoxueImportedSource> sources = importController.importedSources();
         if (sources.isEmpty()) {
             EchoDialog.builder(context)
                     .setTitle(text("streaming.lx.source.manager"))
                     .setMessage(text("streaming.lx.source.empty"))
                     .setNegativeButton(text("cancel"), null)
+                    .setPositiveButton(text("streaming.lx.source.import.new"),
+                            (dialog, which) -> showImportDialog())
                     .show();
             return;
         }
-        String[] items = new String[sources.size()];
+        int activeCount = 0;
+        String[] items = new String[sources.size() + 3];
         for (int index = 0; index < sources.size(); index++) {
-            items[index] = sourceLabel(sources.get(index));
+            LuoxueImportedSource source = sources.get(index);
+            if (source.getEnabled() && !source.getScript().isEmpty()) {
+                activeCount++;
+            }
+            items[index] = sourceLabel(source, index);
         }
+        items[sources.size()] = "+ " + text("streaming.lx.source.import.new");
+        items[sources.size() + 1] = text("streaming.lx.source.enable.all");
+        items[sources.size() + 2] = text("streaming.lx.source.disable.all");
+        String summary = sourceSummary(activeCount, sources.size());
         EchoDialog.builder(context)
                 .setTitle(text("streaming.lx.source.manager"))
-                .setItems(items, (dialog, which) -> showSourceActions(sources, which))
+                .setMessage(summary + "\n" + text("streaming.lx.source.manager.hint"))
+                .setItems(items, (dialog, which) -> {
+                    if (which < sources.size()) {
+                        showSourceActions(sources, which);
+                    } else if (which == sources.size()) {
+                        showImportDialog();
+                    } else {
+                        importController.setAllSourcesEnabled(which == sources.size() + 1);
+                        showSourceManager();
+                    }
+                })
                 .setNegativeButton(text("cancel"), null)
                 .show();
     }
@@ -114,14 +136,23 @@ final class LuoxueSourceImportDialogController {
             labels.add(text("streaming.lx.source.move.down"));
             actions.add(ACTION_MOVE_DOWN);
         }
+        if (isNetworkOrigin(source.getOrigin())) {
+            labels.add(text("streaming.lx.source.update"));
+            actions.add(ACTION_UPDATE);
+        }
         labels.add(text("streaming.lx.source.remove"));
         actions.add(ACTION_REMOVE);
         EchoDialog.builder(context)
                 .setTitle(source.getName())
+                .setMessage(sourceDetails(source, sourceIndex))
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> {
                     int action = actions.get(which);
                     if (action == ACTION_REMOVE) {
                         showRemoveConfirm(source);
+                        return;
+                    }
+                    if (action == ACTION_UPDATE) {
+                        importController.importFromUrls(source.getOrigin());
                         return;
                     }
                     boolean changed;
@@ -154,15 +185,63 @@ final class LuoxueSourceImportDialogController {
                 .show();
     }
 
-    private String sourceLabel(LuoxueImportedSource source) {
-        String state = text(source.getEnabled()
-                ? "streaming.lx.source.enabled"
-                : "streaming.lx.source.disabled");
-        String detail = source.getVersion();
-        if (source.getAuthor() != null && !source.getAuthor().isEmpty()) {
-            detail = detail.isEmpty() ? source.getAuthor() : detail + " · " + source.getAuthor();
+    private String sourceLabel(LuoxueImportedSource source, int index) {
+        String state = text(!source.getEnabled()
+                ? "streaming.lx.source.disabled"
+                : source.getScript().isEmpty()
+                        ? "streaming.lx.source.missing.script"
+                        : "streaming.lx.source.enabled");
+        String detail = sourceKinds(source);
+        if (!source.getVersion().isEmpty()) {
+            detail += " · " + source.getVersion();
         }
-        return source.getName() + " · " + state + (detail.isEmpty() ? "" : " · " + detail);
+        if (source.getAuthor() != null && !source.getAuthor().isEmpty()) {
+            detail += " · " + source.getAuthor();
+        }
+        return "#" + (index + 1) + " · " + state + " · " + source.getName() + "\n" + detail;
+    }
+
+    private String sourceDetails(LuoxueImportedSource source, int sourceIndex) {
+        String unspecified = text("streaming.lx.source.unspecified");
+        String author = source.getAuthor().isEmpty() ? unspecified : source.getAuthor();
+        String version = source.getVersion().isEmpty() ? unspecified : source.getVersion();
+        String origin = source.getOrigin().isEmpty() ? unspecified : source.getOrigin();
+        return text("streaming.lx.source.priority") + "：#" + (sourceIndex + 1) + "\n"
+                + text("streaming.lx.source.capabilities") + "：" + sourceKinds(source) + "\n"
+                + text("streaming.lx.source.author") + "：" + author + "\n"
+                + text("streaming.lx.source.version") + "：" + version + "\n"
+                + text("streaming.lx.source.origin") + "：" + origin;
+    }
+
+    private String sourceKinds(LuoxueImportedSource source) {
+        if (source.getSourceKinds().isEmpty()) {
+            return text("streaming.lx.source.unspecified");
+        }
+        ArrayList<String> kinds = new ArrayList<>();
+        for (String kind : source.getSourceKinds()) {
+            if (kind != null && !kind.trim().isEmpty()) {
+                kinds.add(kind.trim().toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+        return kinds.isEmpty()
+                ? text("streaming.lx.source.unspecified")
+                : android.text.TextUtils.join(" / ", kinds);
+    }
+
+    private String sourceSummary(int enabled, int total) {
+        return text("streaming.lx.source.enabled.count") + enabled + "/" + total;
+    }
+
+    private boolean isNetworkOrigin(String origin) {
+        if (origin == null || origin.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            String scheme = URI.create(origin.trim()).getScheme();
+            return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private String text(String key) {
@@ -173,4 +252,5 @@ final class LuoxueSourceImportDialogController {
     private static final int ACTION_MOVE_UP = 1;
     private static final int ACTION_MOVE_DOWN = 2;
     private static final int ACTION_REMOVE = 3;
+    private static final int ACTION_UPDATE = 4;
 }

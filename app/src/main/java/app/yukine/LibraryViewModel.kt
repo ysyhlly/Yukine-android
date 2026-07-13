@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.model.Playlist
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
@@ -32,6 +33,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface LibraryEvent {
     data class PlayTrackList(val tracks: List<Track>, val index: Int) : LibraryEvent
@@ -92,6 +95,16 @@ interface LibraryCollectionGateway {
     fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult
 
     fun clearPlayHistory(): Int
+}
+
+interface LibraryExclusionGateway {
+    fun restoreLibraryExclusion(sourceKey: String): Boolean
+
+    fun restoreAllLibraryExclusions(): Int
+}
+
+fun interface LibraryExclusionRestoreCallback {
+    fun onRestored(changed: Boolean)
 }
 
 data class LibraryLoadResultUi(
@@ -210,9 +223,16 @@ class LibraryViewModel @JvmOverloads constructor(
     private var importGateway: LibraryImportGateway? = null
     private var documentGateway: LibraryDocumentGateway? = null
     private var playlistActionGateway: LibraryPlaylistActionGateway? = null
+    private var exclusionGateway: LibraryExclusionGateway? = null
     private var audioSpecParsingRunning = false
+    private var audioSpecParsingPending = false
+    private var pendingAudioSpecCallback: ((LibraryAudioSpecsResultUi) -> Unit)? = null
     private var libraryLoadJob: Job? = null
     private var libraryLoadWatchdogJob: Job? = null
+    private var collectionLoadJob: Job? = null
+    private var nextCollectionLoadId: Long = 0L
+    private var activeCollectionLoadId: Long = 0L
+    private val libraryMutationMutex = Mutex()
     private var nextLibraryLoadId: Long = 0L
     private var activeLibraryLoadId: Long = 0L
 
@@ -246,6 +266,10 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun bindPlaylistActionGateway(nextGateway: LibraryPlaylistActionGateway?) {
         playlistActionGateway = nextGateway
+    }
+
+    fun bindExclusionGateway(nextGateway: LibraryExclusionGateway?) {
+        exclusionGateway = nextGateway
     }
 
     fun onEvent(event: LibraryEvent) {
@@ -420,10 +444,21 @@ class LibraryViewModel @JvmOverloads constructor(
         val tracks = selectedTracks()
         if (tracks.isEmpty()) return
         viewModelScope.launch {
-            withContext(ioDispatcher) {
-                tracks.forEach { track -> writer.writeFavorite(track, true) }
+            val succeeded = libraryMutationMutex.withLock {
+                withContext(ioDispatcher) {
+                    tracks.count { track ->
+                        try {
+                            writer.writeFavorite(track, true)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                }
             }
-            gateway?.refreshLibrary()
+            if (succeeded > 0) gateway?.refreshLibrary()
+            if (succeeded < tracks.size) gateway?.showStatusKey("library.favorite.failed")
         }
     }
 
@@ -432,11 +467,49 @@ class LibraryViewModel @JvmOverloads constructor(
         val tracks = selectedTracks()
         if (tracks.isEmpty()) return
         viewModelScope.launch {
-            withContext(ioDispatcher) {
-                tracks.forEach { track -> actionGateway.addToDefaultPlaylist(track) }
+            val succeeded = libraryMutationMutex.withLock {
+                withContext(ioDispatcher) {
+                    tracks.count { track ->
+                        try {
+                            actionGateway.addToDefaultPlaylist(track)?.added == true
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                }
             }
-            gateway?.showStatusKey("added.to.playlist")
+            gateway?.showStatusKey(
+                if (succeeded == tracks.size) "added.to.playlist" else "could.not.add.to.playlist"
+            )
         }
+    }
+
+    fun restoreHiddenLibraryItem(sourceKey: String, onRestored: ((Boolean) -> Unit)? = null) {
+        val restoreGateway = exclusionGateway ?: return
+        launchLibraryMutation(
+            failureStatusKey = "library.restore.failed",
+            operation = { restoreGateway.restoreLibraryExclusion(sourceKey) },
+            onSuccess = onRestored
+        )
+    }
+
+    fun restoreHiddenLibraryItemJava(sourceKey: String, onRestored: LibraryExclusionRestoreCallback?) {
+        restoreHiddenLibraryItem(sourceKey) { changed -> onRestored?.onRestored(changed) }
+    }
+
+    fun restoreAllHiddenLibraryItems(onRestored: ((Boolean) -> Unit)? = null) {
+        val restoreGateway = exclusionGateway ?: return
+        launchLibraryMutation(
+            failureStatusKey = "library.restore.failed",
+            operation = { restoreGateway.restoreAllLibraryExclusions() > 0 },
+            onSuccess = onRestored
+        )
+    }
+
+    fun restoreAllHiddenLibraryItemsJava(onRestored: LibraryExclusionRestoreCallback?) {
+        restoreAllHiddenLibraryItems { changed -> onRestored?.onRestored(changed) }
     }
 
     private fun publishInteractionState() {
@@ -446,21 +519,33 @@ class LibraryViewModel @JvmOverloads constructor(
     }
 
     private fun toggleFavorite(track: Track?) {
-        if (track == null || track.id < 0L) {
+        if (track == null || !TrackIdentity.isUsable(track.id)) {
             return
         }
-        val favoriteIds = favoriteIdsProvider?.favoriteIds().orEmpty()
-        val nextFavorite = track.id !in favoriteIds
         val writer = favoriteWriter
         if (writer == null) {
+            val nextFavorite = track.id !in favoriteIdsProvider?.favoriteIds().orEmpty()
             gateway?.applyFavorite(track.id, nextFavorite)
             return
         }
         viewModelScope.launch {
-            withContext(ioDispatcher) {
-                writer.writeFavorite(track, nextFavorite)
+            try {
+                val (nextFavorite, written) = libraryMutationMutex.withLock {
+                    withContext(ioDispatcher) {
+                        val next = track.id !in favoriteIdsProvider?.favoriteIds().orEmpty()
+                        next to writer.writeFavorite(track, next)
+                    }
+                }
+                if (written) {
+                    gateway?.applyFavorite(track.id, nextFavorite)
+                } else {
+                    gateway?.showStatusKey("library.favorite.failed")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                gateway?.showStatusKey("library.favorite.failed")
             }
-            gateway?.applyFavorite(track.id, nextFavorite)
         }
     }
 
@@ -471,13 +556,19 @@ class LibraryViewModel @JvmOverloads constructor(
             return
         }
         viewModelScope.launch {
-            val tracks = withContext(ioDispatcher) {
-                loader.loadPlaylistTracks(playlistId)
-            }
-            if (tracks.isEmpty()) {
-                gateway?.showStatusKey("no.tracks.in.playlist")
-            } else {
-                gateway?.playTrackList(tracks, 0)
+            try {
+                val tracks = runInterruptible(ioDispatcher) {
+                    loader.loadPlaylistTracks(playlistId)
+                }
+                if (tracks.isEmpty()) {
+                    gateway?.showStatusKey("no.tracks.in.playlist")
+                } else {
+                    gateway?.playTrackList(tracks, 0)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                gateway?.showStatusKey("library.playlist.load.failed")
             }
         }
     }
@@ -487,11 +578,31 @@ class LibraryViewModel @JvmOverloads constructor(
         onLoaded: ((LibraryCollectionsResult) -> Unit)? = null
     ) {
         val gateway = collectionGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) {
-                gateway.loadCollections(selectedPlaylistId)
+        val loadId = ++nextCollectionLoadId
+        activeCollectionLoadId = loadId
+        collectionLoadJob?.cancel()
+        collectionLoadJob = viewModelScope.launch {
+            try {
+                val result = libraryMutationMutex.withLock {
+                    runInterruptible(ioDispatcher) {
+                        gateway.loadCollections(selectedPlaylistId)
+                    }
+                }
+                if (activeCollectionLoadId == loadId) {
+                    onLoaded?.invoke(result)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (activeCollectionLoadId == loadId) {
+                    this@LibraryViewModel.gateway?.showStatusKey("library.collections.failed")
+                }
+            } finally {
+                if (activeCollectionLoadId == loadId) {
+                    activeCollectionLoadId = 0L
+                    collectionLoadJob = null
+                }
             }
-            onLoaded?.invoke(result)
         }
     }
 
@@ -504,12 +615,11 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun clearPlayHistory(onCleared: ((Int) -> Unit)? = null) {
         val gateway = collectionGateway ?: return
-        viewModelScope.launch {
-            val removed = withContext(ioDispatcher) {
-                gateway.clearPlayHistory()
-            }
-            onCleared?.invoke(removed)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.history.clear.failed",
+            operation = gateway::clearPlayHistory,
+            onSuccess = onCleared
+        )
     }
 
     fun loadLibrary(
@@ -542,10 +652,12 @@ class LibraryViewModel @JvmOverloads constructor(
                     return@launch
                 }
                 startLibraryRefreshWatchdog(loadId)
-                val fresh = runInterruptible(ioDispatcher) {
-                    (loadGateway as? LibraryRefreshProgressGateway)
-                        ?.refresh(reportProgress)
-                        ?: loadGateway.refresh()
+                val fresh = libraryMutationMutex.withLock {
+                    runInterruptible(ioDispatcher) {
+                        (loadGateway as? LibraryRefreshProgressGateway)
+                            ?.refresh(reportProgress)
+                            ?: loadGateway.refresh()
+                    }
                 }
                 if (activeLibraryLoadId == loadId) {
                     onLoaded?.invoke(fresh)
@@ -607,10 +719,7 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun importAudioUris(uris: List<@JvmSuppressWildcards Uri>, onLoaded: ((LibraryLoadResultUi) -> Unit)? = null) {
         val gateway = importGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) { gateway.importAudioUris(uris) }
-            onLoaded?.invoke(result)
-        }
+        launchLibraryMutation("library.import.failed", { gateway.importAudioUris(uris) }, onLoaded)
     }
 
     fun importAudioUrisJava(uris: List<@JvmSuppressWildcards Uri>, onLoaded: LibraryLoadCallback?) {
@@ -619,10 +728,7 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun importAudioTree(treeUri: Uri, onLoaded: ((LibraryLoadResultUi) -> Unit)? = null) {
         val gateway = importGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) { gateway.importAudioTree(treeUri) }
-            onLoaded?.invoke(result)
-        }
+        launchLibraryMutation("library.import.failed", { gateway.importAudioTree(treeUri) }, onLoaded)
     }
 
     fun importAudioTreeJava(treeUri: Uri, onLoaded: LibraryLoadCallback?) {
@@ -632,17 +738,31 @@ class LibraryViewModel @JvmOverloads constructor(
     fun parseMissingAudioSpecs(onParsed: ((LibraryAudioSpecsResultUi) -> Unit)? = null) {
         val gateway = importGateway ?: return
         if (audioSpecParsingRunning) {
+            audioSpecParsingPending = true
+            pendingAudioSpecCallback = onParsed
             return
         }
         audioSpecParsingRunning = true
         viewModelScope.launch {
             try {
-                val result = withContext(ioDispatcher) { gateway.parseMissingAudioSpecs() }
+                val result = libraryMutationMutex.withLock {
+                    runInterruptible(ioDispatcher) { gateway.parseMissingAudioSpecs() }
+                }
                 if (result.updatedCount > 0) {
                     onParsed?.invoke(result)
                 }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                this@LibraryViewModel.gateway?.showStatusKey("audio.specs.failed")
             } finally {
                 audioSpecParsingRunning = false
+                if (audioSpecParsingPending) {
+                    val pendingCallback = pendingAudioSpecCallback
+                    audioSpecParsingPending = false
+                    pendingAudioSpecCallback = null
+                    parseMissingAudioSpecs(pendingCallback)
+                }
             }
         }
     }
@@ -653,10 +773,7 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun importStreamM3u(playlistUri: Uri?, onImported: ((LibraryLoadResultUi) -> Unit)? = null) {
         val gateway = documentGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) { gateway.importStreamM3u(playlistUri) }
-            onImported?.invoke(result)
-        }
+        launchLibraryMutation("local.m3u.import.failed", { gateway.importStreamM3u(playlistUri) }, onImported)
     }
 
     fun importStreamM3uJava(playlistUri: Uri?, onImported: LibraryLoadCallback?) {
@@ -668,10 +785,7 @@ class LibraryViewModel @JvmOverloads constructor(
         onImported: ((LibraryPlaylistImportResultUi) -> Unit)? = null
     ) {
         val gateway = documentGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) { gateway.importPlaylistM3u(playlistUri) }
-            onImported?.invoke(result)
-        }
+        launchLibraryMutation("playlist.import.failed", { gateway.importPlaylistM3u(playlistUri) }, onImported)
     }
 
     fun importPlaylistM3uJava(playlistUri: Uri?, onImported: LibraryPlaylistImportCallback?) {
@@ -685,12 +799,11 @@ class LibraryViewModel @JvmOverloads constructor(
         onExported: ((Boolean) -> Unit)? = null
     ) {
         val gateway = documentGateway ?: return
-        viewModelScope.launch {
-            val exported = withContext(ioDispatcher) {
-                gateway.exportPlaylist(exportUri, playlistId, playlistName)
-            }
-            onExported?.invoke(exported)
-        }
+        launchLibraryMutation(
+            "playlist.export.failed",
+            { gateway.exportPlaylist(exportUri, playlistId, playlistName) },
+            onExported
+        )
     }
 
     fun exportPlaylistJava(
@@ -701,6 +814,37 @@ class LibraryViewModel @JvmOverloads constructor(
         exportPlaylist(exportUri, playlistId, playlistName)
     }
 
+    fun syncSearchQuery(query: String?) {
+        val normalized = query.orEmpty()
+        if (libraryUiState.value.query == normalized) return
+        libraryUiState.value = libraryUiState.value.copy(
+            query = normalized,
+            revealedRowKey = null,
+            selectedTrackKeys = emptySet(),
+            selectedGroupKeys = emptySet()
+        )
+        publishInteractionState()
+    }
+
+    private fun <T> launchLibraryMutation(
+        failureStatusKey: String,
+        operation: () -> T,
+        onSuccess: ((T) -> Unit)?
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = libraryMutationMutex.withLock {
+                    withContext(ioDispatcher) { operation() }
+                }
+                onSuccess?.invoke(result)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                gateway?.showStatusKey(failureStatusKey)
+            }
+        }
+    }
+
     fun addToDefaultPlaylist(
         track: Track?,
         onAdded: ((LibraryDefaultPlaylistAddResultUi) -> Unit)? = null
@@ -709,12 +853,17 @@ class LibraryViewModel @JvmOverloads constructor(
             return
         }
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) {
-                gateway.addToDefaultPlaylist(track)
-            } ?: return@launch
-            onAdded?.invoke(result)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.addToDefaultPlaylist(track) },
+            onSuccess = { result ->
+                if (result == null) {
+                    this.gateway?.showStatusKey("library.playlist.action.failed")
+                } else {
+                    onAdded?.invoke(result)
+                }
+            }
+        )
     }
 
     fun addToDefaultPlaylistJava(track: Track?, onAdded: LibraryDefaultPlaylistTrackAddedCallback?) {
@@ -723,12 +872,17 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun createPlaylist(name: String, onCreated: ((Long) -> Unit)? = null) {
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val playlistId = withContext(ioDispatcher) {
-                gateway.createPlaylist(name)
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.createPlaylist(name) },
+            onSuccess = { playlistId ->
+                if (playlistId >= 0L) {
+                    onCreated?.invoke(playlistId)
+                } else {
+                    this.gateway?.showStatusKey("library.playlist.action.failed")
+                }
             }
-            onCreated?.invoke(playlistId)
-        }
+        )
     }
 
     fun createPlaylistJava(name: String, onCreated: LibraryPlaylistCreatedCallback?) {
@@ -737,12 +891,11 @@ class LibraryViewModel @JvmOverloads constructor(
 
     fun renamePlaylist(playlistId: Long, name: String, onRenamed: ((Boolean) -> Unit)? = null) {
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val renamed = withContext(ioDispatcher) {
-                gateway.renamePlaylist(playlistId, name)
-            }
-            onRenamed?.invoke(renamed)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.renamePlaylist(playlistId, name) },
+            onSuccess = onRenamed
+        )
     }
 
     fun renamePlaylistJava(playlistId: Long, name: String, onRenamed: LibraryPlaylistRenamedCallback?) {
@@ -755,12 +908,11 @@ class LibraryViewModel @JvmOverloads constructor(
         onDeleted: ((Boolean) -> Unit)? = null
     ) {
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val deleted = withContext(ioDispatcher) {
-                gateway.deletePlaylist(playlistId)
-            }
-            onDeleted?.invoke(deleted)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.deletePlaylist(playlistId) },
+            onSuccess = onDeleted
+        )
     }
 
     fun deletePlaylistJava(playlistId: Long, name: String, onDeleted: LibraryPlaylistDeletedCallback?) {
@@ -776,14 +928,11 @@ class LibraryViewModel @JvmOverloads constructor(
             return
         }
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val removed = withContext(ioDispatcher) {
-                gateway.removeTrackFromPlaylist(playlistId, track)
-            }
-            if (removed) {
-                onRemoved?.invoke(track)
-            }
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.removeTrackFromPlaylist(playlistId, track) },
+            onSuccess = { removed -> if (removed) onRemoved?.invoke(track) }
+        )
     }
 
     fun removeSelectedPlaylistTrackJava(
@@ -807,12 +956,11 @@ class LibraryViewModel @JvmOverloads constructor(
             return
         }
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val moved = withContext(ioDispatcher) {
-                gateway.movePlaylistTrack(playlistId, track, trackIndex, direction)
-            }
-            onMoved?.invoke(moved)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.movePlaylistTrack(playlistId, track, trackIndex, direction) },
+            onSuccess = onMoved
+        )
     }
 
     fun moveSelectedPlaylistTrackJava(
@@ -835,12 +983,11 @@ class LibraryViewModel @JvmOverloads constructor(
         onAdded: ((Boolean) -> Unit)? = null
     ) {
         val gateway = playlistActionGateway ?: return
-        viewModelScope.launch {
-            val added = withContext(ioDispatcher) {
-                gateway.addTrackToPlaylist(playlistId, trackId)
-            }
-            onAdded?.invoke(added)
-        }
+        launchLibraryMutation(
+            failureStatusKey = "library.playlist.action.failed",
+            operation = { gateway.addTrackToPlaylist(playlistId, trackId) },
+            onSuccess = onAdded
+        )
     }
 
     fun addTrackToPlaylistJava(playlistId: Long, trackId: Long, onAdded: LibraryTrackAddedToPlaylistCallback?) {

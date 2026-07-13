@@ -121,8 +121,19 @@ internal class LoadSettingsPreferencesUseCase(
     private val operations: SettingsPreferenceLoadOperations
 ) {
     fun execute(): LoadedSettingsPreferences {
-        val themeMode = EchoThemeModeNormalizer.themeMode(operations.loadThemeMode())
-        val accentMode = EchoThemeModeNormalizer.accentMode(operations.loadAccentMode())
+        val storedThemeMode = operations.loadThemeMode()
+        val storedAccentMode = operations.loadAccentMode()
+        val legacyDynamicTheme = storedThemeMode.trim() == app.yukine.ui.EchoTheme.MODE_DYNAMIC
+        val themeMode = if (legacyDynamicTheme) {
+            app.yukine.ui.EchoTheme.MODE_SYSTEM
+        } else {
+            EchoThemeModeNormalizer.themeMode(storedThemeMode)
+        }
+        val accentMode = if (legacyDynamicTheme) {
+            app.yukine.ui.EchoTheme.ACCENT_DYNAMIC_SYSTEM
+        } else {
+            EchoThemeModeNormalizer.accentMode(storedAccentMode)
+        }
         val languageMode = AppLanguage.normalizeMode(operations.loadLanguageMode())
         val playbackSpeed = operations.loadPlaybackSpeed()
         val appVolume = operations.loadAppVolume()

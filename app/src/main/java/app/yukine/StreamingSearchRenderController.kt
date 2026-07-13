@@ -47,6 +47,8 @@ internal class StreamingSearchRenderController(
 
         fun pasteImportPlaylist()
 
+        fun manageLuoxueSources()
+
         fun inputProviderCookie()
 
         fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
@@ -70,6 +72,7 @@ internal class StreamingSearchRenderController(
             onDailyRecommend = Runnable { listener.playDailyRecommendations() },
             onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() },
             onPasteImport = Runnable { listener.pasteImportPlaylist() },
+            onManageLuoxueSources = Runnable { listener.manageLuoxueSources() },
             onInputCookie = Runnable { listener.inputProviderCookie() }
         )
         listener.publishStreamingSearchChrome(labels, actions)
@@ -91,6 +94,7 @@ internal class StreamingSearchRenderController(
             searchUnavailableSuffix = text(languageMode, "streaming.search.unavailable.suffix"),
             importPlaylistFromStreaming = text(languageMode, "streaming.import.playlist.from"),
             importLuoxueSource = text(languageMode, "streaming.lx.import.source"),
+            manageLuoxueSources = text(languageMode, "streaming.lx.source.manager"),
             luoxueImportHint = text(languageMode, "streaming.lx.import.hint"),
             loadAccountPlaylists = text(languageMode, "streaming.load.account.playlists"),
             importLikedTracks = text(languageMode, "streaming.import.liked"),

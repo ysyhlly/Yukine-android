@@ -83,6 +83,7 @@ class MainLibraryPlaylistActionGatewayTest {
         private val renameResult: Boolean = false,
         private val deleteResult: Boolean = false,
         private val addTrackResult: Boolean = false,
+        private val removeTrackResult: Boolean = true,
         private val moveResult: Boolean = false
     ) : PlaylistActionOperations {
         val events = mutableListOf<String>()
@@ -112,8 +113,9 @@ class MainLibraryPlaylistActionGatewayTest {
             return addTrackResult
         }
 
-        override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long) {
+        override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long): Boolean {
             events += "remove:$playlistId:$trackId"
+            return removeTrackResult
         }
 
         override fun movePlaylistTrackAt(playlistId: Long, trackIndex: Int, direction: Int): Boolean {

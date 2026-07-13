@@ -3,6 +3,7 @@ package app.yukine
 import android.content.Context
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.ui.EchoDialog
 
 internal class ConfirmationDialogController(
@@ -55,7 +56,7 @@ internal class ConfirmationDialogController(
     }
 
     fun confirmDeleteTracks(title: String, tracks: List<Track>) {
-        val ids = tracks.map { it.id }.filter { it >= 0L }.distinct()
+        val ids = tracks.map { it.id }.filter(TrackIdentity::isUsable).distinct()
         if (ids.isEmpty()) {
             return
         }

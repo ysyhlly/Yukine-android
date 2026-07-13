@@ -304,36 +304,44 @@ internal object SettingsPageStateBuilder {
         quality: String,
         shareStyle: String,
         gatewayConfigured: Boolean,
+        luoxueImportedSourceCount: Int,
+        luoxueEnabledSourceCount: Int,
         onNavigate: (SettingsPage) -> Unit,
-        onOpenNetworkPage: (String) -> Unit
+        onOpenNetworkPage: (String) -> Unit,
+        onManageLuoxueSources: () -> Unit,
+        onImportLuoxueSource: () -> Unit
     ): SettingsPageStateContent {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
+        val lxSummary = if (languageMode == AppLanguage.MODE_ENGLISH) {
+            "$luoxueEnabledSourceCount of $luoxueImportedSourceCount enabled"
+        } else {
+            "已启用 $luoxueEnabledSourceCount/$luoxueImportedSourceCount"
+        }
         val metrics = listOf(
+            SettingsMetric(text(languageMode, "streaming.lx.source.manager"), lxSummary),
             SettingsMetric(text(languageMode, "streaming.audio.quality"), streamingQualityLabel(normalizedQuality, languageMode)),
-            SettingsMetric(text(languageMode, "share.style"), shareStyleLabel(shareStyle, languageMode)),
-            SettingsMetric(text(languageMode, "streaming.gateway"), if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")),
-            SettingsMetric(text(languageMode, "description"), groupDescription(languageMode, "sources"))
+            SettingsMetric(text(languageMode, "streaming.gateway"), if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing"))
         )
         val actions = listOf(
             backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
-                label = text(languageMode, "streaming"),
+                label = text(languageMode, "streaming.providers.manage"),
                 onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_STREAMING) },
-                description = text(languageMode, "settings.sources.streaming.hint"),
+                description = text(languageMode, "streaming.providers.manage.hint"),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Network
             ),
             SettingsAction(
-                label = text(languageMode, "webdav"),
-                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_WEBDAV) },
-                description = text(languageMode, "settings.sources.webdav.hint"),
+                label = text(languageMode, "streaming.lx.source.manager"),
+                onClick = Runnable { onManageLuoxueSources() },
+                description = text(languageMode, "streaming.lx.source.manager.hint") + " · " + lxSummary,
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Folder
+                icon = EchoIconKind.Network
             ),
             SettingsAction(
-                label = text(languageMode, "remote.music.sources"),
-                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_SOURCES) },
-                description = text(languageMode, "remote.music.sources.hint"),
+                label = text(languageMode, "streaming.lx.import.source"),
+                onClick = Runnable { onImportLuoxueSource() },
+                description = text(languageMode, "streaming.lx.import.hint"),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Network
             ),
@@ -345,21 +353,35 @@ internal object SettingsPageStateBuilder {
                 streamingQualityLabel(normalizedQuality, languageMode)
             ),
             navigationAction(
-                text(languageMode, "share.style"),
-                SettingsPage.ShareStyle,
-                onNavigate,
-                text(languageMode, "share.style.hint"),
-                shareStyleLabel(shareStyle, languageMode)
-            ),
-            navigationAction(
                 text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"),
                 SettingsPage.StreamingGateway,
                 onNavigate,
                 text(languageMode, "streaming.gateway.hint"),
                 if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")
+            ),
+            SettingsAction(
+                label = text(languageMode, "remote.music.sources"),
+                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_SOURCES) },
+                description = text(languageMode, "remote.music.sources.hint"),
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Folder
+            ),
+            SettingsAction(
+                label = text(languageMode, "webdav"),
+                onClick = Runnable { onOpenNetworkPage(MainRoutes.NETWORK_WEBDAV) },
+                description = text(languageMode, "settings.sources.webdav.hint"),
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Folder
+            ),
+            navigationAction(
+                text(languageMode, "share.style"),
+                SettingsPage.ShareStyle,
+                onNavigate,
+                text(languageMode, "share.style.hint"),
+                shareStyleLabel(shareStyle, languageMode)
             )
         )
-        return buildContent(groupTitle(languageMode, "sources"), metrics, actions)
+        return buildContent(text(languageMode, "streaming.settings"), metrics, actions)
     }
 
     fun playbackGroup(
@@ -511,6 +533,7 @@ internal object SettingsPageStateBuilder {
     fun accent(
         languageMode: String,
         accentMode: String,
+        pageBackgrounds: PageBackgrounds,
         onNavigate: (SettingsPage) -> Unit,
         onApplyAccent: (String) -> Unit
     ): SettingsPageStateContent {
@@ -530,6 +553,25 @@ internal object SettingsPageStateBuilder {
         )
         val actions = buildList {
             add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.Accent), onNavigate))
+            if (EchoTheme.dynamicColorAvailable()) {
+                add(dynamicAccentOption(
+                    languageMode,
+                    accentMode,
+                    EchoTheme.ACCENT_DYNAMIC_SYSTEM,
+                    "accent.dynamic.system.description",
+                    true,
+                    onApplyAccent
+                ))
+            }
+            val hasCustomBackground = pageBackgrounds.accentSourceUri().isNotBlank()
+            add(dynamicAccentOption(
+                languageMode,
+                accentMode,
+                EchoTheme.ACCENT_DYNAMIC_BACKGROUND,
+                if (hasCustomBackground) "accent.dynamic.background.description" else "accent.dynamic.background.missing",
+                hasCustomBackground,
+                onApplyAccent
+            ))
             accentOptions.forEach { accent ->
                 add(accentOption(languageMode, accentMode, accent, onApplyAccent))
             }
@@ -1325,6 +1367,28 @@ internal object SettingsPageStateBuilder {
             style = SettingsActionStyle.Choice,
             icon = EchoIconKind.Swatch,
             checked = EchoTheme.normalizeAccent(currentAccent) == EchoTheme.normalizeAccent(accent)
+        )
+    }
+
+    private fun dynamicAccentOption(
+        languageMode: String,
+        currentAccent: String,
+        accent: String,
+        descriptionKey: String,
+        enabled: Boolean,
+        onApplyAccent: (String) -> Unit
+    ): SettingsAction {
+        val selected = EchoTheme.normalizeAccent(currentAccent) == EchoTheme.normalizeAccent(accent)
+        val label = AppLanguage.accentLabel(accent, languageMode) +
+            if (selected) text(languageMode, "selected") else ""
+        return SettingsAction(
+            label = label,
+            onClick = Runnable { onApplyAccent(accent) },
+            description = text(languageMode, descriptionKey),
+            style = SettingsActionStyle.Choice,
+            icon = EchoIconKind.Palette,
+            checked = selected,
+            enabled = enabled
         )
     }
 

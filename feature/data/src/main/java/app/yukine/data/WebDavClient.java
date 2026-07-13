@@ -35,6 +35,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentity;
 
 public final class WebDavClient {
     private static final int MAX_DIRECTORIES = 200;
@@ -445,7 +446,7 @@ public final class WebDavClient {
         for (int i = 0; i < value.length(); i++) {
             hash = 31L * hash + value.charAt(i);
         }
-        return -Math.abs(hash);
+        return TrackIdentity.stableNegative(-Math.abs(hash));
     }
 
     private String trimRight(String value, String suffix) {

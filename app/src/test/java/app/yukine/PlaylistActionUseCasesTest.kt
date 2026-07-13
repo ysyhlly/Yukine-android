@@ -86,12 +86,36 @@ class PlaylistActionUseCasesTest {
         )
     }
 
+    @Test
+    fun stableNegativeTrackIdsRemainManageable() {
+        val operations = FakePlaylistActionOperations(addTrackResult = true, moveResult = true)
+        val importedTrack = track(-42L)
+
+        assertTrue(AddTrackToPlaylistUseCase(operations).execute(5L, importedTrack.id))
+        assertTrue(RemoveTrackFromPlaylistUseCase(operations).execute(5L, importedTrack))
+        assertTrue(MovePlaylistTrackUseCase(operations).execute(5L, importedTrack, 0, 1))
+
+        assertEquals(
+            listOf("add:5:-42", "remove:5:-42", "move:5:0:1"),
+            operations.events
+        )
+    }
+
+    @Test
+    fun removeTrackReportsStorageNoOpAsFailure() {
+        val operations = FakePlaylistActionOperations(removeTrackResult = false)
+
+        assertFalse(RemoveTrackFromPlaylistUseCase(operations).execute(5L, track(7L)))
+        assertEquals(listOf("remove:5:7"), operations.events)
+    }
+
     private class FakePlaylistActionOperations(
         private val defaultPlaylistId: Long = -1L,
         private val createdPlaylistId: Long = -1L,
         private val renameResult: Boolean = false,
         private val deleteResult: Boolean = false,
         private val addTrackResult: Boolean = false,
+        private val removeTrackResult: Boolean = true,
         private val moveResult: Boolean = false
     ) : PlaylistActionOperations {
         val events = mutableListOf<String>()
@@ -121,8 +145,9 @@ class PlaylistActionUseCasesTest {
             return addTrackResult
         }
 
-        override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long) {
+        override fun removeTrackFromPlaylist(playlistId: Long, trackId: Long): Boolean {
             events.add("remove:$playlistId:$trackId")
+            return removeTrackResult
         }
 
         override fun movePlaylistTrackAt(playlistId: Long, trackIndex: Int, direction: Int): Boolean {

@@ -327,6 +327,14 @@ public final class AppLanguage {
         put("library.scan.reloading", "Loading updated library…", "\u6b63\u5728\u52a0\u8f7d\u66f4\u65b0\u540e\u7684\u66f2\u5e93\u2026");
         put("library.scan.slow", "Library scan is taking longer than usual. You can scan again to retry.", "\u66f2\u5e93\u626b\u63cf\u65f6\u95f4\u8f83\u957f\uff0c\u53ef\u518d\u6b21\u70b9\u51fb\u201c\u626b\u63cf\u66f2\u5e93\u201d\u91cd\u8bd5\u3002");
         put("library.scan.failed", "Library scan failed. Please retry.", "\u66f2\u5e93\u626b\u63cf\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.import.failed", "Audio import failed. Check file access and retry.", "\u97f3\u9891\u5bfc\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u6587\u4ef6\u6743\u9650\u540e\u91cd\u8bd5\u3002");
+        put("library.collections.failed", "Library collections failed to load. Please retry.", "\u66f2\u5e93\u96c6\u5408\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.favorite.failed", "Some tracks could not be favorited. Please retry.", "\u90e8\u5206\u6b4c\u66f2\u6536\u85cf\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.restore.failed", "Hidden library items could not be restored. Please retry.", "\u9690\u85cf\u7684\u66f2\u5e93\u9879\u6062\u590d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.playlist.load.failed", "Playlist failed to load. Please retry.", "\u6b4c\u5355\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.history.clear.failed", "Play history could not be cleared. Please retry.", "\u64ad\u653e\u5386\u53f2\u6e05\u7a7a\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.playlist.action.failed", "Playlist operation failed. Please retry.", "\u6b4c\u5355\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("audio.specs.failed", "Audio details could not be parsed.", "\u97f3\u9891\u89c4\u683c\u89e3\u6790\u5931\u8d25\u3002");
         put("library.scan.timeout", "Library scan timed out. Please retry.", "\u66f2\u5e93\u626b\u63cf\u8d85\u65f6\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("playback.service.unavailable", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
         put("playback.service.unavailable.description", "Return to the library and start a track to initialize playback controls.", "\u8fd4\u56de\u66f2\u5e93\u5e76\u64ad\u653e\u4e00\u9996\u6b4c\uff0c\u5373\u53ef\u542f\u7528\u64ad\u653e\u63a7\u5236\u3002");
@@ -334,7 +342,10 @@ public final class AppLanguage {
         put("theme.options", "Follow system / Fresh light / Soft dark / AMOLED", "\u8ddf\u968f\u7cfb\u7edf / \u6e05\u65b0\u6d45\u8272 / \u67d4\u548c\u6df1\u8272 / AMOLED");
         put("advanced.themes", "Advanced themes", "\u9ad8\u7ea7\u4e3b\u9898");
         put("advanced.themes.description", "Extra palettes for advanced customization.", "\u66f4\u591a\u9ad8\u7ea7\u81ea\u5b9a\u4e49\u914d\u8272\u3002");
-        put("accent.options", "Blue / Teal / Rose / Violet / Amber / Emerald", "\u84dd\u8272 / \u9752\u7eff / \u73ab\u7ea2 / \u7d2b\u7f57\u5170 / \u7425\u73c0 / \u7fe0\u7eff");
+        put("accent.options", "Dynamic color or a fixed accent", "\u52a8\u6001\u53d6\u8272\u6216\u56fa\u5b9a\u5f3a\u8c03\u8272");
+        put("accent.dynamic.system.description", "Use the accent extracted from the system wallpaper.", "\u4f7f\u7528\u4ece\u7cfb\u7edf\u58c1\u7eb8\u63d0\u53d6\u7684\u5f3a\u8c03\u8272\u3002");
+        put("accent.dynamic.background.description", "Use the global custom background first, then the Settings and other page backgrounds.", "\u4f18\u5148\u4ece\u5168\u5c40\u81ea\u5b9a\u4e49\u80cc\u666f\u53d6\u8272\uff0c\u5176\u6b21\u4f7f\u7528\u8bbe\u7f6e\u9875\u548c\u5176\u4ed6\u9875\u9762\u80cc\u666f\u3002");
+        put("accent.dynamic.background.missing", "Set a custom background first.", "\u8bf7\u5148\u8bbe\u7f6e\u81ea\u5b9a\u4e49\u80cc\u666f\u3002");
         put("language.options", "System / Chinese / English", "\u8ddf\u968f\u7cfb\u7edf / \u4e2d\u6587 / English");
         put("streaming.gateway.description", "Android calls this gateway for provider search, auth, and playback URL resolution. Leave empty to use the in-app local login fallback.", "Android \u901a\u8fc7\u6b64\u7f51\u5173\u8c03\u7528\u6d41\u5a92\u4f53\u641c\u7d22\u3001\u767b\u5f55\u548c\u64ad\u653e URL \u89e3\u6790\u3002\u7559\u7a7a\u53ef\u4f7f\u7528\u672c\u5730\u767b\u5f55\u56de\u9000\u3002");
         put("share.style", "Share style", "\u5206\u4eab\u6837\u5f0f");
@@ -634,13 +645,29 @@ public final class AppLanguage {
         put("streaming.lx.source.none", "No valid LX source script found", "\u672a\u627e\u5230\u6709\u6548\u7684 LX \u97f3\u6e90\u811a\u672c");
         put("streaming.lx.source.manage", "Manage imported sources", "\u7ba1\u7406\u5df2\u5bfc\u5165\u97f3\u6e90");
         put("streaming.lx.source.manager", "LX source manager", "LX \u97f3\u6e90\u7ba1\u7406");
+        put("streaming.settings", "Streaming & sources", "\u6d41\u5a92\u4f53\u4e0e\u97f3\u6e90");
+        put("streaming.providers.manage", "Online providers & accounts", "\u5728\u7ebf\u97f3\u6e90\u4e0e\u8d26\u53f7");
+        put("streaming.providers.manage.hint", "Search providers, sign in to accounts, and manage online playlists", "\u641c\u7d22\u97f3\u6e90\u3001\u767b\u5f55\u8d26\u53f7\u5e76\u7ba1\u7406\u5728\u7ebf\u6b4c\u5355");
+        put("streaming.lx.source.manager.hint", "Enable, disable, reorder, update, or remove each imported LX source", "\u5355\u72ec\u542f\u505c\u3001\u8c03\u6574\u4f18\u5148\u7ea7\u3001\u66f4\u65b0\u6216\u5220\u9664\u6bcf\u4e2a LX \u97f3\u6e90");
         put("streaming.lx.source.empty", "No imported LX sources", "\u5c1a\u672a\u5bfc\u5165 LX \u97f3\u6e90");
         put("streaming.lx.source.enabled", "Enabled", "\u5df2\u542f\u7528");
         put("streaming.lx.source.disabled", "Disabled", "\u5df2\u505c\u7528");
+        put("streaming.lx.source.missing.script", "Script missing", "\u811a\u672c\u7f3a\u5931");
         put("streaming.lx.source.enable", "Enable source", "\u542f\u7528\u97f3\u6e90");
         put("streaming.lx.source.disable", "Disable source", "\u505c\u7528\u97f3\u6e90");
         put("streaming.lx.source.move.up", "Move up", "\u4e0a\u79fb");
         put("streaming.lx.source.move.down", "Move down", "\u4e0b\u79fb");
+        put("streaming.lx.source.update", "Update from original link", "\u4ece\u539f\u94fe\u63a5\u66f4\u65b0");
+        put("streaming.lx.source.import.new", "Import another LX source", "\u5bfc\u5165\u65b0 LX \u97f3\u6e90");
+        put("streaming.lx.source.enable.all", "Enable all sources", "\u5168\u90e8\u542f\u7528");
+        put("streaming.lx.source.disable.all", "Disable all sources", "\u5168\u90e8\u505c\u7528");
+        put("streaming.lx.source.enabled.count", "Enabled: ", "\u5df2\u542f\u7528\uff1a");
+        put("streaming.lx.source.priority", "Priority", "\u4f18\u5148\u7ea7");
+        put("streaming.lx.source.capabilities", "Source types", "\u652f\u6301\u5b50\u6e90");
+        put("streaming.lx.source.origin", "Origin", "\u6765\u6e90");
+        put("streaming.lx.source.author", "Author", "\u4f5c\u8005");
+        put("streaming.lx.source.version", "Version", "\u7248\u672c");
+        put("streaming.lx.source.unspecified", "Not declared", "\u672a\u58f0\u660e");
         put("streaming.lx.source.remove", "Remove source", "\u5220\u9664\u97f3\u6e90");
         put("streaming.lx.source.remove.confirm", "Remove this LX source?", "\u5220\u9664\u8fd9\u4e2a LX \u97f3\u6e90\uff1f");
         put("streaming.lx.source.updated", "LX source settings updated", "LX \u97f3\u6e90\u8bbe\u7f6e\u5df2\u66f4\u65b0");
@@ -818,6 +845,10 @@ public final class AppLanguage {
             return accentLabelEn(accentMode);
         }
         switch (EchoTheme.normalizeAccent(accentMode)) {
+            case EchoTheme.ACCENT_DYNAMIC_SYSTEM:
+                return "\u7cfb\u7edf\u58c1\u7eb8\u53d6\u8272";
+            case EchoTheme.ACCENT_DYNAMIC_BACKGROUND:
+                return "\u81ea\u5b9a\u4e49\u80cc\u666f\u53d6\u8272";
             case EchoTheme.ACCENT_TEAL:
                 return "\u9752\u7eff";
             case EchoTheme.ACCENT_ROSE:
@@ -880,6 +911,10 @@ public final class AppLanguage {
 
     private static String accentLabelEn(String accentMode) {
         switch (EchoTheme.normalizeAccent(accentMode)) {
+            case EchoTheme.ACCENT_DYNAMIC_SYSTEM:
+                return "System wallpaper color";
+            case EchoTheme.ACCENT_DYNAMIC_BACKGROUND:
+                return "Custom background color";
             case EchoTheme.ACCENT_TEAL:
                 return "Teal";
             case EchoTheme.ACCENT_ROSE:

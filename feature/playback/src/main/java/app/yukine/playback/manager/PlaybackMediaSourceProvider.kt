@@ -18,6 +18,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -257,7 +258,7 @@ internal class PlaybackMediaSourceProvider(
 
         @JvmStatic
         fun isRestorableQueueTrack(track: Track?): Boolean {
-            if (track == null || track.id < 0L) {
+            if (track == null || !TrackIdentity.isUsable(track.id)) {
                 return false
             }
             if (track.dataPath.isNullOrBlank()) {

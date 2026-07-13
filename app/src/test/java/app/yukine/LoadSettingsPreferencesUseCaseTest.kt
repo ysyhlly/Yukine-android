@@ -9,6 +9,19 @@ import org.junit.Test
 
 class LoadSettingsPreferencesUseCaseTest {
     @Test
+    fun migratesLegacyDynamicThemeToSystemThemeAndDynamicAccent() {
+        val operations = FakeSettingsPreferenceLoadOperations().apply {
+            themeMode = EchoTheme.MODE_DYNAMIC
+            accentMode = EchoTheme.ACCENT_ROSE
+        }
+
+        val result = LoadSettingsPreferencesUseCase(operations).execute()
+
+        assertEquals(EchoTheme.MODE_SYSTEM, result.themeMode)
+        assertEquals(EchoTheme.ACCENT_DYNAMIC_SYSTEM, result.accentMode)
+    }
+
+    @Test
     fun loadsAndNormalizesSettingsPreferences() {
         val operations = FakeSettingsPreferenceLoadOperations()
         operations.themeMode = "bad-theme"

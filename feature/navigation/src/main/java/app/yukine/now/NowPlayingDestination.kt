@@ -8,6 +8,7 @@ import app.yukine.NowPlayingEvent
 import app.yukine.TrackDownloadItem
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.EchoStateCard
@@ -38,7 +39,7 @@ fun NowPlayingDestination(
 ) {
     val uiState by state.collectAsState()
     val track = uiState.currentTrack
-    if (track == null || uiState.trackId < 0L) {
+    if (track == null || !TrackIdentity.isUsable(uiState.trackId)) {
         EchoStateCard(
             title = "还没有正在播放",
             description = "播放一首歌后，这里会显示封面、歌词和队列信息。"

@@ -40,6 +40,8 @@ interface LuoxueSourceStoreManager {
 
     fun setEnabled(sourceId: String, enabled: Boolean): Boolean
 
+    fun setAllEnabled(enabled: Boolean): Boolean
+
     /**
      * Moves a source by one position. [direction] must be negative for up or positive for down.
      */
@@ -122,6 +124,13 @@ class LuoxueSourceStore(context: Context) : LuoxueSourceStoreManager {
         if (current[index].enabled == enabled) return true
         current[index] = current[index].copy(enabled = enabled)
         return writeMetadata(normalizeOrder(current))
+    }
+
+    @Synchronized
+    override fun setAllEnabled(enabled: Boolean): Boolean {
+        val current = normalizeOrder(load())
+        if (current.isEmpty()) return false
+        return writeMetadata(current.map { it.copy(enabled = enabled) })
     }
 
     @Synchronized

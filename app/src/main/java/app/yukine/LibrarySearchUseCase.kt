@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 
 internal interface LibrarySearchOperations {
     fun search(source: List<Track>, query: String?): List<Track>
@@ -45,7 +46,7 @@ internal class LibraryCombinedSearchUseCase(
     }
 
     private fun trackSearchKey(track: Track): String =
-        if (track.id >= 0L) {
+        if (TrackIdentity.isUsable(track.id)) {
             "id:${track.id}"
         } else {
             "path:${track.dataPath.orEmpty()}"

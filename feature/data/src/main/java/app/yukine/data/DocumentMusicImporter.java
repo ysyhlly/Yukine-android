@@ -17,6 +17,7 @@ import java.util.Locale;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentity;
 
 public final class DocumentMusicImporter {
     private static final int MAX_TREE_DEPTH = 12;
@@ -225,6 +226,6 @@ public final class DocumentMusicImporter {
             value = (value << 8) | (digest[i] & 0xffL);
         }
         value = value & Long.MAX_VALUE;
-        return value == 0L ? -1L : -value;
+        return TrackIdentity.stableNegative(-value);
     }
 }

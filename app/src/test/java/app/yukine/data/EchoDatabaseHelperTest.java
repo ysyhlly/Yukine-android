@@ -280,6 +280,31 @@ public final class EchoDatabaseHelperTest {
     }
 
     @Test
+    public void replaceTracksCleansReferencesForMediaStoreRowsThatDisappeared() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
+        Track removed = localTrack(1_015L, "RemovedFromDevice");
+        Track retained = localTrack(1_016L, "StillOnDevice");
+        helper.upsertTracks(Arrays.asList(removed, retained));
+        helper.setFavorite(removed.id, true);
+        helper.markPlayed(removed.id);
+        long playlistId = helper.createPlaylist("Cleanup");
+        Assert.assertTrue(helper.addTrackToPlaylist(playlistId, removed.id));
+        helper.savePlaybackQueue(Arrays.asList(removed, retained), 0);
+        helper.savePlaybackPosition(removed.id, 500L);
+
+        helper.replaceTracks(Collections.singletonList(retained));
+
+        Assert.assertFalse(helper.loadFavoriteIds().contains(removed.id));
+        Assert.assertTrue(helper.loadRecentlyPlayed(10).isEmpty());
+        Assert.assertTrue(helper.loadPlaylistTracks(playlistId).isEmpty());
+        Assert.assertEquals(1, helper.loadPlaybackQueueTracks().size());
+        Assert.assertEquals(retained.id, helper.loadPlaybackQueueTracks().get(0).id);
+        Assert.assertEquals(0, helper.loadPlaybackQueueIndex());
+        Assert.assertEquals(-1L, helper.loadPlaybackPositionTrackId());
+        Assert.assertEquals(0L, helper.loadPlaybackPositionMs());
+    }
+
+    @Test
     public void loadTracksNeedingAudioSpecsLimitsAndExcludesRemoteTracks() {
         helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
         Track first = localTrack(1_021L, "NeedsSpecsFirst");
@@ -661,12 +686,24 @@ public final class EchoDatabaseHelperTest {
                 new String[]{String.valueOf(playlistId)}
         );
 
-        helper.removeTrackFromPlaylist(playlistId, first.id);
+        Assert.assertFalse(helper.removeTrackFromPlaylist(playlistId, first.id));
 
         List<Track> playlistTracks = helper.loadPlaylistTracks(playlistId);
         Assert.assertEquals(2, playlistTracks.size());
         Assert.assertEquals(first.id, playlistTracks.get(0).id);
         Assert.assertEquals(second.id, playlistTracks.get(1).id);
+    }
+
+    @Test
+    public void removeTrackFromPlaylistReportsWhetherMembershipChanged() {
+        helper = new EchoDatabaseHelper(ApplicationProvider.getApplicationContext(), TRANSACTION_DATABASE);
+        Track track = localTrack(1_923L, "RemoveResult");
+        helper.upsertTracks(Arrays.asList(track));
+        long playlistId = helper.createPlaylist("RemoveResult");
+        Assert.assertTrue(helper.addTrackToPlaylist(playlistId, track.id));
+
+        Assert.assertTrue(helper.removeTrackFromPlaylist(playlistId, track.id));
+        Assert.assertFalse(helper.removeTrackFromPlaylist(playlistId, track.id));
     }
 
     @Test

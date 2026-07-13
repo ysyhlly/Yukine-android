@@ -263,6 +263,34 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun refreshSettingsContextLoadsOffTheCallerPathAndRebuildsRenderedPage() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val preferences = SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_ENGLISH)
+        val runtime = RuntimeSettingsStatus(librarySongCount = 12)
+        var loads = 0
+        viewModel.bindContextLoader {
+            loads += 1
+            SettingsContextSnapshot(preferences, runtime)
+        }
+        viewModel.renderPageFromHost(
+            SettingsPage.Library,
+            SettingsPreferencesSnapshot(),
+            RuntimeSettingsStatus()
+        )
+
+        viewModel.refreshSettingsContext()
+        assertEquals(0, loads)
+        advanceUntilIdle()
+
+        assertEquals(1, loads)
+        assertEquals(preferences, viewModel.state.value.preferences)
+        assertEquals(runtime, viewModel.state.value.runtime)
+        assertEquals(SettingsPage.Library, viewModel.state.value.page)
+        assertTrue(viewModel.uiState.value.metrics.any { it.value == "12" })
+    }
+
+    @Test
     fun onEventAppliesPurePreferencesWithoutGateway() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = SettingsViewModel(dispatcher)
@@ -314,6 +342,7 @@ class SettingsViewModelTest {
             runtimeEffects.map { effect ->
                 when (effect) {
                     SettingsRuntimeEffect.ApplyThemeSurface -> "theme"
+                    is SettingsRuntimeEffect.RefreshCustomBackgroundAccent -> "accentRefresh"
                     is SettingsRuntimeEffect.ApplyPlaybackSpeed -> "speed:${effect.speed}"
                     is SettingsRuntimeEffect.ApplyAppVolume -> "volume:${effect.volume}"
                     is SettingsRuntimeEffect.SetConcurrentPlaybackEnabled -> "concurrent:${effect.enabled}"
@@ -506,7 +535,23 @@ class SettingsViewModelTest {
             viewModel.drainEffects()
         )
         assertEquals(SettingsPage.SourcesGroup, viewModel.state.value.page)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.sources"), viewModel.state.value.ui.title)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.settings"), viewModel.state.value.ui.title)
+    }
+
+    @Test
+    fun luoxueSettingsActionsEmitDirectManagerAndImportEffects() {
+        val viewModel = SettingsViewModel()
+
+        viewModel.onEvent(SettingsEvent.OpenLuoxueSourceManager)
+        viewModel.onEvent(SettingsEvent.ImportLuoxueSource)
+
+        assertEquals(
+            listOf(
+                SettingsEffect.OpenLuoxueSourceManager,
+                SettingsEffect.ImportLuoxueSource
+            ),
+            viewModel.drainEffects()
+        )
     }
 
     @Test

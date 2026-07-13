@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.StreamImportResult
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentity
 
 internal data class NetworkLibrarySnapshot(
     val cached: List<Track>,
@@ -141,7 +142,7 @@ internal class DeleteNetworkTrackUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(trackId: Long): NetworkLibrarySnapshot {
-        if (trackId >= 0L) {
+        if (TrackIdentity.isUsable(trackId)) {
             operations.deleteTrack(trackId)
         }
         return operations.snapshot()

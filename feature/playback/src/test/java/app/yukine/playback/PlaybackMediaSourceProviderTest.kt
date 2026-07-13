@@ -443,6 +443,7 @@ class PlaybackMediaSourceProviderTest {
         val emptyLocalUri = Track(6L, "Local", "Artist", "Album", 180_000L, Uri.EMPTY, "/music/6")
         val missingDataPath = Track(7L, "Missing Data", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/7"), "")
         val invalidId = Track(-1L, "Invalid", "Artist", "Album", 180_000L, Uri.parse("content://media/audio/8"), "/music/8")
+        val importedDocument = Track(-42L, "Imported", "Artist", "Album", 180_000L, Uri.parse("content://documents/audio/42"), "document:content://documents/audio/42")
 
         assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(existingFileTrack))
         assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(missingFileTrack))
@@ -452,6 +453,7 @@ class PlaybackMediaSourceProviderTest {
         assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(emptyLocalUri))
         assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(missingDataPath))
         assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(invalidId))
+        assertTrue(PlaybackMediaSourceProvider.isRestorableQueueTrack(importedDocument))
         assertFalse(PlaybackMediaSourceProvider.isRestorableQueueTrack(null))
     }
 
