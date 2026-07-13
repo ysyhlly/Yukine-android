@@ -15,7 +15,7 @@ private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
 private val CROSS_SOURCE_ARTIST_JOINERS = setOf("and", "feat", "featuring", "ft", "with", "和", "与")
 
 /** Owns streaming search requests, pagination, aggregation and match ranking. */
-internal class StreamingSearchStateOwner(
+class StreamingSearchStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val stateOwner: StreamingFeatureStateOwner,
     private val repository: () -> StreamingRepository

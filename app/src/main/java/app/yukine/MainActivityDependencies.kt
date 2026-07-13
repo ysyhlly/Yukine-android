@@ -14,6 +14,7 @@ internal class MainActivityDependencies @Inject constructor(
     val luoxueSourceStore: LuoxueSourceStore,
     val luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver,
     val streamingCacheRepository: StreamingCacheRepository,
+    val streamingRepositorySource: StreamingRepositorySource,
     val streamingPlaybackTaskScheduler: StreamingPlaybackTaskScheduler,
     val resolveStreamingPlaybackUseCase: ResolveStreamingPlaybackUseCase,
     val streamingTrackMatchUseCase: StreamingTrackMatchUseCase,

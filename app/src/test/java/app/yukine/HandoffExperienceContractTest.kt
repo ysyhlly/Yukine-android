@@ -11,7 +11,7 @@ class HandoffExperienceContractTest {
     @Test
     fun nowPlayingSwipeDownClosesWithoutVolumeGesture() {
         val screen = read("feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt")
-        val language = read("app/src/main/java/app/yukine/AppLanguage.java")
+        val language = read("core/designsystem/src/main/java/app/yukine/AppLanguage.java")
 
         assertTrue(screen.contains("actions.onClose.run()"))
         assertTrue(screen.contains("totalY > 0f"))
@@ -56,7 +56,7 @@ class HandoffExperienceContractTest {
 
     @Test
     fun streamingSearchFiltersOutNonSongResults() {
-        val searchOwner = read("app/src/main/java/app/yukine/StreamingSearchStateOwner.kt")
+        val searchOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingSearchStateOwner.kt")
         val screen = read("feature/streaming-ui/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
 
         assertTrue(searchOwner.contains("trackOnlySearchResult()"))

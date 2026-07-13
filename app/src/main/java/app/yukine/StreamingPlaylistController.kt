@@ -92,11 +92,12 @@ internal class StreamingPlaylistController(
             listener.selectedStreamingProvider(),
             languageMode
         )
-        if (!request.valid || request.provider == null) {
+        val provider = request.provider
+        if (!request.valid || provider == null) {
             listener.setStatus(request.invalidStatus)
             return
         }
-        importStreamingPlaylist(request.provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        importStreamingPlaylist(provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
     }
 
     fun importStreamingPlaylistFromProviderRef(
@@ -109,11 +110,12 @@ internal class StreamingPlaylistController(
             provider,
             languageMode
         )
-        if (!request.valid || request.provider == null) {
+        val requestProvider = request.provider
+        if (!request.valid || requestProvider == null) {
             listener.setStatus(request.invalidStatus)
             return
         }
-        importStreamingPlaylist(request.provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        importStreamingPlaylist(requestProvider, request.providerPlaylistId, request.resolvingStatus, languageMode)
     }
 
     fun importStreamingLikedTracks(provider: StreamingProviderName?) {
@@ -138,10 +140,11 @@ internal class StreamingPlaylistController(
         )
             ?: return
         listener.setStatus(request.status)
-        if (!request.valid || request.link == null) {
+        val link = request.link
+        if (!request.valid || link == null) {
             return
         }
-        syncStreamingPlaylist(request.link, languageMode)
+        syncStreamingPlaylist(link, languageMode)
     }
 
     fun syncStreamingPlaylists(links: List<StreamingPlaylistSyncStore.LinkedPlaylist>) {

@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /** Owns streaming playback URL resolution, recovery, pre-resolution and track-match persistence. */
-internal class StreamingPlaybackResolutionStateOwner(
+class StreamingPlaybackResolutionStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val stateOwner: StreamingFeatureStateOwner,
     private val repository: () -> StreamingRepository,

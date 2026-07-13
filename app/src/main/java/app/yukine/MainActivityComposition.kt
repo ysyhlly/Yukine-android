@@ -43,6 +43,7 @@ internal class MainActivityComposition @Inject constructor(
             deps.settingsStore,
             platform.statusMessages(),
             deps.streamingGatewaySettingsStore,
+            deps.streamingRepositorySource,
             deps.streamingCacheRepository,
             deps.streamingPlaybackTaskScheduler,
             deps.resolveStreamingPlaybackUseCase,

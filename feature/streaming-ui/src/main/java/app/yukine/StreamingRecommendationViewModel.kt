@@ -12,7 +12,6 @@ import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingTrackMatchPolicy
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 data class StreamingRecommendationState(
     val loading: Boolean = false,
@@ -28,7 +26,7 @@ data class StreamingRecommendationState(
     val diagnostics: StreamingGatewayDiagnostics = StreamingGatewayDiagnostics()
 )
 
-internal interface HeartbeatRecommendationPlayer {
+interface HeartbeatRecommendationPlayer {
     fun stopHeartbeatRecommendationMode()
 
     fun canContinueHeartbeatRecommendationLoading(provider: StreamingProviderName): Boolean
@@ -73,19 +71,21 @@ internal interface HeartbeatRecommendationPlayer {
     ): StreamingRecommendationPresentation
 }
 
-@HiltViewModel
-class StreamingRecommendationViewModel @Inject constructor(
-    private val streamingRepositorySource: StreamingRepositorySource
+class StreamingRecommendationViewModel @JvmOverloads constructor(
+    private var streamingRepositorySource: StreamingRepositorySource = EmptyStreamingRepositorySource
 ) : ViewModel(), HeartbeatRecommendationPlayer {
-    constructor() : this(EmptyStreamingRepositorySource)
-
-    private val dailyRecommendationUseCase = StreamingDailyRecommendationUseCase(streamingRepositorySource)
+    private var dailyRecommendationUseCase = StreamingDailyRecommendationUseCase(streamingRepositorySource)
     private val heartbeatRecommendationUseCase = StreamingHeartbeatRecommendationUseCase()
     private val recommendationState = MutableStateFlow(StreamingRecommendationState())
     private var providers: List<StreamingProviderDescriptor> = emptyList()
     private var streamingTrackMatchStore: StreamingTrackMatchStore? = null
 
     val state: StateFlow<StreamingRecommendationState> = recommendationState.asStateFlow()
+
+    fun bindRepositorySource(source: StreamingRepositorySource?) {
+        streamingRepositorySource = source ?: EmptyStreamingRepositorySource
+        dailyRecommendationUseCase = StreamingDailyRecommendationUseCase(streamingRepositorySource)
+    }
 
     fun updateProviders(nextProviders: List<StreamingProviderDescriptor>) {
         providers = nextProviders

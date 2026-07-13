@@ -3,6 +3,7 @@ package app.yukine
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.test.runTest
 import java.util.function.Consumer
 import java.util.function.Supplier
 
@@ -11,7 +12,7 @@ class StreamingProviderSettingsOwnerTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun endpointChangePersistsReconfiguresAndPublishesStatus() {
+    fun endpointChangePersistsReconfiguresAndPublishesStatus() = runTest {
         val store = InMemoryEndpointStore()
         val statuses = mutableListOf<String>()
         val owner = StreamingProviderSettingsOwner(
@@ -22,7 +23,7 @@ class StreamingProviderSettingsOwnerTest {
             Consumer { statuses += it }
         )
 
-        owner.applyEndpoint("http://127.0.0.1:43990")
+        owner.applyEndpoint("http://127.0.0.1:43990").join()
 
         assertEquals("http://127.0.0.1:43990", store.endpoint())
         assertEquals(

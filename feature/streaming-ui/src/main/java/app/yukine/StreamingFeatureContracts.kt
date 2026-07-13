@@ -20,7 +20,7 @@ import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
 import kotlinx.coroutines.Job
 
-internal const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
+const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
 
 data class StreamingManualCookieDialogState(
     val provider: StreamingProviderName? = null,

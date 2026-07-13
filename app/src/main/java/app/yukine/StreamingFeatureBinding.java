@@ -70,6 +70,7 @@ final class StreamingFeatureBinding {
             MainSettingsStore settingsStore,
             StatusMessageController statusMessages,
             StreamingGatewaySettingsStore gatewaySettingsStore,
+            StreamingRepositorySource streamingRepositorySource,
             StreamingCacheRepository cacheRepository,
             StreamingPlaybackTaskScheduler playbackTaskScheduler,
             ResolveStreamingPlaybackUseCase resolvePlaybackUseCase,
@@ -90,6 +91,8 @@ final class StreamingFeatureBinding {
         this.luoxueTrackMetadataResolver = luoxueTrackMetadataResolver;
         this.viewModel = viewModels.getStreamingViewModel();
         this.recommendationViewModel = viewModels.getStreamingRecommendationViewModel();
+        this.viewModel.bindRepositorySource(streamingRepositorySource);
+        this.recommendationViewModel.bindRepositorySource(streamingRepositorySource);
         this.qualityPolicy = new StreamingPlaybackQualityPolicy(activity, settingsStore);
         this.providerSettingsOwner = new StreamingProviderSettingsOwner(
                 gatewaySettingsStore,

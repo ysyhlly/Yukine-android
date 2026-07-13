@@ -13,7 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Owns provider discovery, authentication and foreground session maintenance. */
-internal class StreamingAuthStateOwner(
+class StreamingAuthStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val stateOwner: StreamingFeatureStateOwner,
     private val repository: () -> StreamingRepository

@@ -335,12 +335,12 @@ public final class MainActivityArchitectureContractTest {
 
     @Test
     public void streamingAuthHasFocusedOwnerAndOneMutableStateStore() throws Exception {
-        String viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
-        String stateOwner = read("app/src/main/java/app/yukine/StreamingFeatureStateOwner.kt");
-        String authOwner = read("app/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
-        String searchOwner = read("app/src/main/java/app/yukine/StreamingSearchStateOwner.kt");
-        String resolutionOwner = read("app/src/main/java/app/yukine/StreamingPlaybackResolutionStateOwner.kt");
-        String playlistOwner = read("app/src/main/java/app/yukine/StreamingPlaylistStateOwner.kt");
+        String viewModel = read("feature/streaming-ui/src/main/java/app/yukine/StreamingViewModel.kt");
+        String stateOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingFeatureStateOwner.kt");
+        String authOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
+        String searchOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingSearchStateOwner.kt");
+        String resolutionOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingPlaybackResolutionStateOwner.kt");
+        String playlistOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingPlaylistStateOwner.kt");
         String statusFactory = read("app/src/main/java/app/yukine/StreamingStatusTextFactory.kt");
         String actions = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
         String playlistController = read("app/src/main/java/app/yukine/StreamingPlaylistController.kt");
@@ -352,20 +352,20 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(viewModel.contains("MutableStateFlow(StreamingSearchState())"));
         assertFalse(viewModel.contains("streamingState.value ="));
         assertTrue(stateOwner.contains("private val mutableState = MutableStateFlow(initial)"));
-        assertTrue(authOwner.contains("class StreamingAuthStateOwner("));
+        assertTrue(authOwner.contains("class StreamingAuthStateOwner internal constructor("));
         assertTrue(authOwner.contains("fun refreshProviders(): Job"));
         assertTrue(authOwner.contains("fun completeAuth("));
         assertTrue(authOwner.contains("fun maintainSessions(): Job"));
-        assertTrue(searchOwner.contains("class StreamingSearchStateOwner("));
+        assertTrue(searchOwner.contains("class StreamingSearchStateOwner internal constructor("));
         assertTrue(searchOwner.contains("fun searchAllStreaming("));
         assertTrue(searchOwner.contains("private fun mergeStreamingSearchResults("));
         assertTrue(searchOwner.contains("private fun levenshteinDistance("));
-        assertTrue(resolutionOwner.contains("class StreamingPlaybackResolutionStateOwner("));
+        assertTrue(resolutionOwner.contains("class StreamingPlaybackResolutionStateOwner internal constructor("));
         assertTrue(resolutionOwner.contains("private var playbackPlanner:"));
         assertTrue(resolutionOwner.contains("private val queueWindowPreResolveInFlight"));
         assertTrue(resolutionOwner.contains("fun recoverStreamingBuffering("));
         assertTrue(resolutionOwner.contains("fun resolveStreamingTrackListForPlayback("));
-        assertTrue(playlistOwner.contains("class StreamingPlaylistStateOwner("));
+        assertTrue(playlistOwner.contains("class StreamingPlaylistStateOwner internal constructor("));
         assertTrue(playlistOwner.contains("private val playlistDataCoordinator"));
         assertTrue(playlistOwner.contains("fun importAccountPlaylistsToLocal("));
         assertTrue(playlistOwner.contains("fun syncStreamingPlaylistToLocal("));
@@ -387,6 +387,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackController.contains("StreamingStatusTextFactory.playback("));
         assertTrue(playlistController.contains("StreamingStatusTextFactory.playback("));
         assertTrue(featureBinding.contains("StreamingStatusTextFactory.playback("));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/StreamingViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/StreamingRecommendationViewModel.kt")));
     }
 
     @Test

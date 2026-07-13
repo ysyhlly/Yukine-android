@@ -82,7 +82,7 @@ interface StreamingSourceSwitchPlanner {
     fun prepareSourceSwitch(track: Track?): StreamingSourceSwitchResolveRequest?
 }
 
-internal class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
+class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val preResolveRemainingMs: Long = 45_000L,
     private val preResolveProgress: Float = 0.70f,

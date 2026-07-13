@@ -3,63 +3,63 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.streaming.StreamingRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 internal const val STREAMING_QUEUE_PRE_RESOLVE_LIMIT = 3
 // Kept as source-compatible aliases for existing callers/tests; the coordinator owns the limits.
-internal const val STREAMING_PLAYLIST_PAGE_SIZE =
+const val STREAMING_PLAYLIST_PAGE_SIZE =
     StreamingPlaylistDataCoordinator.STREAMING_PLAYLIST_PAGE_SIZE
-internal const val STREAMING_PLAYLIST_MAX_PAGES =
+const val STREAMING_PLAYLIST_MAX_PAGES =
     StreamingPlaylistDataCoordinator.STREAMING_PLAYLIST_MAX_PAGES
 
-@HiltViewModel
-class StreamingViewModel @Inject constructor(
-    private val streamingRepositorySource: StreamingRepositorySource
+class StreamingViewModel @JvmOverloads constructor(
+    private var streamingRepositorySource: StreamingRepositorySource = EmptyStreamingRepositorySource
 ) : ViewModel() {
-    constructor() : this(EmptyStreamingRepositorySource)
-
     private val streamingState = StreamingFeatureStateOwner()
     private var streamingRepository: StreamingRepository = streamingRepositorySource.current()
     private var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-    internal val auth = StreamingAuthStateOwner(
+    val auth = StreamingAuthStateOwner(
         scope = viewModelScope,
         stateOwner = streamingState,
         repository = { streamingRepository }
     )
-    internal val search = StreamingSearchStateOwner(
+    val search = StreamingSearchStateOwner(
         scope = viewModelScope,
         stateOwner = streamingState,
         repository = { streamingRepository }
     )
-    internal val playbackResolution = StreamingPlaybackResolutionStateOwner(
+    val playbackResolution = StreamingPlaybackResolutionStateOwner(
         scope = viewModelScope,
         stateOwner = streamingState,
         repository = { streamingRepository },
         ioDispatcher = { ioDispatcher }
     )
-    internal val playlists = StreamingPlaylistStateOwner(
+    val playlists = StreamingPlaylistStateOwner(
         scope = viewModelScope,
         stateOwner = streamingState,
         repository = { streamingRepository },
         ioDispatcher = { ioDispatcher }
     )
     @JvmName("playbackResolutionOwner")
-    internal fun playbackResolutionOwner(): StreamingPlaybackResolutionStateOwner = playbackResolution
+    fun playbackResolutionOwner(): StreamingPlaybackResolutionStateOwner = playbackResolution
     @JvmName("playlistOwner")
-    internal fun playlistOwner(): StreamingPlaylistStateOwner = playlists
+    fun playlistOwner(): StreamingPlaylistStateOwner = playlists
     @JvmName("searchOwner")
-    internal fun searchOwner(): StreamingSearchStateOwner = search
+    fun searchOwner(): StreamingSearchStateOwner = search
     @JvmName("authOwner")
-    internal fun authOwner(): StreamingAuthStateOwner = auth
+    fun authOwner(): StreamingAuthStateOwner = auth
     val streaming: StateFlow<StreamingSearchState> = streamingState.state
     val state: StreamingSearchState
         get() = streamingState.value
+
+    fun bindRepositorySource(source: StreamingRepositorySource?) {
+        streamingRepositorySource = source ?: EmptyStreamingRepositorySource
+        streamingRepository = streamingRepositorySource.current()
+    }
 
     fun bindStreamingRepository(repository: StreamingRepository) {
         streamingRepository = repository
@@ -69,7 +69,7 @@ class StreamingViewModel @Inject constructor(
      * Test-only seam: lets unit tests inject a deterministic dispatcher so background resolves run
      * on the test scheduler instead of the real IO thread pool. Production keeps [Dispatchers.IO].
      */
-    internal fun bindIoDispatcherForTest(dispatcher: CoroutineDispatcher) {
+    fun bindIoDispatcherForTest(dispatcher: CoroutineDispatcher) {
         ioDispatcher = dispatcher
     }
 

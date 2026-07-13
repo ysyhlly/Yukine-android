@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Owns account playlists, imports, sync, export presentation and local playlist links. */
-internal class StreamingPlaylistStateOwner(
+class StreamingPlaylistStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val stateOwner: StreamingFeatureStateOwner,
     private val repository: () -> StreamingRepository,
