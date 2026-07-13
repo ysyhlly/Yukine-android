@@ -3,76 +3,67 @@ package app.yukine.data;
 import app.yukine.PageBackgrounds;
 import app.yukine.TrackShareStyle;
 import app.yukine.playback.AudioEffectSettings;
-import app.yukine.streaming.StreamingQualityPreference;
 
-/**
- * Owns the settings-table boundary. EchoDatabaseHelper remains responsible for schema creation
- * and transactional playback-queue updates, while settings callers do not need to know how the
- * generic settings table is encoded.
- */
+/** Temporary compatibility shell removed when MusicLibraryRepository switches to Room. */
 final class EchoSettingsStore {
     private final EchoDatabaseHelper database;
 
-    EchoSettingsStore(EchoDatabaseHelper database) {
-        this.database = database;
-    }
+    EchoSettingsStore(EchoDatabaseHelper database) { this.database = database; }
 
     String loadThemeMode() { return database.loadThemeMode(); }
-    void saveThemeMode(String mode) { database.saveThemeMode(mode); }
+    void saveThemeMode(String value) { database.saveThemeMode(value); }
     String loadAccentMode() { return database.loadAccentMode(); }
-    void saveAccentMode(String accent) { database.saveAccentMode(accent); }
+    void saveAccentMode(String value) { database.saveAccentMode(value); }
     String loadLanguageMode() { return database.loadLanguageMode(); }
-    void saveLanguageMode(String languageMode) { database.saveLanguageMode(languageMode); }
+    void saveLanguageMode(String value) { database.saveLanguageMode(value); }
     float loadPlaybackSpeed() { return database.loadPlaybackSpeed(); }
-    void savePlaybackSpeed(float speed) { database.savePlaybackSpeed(speed); }
+    void savePlaybackSpeed(float value) { database.savePlaybackSpeed(value); }
     float loadAppVolume() { return database.loadAppVolume(); }
-    void saveAppVolume(float volume) { database.saveAppVolume(volume); }
+    void saveAppVolume(float value) { database.saveAppVolume(value); }
     String loadStreamingAudioQuality() { return database.loadStreamingAudioQuality(); }
-    void saveStreamingAudioQuality(String quality) { database.saveStreamingAudioQuality(quality); }
+    void saveStreamingAudioQuality(String value) { database.saveStreamingAudioQuality(value); }
     boolean loadRefuseAutomaticQualityDowngrade() { return database.loadRefuseAutomaticQualityDowngrade(); }
-    void saveRefuseAutomaticQualityDowngrade(boolean refuse) {
-        database.saveRefuseAutomaticQualityDowngrade(refuse);
-    }
+    void saveRefuseAutomaticQualityDowngrade(boolean value) { database.saveRefuseAutomaticQualityDowngrade(value); }
     boolean loadOnlineLyricsEnabled() { return database.loadOnlineLyricsEnabled(); }
-    void saveOnlineLyricsEnabled(boolean enabled) { database.saveOnlineLyricsEnabled(enabled); }
+    void saveOnlineLyricsEnabled(boolean value) { database.saveOnlineLyricsEnabled(value); }
     boolean loadConcurrentPlaybackEnabled() { return database.loadConcurrentPlaybackEnabled(); }
-    void saveConcurrentPlaybackEnabled(boolean enabled) { database.saveConcurrentPlaybackEnabled(enabled); }
+    void saveConcurrentPlaybackEnabled(boolean value) { database.saveConcurrentPlaybackEnabled(value); }
     long loadLyricsOffsetMs() { return database.loadLyricsOffsetMs(); }
-    void saveLyricsOffsetMs(long offsetMs) { database.saveLyricsOffsetMs(offsetMs); }
+    void saveLyricsOffsetMs(long value) { database.saveLyricsOffsetMs(value); }
     boolean loadPlaybackResumeRequested() { return database.loadPlaybackResumeRequested(); }
-    void savePlaybackResumeRequested(boolean requested) { database.savePlaybackResumeRequested(requested); }
+    void savePlaybackResumeRequested(boolean value) { database.savePlaybackResumeRequested(value); }
     AudioEffectSettings loadAudioEffectSettings() { return database.loadAudioEffectSettings(); }
-    void saveAudioEffectSettings(AudioEffectSettings settings) { database.saveAudioEffectSettings(settings); }
+    void saveAudioEffectSettings(AudioEffectSettings value) { database.saveAudioEffectSettings(value); }
     boolean loadStatusBarLyricsEnabled() { return database.loadStatusBarLyricsEnabled(); }
-    void saveStatusBarLyricsEnabled(boolean enabled) { database.saveStatusBarLyricsEnabled(enabled); }
+    void saveStatusBarLyricsEnabled(boolean value) { database.saveStatusBarLyricsEnabled(value); }
     boolean loadSystemMediaLyricsTitleEnabled() { return database.loadSystemMediaLyricsTitleEnabled(); }
-    void saveSystemMediaLyricsTitleEnabled(boolean enabled) { database.saveSystemMediaLyricsTitleEnabled(enabled); }
+    void saveSystemMediaLyricsTitleEnabled(boolean value) { database.saveSystemMediaLyricsTitleEnabled(value); }
     boolean loadFloatingLyricsEnabled() { return database.loadFloatingLyricsEnabled(); }
-    void saveFloatingLyricsEnabled(boolean enabled) { database.saveFloatingLyricsEnabled(enabled); }
+    void saveFloatingLyricsEnabled(boolean value) { database.saveFloatingLyricsEnabled(value); }
     boolean loadNowPlayingGesturesEnabled() { return database.loadNowPlayingGesturesEnabled(); }
-    void saveNowPlayingGesturesEnabled(boolean enabled) { database.saveNowPlayingGesturesEnabled(enabled); }
+    void saveNowPlayingGesturesEnabled(boolean value) { database.saveNowPlayingGesturesEnabled(value); }
     boolean loadPlaybackRestoreEnabled() { return database.loadPlaybackRestoreEnabled(); }
-    void savePlaybackRestoreEnabled(boolean enabled) { database.savePlaybackRestoreEnabled(enabled); }
+    void savePlaybackRestoreEnabled(boolean value) { database.savePlaybackRestoreEnabled(value); }
     boolean loadReplayGainEnabled() { return database.loadReplayGainEnabled(); }
-    void saveReplayGainEnabled(boolean enabled) { database.saveReplayGainEnabled(enabled); }
+    void saveReplayGainEnabled(boolean value) { database.saveReplayGainEnabled(value); }
     boolean loadDebugPromptsEnabled() { return database.loadDebugPromptsEnabled(); }
-    void saveDebugPromptsEnabled(boolean enabled) { database.saveDebugPromptsEnabled(enabled); }
+    void saveDebugPromptsEnabled(boolean value) { database.saveDebugPromptsEnabled(value); }
     boolean loadCustomBackgroundBlurEnabled() { return database.loadCustomBackgroundBlurEnabled(); }
     float loadCustomBackgroundBlurRadiusDp() { return database.loadCustomBackgroundBlurRadiusDp(); }
-    void saveCustomBackgroundBlurEnabled(boolean enabled) { database.saveCustomBackgroundBlurEnabled(enabled); }
-    void saveCustomBackgroundBlurRadiusDp(float radiusDp) { database.saveCustomBackgroundBlurRadiusDp(radiusDp); }
+    void saveCustomBackgroundBlurEnabled(boolean value) { database.saveCustomBackgroundBlurEnabled(value); }
+    void saveCustomBackgroundBlurRadiusDp(float value) { database.saveCustomBackgroundBlurRadiusDp(value); }
     boolean loadGlassBlurEnabled() { return database.loadGlassBlurEnabled(); }
     float loadGlassBlurRadiusDp() { return database.loadGlassBlurRadiusDp(); }
-    void saveGlassBlurEnabled(boolean enabled) { database.saveGlassBlurEnabled(enabled); }
-    void saveGlassBlurRadiusDp(float radiusDp) { database.saveGlassBlurRadiusDp(radiusDp); }
+    void saveGlassBlurEnabled(boolean value) { database.saveGlassBlurEnabled(value); }
+    void saveGlassBlurRadiusDp(float value) { database.saveGlassBlurRadiusDp(value); }
     float loadGlassSurfaceOpacity() { return database.loadGlassSurfaceOpacity(); }
-    void saveGlassSurfaceOpacity(float opacity) { database.saveGlassSurfaceOpacity(opacity); }
+    void saveGlassSurfaceOpacity(float value) { database.saveGlassSurfaceOpacity(value); }
     String loadShareStyle() { return TrackShareStyle.normalize(database.loadShareStyle()); }
-    void saveShareStyle(String style) { database.saveShareStyle(TrackShareStyle.normalize(style)); }
+    void saveShareStyle(String value) { database.saveShareStyle(TrackShareStyle.normalize(value)); }
     PageBackgrounds loadPageBackgrounds() { return database.loadPageBackgrounds(); }
-    void savePageBackgrounds(PageBackgrounds backgrounds) {
-        database.savePageBackgrounds(backgrounds == null ? PageBackgrounds.empty() : backgrounds);
+    void savePageBackgrounds(PageBackgrounds value) {
+        database.savePageBackgrounds(value == null ? PageBackgrounds.empty() : value);
     }
     boolean loadOnboardingCompleted() { return database.loadOnboardingCompleted(); }
-    void saveOnboardingCompleted(boolean completed) { database.saveOnboardingCompleted(completed); }
+    void saveOnboardingCompleted(boolean value) { database.saveOnboardingCompleted(value); }
 }
