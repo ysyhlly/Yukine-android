@@ -15,27 +15,11 @@ internal fun interface DocumentActivityResultLauncher {
 
 internal class DocumentPickerController @JvmOverloads constructor(
     private val activity: ComponentActivity,
-    private val listener: Listener,
+    private val actions: DocumentPickerActions,
     activityResultLauncher: DocumentActivityResultLauncher? = null
 ) : LuoxueSourceFilePicker {
     private val activityResultLauncher: DocumentActivityResultLauncher =
         activityResultLauncher ?: ActivityResultDocumentLauncher(activity)
-
-    interface Listener {
-        fun importAudioUris(uris: ArrayList<Uri>)
-
-        fun importAudioFolder(treeUri: Uri)
-
-        fun chooseDownloadFolder(treeUri: Uri)
-
-        fun importStreamM3u(playlistUri: Uri)
-
-        fun exportPlaylist(exportUri: Uri, playlistId: Long, playlistName: String)
-
-        fun importPlaylistM3u(playlistUri: Uri)
-
-        fun importLuoxueSourceUris(uris: ArrayList<Uri>)
-    }
 
     fun openAudioFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -126,27 +110,27 @@ internal class DocumentPickerController @JvmOverloads constructor(
                 for (uri in uris) {
                     takePersistableReadPermission(data, uri)
                 }
-                listener.importAudioUris(uris)
+                actions.audioUrisImporter.importAudioUris(uris)
             }
             DocumentAction.ImportAudioFolder -> {
                 val treeUri = data.data
                 if (treeUri != null) {
                     takePersistableReadPermission(data, treeUri)
-                    listener.importAudioFolder(treeUri)
+                    actions.audioFolderImporter.importAudioFolder(treeUri)
                 }
             }
             DocumentAction.DownloadFolder -> {
                 val treeUri = data.data
                 if (treeUri != null) {
                     takePersistableReadWritePermission(data, treeUri)
-                    listener.chooseDownloadFolder(treeUri)
+                    actions.downloadFolderChooser.chooseDownloadFolder(treeUri)
                 }
             }
             DocumentAction.ImportStreamM3u -> {
                 val playlistUri = data.data
                 if (playlistUri != null) {
                     takePersistableReadPermission(data, playlistUri)
-                    listener.importStreamM3u(playlistUri)
+                    actions.streamM3uImporter.importStreamM3u(playlistUri)
                 }
             }
             DocumentAction.ExportPlaylistM3u -> {
@@ -157,7 +141,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
                     pendingPlaylistExportId = -1L
                     pendingPlaylistExportName = ""
                     if (playlistId >= 0L) {
-                        listener.exportPlaylist(exportUri, playlistId, playlistName)
+                        actions.playlistExporter.exportPlaylist(exportUri, playlistId, playlistName)
                     }
                 }
             }
@@ -165,7 +149,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
                 val playlistUri = data.data
                 if (playlistUri != null) {
                     takePersistableReadPermission(data, playlistUri)
-                    listener.importPlaylistM3u(playlistUri)
+                    actions.playlistM3uImporter.importPlaylistM3u(playlistUri)
                 }
             }
             DocumentAction.ImportLuoxueSource -> {
@@ -173,7 +157,7 @@ internal class DocumentPickerController @JvmOverloads constructor(
                 for (uri in uris) {
                     takePersistableReadPermission(data, uri)
                 }
-                listener.importLuoxueSourceUris(uris)
+                actions.luoxueSourceUrisImporter.importLuoxueSourceUris(uris)
             }
         }
     }

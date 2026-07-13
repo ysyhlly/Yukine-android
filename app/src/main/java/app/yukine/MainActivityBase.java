@@ -66,7 +66,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainStreamingActionGatewayFactory streamingActionGatewayFactory;
     @Inject MainStreamingSearchActionHandlerFactory streamingSearchActionHandlerFactory;
     @Inject MainStreamingSearchRenderListenerFactory streamingSearchRenderListenerFactory;
-    @Inject MainDocumentPickerListenerFactory documentPickerListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
     @Inject LyricsLoader lyricsLoader;
@@ -406,7 +405,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 downloadsViewModel,
                 statusMessageController::showFeedback
         );
-        documentPickerController = new DocumentPickerController(this, documentPickerListenerFactory.create(
+        documentPickerController = new DocumentPickerController(this, new DocumentPickerActions(
                 libraryImportOwner::importAudioUris,
                 libraryImportOwner::importAudioFolder,
                 downloadDirectoryOwner::setCustomDirectory,

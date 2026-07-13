@@ -2,8 +2,6 @@ package app.yukine.di
 
 import android.os.Handler
 import android.os.Looper
-import app.yukine.MainDocumentPickerListener
-import app.yukine.MainDocumentPickerListenerFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,27 +14,5 @@ internal object PlatformModule {
     @Provides
     @ActivityScoped
     fun provideMainHandler(): Handler = Handler(Looper.getMainLooper())
-
-    @Provides
-    @ActivityScoped
-    fun provideMainDocumentPickerListenerFactory(): MainDocumentPickerListenerFactory =
-        MainDocumentPickerListenerFactory {
-                audioUrisImporter,
-                audioFolderImporter,
-                downloadFolderChooser,
-                streamM3uImporter,
-                playlistExporter,
-                playlistM3uImporter,
-                luoxueSourceUrisImporter ->
-            MainDocumentPickerListener(
-                audioUrisImporter,
-                audioFolderImporter,
-                downloadFolderChooser,
-                streamM3uImporter,
-                playlistExporter,
-                playlistM3uImporter,
-                luoxueSourceUrisImporter
-            )
-        }
 
 }

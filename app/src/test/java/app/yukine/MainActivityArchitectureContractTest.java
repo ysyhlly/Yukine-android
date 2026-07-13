@@ -342,6 +342,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void documentPickerUsesTypedActionsWithoutForwardingFactory() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String controller = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
+        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
+        assertFalse(activity.contains("documentPickerListenerFactory"));
+        assertTrue(activity.contains("new DocumentPickerActions("));
+        assertTrue(controller.contains("private val actions: DocumentPickerActions"));
+        assertFalse(controller.contains("interface Listener"));
+        assertFalse(platformModule.contains("MainDocumentPickerListenerFactory"));
+        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainDocumentPickerListener.kt")));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
