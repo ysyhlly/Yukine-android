@@ -350,10 +350,10 @@ private fun LibraryDestination(
     // destination is active, so row/action updates in a large list do not recompose this branch.
     val hasGroups by remember(groupsState) {
         groupsState.map { it.title.isNotBlank() }.distinctUntilChanged()
-    }.collectAsState(initial = groupsState.value.title.isNotBlank())
+    }.collectAsState(initial = false)
     val hasTrackList by remember(trackListState) {
         trackListState.map { it.title.isNotBlank() }.distinctUntilChanged()
-    }.collectAsState(initial = trackListState.value.title.isNotBlank())
+    }.collectAsState(initial = false)
     val renderGroups = hasGroups && !hasTrackList
     if (renderGroups) {
         LibraryGroupsDestination(

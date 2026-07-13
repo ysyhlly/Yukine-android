@@ -3,14 +3,14 @@ package app.yukine.now
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performScrollToNode
 import app.yukine.NowPlayingUiState
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
@@ -67,7 +67,7 @@ class NowPlayingDestinationTest {
             }
         }
 
-        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("alternate.flac"))
         composeRule.waitForIdle()
         composeRule.onNodeWithText("alternate.flac").assertIsDisplayed().performClick()
 
@@ -107,9 +107,9 @@ class NowPlayingDestinationTest {
             }
         }
 
-        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("QQ 音乐 / HIGH"))
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("QQ 音乐 / HIGH").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("QQ 音乐 / HIGH").assertIsDisplayed()
         composeRule.onAllNodesWithText("QQ 音乐 / STANDARD").assertCountEquals(0)
         composeRule.onAllNodesWithText("qmusic").assertCountEquals(0)
         composeRule.onNodeWithText("网易云音乐").performScrollTo().assertIsDisplayed().performClick()
@@ -150,9 +150,9 @@ class NowPlayingDestinationTest {
             }
         }
 
-        composeRule.onRoot().performTouchInput { swipeUp() }
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("QQ 音乐 / STANDARD"))
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("QQ 音乐 / STANDARD").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("QQ 音乐 / STANDARD").assertIsDisplayed()
         composeRule.onAllNodesWithText("QQ 音乐 / HIGH").assertCountEquals(0)
     }
 

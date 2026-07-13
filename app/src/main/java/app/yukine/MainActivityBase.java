@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 
 import app.yukine.data.MusicLibraryRepository;
@@ -61,7 +60,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private static final String NETWORK_WEBDAV_SOURCE_TRACKS = MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS;
     private static final String NETWORK_SOURCES = MainRoutes.NETWORK_SOURCES;
     private static final String SETTINGS_HOME = MainRoutes.SETTINGS_HOME;
-    private final AtomicInteger customAccentRefreshGeneration = new AtomicInteger();
     private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final String LIBRARY_HOME = LibraryGrouping.HOME;
     private static final String LIBRARY_SONGS = LibraryGrouping.SONGS;
@@ -160,6 +158,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private MainPermissionController permissionController;
     private MainUiShellController uiShellController;
     private TrackShareLauncher trackShareLauncher;
+    private CustomBackgroundAccentController customBackgroundAccentController;
     private LibraryFileDeleteLauncher libraryFileDeleteLauncher;
     private DocumentPickerController documentPickerController;
     private BackgroundImagePickerController backgroundImagePickerController;
@@ -381,6 +380,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializePlatformControllers() {
+        customBackgroundAccentController = new CustomBackgroundAccentController(
+                getContentResolver(),
+                task -> executors.io(task),
+                task -> mainHandler.post(task),
+                EchoTheme::setCustomBackgroundAccentArgb
+        );
         permissionController = new MainPermissionController(this, permissionListenerFactory.create(
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 allowCachedFirst -> loadLibrary(allowCachedFirst),
@@ -863,7 +868,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryStore = libraryStoreFactory.create(viewModel);
         settingsStore.load(loadSettingsPreferencesUseCase.execute());
         if (EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
-            refreshCustomBackgroundAccent(settingsStore.pageBackgrounds());
+            customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
         }
         libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
         playHistoryActionController = playHistoryActionControllerFactory.create(
@@ -1019,25 +1024,13 @@ public abstract class MainActivityBase extends ComponentActivity {
         settingsViewModel.bindStoreMirror(settingsStore::sync);
         SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
                 () -> uiShellController.applyThemeSurface(),
-                this::refreshCustomBackgroundAccent,
+                customBackgroundAccentController::refresh,
                 () -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService),
                 () -> lyricsViewModel,
                 () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         playlistDialogController = createPlaylistDialogController();
-    }
-
-    private void refreshCustomBackgroundAccent(PageBackgrounds backgrounds) {
-        final int generation = customAccentRefreshGeneration.incrementAndGet();
-        executors.io(() -> {
-            Integer color = CustomBackgroundAccentExtractor.INSTANCE.extract(getContentResolver(), backgrounds);
-            mainHandler.post(() -> {
-                if (generation == customAccentRefreshGeneration.get()) {
-                    EchoTheme.setCustomBackgroundAccentArgb(color);
-                }
-            });
-        });
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {

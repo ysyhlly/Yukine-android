@@ -33,6 +33,7 @@ internal class PlaybackSessionManager(
         }
     }
 
+    @OptIn(UnstableApi::class)
     fun refreshPlayer() {
         val currentSession = mediaSession ?: return
         val currentPlayer = sessionPlayer

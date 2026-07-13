@@ -1020,17 +1020,7 @@ private fun NowBarProgressSection(
     onSeek: SeekAction
 ) {
     val p = EchoTheme.colors()
-    if (waveformExpanded) {
-        CollapsedProgress(
-            scrub = scrub,
-            cachedProgress = slice.waveformCachedProgress,
-            progressLabel = slice.playbackProgressLabel,
-            onSeek = onSeek,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
-        )
-    } else {
+    if (!waveformExpanded) {
         CollapsedProgress(
             scrub = scrub,
             cachedProgress = slice.waveformCachedProgress,
@@ -1067,6 +1057,7 @@ private fun BottomWaveformProgress(
         modifier = modifier
             .height(18.dp)
             .clipToBounds()
+            .testTag("waveform-progress")
     ) {
         WaveformProgress(
             scrub = scrub,
