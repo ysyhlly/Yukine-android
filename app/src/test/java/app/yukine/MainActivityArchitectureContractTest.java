@@ -210,6 +210,24 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void streamingAuthHasFocusedOwnerAndOneMutableStateStore() throws Exception {
+        String viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
+        String stateOwner = read("app/src/main/java/app/yukine/StreamingFeatureStateOwner.kt");
+        String authOwner = read("app/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
+        String actions = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
+
+        assertTrue(viewModel.contains("private val streamingState = StreamingFeatureStateOwner()"));
+        assertFalse(viewModel.contains("MutableStateFlow(StreamingSearchState())"));
+        assertTrue(stateOwner.contains("private val mutableState = MutableStateFlow(initial)"));
+        assertTrue(authOwner.contains("class StreamingAuthStateOwner("));
+        assertTrue(authOwner.contains("fun refreshProviders(): Job"));
+        assertTrue(authOwner.contains("fun completeAuth("));
+        assertTrue(authOwner.contains("fun maintainSessions(): Job"));
+        assertTrue(actions.contains("streamingViewModel.auth.startAuth("));
+        assertTrue(actions.contains("streamingViewModel.auth.signOut(provider)"));
+    }
+
+    @Test
     public void focusedOwnersRetainTypedPolicies() throws Exception {
         assertTrue(read("app/src/main/java/app/yukine/PermissionResultOwner.kt")
                 .contains("permissionResultObserver.onPermissionsChanged()"));

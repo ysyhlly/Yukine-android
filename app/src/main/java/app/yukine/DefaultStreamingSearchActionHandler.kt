@@ -12,7 +12,7 @@ internal class DefaultStreamingSearchActionHandler(
     private val actionGateway: MainActivityStreamingActionGateway
 ) : StreamingSearchActionHandler {
     override fun selectProvider(provider: StreamingProviderName) {
-        streamingViewModel.selectStreamingProvider(provider)
+        streamingViewModel.auth.selectProvider(provider)
     }
 
     override fun search(query: String) {
@@ -33,7 +33,7 @@ internal class DefaultStreamingSearchActionHandler(
             )
             return
         }
-        streamingViewModel.startStreamingAuth(
+        streamingViewModel.auth.startAuth(
             provider = provider,
             redirectUri = STREAMING_AUTH_REDIRECT_URI + "?provider=${provider.wireName}",
             onLaunchReady = {
@@ -47,12 +47,12 @@ internal class DefaultStreamingSearchActionHandler(
         if (descriptor != null && !descriptor.capabilities.supportsAuth) {
             return
         }
-        streamingViewModel.signOutStreaming(provider)
+        streamingViewModel.auth.signOut(provider)
     }
 
     override fun openAuthLaunch() {
         if (actionGateway.openAuthLaunch(streamingViewModel.state.pendingAuthLaunch)) {
-            streamingViewModel.clearStreamingAuthLaunch()
+            streamingViewModel.auth.clearAuthLaunch()
         }
     }
 

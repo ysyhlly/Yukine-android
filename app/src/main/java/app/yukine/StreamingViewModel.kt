@@ -6,12 +6,10 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingPlaybackAdapter
-import app.yukine.streaming.StreamingAuthKind
 import app.yukine.streaming.StreamingAuthState
 import app.yukine.streaming.StreamingGatewayDiagnostics
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingAudioQuality
-import app.yukine.streaming.StreamingCookieHeaderParser
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistImportSummary
 import app.yukine.streaming.StreamingPlaylistLinkParser
@@ -34,9 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -58,7 +54,7 @@ class StreamingViewModel @Inject constructor(
 ) : ViewModel() {
     constructor() : this(EmptyStreamingRepositorySource)
 
-    private val streamingState = MutableStateFlow(StreamingSearchState())
+    private val streamingState = StreamingFeatureStateOwner()
     private var streamingRepository: StreamingRepository = streamingRepositorySource.current()
     private var streamingPlaybackPlanner: StreamingPlaybackResolvePlanner? = null
     private var streamingPlaybackTaskQueue: StreamingPlaybackTaskQueue? = null
@@ -72,16 +68,12 @@ class StreamingViewModel @Inject constructor(
     )
     private val queueWindowPreResolveInFlight =
         ConcurrentHashMap.newKeySet<StreamingQueuePreResolveKey>()
-    private val authSessionMaintenance by lazy {
-        StreamingAuthSessionMaintenance(
-            scope = viewModelScope,
-            refresh = { provider -> streamingRepository.refreshAuthSession(provider) },
-            diagnostics = { streamingRepository.diagnostics() },
-            onAuthState = ::updateStreamingAuthState,
-            onDiagnostics = ::updateStreamingDiagnostics
-        )
-    }
-    val streaming: StateFlow<StreamingSearchState> = streamingState.asStateFlow()
+    internal val auth = StreamingAuthStateOwner(
+        scope = viewModelScope,
+        stateOwner = streamingState,
+        repository = { streamingRepository }
+    )
+    val streaming: StateFlow<StreamingSearchState> = streamingState.state
     val state: StreamingSearchState
         get() = streamingState.value
 
@@ -135,79 +127,15 @@ class StreamingViewModel @Inject constructor(
         )
     }
 
-    fun refreshStreamingProviders(): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                val providers = streamingRepository.providers()
-                val capabilities = runCatching { streamingRepository.providerCapabilities() }.getOrElse { emptyList() }
-                val health = runCatching { streamingRepository.providersHealth() }.getOrElse { emptyList() }
-                val authStates = providers.associate { provider ->
-                    provider.name to runCatching {
-                        streamingRepository.authState(provider.name)
-                    }.getOrElse {
-                        provider.auth
-                    }
-                }
-                StreamingProviderRefresh(providers, capabilities, health, authStates)
-            }.onSuccess { refresh ->
-                updateStreamingProviders(refresh.providers, refresh.capabilities, refresh.health)
-                streamingState.value = streamingState.value.copy(
-                    authStates = refresh.authStates,
-                    loading = false,
-                    errorMessage = null,
-                    diagnostics = streamingRepository.diagnostics()
-                )
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    fun refreshStreamingProviders(): Job = auth.refreshProviders()
 
     fun updateStreamingProviders(
         providers: List<StreamingProviderDescriptor>,
         capabilities: List<StreamingProviderCapability> = streamingState.value.providerCapabilities,
         health: List<StreamingProviderHealth> = streamingState.value.providerHealth
-    ) {
-        val current = streamingState.value
-        val preferredProvider = providers.firstOrNull { provider ->
-            provider.name != StreamingProviderName.MOCK &&
-                ((current.authStates[provider.name] ?: provider.auth).connected)
-        }
-            ?: providers.firstOrNull { provider ->
-                provider.name != StreamingProviderName.MOCK && provider.enabled
-            }
-            ?: providers.firstOrNull { provider -> provider.name != StreamingProviderName.MOCK }
-        val selected = providers.firstOrNull {
-            it.name == current.selectedProvider && current.selectedProvider != StreamingProviderName.MOCK
-        }?.name
-            ?: preferredProvider?.name
-            ?: providers.firstOrNull()?.name
-            ?: current.selectedProvider
-        streamingState.value = current.copy(
-            providers = providers.toList(),
-            providerCapabilities = capabilities.toList(),
-            providerHealth = health.toList(),
-            selectedProvider = selected
-        )
-    }
+    ) = auth.updateProviders(providers, capabilities, health)
 
-    fun selectStreamingProvider(provider: StreamingProviderName) {
-        val current = streamingState.value
-        if (current.selectedProvider == provider) {
-            return
-        }
-        streamingState.value = current.copy(
-            selectedProvider = provider,
-            searchResult = null,
-            resolvedPlaybackSource = null,
-            resolvedPlaybackTrack = null,
-            pendingAuthLaunch = null,
-            loadingMore = false,
-            errorMessage = null
-        )
-    }
+    fun selectStreamingProvider(provider: StreamingProviderName) = auth.selectProvider(provider)
 
     fun updateStreamingSearchQuery(query: String) {
         streamingState.value = streamingState.value.copy(searchQuery = query)
@@ -749,82 +677,22 @@ class StreamingViewModel @Inject constructor(
             .trim()
     }
 
-    fun refreshStreamingAuthState(provider: StreamingProviderName) {
-        beginStreamingRequest()
-        viewModelScope.launch {
-            runCatching {
-                streamingRepository.refreshAuthSession(provider, force = true)
-            }.onSuccess { authState ->
-                updateStreamingAuthState(provider, authState)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    fun refreshStreamingAuthState(provider: StreamingProviderName) = auth.refreshAuthState(provider)
 
     fun startStreamingAuth(
         provider: StreamingProviderName,
         redirectUri: String? = null,
         onLaunchReady: (() -> Unit)? = null
-    ) {
-        beginStreamingRequest()
-        viewModelScope.launch {
-            runCatching {
-                streamingRepository.startAuth(provider, redirectUri)
-            }.onSuccess { result ->
-                updateStreamingAuthLaunch(provider, result.state, result.launchUrl)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-                if (!result.launchUrl.isNullOrBlank()) {
-                    onLaunchReady?.invoke()
-                }
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    ) = auth.startAuth(provider, redirectUri, onLaunchReady)
 
-    fun signOutStreaming(provider: StreamingProviderName): Job {
-        beginStreamingRequest()
-        return viewModelScope.launch {
-            runCatching {
-                streamingRepository.signOut(provider)
-            }.onSuccess { authState ->
-                updateStreamingAuthState(provider, authState)
-                refreshStreamingProviders().join()
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    fun signOutStreaming(provider: StreamingProviderName): Job = auth.signOut(provider)
 
     fun completeStreamingAuth(
         provider: StreamingProviderName,
         callbackUri: String,
         cookieHeader: String? = null,
         onAuthSuccess: StreamingCallback<StreamingProviderName>? = null
-    ) {
-        beginStreamingRequest()
-        viewModelScope.launch {
-            runCatching {
-                streamingRepository.completeAuth(provider, callbackUri, cookieHeader)
-            }.onSuccess { result ->
-                updateStreamingAuthState(provider, result.state)
-                refreshStreamingProviders().join()
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-                if (result.state.connected) {
-                    onAuthSuccess?.onResult(provider)
-                }
-            }.onFailure { error ->
-                failStreamingRequest(error.message)
-                updateStreamingDiagnostics(streamingRepository.diagnostics())
-            }
-        }
-    }
+    ) = auth.completeAuth(provider, callbackUri, cookieHeader, onAuthSuccess)
 
     fun resolveStreamingPlayback(
         provider: StreamingProviderName,
@@ -960,9 +828,7 @@ class StreamingViewModel @Inject constructor(
      * network work, and this method deliberately avoids the global loading/error UI so reopening
      * the app never feels blocked by a background cookie check.
      */
-    fun maintainStreamingAuthSessions(): Job {
-        return authSessionMaintenance.maintain()
-    }
+    fun maintainStreamingAuthSessions(): Job = auth.maintainSessions()
 
     fun preResolveStreamingQueueWindowBatch(
         snapshot: PlaybackStateSnapshot?,
@@ -1287,47 +1153,16 @@ class StreamingViewModel @Inject constructor(
     fun prepareManualCookieDialogState(
         provider: StreamingProviderName?,
         languageMode: String
-    ): StreamingManualCookieDialogState {
-        val unavailable = provider == null || provider in setOf(
-            StreamingProviderName.MOCK,
-            StreamingProviderName.M3U8,
-            StreamingProviderName.PLUGIN
-        )
-        return StreamingManualCookieDialogState(
-            provider = provider,
-            unavailable = unavailable,
-            title = text(languageMode, "streaming.manual.cookie"),
-            hint = if (provider == StreamingProviderName.QQ_MUSIC) {
-                text(languageMode, "streaming.cookie.hint.qq")
-            } else {
-                text(languageMode, "streaming.cookie.hint.default")
-            },
-            unavailableStatus = text(languageMode, "streaming.choose.login.provider")
-        )
-    }
+    ): StreamingManualCookieDialogState = auth.prepareManualCookieDialogState(provider, languageMode)
 
     fun prepareManualCookieAuthRequest(
         provider: StreamingProviderName?,
         cookieHeader: String?,
         languageMode: String
-    ): StreamingManualCookieAuthRequest? {
-        val dialogState = prepareManualCookieDialogState(provider, languageMode)
-        val cleanCookie = StreamingCookieHeaderParser.normalize(cookieHeader)
-        val cleanProvider = dialogState.provider
-        if (dialogState.unavailable || cleanProvider == null || cleanCookie.isEmpty()) {
-            return null
-        }
-        return StreamingManualCookieAuthRequest(
-            provider = cleanProvider,
-            callbackUri = "$STREAMING_AUTH_REDIRECT_URI?provider=${cleanProvider.wireName}&manualCookie=1",
-            cookieHeader = cleanCookie,
-            emptyStatus = text(languageMode, "streaming.cookie.empty"),
-            savedStatus = text(languageMode, "streaming.cookie.saved")
-        )
-    }
+    ): StreamingManualCookieAuthRequest? =
+        auth.prepareManualCookieAuthRequest(provider, cookieHeader, languageMode)
 
-    fun manualCookieEmptyStatus(languageMode: String): String =
-        text(languageMode, "streaming.cookie.empty")
+    fun manualCookieEmptyStatus(languageMode: String): String = auth.manualCookieEmptyStatus(languageMode)
 
     fun prepareStreamingPlaylistImportDialogState(languageMode: String): StreamingPlaylistImportDialogState =
         prepareStreamingPlaylistImportDialogState(languageMode, streamingState.value.selectedProvider)
@@ -2077,36 +1912,16 @@ class StreamingViewModel @Inject constructor(
         )
     }
 
-    fun updateStreamingAuthState(provider: StreamingProviderName, authState: StreamingAuthState) {
-        val current = streamingState.value
-        streamingState.value = current.copy(
-            authStates = current.authStates + (provider to authState),
-            loading = false,
-            loadingMore = false,
-            errorMessage = null
-        )
-    }
+    fun updateStreamingAuthState(provider: StreamingProviderName, authState: StreamingAuthState) =
+        auth.updateAuthState(provider, authState)
 
     fun updateStreamingAuthLaunch(
         provider: StreamingProviderName,
         authState: StreamingAuthState,
         launchUrl: String?
-    ) {
-        val cleanLaunchUrl = launchUrl?.takeIf { it.isNotBlank() }
-        streamingState.value = streamingState.value.copy(
-            authStates = streamingState.value.authStates + (provider to authState),
-            pendingAuthLaunch = cleanLaunchUrl?.let {
-                StreamingSearchAuthLaunch(provider, it, authState.kind)
-            },
-            loading = false,
-            loadingMore = false,
-            errorMessage = null
-        )
-    }
+    ) = auth.updateAuthLaunch(provider, authState, launchUrl)
 
-    fun clearStreamingAuthLaunch() {
-        streamingState.value = streamingState.value.copy(pendingAuthLaunch = null)
-    }
+    fun clearStreamingAuthLaunch() = auth.clearAuthLaunch()
 
     fun updateStreamingDiagnostics(diagnostics: StreamingGatewayDiagnostics) {
         streamingState.value = streamingState.value.copy(diagnostics = diagnostics)
@@ -2124,10 +1939,4 @@ class StreamingViewModel @Inject constructor(
         )
     }
 
-    private data class StreamingProviderRefresh(
-        val providers: List<StreamingProviderDescriptor>,
-        val capabilities: List<StreamingProviderCapability>,
-        val health: List<StreamingProviderHealth>,
-        val authStates: Map<StreamingProviderName, StreamingAuthState>
-    )
 }

@@ -22,7 +22,7 @@ internal class StreamingManualCookieController(
     }
 
     fun showStreamingCookieDialog() {
-        val dialogState = streamingViewModel.prepareManualCookieDialogState(
+        val dialogState = streamingViewModel.auth.prepareManualCookieDialogState(
             listener.selectedProvider(),
             languageProvider.languageMode()
         )
@@ -35,12 +35,12 @@ internal class StreamingManualCookieController(
 
     fun saveStreamingCookie(provider: StreamingProviderName, cookieHeader: String?) {
         val languageMode = languageProvider.languageMode()
-        val request = streamingViewModel.prepareManualCookieAuthRequest(provider, cookieHeader, languageMode)
+        val request = streamingViewModel.auth.prepareManualCookieAuthRequest(provider, cookieHeader, languageMode)
         if (request == null) {
-            listener.setStatus(streamingViewModel.manualCookieEmptyStatus(languageMode))
+            listener.setStatus(streamingViewModel.auth.manualCookieEmptyStatus(languageMode))
             return
         }
-        streamingViewModel.completeStreamingAuth(request.provider, request.callbackUri, request.cookieHeader) { loggedInProvider ->
+        streamingViewModel.auth.completeAuth(request.provider, request.callbackUri, request.cookieHeader) { loggedInProvider ->
             listener.setStatus(request.savedStatus)
             listener.onStreamingLoginSuccess(loggedInProvider)
         }

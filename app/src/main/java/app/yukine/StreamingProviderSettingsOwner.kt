@@ -18,7 +18,7 @@ internal class StreamingProviderSettingsOwner(
     }
 
     fun refresh(): Job {
-        val job = streamingViewModel.refreshStreamingProviders()
+        val job = streamingViewModel.auth.refreshProviders()
         job.invokeOnCompletion {
             recommendationViewModel.updateProviders(streamingViewModel.state.providers)
         }
