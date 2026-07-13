@@ -287,6 +287,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private val playback: SettingsPlaybackEffectActions"));
         assertTrue(owner.contains("private val files: SettingsFileEffectActions"));
         assertTrue(owner.contains("private val streaming: SettingsStreamingEffectActions"));
+        assertFalse(activity.contains("applyStreamingGatewayEndpoint"));
+        assertFalse(activity.contains("refreshAfterHiddenLibraryRestore"));
+        assertTrue(activity.contains("streamingProviderSettingsOwner::applyEndpoint"));
+        assertTrue(activity.contains("hiddenLibraryRestoreOwner::restore"));
     }
 
     @Test

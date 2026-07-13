@@ -146,6 +146,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private SettingsEffectOwner settingsEffectOwner;
+    private HiddenLibraryRestoreOwner hiddenLibraryRestoreOwner;
+    private StreamingProviderSettingsOwner streamingProviderSettingsOwner;
     private TrackListRenderController trackListRenderController;
     private TrackListStatePublisher trackListStatePublisher;
     private QueueActionController queueActionController;
@@ -319,8 +321,14 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeStreamingStartup(MainActivityStreamingActionGateway streamingActionGateway) {
-        streamingViewModel.configureStreamingRepository();
-        refreshStreamingProviders();
+        streamingProviderSettingsOwner = new StreamingProviderSettingsOwner(
+                streamingGatewaySettingsStore,
+                streamingViewModel,
+                streamingRecommendationViewModel,
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                statusMessageController::setStatus
+        );
+        streamingProviderSettingsOwner.configureAndRefresh();
         streamingAuthCallbackController = new StreamingAuthCallbackController(
                 streamingViewModel,
                 streamingActionGateway
@@ -468,7 +476,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                             if (nowPlayingViewModel != null) {
                                 nowPlayingViewModel.bindLuoxueTrackMetadataResolver(luoxueTrackMetadataResolver);
                             }
-                            refreshStreamingProviders();
+                            streamingProviderSettingsOwner.refresh();
                         });
                     });
                 }
@@ -692,6 +700,11 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeSettingsEffects() {
+        hiddenLibraryRestoreOwner = new HiddenLibraryRestoreOwner(
+                libraryViewModel,
+                () -> libraryImportOwner.loadLibrary(true),
+                settingsViewModel::refreshSettingsContext
+        );
         settingsEffectOwner = new SettingsEffectOwner(
                 new SettingsNavigationEffectActions(
                         statusMessageController::setStatus,
@@ -709,15 +722,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                         documentPickerController::openAudioFolderPicker,
                         luoxueSourceImportDialogController::showSourceManager,
                         luoxueSourceImportDialogController::showImportDialog,
-                        sourceKey ->
-                                libraryViewModel.restoreHiddenLibraryItemJava(
-                                        sourceKey,
-                                        this::refreshAfterHiddenLibraryRestore
-                                ),
-                        () ->
-                                libraryViewModel.restoreAllHiddenLibraryItemsJava(
-                                        this::refreshAfterHiddenLibraryRestore
-                                )
+                        hiddenLibraryRestoreOwner::restore,
+                        hiddenLibraryRestoreOwner::restoreAll
                 ),
                 new SettingsPlaybackEffectActions(
                         () -> lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode()),
@@ -730,7 +736,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         backupRestoreLauncher::exportBackup,
                         backupRestoreLauncher::importBackup
                 ),
-                this::applyStreamingGatewayEndpoint
+                streamingProviderSettingsOwner::applyEndpoint
         );
         settingsViewModel.bindEffectListener(settingsEffectOwner);
     }
@@ -1414,30 +1420,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private kotlinx.coroutines.Job refreshStreamingProviders() {
-        kotlinx.coroutines.Job job = streamingViewModel.refreshStreamingProviders();
-        job.invokeOnCompletion(error -> {
-            syncStreamingProviders();
-            return kotlin.Unit.INSTANCE;
-        });
-        return job;
-    }
-
-    private kotlinx.coroutines.Job applyStreamingGatewayEndpoint(String endpoint) {
-        streamingGatewaySettingsStore.setEndpoint(endpoint);
-        streamingViewModel.configureStreamingRepository();
-        kotlinx.coroutines.Job refreshJob = refreshStreamingProviders();
-        statusMessageController.setStatus(
-                AppLanguage.text(settingsStore.languageMode(), "streaming.gateway.applied")
-                        + streamingGatewaySettingsStore.endpoint()
-        );
-        return refreshJob;
-    }
-
-    private void syncStreamingProviders() {
-        streamingRecommendationViewModel.updateProviders(streamingViewModel.getState().getProviders());
-    }
-
     private void runRecommendationAction(RecommendationAction action) {
         if (recommendationActionCallbacks == null) {
             return;
@@ -1611,13 +1593,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private String selectedPlaylistName() {
         return libraryStore.selectedPlaylistName(selectedPlaylistId());
-    }
-
-    private void refreshAfterHiddenLibraryRestore(boolean changed) {
-        if (changed) {
-            libraryImportOwner.loadLibrary(true);
-        }
-        settingsViewModel.refreshSettingsContext();
     }
 
     private List<Track> heartbeatLibraryContextTracks() {
