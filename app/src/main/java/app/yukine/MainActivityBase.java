@@ -531,7 +531,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::renderLibrary,
                 this::renderCollections,
                 this::renderNetwork,
-                this::renderSettings,
                 this::renderSearch
         );
         trackListRenderController = new TrackListRenderController(libraryViewModel, trackListRenderListenerFactory.create(
@@ -686,7 +685,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 statusMessageController.setStatus(((SettingsEffect.ShowStatus) effect).getMessage());
             } else if (effect instanceof SettingsEffect.NavigatePage) {
                 routeController.setSettingsPage(((SettingsEffect.NavigatePage) effect).getPage());
-                renderSelectedTabAfterStateChange();
             } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
                 navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
@@ -1029,7 +1027,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 repository
         );
         settingsViewModel.bindContextLoader(settingsContextProvider);
-        refreshSettingsContext();
+        settingsViewModel.bindRouteState(navigationViewModel.getState());
+        settingsViewModel.refreshSettingsContext();
         nowPlayingViewModel.bindStateSources(
                 playbackServiceConnectionController,
                 viewModel.getLibrary(),
@@ -1328,6 +1327,8 @@ public abstract class MainActivityBase extends ComponentActivity {
             lyricsViewModel.bindReloadGateway(null, null, null);
         }
         if (settingsViewModel != null) {
+            settingsViewModel.bindRouteState(null);
+            settingsViewModel.bindContextLoader(null);
             settingsViewModel.bindEffectListener(null);
             settingsViewModel.bindRuntimeEffectListener(null);
             settingsViewModel.bindPreferenceGateway(null);
@@ -2611,31 +2612,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         refreshUnifiedSearch(false);
     }
 
-    private void renderSettings() {
-        if (settingsContextProvider == null) {
-            return;
-        }
-        SettingsState context = settingsViewModel.getState().getValue();
-        settingsViewModel.renderPageFromHost(
-                routeController.settingsPageModel(),
-                context.getPreferences(),
-                context.getRuntime()
-        );
-        refreshSettingsContext();
-    }
-
-    private void refreshSettingsContext() {
-        if (settingsContextProvider == null) {
-            return;
-        }
-        settingsViewModel.refreshSettingsContext();
-    }
-
     private void refreshAfterHiddenLibraryRestore(boolean changed) {
         if (changed) {
             loadLibrary(true);
         }
-        refreshSettingsContext();
+        settingsViewModel.refreshSettingsContext();
     }
 
     private List<Track> heartbeatLibraryContextTracks() {

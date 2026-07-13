@@ -4,7 +4,6 @@ internal class MainTabRenderDispatcher(
     private val renderLibraryAction: Runnable,
     private val renderCollectionsAction: Runnable,
     private val renderNetworkAction: Runnable,
-    private val renderSettingsAction: Runnable,
     private val renderSearchAction: Runnable
 ) {
     fun render(selectedTab: String) {
@@ -15,7 +14,7 @@ internal class MainTabRenderDispatcher(
             MainRoutes.TAB_QUEUE -> Unit
             MainRoutes.TAB_NETWORK -> renderNetworkAction.run()
             MainRoutes.TAB_SEARCH -> renderSearchAction.run()
-            else -> renderSettingsAction.run()
+            else -> Unit
         }
     }
 }

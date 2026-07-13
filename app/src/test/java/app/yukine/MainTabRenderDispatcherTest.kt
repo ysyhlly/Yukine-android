@@ -11,7 +11,6 @@ class MainTabRenderDispatcherTest {
             renderLibraryAction = Runnable { calls += "library" },
             renderCollectionsAction = Runnable { calls += "collections" },
             renderNetworkAction = Runnable { calls += "network" },
-            renderSettingsAction = Runnable { calls += "settings" },
             renderSearchAction = Runnable { calls += "search" }
         )
 
@@ -25,7 +24,7 @@ class MainTabRenderDispatcherTest {
         dispatcher.render("missing")
 
         assertEquals(
-            listOf("library", "collections", "network", "search", "settings", "settings"),
+            listOf("library", "collections", "network", "search"),
             calls
         )
     }

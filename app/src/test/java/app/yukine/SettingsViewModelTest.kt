@@ -4,7 +4,9 @@ import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsMetric
 import app.yukine.streaming.StreamingQualityPreference
+import app.yukine.navigation.SettingsTab
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -19,10 +21,10 @@ class SettingsViewModelTest {
     val mainDispatcherRule = LibraryMainDispatcherRule()
 
     @Test
-    fun renderPageFromHostPublishesTypedPageUi() {
+    fun renderCurrentPagePublishesTypedPageUi() {
         val viewModel = SettingsViewModel()
 
-        viewModel.renderPageFromHost(
+        viewModel.renderCurrentPage(
             SettingsPage.Home,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()
@@ -206,17 +208,49 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun renderPageFromHostUpdatesCurrentPage() {
+    fun routeStateDrivesCurrentPageWithoutHostRendering() = runTest {
         val viewModel = SettingsViewModel()
-
-        viewModel.renderPageFromHost(
-            SettingsPage.PlaybackGroup,
-            SettingsPreferencesSnapshot(),
-            RuntimeSettingsStatus()
+        val routes = MutableStateFlow(
+            NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.PlaybackGroup)
         )
+
+        viewModel.bindRouteState(routes)
+        advanceUntilIdle()
 
         assertEquals(SettingsPage.PlaybackGroup, viewModel.state.value.page)
         assertEquals(viewModel.state.value.ui, viewModel.uiState.value)
+
+        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Lyrics)
+        advanceUntilIdle()
+
+        assertEquals(SettingsPage.Lyrics, viewModel.state.value.page)
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_SYSTEM, "lyrics"),
+            viewModel.uiState.value.title
+        )
+    }
+
+    @Test
+    fun enteringSettingsRefreshesRuntimeContextEvenWhenPageIsUnchanged() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val routes = MutableStateFlow(NavigationRouteState(settingsPage = SettingsPage.Home))
+        var loads = 0
+        viewModel.bindContextLoader {
+            loads += 1
+            SettingsContextSnapshot(SettingsPreferencesSnapshot(), RuntimeSettingsStatus())
+        }
+        viewModel.bindRouteState(routes)
+        advanceUntilIdle()
+
+        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Home)
+        advanceUntilIdle()
+        routes.value = NavigationRouteState(settingsPage = SettingsPage.Home)
+        advanceUntilIdle()
+        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Home)
+        advanceUntilIdle()
+
+        assertEquals(2, loads)
     }
 
     @Test
@@ -273,7 +307,7 @@ class SettingsViewModelTest {
             loads += 1
             SettingsContextSnapshot(preferences, runtime)
         }
-        viewModel.renderPageFromHost(
+        viewModel.renderCurrentPage(
             SettingsPage.Library,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()

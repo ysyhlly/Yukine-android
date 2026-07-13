@@ -103,7 +103,7 @@ class EchoNavGraphTest {
         val networkSources = NetworkSourcesViewModel()
         val streaming = StreamingViewModel()
         val settings = SettingsViewModel().also {
-            it.renderPageFromHost(
+            it.renderCurrentPage(
                 app.yukine.SettingsPage.Home,
                 app.yukine.SettingsPreferencesSnapshot(),
                 app.yukine.RuntimeSettingsStatus()

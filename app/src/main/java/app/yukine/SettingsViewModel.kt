@@ -3,6 +3,7 @@ import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.yukine.navigation.SettingsTab
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
@@ -15,6 +16,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
@@ -235,6 +239,7 @@ class SettingsViewModel @JvmOverloads constructor(
     private var runtimeEffectListener: SettingsRuntimeEffectListener? = null
     private var contextLoader: SettingsContextLoader? = null
     private var contextLoadJob: Job? = null
+    private var routeStateJob: Job? = null
     private var nextContextLoadId = 0L
     private val preferenceWriteMutex = Mutex()
     /**
@@ -263,6 +268,24 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun bindContextLoader(nextLoader: SettingsContextLoader?) {
         contextLoader = nextLoader
+    }
+
+    fun bindRouteState(nextState: StateFlow<NavigationRouteState>?) {
+        routeStateJob?.cancel()
+        routeStateJob = nextState?.let { routeState ->
+            viewModelScope.launch {
+                routeState
+                    .map { it.selectedTab to it.settingsPage }
+                    .distinctUntilChanged()
+                    .collect { (selectedTab, page) ->
+                        val current = _state.value
+                        renderCurrentPage(page, current.preferences, current.runtime)
+                        if (selectedTab == SettingsTab) {
+                            refreshSettingsContext()
+                        }
+                    }
+            }
+        }
     }
 
     fun refreshSettingsContext() {
@@ -341,14 +364,6 @@ class SettingsViewModel @JvmOverloads constructor(
         )
         _uiState.value = content.uiState
         return content
-    }
-
-    fun renderPageFromHost(
-        page: SettingsPage,
-        preferences: SettingsPreferencesSnapshot,
-        runtime: RuntimeSettingsStatus
-    ) {
-        renderCurrentPage(page, preferences, runtime)
     }
 
     fun onEvent(event: SettingsEvent) {

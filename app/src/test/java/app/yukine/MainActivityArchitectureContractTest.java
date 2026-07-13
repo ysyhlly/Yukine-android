@@ -104,6 +104,18 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void settingsPageIsRouteFlowDrivenInsteadOfActivityRendered() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
+        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
+        assertFalse(activity.contains("private void renderSettings()"));
+        assertFalse(activity.contains("renderPageFromHost"));
+        assertTrue(settings.contains("fun bindRouteState("));
+        assertTrue(settings.contains(".map { it.selectedTab to it.settingsPage }"));
+        assertFalse(dispatcher.contains("renderSettingsAction"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
