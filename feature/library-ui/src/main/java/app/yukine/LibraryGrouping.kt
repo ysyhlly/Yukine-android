@@ -6,7 +6,7 @@ import java.io.File
 import java.util.ArrayList
 import java.util.LinkedHashMap
 
-internal object LibraryGrouping {
+object LibraryGrouping {
     @JvmField val HOME: String = "home"
     @JvmField val SONGS: String = "songs"
     @JvmField val ALBUMS: String = "albums"

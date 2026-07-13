@@ -13,7 +13,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.max
 
-internal object HomeDashboardStateFactory {
+object HomeDashboardStateFactory {
     private const val RECENT_LIMIT = 8
     private const val DAY_MS = 24L * 60L * 60L * 1000L
     private const val HEATMAP_WEEKS = 12

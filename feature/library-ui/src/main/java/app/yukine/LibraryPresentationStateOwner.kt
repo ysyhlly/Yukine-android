@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** The only mutable owner of library browse, selection and destination presentation state. */
-internal class LibraryPresentationStateOwner(
+class LibraryPresentationStateOwner internal constructor(
     private val gateway: () -> LibraryGateway?,
     private val favorites: LibraryFavoriteStateOwner,
     private val playlists: LibraryPlaylistStateOwner

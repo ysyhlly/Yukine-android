@@ -190,7 +190,7 @@ internal class PlaybackFeatureBinding(
             connection,
             libraryState,
             streamingViewModel.streaming,
-            settingsViewModel.state,
+            settingsViewModel.languageMode,
             homeIntentHandler
         )
         boundHomeDashboardViewModel = homeDashboardViewModel

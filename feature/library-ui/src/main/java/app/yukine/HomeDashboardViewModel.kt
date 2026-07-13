@@ -2,15 +2,12 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.yukine.dashboard.DashboardRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.PlaybackReadModel
 import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,9 +33,8 @@ interface HomeDashboardIntentHandler {
     fun playHeartbeatRecommendations()
 }
 
-@HiltViewModel
-class HomeDashboardViewModel @Inject constructor(
-    private val dashboardRepository: DashboardRepository?
+class HomeDashboardViewModel @JvmOverloads constructor(
+    private var dashboardRepository: HomeDashboardRepository? = null
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeDashboardDestinationState())
     val uiState: StateFlow<HomeDashboardDestinationState> = _uiState.asStateFlow()
@@ -48,18 +44,19 @@ class HomeDashboardViewModel @Inject constructor(
     private var playbackBinding: Job? = null
     private var dashboardBinding: Job? = null
 
+    fun bindRepository(repository: HomeDashboardRepository?) {
+        dashboardRepository = repository
+    }
+
     fun bindPlayback(
         playbackReadModel: PlaybackReadModel?,
-        settingsState: StateFlow<SettingsState>?
+        languageMode: StateFlow<String>?
     ) {
         playbackBinding?.cancel()
         playbackBinding = null
-        if (playbackReadModel == null || settingsState == null) return
-        val language = settingsState
-            .map { it.preferences.languageMode }
-            .distinctUntilChanged()
+        if (playbackReadModel == null || languageMode == null) return
         playbackBinding = viewModelScope.launch {
-            combine(playbackReadModel.state, language) { playback, languageMode ->
+            combine(playbackReadModel.state, languageMode) { playback, languageMode ->
                 playback to languageMode
             }.collect { (playback, languageMode) ->
                 updatePlayback(playback, languageMode)
@@ -71,17 +68,17 @@ class HomeDashboardViewModel @Inject constructor(
         playbackReadModel: PlaybackReadModel?,
         libraryState: StateFlow<LibraryStoreState>?,
         streamingState: StateFlow<StreamingSearchState>?,
-        settingsState: StateFlow<SettingsState>?,
+        languageMode: StateFlow<String>?,
         intentHandler: HomeDashboardIntentHandler?
     ) {
-        bindPlayback(playbackReadModel, settingsState)
+        bindPlayback(playbackReadModel, languageMode)
         dashboardBinding?.cancel()
         dashboardBinding = null
         if (
             playbackReadModel == null ||
             libraryState == null ||
             streamingState == null ||
-            settingsState == null ||
+            languageMode == null ||
             intentHandler == null
         ) {
             return

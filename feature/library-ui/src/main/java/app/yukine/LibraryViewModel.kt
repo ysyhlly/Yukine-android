@@ -131,7 +131,7 @@ interface LibraryImportGateway {
 }
 
 /** Optional phase-aware refresh capability implemented by the real import gateway. */
-internal interface LibraryRefreshProgressGateway {
+interface LibraryRefreshProgressGateway {
     fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResultUi
 }
 
@@ -206,15 +206,15 @@ class LibraryViewModel @JvmOverloads constructor(
     private var gateway: LibraryGateway? = null
     private val mutations = LibraryMutationContext(viewModelScope, ioDispatcher) { gateway }
     internal val favorites = LibraryFavoriteStateOwner(viewModelScope, mutations) { gateway }
-    internal val playlists = LibraryPlaylistStateOwner(viewModelScope, mutations) { gateway }
-    internal val loading = LibraryLoadStateOwner(
+    val playlists = LibraryPlaylistStateOwner(viewModelScope, mutations) { gateway }
+    val loading = LibraryLoadStateOwner(
         viewModelScope,
         mutations,
         { gateway },
         libraryRefreshDiagnosticTimeoutMs
     )
-    internal val presentation = LibraryPresentationStateOwner({ gateway }, favorites, playlists)
-    internal val data = LibraryDataStateOwner(viewModelScope, preparationDispatcher)
+    val presentation = LibraryPresentationStateOwner({ gateway }, favorites, playlists)
+    val data = LibraryDataStateOwner(viewModelScope, preparationDispatcher)
 
     val trackList: StateFlow<LibraryTrackListDestinationState> = presentation.trackList
     val libraryGroups: StateFlow<LibraryGroupsDestinationState> = presentation.groups
@@ -222,16 +222,16 @@ class LibraryViewModel @JvmOverloads constructor(
     val library: StateFlow<LibraryStoreState> = data.state
 
     @JvmName("dataOwner")
-    internal fun dataOwner(): LibraryDataStateOwner = data
+    fun dataOwner(): LibraryDataStateOwner = data
 
     @JvmName("playlistOwner")
-    internal fun playlistOwner(): LibraryPlaylistStateOwner = playlists
+    fun playlistOwner(): LibraryPlaylistStateOwner = playlists
 
     @JvmName("loadOwner")
-    internal fun loadOwner(): LibraryLoadStateOwner = loading
+    fun loadOwner(): LibraryLoadStateOwner = loading
 
     @JvmName("presentationOwner")
-    internal fun presentationOwner(): LibraryPresentationStateOwner = presentation
+    fun presentationOwner(): LibraryPresentationStateOwner = presentation
 
     fun bindGateway(nextGateway: LibraryGateway?) {
         gateway = nextGateway

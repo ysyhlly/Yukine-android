@@ -39,7 +39,7 @@ internal data class PreparedLibraryReplacement(
 )
 
 /** The only mutable owner of the library data snapshot used by library, player and navigation. */
-internal class LibraryDataStateOwner @JvmOverloads constructor(
+class LibraryDataStateOwner @JvmOverloads constructor(
     private val scope: CoroutineScope,
     private val preparationDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {

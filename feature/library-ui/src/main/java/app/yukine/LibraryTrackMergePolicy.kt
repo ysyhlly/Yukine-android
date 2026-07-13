@@ -13,7 +13,7 @@ import kotlin.math.abs
  * sources. Remix/version, album, unknown metadata, and materially different duration still remain
  * separate so they cannot be switched accidentally.
  */
-internal object LibraryTrackMergePolicy {
+object LibraryTrackMergePolicy {
     private const val LOCAL_DURATION_TOLERANCE_MS = 3_000L
     private val whitespace = Regex("\\s+")
     private val bracketedQualifier = Regex(

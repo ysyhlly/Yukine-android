@@ -66,6 +66,7 @@ final class LibraryFeatureBinding {
             LibraryImportGateway importGateway,
             LibraryDocumentGateway documentGateway,
             LibraryPlaylistActionGateway playlistActionGateway,
+            HomeDashboardRepository homeDashboardRepository,
             Handler mainHandler,
             ArtistInfoRepository artistInfoRepository
     ) {
@@ -88,6 +89,7 @@ final class LibraryFeatureBinding {
         this.viewModel = viewModels.getLibraryViewModel();
         this.collectionsViewModel = viewModels.getCollectionsViewModel();
         this.homeDashboardViewModel = viewModels.getHomeDashboardViewModel();
+        this.homeDashboardViewModel.bindRepository(homeDashboardRepository);
         this.store = viewModel.dataOwner();
         this.collectionsOwner = new LibraryCollectionsOwner(
                 viewModel,
@@ -214,7 +216,7 @@ final class LibraryFeatureBinding {
                 playback.readModel()
         );
         searchViewModel.bindStateSources(
-                navigationViewModel.getState(),
+                navigationViewModel.getSearchQuery(),
                 viewModel.getLibrary(),
                 repository::search
         );

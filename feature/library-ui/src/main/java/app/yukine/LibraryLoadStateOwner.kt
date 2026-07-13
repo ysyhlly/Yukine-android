@@ -8,7 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Focused owner for library refresh, imports, documents and hidden-item restoration. */
-internal class LibraryLoadStateOwner(
+class LibraryLoadStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val mutations: LibraryMutationContext,
     private val gateway: () -> LibraryGateway?,

@@ -14,11 +14,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 
@@ -177,6 +179,9 @@ class SettingsViewModel @JvmOverloads constructor(
     val scrollState = SettingsListScrollState()
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
+    val languageMode: StateFlow<String> = state
+        .map { it.preferences.languageMode }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, state.value.preferences.languageMode)
     private val _chromeState = MutableStateFlow(SettingsChromeState())
     val chromeState: StateFlow<SettingsChromeState> = _chromeState.asStateFlow()
     private val _uiState = MutableStateFlow(SettingsUiState())

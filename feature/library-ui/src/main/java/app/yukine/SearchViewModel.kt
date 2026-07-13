@@ -24,18 +24,18 @@ class SearchViewModel : ViewModel() {
     val uiState: StateFlow<UnifiedSearchUiState> = searchState.asStateFlow()
 
     fun bindStateSources(
-        routeState: StateFlow<NavigationRouteState>?,
+        queryState: StateFlow<String>?,
         libraryState: StateFlow<LibraryStoreState>?,
         localTrackSearch: LocalTrackSearch?
     ) {
         stateSourcesJob?.cancel()
         stateSourcesJob = null
-        if (routeState == null || libraryState == null || localTrackSearch == null) {
+        if (queryState == null || libraryState == null || localTrackSearch == null) {
             return
         }
         stateSourcesJob = viewModelScope.launch {
             combine(
-                routeState.map { it.searchQuery }.distinctUntilChanged(),
+                queryState,
                 libraryState.map { it.allTracks }.distinctUntilChanged()
             ) { query, tracks ->
                 query to localTrackSearch.search(tracks, query)

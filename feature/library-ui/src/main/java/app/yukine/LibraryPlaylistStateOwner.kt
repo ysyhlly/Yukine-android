@@ -7,7 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Focused owner for playlist loading, collection reads and playlist mutations. */
-internal class LibraryPlaylistStateOwner(
+class LibraryPlaylistStateOwner internal constructor(
     private val scope: CoroutineScope,
     private val mutations: LibraryMutationContext,
     private val gateway: () -> LibraryGateway?
@@ -223,7 +223,7 @@ internal class LibraryPlaylistStateOwner(
 }
 
 /** Stateless status presentation for playlist actions. */
-internal object LibraryPlaylistStatusFactory {
+object LibraryPlaylistStatusFactory {
     fun defaultAdd(added: Boolean, languageMode: String) = LibraryPlaylistActionPresentation(
         status = text(languageMode, if (added) "added.to.playlist" else "could.not.add.to.playlist")
     )

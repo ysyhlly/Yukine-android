@@ -3,6 +3,7 @@ package app.yukine.dashboard
 import android.net.Uri
 import android.util.Log
 import app.yukine.LibraryGrouping
+import app.yukine.HomeDashboardRepository
 import app.yukine.StreamingGatewayEndpointStore
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
@@ -25,7 +26,7 @@ import kotlin.math.max
 class DashboardRepository(
     private val gateway: DashboardGateway,
     private val endpointStore: StreamingGatewayEndpointStore
-) {
+) : HomeDashboardRepository {
     companion object {
         private const val TAG = "DashboardRepository"
         private const val DAY_MS = 24L * 60L * 60L * 1000L
@@ -36,7 +37,7 @@ class DashboardRepository(
      * Fetch homepage data.
      * @return HomeDashboardUiState ready for UI consumption
      */
-    suspend fun fetchHome(
+    override suspend fun fetchHome(
         localTracks: List<Track>,
         localRecords: List<TrackPlayRecord>,
         localPlayback: PlaybackStateSnapshot?

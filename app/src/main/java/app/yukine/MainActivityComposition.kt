@@ -65,6 +65,7 @@ internal class MainActivityComposition @Inject constructor(
             deps.libraryImportGateway,
             deps.libraryDocumentGateway,
             deps.libraryPlaylistActionGateway,
+            deps.homeDashboardRepository,
             deps.mainHandler,
             deps.artistInfoRepository
         )

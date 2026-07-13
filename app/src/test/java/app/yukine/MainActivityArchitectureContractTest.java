@@ -296,8 +296,8 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void screensObserveFlowsInsteadOfActivityRenderFanOut() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
-        String home = read("app/src/main/java/app/yukine/HomeDashboardViewModel.kt");
-        String search = read("app/src/main/java/app/yukine/SearchViewModel.kt");
+        String home = read("feature/library-ui/src/main/java/app/yukine/HomeDashboardViewModel.kt");
+        String search = read("feature/library-ui/src/main/java/app/yukine/SearchViewModel.kt");
         String library = read("app/src/main/java/app/yukine/LibraryRenderOwner.kt");
         String network = read("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt");
         String collections = read("app/src/main/java/app/yukine/CollectionsRenderController.kt");
@@ -437,37 +437,42 @@ public final class MainActivityArchitectureContractTest {
 
     @Test
     public void libraryStateAndMutationsAreSplitIntoFocusedOwners() throws Exception {
-        String viewModel = read("app/src/main/java/app/yukine/LibraryViewModel.kt");
+        String viewModel = read("feature/library-ui/src/main/java/app/yukine/LibraryViewModel.kt");
         String classBody = viewModel.substring(viewModel.indexOf("class LibraryViewModel"));
-        String data = read("app/src/main/java/app/yukine/LibraryDataStateOwner.kt");
-        String presentation = read("app/src/main/java/app/yukine/LibraryPresentationStateOwner.kt");
-        String loading = read("app/src/main/java/app/yukine/LibraryLoadStateOwner.kt");
-        String playlists = read("app/src/main/java/app/yukine/LibraryPlaylistStateOwner.kt");
-        String favorites = read("app/src/main/java/app/yukine/LibraryFavoriteStateOwner.kt");
-        String mutations = read("app/src/main/java/app/yukine/LibraryMutationContext.kt");
+        String data = read("feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt");
+        String presentation = read("feature/library-ui/src/main/java/app/yukine/LibraryPresentationStateOwner.kt");
+        String loading = read("feature/library-ui/src/main/java/app/yukine/LibraryLoadStateOwner.kt");
+        String playlists = read("feature/library-ui/src/main/java/app/yukine/LibraryPlaylistStateOwner.kt");
+        String favorites = read("feature/library-ui/src/main/java/app/yukine/LibraryFavoriteStateOwner.kt");
+        String mutations = read("feature/library-ui/src/main/java/app/yukine/LibraryMutationContext.kt");
 
         assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/MainActivityViewModel.kt")));
         assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/MainLibraryStore.kt")));
         assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/LibrarySearchUseCase.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/LibraryViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/HomeDashboardViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/SearchViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/CollectionsViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/DownloadsViewModel.kt")));
         assertTrue(viewModel.lines().count() < 350);
         assertFalse(classBody.contains("MutableStateFlow"));
         assertFalse(classBody.contains("fun loadLibrary("));
         assertFalse(classBody.contains("fun createPlaylist("));
         assertFalse(classBody.contains("fun updateTrackList("));
         assertFalse(classBody.contains("fun onLibraryAction("));
-        assertTrue(classBody.contains("internal val presentation = LibraryPresentationStateOwner"));
-        assertTrue(classBody.contains("internal val loading = LibraryLoadStateOwner"));
-        assertTrue(classBody.contains("internal val playlists = LibraryPlaylistStateOwner"));
+        assertTrue(classBody.contains("val presentation = LibraryPresentationStateOwner"));
+        assertTrue(classBody.contains("val loading = LibraryLoadStateOwner"));
+        assertTrue(classBody.contains("val playlists = LibraryPlaylistStateOwner"));
         assertTrue(classBody.contains("internal val favorites = LibraryFavoriteStateOwner"));
-        assertTrue(classBody.contains("internal val data = LibraryDataStateOwner(viewModelScope"));
+        assertTrue(classBody.contains("val data = LibraryDataStateOwner(viewModelScope"));
         assertTrue(classBody.contains("val library: StateFlow<LibraryStoreState> = data.state"));
         assertTrue(data.contains("private val mutableState = MutableStateFlow(LibraryStoreState())"));
         assertTrue(data.contains("val state: StateFlow<LibraryStoreState> = mutableState.asStateFlow()"));
         assertTrue(presentation.contains("private val trackListState = MutableStateFlow"));
         assertTrue(presentation.contains("private val groupsState = MutableStateFlow"));
         assertTrue(presentation.contains("private val uiState = MutableStateFlow"));
-        assertTrue(loading.contains("class LibraryLoadStateOwner("));
-        assertTrue(playlists.contains("class LibraryPlaylistStateOwner("));
+        assertTrue(loading.contains("class LibraryLoadStateOwner internal constructor("));
+        assertTrue(playlists.contains("class LibraryPlaylistStateOwner internal constructor("));
         assertTrue(favorites.contains("class LibraryFavoriteStateOwner("));
         assertTrue(mutations.contains("private val mutex = Mutex()"));
     }

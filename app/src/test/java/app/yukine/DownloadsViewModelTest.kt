@@ -200,7 +200,7 @@ class DownloadsViewModelTest {
 
     private class FakeDownloadDirectoryController : TrackDownloadDirectoryController {
         val calls = mutableListOf<String>()
-        private var directory = TrackDownloadManager.DOWNLOAD_DIRECTORY_MUSIC
+        private var directory = DOWNLOAD_DIRECTORY_MUSIC
 
         override fun downloadDirectoryLabel(): String = "$directory/Yukine"
 

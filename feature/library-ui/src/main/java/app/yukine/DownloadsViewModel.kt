@@ -71,11 +71,11 @@ class DownloadsViewModel : ViewModel() {
     }
 
     fun useMusicDirectory(downloadManager: TrackDownloadDirectoryController?) {
-        setDirectory(downloadManager, TrackDownloadManager.DOWNLOAD_DIRECTORY_MUSIC)
+        setDirectory(downloadManager, DOWNLOAD_DIRECTORY_MUSIC)
     }
 
     fun useDownloadsDirectory(downloadManager: TrackDownloadDirectoryController?) {
-        setDirectory(downloadManager, TrackDownloadManager.DOWNLOAD_DIRECTORY_DOWNLOADS)
+        setDirectory(downloadManager, DOWNLOAD_DIRECTORY_DOWNLOADS)
     }
 
     fun chooseDirectory(downloadManager: TrackDownloadDirectoryController?) {

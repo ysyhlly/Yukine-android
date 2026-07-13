@@ -1,5 +1,10 @@
 package app.yukine
 
+import android.net.Uri
+
+const val DOWNLOAD_DIRECTORY_MUSIC = "music"
+const val DOWNLOAD_DIRECTORY_DOWNLOADS = "downloads"
+
 data class TrackDownloadActionResult(
     val changed: Boolean,
     val message: String
@@ -12,6 +17,12 @@ interface TrackDownloadController {
     fun remove(downloadId: Long): TrackDownloadActionResult
     fun pauseAll(): TrackDownloadActionResult
     fun resumeAll(): TrackDownloadActionResult
+}
+
+interface TrackDownloadDirectoryController : TrackDownloadController {
+    fun downloadDirectoryLabel(): String
+    fun setDownloadDirectory(directory: String)
+    fun setCustomDownloadDirectory(treeUri: Uri)
 }
 
 data class DownloadsDestinationActions(

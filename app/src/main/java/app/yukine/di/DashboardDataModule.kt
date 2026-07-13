@@ -1,6 +1,7 @@
 package app.yukine.di
 
 import app.yukine.StreamingGatewaySettingsStore
+import app.yukine.HomeDashboardRepository
 import app.yukine.dashboard.DashboardGateway
 import app.yukine.dashboard.DashboardRepository
 import app.yukine.dashboard.RemoteDashboardGateway
@@ -27,7 +28,7 @@ object DashboardDataModule {
     fun provideDashboardRepository(
         gateway: DashboardGateway,
         settingsStore: StreamingGatewaySettingsStore
-    ): DashboardRepository {
+    ): HomeDashboardRepository {
         return DashboardRepository(gateway, settingsStore)
     }
 }

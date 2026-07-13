@@ -41,13 +41,7 @@ class HomeDashboardViewModelTest {
         val readModel = FakePlaybackReadModel()
         viewModel.bindPlayback(
             readModel,
-            MutableStateFlow(
-                SettingsState(
-                    preferences = SettingsPreferencesSnapshot(
-                        languageMode = AppLanguage.MODE_ENGLISH
-                    )
-                )
-            )
+            MutableStateFlow(AppLanguage.MODE_ENGLISH)
         )
 
         readModel.state.value = PlaybackStateSnapshot(
@@ -107,7 +101,7 @@ class HomeDashboardViewModelTest {
                 )
             ),
             MutableStateFlow(StreamingSearchState()),
-            MutableStateFlow(SettingsState()),
+            MutableStateFlow(AppLanguage.MODE_SYSTEM),
             handler
         )
         advanceUntilIdle()

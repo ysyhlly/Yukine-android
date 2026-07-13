@@ -53,12 +53,12 @@ class SearchViewModelTest {
     @Test
     fun routeAndLibraryFlowsDriveLocalResultsWithoutTabRendering() = runTest {
         val viewModel = SearchViewModel()
-        val routes = MutableStateFlow(NavigationRouteState(searchQuery = "echo"))
+        val query = MutableStateFlow("echo")
         val library = MutableStateFlow(
             LibraryStoreState(allTracks = listOf(track(1L, "Echo One"), track(2L, "Other")))
         )
 
-        viewModel.bindStateSources(routes, library) { tracks, query ->
+        viewModel.bindStateSources(query, library) { tracks, query ->
             tracks.filter { it.title.contains(query, ignoreCase = true) }
         }
         advanceUntilIdle()

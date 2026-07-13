@@ -23,6 +23,7 @@ internal class MainActivityDependencies @Inject constructor(
     val libraryImportGateway: LibraryImportGateway,
     val libraryDocumentGateway: LibraryDocumentGateway,
     val libraryPlaylistActionGateway: LibraryPlaylistActionGateway,
+    val homeDashboardRepository: HomeDashboardRepository,
     val loadSettingsPreferencesUseCase: LoadSettingsPreferencesUseCase,
     val applySettingsPreferenceUseCase: ApplySettingsPreferenceUseCase,
     val streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations,
