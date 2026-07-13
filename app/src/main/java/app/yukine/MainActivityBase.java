@@ -193,7 +193,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private PlaybackServiceHostPort playbackService;
     private MainPlaybackStartListener playbackStartListener;
     private int unifiedStreamingPlaybackRequestId = 0;
-    private boolean scrollContentToTopOnNextRender;
     private app.yukine.navigation.EchoNavHostState navHostState;
     private boolean navHostInstalled;
 
@@ -325,7 +324,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
-                this::renderSelectedTab,
                 this::loadCollections,
                 track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
                 routeController,
@@ -468,7 +466,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                                 nowPlayingViewModel.bindLuoxueTrackMetadataResolver(luoxueTrackMetadataResolver);
                             }
                             refreshStreamingProviders();
-                            renderSelectedTab();
                         });
                     });
                 }
@@ -580,22 +577,16 @@ public abstract class MainActivityBase extends ComponentActivity {
         homeDashboardIntentHandler = new MainHomeDashboardRenderListener(
                 mode -> {
                     routeController.setLibraryMode(mode);
-                    navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true, true);
+                    navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true);
                 },
                 this::continueDashboardPlayback,
-                () -> navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true, true),
+                () -> navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
                 this::playTrackListFromHost,
                 () -> loadLibrary(true),
-                () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true, true),
+                () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
-                () -> {
-                    routeController.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true);
-                    renderSelectedTab();
-                },
-                () -> {
-                    navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true, true);
-                    syncNavHostState();
-                },
+                () -> routeController.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
+                () -> navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
                 () -> runRecommendationAction(new RecommendationAction.PlayDaily(StreamingProviderName.NETEASE)),
                 () -> runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE))
         );
@@ -661,7 +652,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         null
                 ).getResolving(),
                 status -> statusMessageController.setStatus(status),
-                () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true, true)
+                () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true)
         );
         playbackStartController = new PlaybackStartController(
                 streamingPlaybackController::resolveAndPlayStreamingTrack,
@@ -697,7 +688,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             } else if (effect instanceof SettingsEffect.OpenNetworkPage) {
                 navigateToNetworkTabPage(((SettingsEffect.OpenNetworkPage) effect).getPage());
             } else if (effect == SettingsEffect.OpenDownloads.INSTANCE) {
-                navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true, true);
+                navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true);
             } else if (effect == SettingsEffect.RequestNeededPermissions.INSTANCE) {
                 if (permissionController != null) {
                     permissionController.requestNeededPermissions();
@@ -794,8 +785,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         message -> streamingPlaylistDialogController.showStreamingPlaylistLoadedDialog(message),
                         (provider, playlists) ->
                                 streamingPlaylistDialogController.showAccountPlaylistImportPicker(provider, playlists),
-                        status -> statusMessageController.setStatus(status),
-                        () -> MainActivityBase.this.renderSelectedTab()
+                        status -> statusMessageController.setStatus(status)
                 )
         );
         streamingPlaylistControllerRef[0] = streamingPlaylistController;
@@ -1153,8 +1143,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 source -> confirmationDialogController.confirmDeleteRemoteSource(source),
                 (tracks, index) -> playTrackListFromHost(tracks, index),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
-                status -> statusMessageController.setStatus(status),
-                this::renderSelectedTabAfterStateChange
+                status -> statusMessageController.setStatus(status)
         );
         NetworkTrackListRenderController trackListRenderer =
                 new NetworkTrackListRenderController(new NetworkTrackListRenderController.Listener() {
@@ -1259,11 +1248,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             @Override
             public void navigateToNetworkTabPage(String page) {
                 MainActivityBase.this.navigateToNetworkTabPage(page);
-            }
-
-            @Override
-            public void renderSelectedTabAfterStateChange() {
-                MainActivityBase.this.renderSelectedTabAfterStateChange();
             }
 
             @Override
@@ -1477,7 +1461,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private kotlinx.coroutines.Job refreshStreamingProviders() {
         kotlinx.coroutines.Job job = streamingViewModel.refreshStreamingProviders();
         job.invokeOnCompletion(error -> {
-            syncStreamingProvidersAndRender();
+            syncStreamingProviders();
             return kotlin.Unit.INSTANCE;
         });
         return job;
@@ -1487,7 +1471,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingGatewaySettingsStore.setEndpoint(endpoint);
         streamingViewModel.configureStreamingRepository();
         kotlinx.coroutines.Job refreshJob = refreshStreamingProviders();
-        renderSelectedTab();
         statusMessageController.setStatus(
                 AppLanguage.text(settingsStore.languageMode(), "streaming.gateway.applied")
                         + streamingGatewaySettingsStore.endpoint()
@@ -1495,9 +1478,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         return refreshJob;
     }
 
-    private void syncStreamingProvidersAndRender() {
+    private void syncStreamingProviders() {
         streamingRecommendationViewModel.updateProviders(streamingViewModel.getState().getProviders());
-        renderSelectedTab();
     }
 
     private void runRecommendationAction(RecommendationAction action) {
@@ -1571,14 +1553,13 @@ public abstract class MainActivityBase extends ComponentActivity {
                 MainActivityBase.this.handleAppBack();
             }
         });
-        syncNavHostState();
+        createNavHostState();
         navHostInstalled = true;
         EchoAppHost.installNavHost(this, new ActivityNavHostMount());
     }
 
-    private void syncNavHostState() {
-        if (navHostState == null) {
-            navHostState = new app.yukine.navigation.EchoNavHostState(
+    private void createNavHostState() {
+        navHostState = new app.yukine.navigation.EchoNavHostState(
                     navigationViewModel.getState(),
                     homeDashboardViewModel.getUiState(),
                     nowPlayingViewModel,
@@ -1603,9 +1584,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                     true,
                     visible -> { },
                     libraryViewModel::onLibraryAction
-            );
-            return;
-        }
+        );
     }
 
     private app.yukine.DownloadsDestinationActions downloadsDestinationActions() {
@@ -1687,7 +1666,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
         @Override
         public java.lang.Runnable closeNowPlayingAction() {
-            return () -> navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true, true);
+            return () -> navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true);
         }
 
         @Override
@@ -1700,7 +1679,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
         @Override
         public app.yukine.navigation.EchoNavHostState hostState() {
-            syncNavHostState();
             return navHostState;
         }
 
@@ -1742,7 +1720,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
         @Override
         public void onTabChanged(app.yukine.navigation.TabRoute tab) {
-            navigateToTab(tab, true, true);
+            navigateToTab(tab, true);
         }
     }
 
@@ -1769,8 +1747,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             app.yukine.navigation.TabRoute destination =
                     app.yukine.navigation.TabRoute.Companion.fromKey(result.selectedTab);
             navigateToTab(destination == null ? app.yukine.navigation.HomeTab.INSTANCE : destination);
-        } else {
-            renderSelectedTabAfterStateChange();
         }
         return true;
     }
@@ -1805,10 +1781,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     if (onboardingController != null) {
                         onboardingController.onLibraryScanResult(false);
                     }
-                    if (showOnboarding()) {
-                        return;
-                    }
-                    renderSelectedTab();
                 }
         );
     }
@@ -1902,7 +1874,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void applyLibraryReplacement(List<Track> tracks, Set<Long> favorites, Runnable onApplied) {
         libraryStore.replaceLibraryAsync(tracks, favorites, searchQuery(), () -> {
-            renderSelectedTabAfterStateChange();
             loadCollections();
             onApplied.run();
         });
@@ -1920,12 +1891,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryViewModel.loadCollectionsJava(selectedPlaylistId(), result -> {
             routeController.setSelectedPlaylistId(result.getSelectedPlaylistId());
             libraryStore.applyCollections(result);
-            if (TAB_COLLECTIONS.equals(selectedTab())
-                    || (TAB_LIBRARY.equals(selectedTab()) && LIBRARY_PLAYLISTS.equals(libraryMode()))
-                    || TAB_NETWORK.equals(selectedTab())
-                    || TAB_SETTINGS.equals(selectedTab())) {
-                renderSelectedTab();
-            }
         });
     }
 
@@ -1935,7 +1900,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (streamingSearchActionHandler != null && !safeQuery.isEmpty()) {
             streamingSearchActionHandler.search(safeQuery);
         }
-        syncNavHostState();
     }
 
     private void updateUnifiedSearchQuery(String query) {
@@ -2116,7 +2080,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             if (query != null && !query.trim().isEmpty() && libraryStore.visibleTracks().isEmpty()) {
                 statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
             }
-            renderSelectedTabAfterStateChange();
         });
         if (TAB_SEARCH.equals(selectedTab())) {
             if (streamingSearchActionHandler != null && searchQuery() != null && !searchQuery().trim().isEmpty()) {
@@ -2132,26 +2095,18 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private void renderSelectedTabAfterStateChange() {
-        renderSelectedTab();
-    }
-
     private void navigateToTab(app.yukine.navigation.TabRoute tab) {
-        navigateToTab(tab, false, false);
+        navigateToTab(tab, false);
     }
 
     private void navigateToTab(
             app.yukine.navigation.TabRoute tab,
-            boolean userInitiated,
-            boolean renderImmediately
+            boolean userInitiated
     ) {
         String previousDirectory = currentDirectoryKey();
         boolean sameTab = routeController.navigateToTab(tab, userInitiated);
         if (userInitiated && sameTab && previousDirectory.equals(currentDirectoryKey())) {
             requestCurrentDirectoryScrollToTop();
-        }
-        if (renderImmediately || sameTab) {
-            renderSelectedTab();
         }
     }
 
@@ -2173,7 +2128,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         String mode = modes.get(nextIndex);
         routeController.setLibraryMode(mode);
-        renderSelectedTabAfterStateChange();
         return true;
     }
 
@@ -2183,7 +2137,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         routeController.clearLibraryGroup();
         routeController.setSelectedPlaylistId(-1L);
-        renderSelectedTabAfterStateChange();
         return true;
     }
 
@@ -2199,12 +2152,10 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void navigateNetworkPage(String page) {
         routeController.setNetworkPage(page);
-        renderSelectedTabAfterStateChange();
     }
 
     private void navigateToNetworkTabPage(String page) {
         routeController.navigateToNetworkPageFromCurrent(page);
-        renderSelectedTabAfterStateChange();
     }
 
     private String currentDirectoryKey() {
@@ -2222,14 +2173,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void requestCurrentDirectoryScrollToTop() {
-        scrollContentToTopOnNextRender = true;
         if (TAB_SETTINGS.equals(selectedTab())) {
             settingsViewModel.scrollToTopOnNextRender();
         }
-    }
-
-    private void renderSelectedTab() {
-        syncNavHostState();
     }
 
     private String selectedPlaylistName() {
@@ -2377,7 +2323,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         for (NowPlayingEffect effect : effects) {
             if (effect == NowPlayingEffect.OpenQueue.INSTANCE) {
-                navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true, true);
+                navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true);
             } else if (effect instanceof NowPlayingEffect.OpenAddToPlaylist openAddToPlaylist) {
                 playlistDialogController.showAddToPlaylist(openAddToPlaylist.getTrack());
             } else if (effect instanceof NowPlayingEffect.ShareTrack shareTrack) {
@@ -2440,13 +2386,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         String status = result.status;
         if (status != null && !status.trim().isEmpty()) {
             statusMessageController.setStatus(status);
-        }
-        if (result.renderSelectedTab) {
-            renderSelectedTab();
-        }
-        if (result.navigateNow) {
-            routeController.setSelectedTab(TAB_NOW);
-            renderSelectedTab();
         }
     }
 

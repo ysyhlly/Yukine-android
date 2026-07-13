@@ -54,7 +54,7 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun sortAndFilterUpdateOneStateAndRequestRefresh() {
+    fun sortAndFilterUpdateTheObservedUiStateDirectly() {
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel()
         viewModel.bindGateway(gateway)
@@ -64,7 +64,7 @@ class LibraryViewModelTest {
 
         assertEquals(LibrarySort.DurationDescending, viewModel.libraryUi.value.sort)
         assertEquals(LibraryFilter.Local, viewModel.libraryUi.value.filter)
-        assertEquals(listOf("refresh", "refresh"), gateway.calls)
+        assertTrue(gateway.calls.isEmpty())
     }
 
     @Test
@@ -91,7 +91,6 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(1L, 2L, 3L), favoriteWrites)
-        assertTrue(libraryGateway.calls.contains("refresh"))
         assertTrue(libraryGateway.calls.contains("status:library.favorite.failed"))
         assertTrue(libraryGateway.calls.contains("status:could.not.add.to.playlist"))
         assertEquals(listOf("default:1", "default:2", "default:3"), playlistGateway.calls)
@@ -917,10 +916,6 @@ class LibraryViewModelTest {
 
         override fun scanLibrary() {
             calls.add("scan")
-        }
-
-        override fun refreshLibrary() {
-            calls.add("refresh")
         }
 
         override fun requestDeleteTracks(tracks: List<Track>) {

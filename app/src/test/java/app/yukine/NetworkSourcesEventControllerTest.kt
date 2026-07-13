@@ -12,20 +12,14 @@ import java.util.ArrayList
 
 class NetworkSourcesEventControllerTest {
     @Test
-    fun navigationUpdatesRouteAndRequestsRender() {
+    fun navigationUpdatesReactiveRouteState() {
         val fakes = Fakes()
         val controller = fakes.controller()
 
         controller.openRemoteSourceTracks(42L)
         controller.backToNetwork()
 
-        assertEquals(
-            listOf(
-                "render",
-                "render"
-            ),
-            fakes.events
-        )
+        assertEquals(emptyList<String>(), fakes.events)
         assertEquals(MainRoutes.NETWORK_SOURCES, fakes.navigationViewModel.state.value.networkPage)
         assertEquals(-1L, fakes.navigationViewModel.state.value.selectedRemoteSourceId)
     }
@@ -117,11 +111,7 @@ class NetworkSourcesEventControllerTest {
                 { source -> events.add("confirm:delete:${source.id}") },
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
-                { status -> events.add("status:$status") },
-                {
-                    routeController.persist()
-                    events.add("render")
-                }
+                { status -> events.add("status:$status") }
             )
 
         fun openSourcesFromSettings() {

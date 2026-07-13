@@ -32,7 +32,6 @@ class MainStreamingPlaylistListenerTest {
         listener.showStreamingPlaylistLoadedDialog("Loaded")
         listener.showAccountPlaylistImportPicker(StreamingProviderName.NETEASE, accountPlaylists)
         listener.setStatus("Ready")
-        listener.renderSelectedTab()
 
         assertEquals(99L, selectedPlaylistId)
         assertEquals(
@@ -44,8 +43,7 @@ class MainStreamingPlaylistListenerTest {
                 "navigate",
                 "loaded:Loaded",
                 "accountPicker:netease:100",
-                "status:Ready",
-                "renderSelectedTab"
+                "status:Ready"
             ),
             calls
         )
@@ -71,8 +69,7 @@ class MainStreamingPlaylistListenerTest {
             StreamingAccountPlaylistImportPickerPresenter { provider, playlists ->
                 calls += "account:${provider.wireName}:${playlists.size}"
             },
-            StreamingPlaylistStatusSink { calls += "status:$it" },
-            StreamingSelectedTabRenderer { calls += "render" }
+            StreamingPlaylistStatusSink { calls += "status:$it" }
         )
 
         assertEquals(7L, listener.selectedPlaylistId())
@@ -91,7 +88,6 @@ class MainStreamingPlaylistListenerTest {
             listOf(StreamingPlaylist(StreamingProviderName.KUGOU, "200", "Cloud"))
         )
         listener.setStatus("Synced")
-        listener.renderSelectedTab()
 
         assertEquals(
             listOf(
@@ -102,8 +98,7 @@ class MainStreamingPlaylistListenerTest {
                 "navigate",
                 "loaded:Done",
                 "account:kugou:1",
-                "status:Synced",
-                "render"
+                "status:Synced"
             ),
             calls
         )
@@ -136,8 +131,7 @@ class MainStreamingPlaylistListenerTest {
             accountPlaylistPickerPresenter = StreamingAccountPlaylistImportPickerPresenter { provider, playlists ->
                 calls += "accountPicker:${provider.wireName}:${playlists.single().providerPlaylistId}"
             },
-            statusSink = StreamingPlaylistStatusSink { calls += "status:$it" },
-            selectedTabRenderer = StreamingSelectedTabRenderer { calls += "renderSelectedTab" }
+            statusSink = StreamingPlaylistStatusSink { calls += "status:$it" }
         )
 }
 

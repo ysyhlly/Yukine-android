@@ -56,10 +56,6 @@ internal fun interface StreamingPlaylistStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface StreamingSelectedTabRenderer {
-    fun renderSelectedTab()
-}
-
 internal fun interface MainStreamingPlaylistListenerFactory {
     fun create(
         playlistIdSource: StreamingPlaylistIdSource,
@@ -74,8 +70,7 @@ internal fun interface MainStreamingPlaylistListenerFactory {
         navigationSink: StreamingNavigationSink,
         loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
         accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
-        statusSink: StreamingPlaylistStatusSink,
-        selectedTabRenderer: StreamingSelectedTabRenderer
+        statusSink: StreamingPlaylistStatusSink
     ): StreamingPlaylistController.Listener
 }
 
@@ -92,8 +87,7 @@ internal class MainStreamingPlaylistListener(
     private val navigationSink: StreamingNavigationSink,
     private val loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
     private val accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
-    private val statusSink: StreamingPlaylistStatusSink,
-    private val selectedTabRenderer: StreamingSelectedTabRenderer
+    private val statusSink: StreamingPlaylistStatusSink
 ) : StreamingPlaylistController.Listener {
     override fun selectedPlaylistId(): Long =
         playlistIdSource.selectedPlaylistId()
@@ -142,7 +136,4 @@ internal class MainStreamingPlaylistListener(
         statusSink.setStatus(status)
     }
 
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
-    }
 }

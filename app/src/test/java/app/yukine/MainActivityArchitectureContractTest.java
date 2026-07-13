@@ -64,7 +64,9 @@ public final class MainActivityArchitectureContractTest {
     public void activityDoesNotPersistRoutesDuringEveryRender() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         assertFalse(activity.contains("routeController.persist()"));
-        assertTrue(activity.contains("renderSelectedTabAfterStateChange"));
+        assertFalse(activity.contains("renderSelectedTab"));
+        assertFalse(activity.contains("syncNavHostState"));
+        assertTrue(activity.contains("private void createNavHostState()"));
     }
 
     @Test

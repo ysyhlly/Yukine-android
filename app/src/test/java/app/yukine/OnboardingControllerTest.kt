@@ -115,9 +115,6 @@ class OnboardingControllerTest {
         override fun navigateToNetworkTabPage(page: String) {
         }
 
-        override fun renderSelectedTabAfterStateChange() {
-        }
-
         override fun openPlaylistM3uFilePicker() {
         }
 

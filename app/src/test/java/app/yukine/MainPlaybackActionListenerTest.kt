@@ -12,7 +12,7 @@ class MainPlaybackActionListenerTest {
     fun delegatesPlaybackActionCallbacksToInjectedOwners() {
         val snapshot = PlaybackStateSnapshot.empty()
         val fallbackTracks = listOf(track(1L), track(2L))
-        val result = PlaybackActionResultUi("ready", false, false)
+        val result = PlaybackActionResultUi("ready")
         var resolveCalls = 0
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
         val listener = MainPlaybackActionListener(
@@ -45,7 +45,7 @@ class MainPlaybackActionListenerTest {
             PlaybackFallbackTracksSource { listOf(track(3L)) },
             PlaybackActionResultSink { appliedResults += it }
         )
-        val result = PlaybackActionResultUi(null, false, false)
+        val result = PlaybackActionResultUi(null)
 
         assertEquals(false, listener.resolveCurrentStreamingQueueTrackIfNeeded())
         assertSame(snapshot, listener.playbackSnapshot())

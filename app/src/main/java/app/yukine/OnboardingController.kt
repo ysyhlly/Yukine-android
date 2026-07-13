@@ -38,8 +38,6 @@ internal class OnboardingController @JvmOverloads constructor(
 
         fun navigateToNetworkTabPage(page: String)
 
-        fun renderSelectedTabAfterStateChange()
-
         fun openPlaylistM3uFilePicker()
 
         fun onboardingCompleted()
@@ -72,7 +70,7 @@ internal class OnboardingController @JvmOverloads constructor(
     }
 
     fun finishOnboarding() {
-        completeOnboarding { listener.renderSelectedTabAfterStateChange() }
+        completeOnboarding()
     }
 
     fun openStreamingFromOnboarding() {
@@ -131,7 +129,7 @@ internal class OnboardingController @JvmOverloads constructor(
         return "完成后才能进入：" + missing.joinToString("、")
     }
 
-    private fun completeOnboarding(afterComplete: Runnable?) {
+    private fun completeOnboarding(afterComplete: Runnable? = null) {
         if (!canFinishOnboarding()) {
             return
         }

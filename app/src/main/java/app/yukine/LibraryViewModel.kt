@@ -63,7 +63,6 @@ interface LibraryGateway {
     fun search(query: String)
     fun importFiles()
     fun scanLibrary()
-    fun refreshLibrary() = Unit
     fun requestDeleteTracks(tracks: List<Track>) = Unit
     fun downloadTracks(tracks: List<Track>) = Unit
 }
@@ -304,7 +303,6 @@ class LibraryViewModel @JvmOverloads constructor(
             is LibraryAction.SortChanged -> {
                 libraryUiState.value = libraryUiState.value.copy(sort = action.sort, revealedRowKey = null)
                 publishInteractionState()
-                gateway?.refreshLibrary()
             }
             is LibraryAction.FilterChanged -> {
                 libraryUiState.value = libraryUiState.value.copy(
@@ -314,7 +312,6 @@ class LibraryViewModel @JvmOverloads constructor(
                     selectedGroupKeys = emptySet()
                 )
                 publishInteractionState()
-                gateway?.refreshLibrary()
             }
             is LibraryAction.ModeChanged -> {
                 libraryUiState.value = libraryUiState.value.copy(
@@ -457,7 +454,6 @@ class LibraryViewModel @JvmOverloads constructor(
                     }
                 }
             }
-            if (succeeded > 0) gateway?.refreshLibrary()
             if (succeeded < tracks.size) gateway?.showStatusKey("library.favorite.failed")
         }
     }

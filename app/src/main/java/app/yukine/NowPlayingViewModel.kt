@@ -63,9 +63,7 @@ fun interface NowPlayingStateObserver {
 }
 
 data class PlaybackActionResultUi(
-    @JvmField val status: String?,
-    @JvmField val renderSelectedTab: Boolean,
-    @JvmField val navigateNow: Boolean
+    @JvmField val status: String?
 )
 
 interface NowPlayingPlaybackGateway {
@@ -473,11 +471,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.startSleepTimerMinutes(minutes)
-        return PlaybackActionResultUi(
-            "Sleep timer set: $minutes minutes",
-            renderSelectedTab = true,
-            navigateNow = false
-        )
+        return PlaybackActionResultUi("Sleep timer set: $minutes minutes")
     }
 
     fun cancelSleepTimer(): PlaybackActionResultUi {
@@ -486,11 +480,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.cancelSleepTimer()
-        return PlaybackActionResultUi(
-            "Sleep timer cancelled",
-            renderSelectedTab = true,
-            navigateNow = false
-        )
+        return PlaybackActionResultUi("Sleep timer cancelled")
     }
 
     fun playTrackList(tracks: List<Track>?, index: Int): PlaybackActionResultUi {
@@ -502,7 +492,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("No tracks to play")
         }
         player.playQueue(tracks, index)
-        return PlaybackActionResultUi(null, false, false)
+        return PlaybackActionResultUi(null)
     }
 
     fun togglePlayback(
@@ -520,7 +510,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         } else if (!fallbackTracks.isNullOrEmpty()) {
             player.playQueue(fallbackTracks, 0)
         }
-        return PlaybackActionResultUi(null, false, false)
+        return PlaybackActionResultUi(null)
     }
 
     fun toggleShuffle(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
@@ -529,7 +519,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.setShuffleEnabled(playbackState == null || !playbackState.shuffleEnabled)
-        return PlaybackActionResultUi(null, false, false)
+        return PlaybackActionResultUi(null)
     }
 
     fun cycleRepeat(): PlaybackActionResultUi {
@@ -538,7 +528,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.cycleRepeatMode()
-        return PlaybackActionResultUi(null, false, false)
+        return PlaybackActionResultUi(null)
     }
 
     fun cycleBottomPlaybackMode(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
@@ -566,7 +556,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
         }
-        return PlaybackActionResultUi(null, false, false)
+        return PlaybackActionResultUi(null)
     }
 
     private fun toggleLyrics() {
@@ -601,10 +591,10 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     )
 
     private fun stateChanged(status: String): PlaybackActionResultUi {
-        return PlaybackActionResultUi(status, true, false)
+        return PlaybackActionResultUi(status)
     }
 
     private fun statusOnly(status: String): PlaybackActionResultUi {
-        return PlaybackActionResultUi(status, false, false)
+        return PlaybackActionResultUi(status)
     }
 }

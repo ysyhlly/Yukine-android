@@ -247,7 +247,7 @@ class NowPlayingViewModelTest {
         val clearResult = viewModel.clearQueue()
         val sleepResult = viewModel.startSleepTimer(20)
         val cancelResult = viewModel.cancelSleepTimer()
-        val playResult = viewModel.playTrackList(listOf(track), 0)
+        viewModel.playTrackList(listOf(track), 0)
         viewModel.seekTo(4_000L)
         viewModel.skipToPrevious()
         viewModel.skipToNext()
@@ -278,11 +278,9 @@ class NowPlayingViewModelTest {
             player.calls
         )
         assertEquals("Status: Queued", removeResult.status)
-        assertTrue(removeResult.renderSelectedTab)
         assertEquals("Status", clearResult.status)
         assertEquals("Sleep timer set: 20 minutes", sleepResult.status)
         assertEquals("Sleep timer cancelled", cancelResult.status)
-        assertFalse(playResult.renderSelectedTab)
     }
 
     @Test

@@ -39,8 +39,6 @@ internal class StreamingPlaylistController(
         fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>)
 
         fun setStatus(status: String)
-
-        fun renderSelectedTab()
     }
 
     fun importSelectedPlaylistToStreaming() {
@@ -207,7 +205,6 @@ internal class StreamingPlaylistController(
                 listener.setSelectedPlaylistId(presentation.playlistId)
             }
             listener.refreshLibraryAfterStreamingImport()
-            listener.renderSelectedTab()
             showAccountPlaylistSyncPicker(provider)
         }
     }
@@ -247,7 +244,6 @@ internal class StreamingPlaylistController(
                 }
             listener.setStatus(status)
             listener.refreshLibraryAfterStreamingImport()
-            listener.renderSelectedTab()
         }
     }
 }

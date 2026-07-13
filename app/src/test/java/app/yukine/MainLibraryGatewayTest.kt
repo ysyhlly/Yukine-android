@@ -16,7 +16,6 @@ class MainLibraryGatewayTest {
         assertEquals(
             listOf(
                 "favorite:7:true",
-                "render",
                 "loadCollections"
             ),
             events
@@ -37,15 +36,12 @@ class MainLibraryGatewayTest {
         assertEquals(
             listOf(
                 "mode:albums",
-                "render",
                 "group:artist:A:Artist A",
-                "render",
                 "group:playlist:42:Mix",
                 "playlist:42",
                 "loadCollections",
                 "clearGroup",
                 "playlist:-1",
-                "render",
                 "search:qq",
                 "applySearch"
             ),
@@ -83,7 +79,6 @@ class MainLibraryGatewayTest {
             languageModeProvider = { "zh" },
             statusSink = { status -> events += "status:$status" },
             favoriteApplier = { trackId, favorite -> events += "favorite:$trackId:$favorite" },
-            selectedTabRenderer = { events += "render" },
             collectionsLoader = { events += "loadCollections" },
             playlistAdder = { track -> events += "playlistAdd:${track.id}" },
             routeActions = FakeRouteActions(events),

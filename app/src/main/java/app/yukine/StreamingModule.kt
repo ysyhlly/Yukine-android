@@ -151,8 +151,7 @@ internal object StreamingModule {
                 navigationSink,
                 loadedDialogPresenter,
                 accountPlaylistPickerPresenter,
-                statusSink,
-                selectedTabRenderer ->
+                statusSink ->
             MainStreamingPlaylistListener(
                 playlistIdSource,
                 playlistIdSink,
@@ -166,8 +165,7 @@ internal object StreamingModule {
                 navigationSink,
                 loadedDialogPresenter,
                 accountPlaylistPickerPresenter,
-                statusSink,
-                selectedTabRenderer
+                statusSink
             )
         }
 
