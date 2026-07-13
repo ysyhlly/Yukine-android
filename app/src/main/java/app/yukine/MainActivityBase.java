@@ -197,6 +197,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private int unifiedStreamingPlaybackRequestId = 0;
     private boolean scrollContentToTopOnNextRender;
     private app.yukine.navigation.EchoNavHostState navHostState;
+    private boolean navHostInstalled;
 
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
@@ -385,8 +386,11 @@ public abstract class MainActivityBase extends ComponentActivity {
         permissionController = new MainPermissionController(this, permissionListenerFactory.create(
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 allowCachedFirst -> loadLibrary(allowCachedFirst),
-                this::showOnboarding,
-                this::mountNavHostShell
+                () -> {
+                    if (onboardingController != null) {
+                        onboardingController.onPermissionsChanged();
+                    }
+                }
         ));
         documentPickerController = new DocumentPickerController(this, documentPickerListenerFactory.create(
                 this::importSelectedAudioUris,
@@ -1193,11 +1197,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
 
             @Override
-            public void mountNavHostShell() {
-                MainActivityBase.this.mountNavHostShell();
-            }
-
-            @Override
             public void loadLibrary(boolean allowCachedFirst) {
                 MainActivityBase.this.loadLibrary(allowCachedFirst);
             }
@@ -1249,7 +1248,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
         });
         onboardingController.initialize(repository == null || !repository.loadOnboardingCompleted());
-        mountNavHostShell();
+        installNavHostShell();
         installBackNavigation();
         playbackServiceConnectionController.bind();
         if (!showOnboarding()) {
@@ -1528,8 +1527,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
     }
 
-    private void mountNavHostShell() {
-        if (queueViewModel == null) {
+    private void installNavHostShell() {
+        if (queueViewModel == null || navHostInstalled) {
             return;
         }
         queueViewModel.bindIntentListener(intent -> {
@@ -1563,6 +1562,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         });
         renderSelectedTabForNavHostState();
         syncNavHostState();
+        navHostInstalled = true;
         EchoAppHost.installNavHost(this, new ActivityNavHostMount());
     }
 
@@ -1699,28 +1699,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
 
         @Override
-        public boolean showOnboarding() {
-            return onboardingController != null && onboardingController.showOnboarding();
-        }
-
-        @Override
-        public boolean audioPermissionGranted() {
-            return permissionController != null && permissionController.hasAudioPermission();
-        }
-
-        @Override
-        public boolean notificationPermissionGranted() {
-            return permissionController != null && permissionController.hasNotificationPermission();
-        }
-
-        @Override
-        public boolean libraryScanCompleted() {
-            return onboardingController != null && onboardingController.libraryScanCompleted();
-        }
-
-        @Override
-        public boolean libraryScanInProgress() {
-            return onboardingController != null && onboardingController.libraryScanInProgress();
+        public kotlinx.coroutines.flow.StateFlow<OnboardingUiState> onboardingState() {
+            return onboardingController.getState();
         }
 
         @Override
@@ -1808,9 +1788,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                                 }
                                 if (onboardingController != null) {
                                     onboardingController.onLibraryScanResult(canScan);
-                                    if (showOnboarding()) {
-                                        mountNavHostShell();
-                                    }
                                 }
                             }
                     );
@@ -1823,7 +1800,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         onboardingController.onLibraryScanResult(false);
                     }
                     if (showOnboarding()) {
-                        mountNavHostShell();
                         return;
                     }
                     renderSelectedTab();

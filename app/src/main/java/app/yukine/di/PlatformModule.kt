@@ -56,13 +56,11 @@ internal object PlatformModule {
         MainPermissionListenerFactory {
                 audioPermissionStatusSource,
                 libraryLoader,
-                onboardingVisibilitySource,
-                navHostMounter ->
+                permissionResultObserver ->
             MainPermissionListener(
                 audioPermissionStatusSource,
                 libraryLoader,
-                onboardingVisibilitySource,
-                navHostMounter
+                permissionResultObserver
             )
         }
 }

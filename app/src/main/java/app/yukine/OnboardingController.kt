@@ -1,5 +1,17 @@
 package app.yukine
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+data class OnboardingUiState(
+    val visible: Boolean = true,
+    val audioPermissionGranted: Boolean = false,
+    val notificationPermissionGranted: Boolean = false,
+    val libraryScanCompleted: Boolean = false,
+    val libraryScanInProgress: Boolean = false
+)
+
 internal class OnboardingController @JvmOverloads constructor(
     private val listener: Listener,
     private val scheduler: Scheduler = NoOpScheduler,
@@ -18,8 +30,6 @@ internal class OnboardingController @JvmOverloads constructor(
 
         fun requestNeededPermissions()
 
-        fun mountNavHostShell()
-
         fun loadLibrary(allowCachedFirst: Boolean)
 
         fun cancelLibraryLoad()
@@ -35,29 +45,31 @@ internal class OnboardingController @JvmOverloads constructor(
         fun onboardingCompleted()
     }
 
-    private var visible: Boolean = true
-    private var libraryScanCompleted: Boolean = false
-    private var libraryScanInProgress: Boolean = false
+    private val mutableState = MutableStateFlow(OnboardingUiState())
+    val state: StateFlow<OnboardingUiState> = mutableState.asStateFlow()
+
     private val libraryScanTimeout = Runnable {
-        if (!visible || !libraryScanInProgress) {
+        if (!state.value.visible || !state.value.libraryScanInProgress) {
             return@Runnable
         }
-        libraryScanInProgress = false
-        libraryScanCompleted = false
+        publishState(libraryScanInProgress = false, libraryScanCompleted = false)
         listener.cancelLibraryLoad()
         listener.onLibraryScanTimedOut()
-        listener.mountNavHostShell()
     }
 
     fun initialize(shouldShow: Boolean) {
-        visible = shouldShow
+        publishState(visible = shouldShow)
     }
 
-    fun showOnboarding(): Boolean = visible
+    fun showOnboarding(): Boolean = state.value.visible
 
-    fun libraryScanCompleted(): Boolean = libraryScanCompleted
+    fun libraryScanCompleted(): Boolean = state.value.libraryScanCompleted
 
-    fun libraryScanInProgress(): Boolean = libraryScanInProgress
+    fun libraryScanInProgress(): Boolean = state.value.libraryScanInProgress
+
+    fun onPermissionsChanged() {
+        publishState()
+    }
 
     fun finishOnboarding() {
         completeOnboarding { listener.renderSelectedTabAfterStateChange() }
@@ -70,15 +82,12 @@ internal class OnboardingController @JvmOverloads constructor(
     fun scanLibraryFromOnboarding() {
         if (!listener.hasAudioPermission()) {
             listener.requestNeededPermissions()
-            listener.mountNavHostShell()
             return
         }
-        if (libraryScanInProgress) {
+        if (state.value.libraryScanInProgress) {
             return
         }
-        libraryScanInProgress = true
-        libraryScanCompleted = false
-        listener.mountNavHostShell()
+        publishState(libraryScanInProgress = true, libraryScanCompleted = false)
         scheduler.removeCallbacks(libraryScanTimeout)
         scheduler.postDelayed(libraryScanTimeout, libraryScanTimeoutMs)
         listener.loadLibrary(false)
@@ -86,7 +95,6 @@ internal class OnboardingController @JvmOverloads constructor(
 
     fun importPlaylistFromOnboarding() {
         if (!canFinishOnboarding()) {
-            listener.mountNavHostShell()
             return
         }
         listener.openPlaylistM3uFilePicker()
@@ -94,23 +102,22 @@ internal class OnboardingController @JvmOverloads constructor(
 
     fun onLibraryScanResult(canScan: Boolean) {
         scheduler.removeCallbacks(libraryScanTimeout)
-        if (visible && libraryScanInProgress) {
-            libraryScanInProgress = false
-            libraryScanCompleted = canScan
+        if (state.value.visible && state.value.libraryScanInProgress) {
+            publishState(libraryScanInProgress = false, libraryScanCompleted = canScan)
         }
     }
 
     fun release() {
         scheduler.removeCallbacks(libraryScanTimeout)
-        if (libraryScanInProgress) {
+        if (state.value.libraryScanInProgress) {
             listener.cancelLibraryLoad()
         }
-        libraryScanInProgress = false
+        publishState(libraryScanInProgress = false)
     }
 
     fun canFinishOnboarding(): Boolean {
         return listener.hasAudioPermission()
-            && libraryScanCompleted
+            && state.value.libraryScanCompleted
     }
 
     fun onboardingMissingSetupMessage(): String {
@@ -118,22 +125,34 @@ internal class OnboardingController @JvmOverloads constructor(
         if (!listener.hasAudioPermission()) {
             missing.add("音频权限")
         }
-        if (!libraryScanCompleted) {
-            missing.add(if (libraryScanInProgress) "等待曲库扫描完成" else "扫描本地曲库")
+        if (!state.value.libraryScanCompleted) {
+            missing.add(if (state.value.libraryScanInProgress) "等待曲库扫描完成" else "扫描本地曲库")
         }
         return "完成后才能进入：" + missing.joinToString("、")
     }
 
     private fun completeOnboarding(afterComplete: Runnable?) {
         if (!canFinishOnboarding()) {
-            listener.mountNavHostShell()
             return
         }
-        visible = false
+        publishState(visible = false)
         scheduler.removeCallbacks(libraryScanTimeout)
         listener.onboardingCompleted()
-        listener.mountNavHostShell()
         afterComplete?.run()
+    }
+
+    private fun publishState(
+        visible: Boolean = state.value.visible,
+        libraryScanCompleted: Boolean = state.value.libraryScanCompleted,
+        libraryScanInProgress: Boolean = state.value.libraryScanInProgress
+    ) {
+        mutableState.value = OnboardingUiState(
+            visible = visible,
+            audioPermissionGranted = listener.hasAudioPermission(),
+            notificationPermissionGranted = listener.hasNotificationPermission(),
+            libraryScanCompleted = libraryScanCompleted,
+            libraryScanInProgress = libraryScanInProgress
+        )
     }
 
     private companion object {

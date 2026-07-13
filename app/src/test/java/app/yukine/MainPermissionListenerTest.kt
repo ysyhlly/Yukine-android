@@ -6,18 +6,17 @@ import org.junit.Test
 
 class MainPermissionListenerTest {
     @Test
-    fun loadsLibraryAndMountsNavHostAfterGrantedPermissionWhenOnboardingVisible() {
+    fun loadsLibraryAndPublishesPermissionResultAfterGrant() {
         val calls = mutableListOf<String>()
         val listener = MainPermissionListener(
             audioPermissionStatusSource = AudioPermissionStatusSource { true },
             libraryLoader = PermissionResultLibraryLoader { calls += "load:$it" },
-            onboardingVisibilitySource = OnboardingVisibilitySource { true },
-            navHostMounter = PermissionResultNavHostMounter { calls += "mount" }
+            permissionResultObserver = PermissionResultObserver { calls += "permissions" }
         )
 
         listener.onAudioPermissionResult()
 
-        assertEquals(listOf("load:false", "mount"), calls)
+        assertEquals(listOf("load:false", "permissions"), calls)
     }
 
     @Test
@@ -26,13 +25,12 @@ class MainPermissionListenerTest {
         val listener = MainPermissionListener(
             audioPermissionStatusSource = AudioPermissionStatusSource { false },
             libraryLoader = PermissionResultLibraryLoader { calls += "load:$it" },
-            onboardingVisibilitySource = OnboardingVisibilitySource { false },
-            navHostMounter = PermissionResultNavHostMounter { calls += "mount" }
+            permissionResultObserver = PermissionResultObserver { calls += "permissions" }
         )
 
         listener.onAudioPermissionResult()
 
-        assertEquals(emptyList<String>(), calls)
+        assertEquals(listOf("permissions"), calls)
     }
 
     @Test
@@ -41,12 +39,11 @@ class MainPermissionListenerTest {
         val listener = PlatformModule.provideMainPermissionListenerFactory().create(
             AudioPermissionStatusSource { true },
             PermissionResultLibraryLoader { calls += "load:$it" },
-            OnboardingVisibilitySource { false },
-            PermissionResultNavHostMounter { calls += "mount" }
+            PermissionResultObserver { calls += "permissions" }
         )
 
         listener.onAudioPermissionResult()
 
-        assertEquals(listOf("load:false"), calls)
+        assertEquals(listOf("load:false", "permissions"), calls)
     }
 }

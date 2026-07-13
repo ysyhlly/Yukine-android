@@ -68,6 +68,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void composeRootIsMountedOnceAndOnboardingIsReactive() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String onboarding = read("app/src/main/java/app/yukine/OnboardingController.kt");
+        String app = read("app/src/main/java/app/yukine/EchoApp.kt");
+        assertTrue(activity.contains("navHostInstalled"));
+        assertTrue(activity.contains("private void installNavHostShell()"));
+        assertTrue(activity.contains("queueViewModel == null || navHostInstalled"));
+        assertFalse(activity.contains("mountNavHostShell"));
+        assertFalse(onboarding.contains("mountNavHostShell"));
+        assertTrue(onboarding.contains("StateFlow<OnboardingUiState>"));
+        assertTrue(app.contains("onboardingState().collectAsState()"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

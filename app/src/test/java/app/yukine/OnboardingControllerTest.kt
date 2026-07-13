@@ -7,6 +7,21 @@ import org.junit.Test
 
 class OnboardingControllerTest {
     @Test
+    fun permissionChangesPublishIntoTheExistingShellState() {
+        val listener = FakeListener(audioPermission = false, notificationPermission = false)
+        val controller = OnboardingController(listener)
+        controller.initialize(true)
+
+        listener.audioPermission = true
+        listener.notificationPermission = true
+        controller.onPermissionsChanged()
+
+        assertTrue(controller.state.value.audioPermissionGranted)
+        assertTrue(controller.state.value.notificationPermissionGranted)
+        assertTrue(controller.state.value.visible)
+    }
+
+    @Test
     fun canFinishAfterAudioPermissionAndLibraryScanEvenWhenNotificationPermissionIsMissing() {
         val listener = FakeListener(
             audioPermission = true,
@@ -45,7 +60,7 @@ class OnboardingControllerTest {
 
         assertEquals(1, listener.permissionRequests)
         assertEquals(0, listener.loadLibraryCalls)
-        assertEquals(1, listener.mountCalls)
+        assertFalse(controller.state.value.audioPermissionGranted)
     }
 
     @Test
@@ -64,7 +79,7 @@ class OnboardingControllerTest {
         assertFalse(controller.libraryScanInProgress())
         assertFalse(controller.libraryScanCompleted())
         assertTrue(controller.onboardingMissingSetupMessage().contains("扫描本地曲库"))
-        assertEquals(2, listener.mountCalls)
+        assertFalse(controller.state.value.libraryScanInProgress)
     }
 
     private class FakeListener(
@@ -72,7 +87,6 @@ class OnboardingControllerTest {
         var notificationPermission: Boolean = true
     ) : OnboardingController.Listener {
         var permissionRequests = 0
-        var mountCalls = 0
         var loadLibraryCalls = 0
         var cancelLibraryLoadCalls = 0
         var scanTimedOutCalls = 0
@@ -84,10 +98,6 @@ class OnboardingControllerTest {
 
         override fun requestNeededPermissions() {
             permissionRequests++
-        }
-
-        override fun mountNavHostShell() {
-            mountCalls++
         }
 
         override fun loadLibrary(allowCachedFirst: Boolean) {
