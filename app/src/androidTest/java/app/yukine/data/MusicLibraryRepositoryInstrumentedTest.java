@@ -215,7 +215,7 @@ public final class MusicLibraryRepositoryInstrumentedTest {
                 0L,
                 null
         ));
-        repository.setFavorite(localTracks.get(0), false);
+        new LibraryRepository(YukineDatabase.getInstance(context)).upsertTracks(localTracks);
 
         String playlist = "#EXTM3U\n"
                 + "#PLAYLIST:导入歌单\n"

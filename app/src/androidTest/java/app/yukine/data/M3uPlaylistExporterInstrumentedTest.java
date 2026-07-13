@@ -80,6 +80,6 @@ public final class M3uPlaylistExporterInstrumentedTest {
     @Test
     public void safeExportFileNameRemovesUnsafePathCharacters() {
         assertEquals("Rock _ Pop_ 2026", M3uPlaylistExporter.safeExportFileName("Rock / Pop: 2026"));
-        assertEquals("ECHO playlist", M3uPlaylistExporter.safeExportFileName("\n"));
+        assertEquals("Yukine playlist", M3uPlaylistExporter.safeExportFileName("\n"));
     }
 }
