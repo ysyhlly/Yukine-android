@@ -1,6 +1,5 @@
 package app.yukine
 
-import android.content.Context
 import app.yukine.data.LyricsRepository
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.streaming.LuoxueTrackMetadataResolver
@@ -8,7 +7,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.components.ActivityComponent
-import dagger.hilt.android.qualifiers.ActivityContext
 import dagger.hilt.android.scopes.ActivityScoped
 
 @Module
@@ -17,13 +15,6 @@ internal object SettingsModule {
     @Provides
     @ActivityScoped
     fun provideMainSettingsStore(): MainSettingsStore = MainSettingsStore()
-
-    @Provides
-    @ActivityScoped
-    fun provideMainSettingsRuntimeApplierFactory(
-        @ActivityContext context: Context
-    ): MainSettingsRuntimeApplierFactory =
-        MainSettingsRuntimeApplierFactory(context)
 
     @Provides
     @ActivityScoped

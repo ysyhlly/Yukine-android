@@ -28,29 +28,6 @@ sealed interface SettingsRuntimeEffect {
     data class SetLyricsOffsetMs(val offsetMs: Long) : SettingsRuntimeEffect
 }
 
-internal class MainSettingsRuntimeApplierFactory(
-    private val context: Context
-) {
-    fun create(
-        applyThemeSurfaceAction: SettingsThemeSurfaceApplier,
-        customBackgroundAccentRefresher: SettingsCustomBackgroundAccentRefresher,
-        playbackServiceControlsProvider: SettingsPlaybackServiceControlsProvider,
-        lyricsViewModelProvider: () -> LyricsViewModel?,
-        permissionControllerProvider: () -> MainPermissionController?
-    ): SettingsRuntimeApplier =
-        SettingsRuntimeApplier(
-            applyThemeSurfaceAction,
-            customBackgroundAccentRefresher,
-            playbackServiceControlsProvider,
-            SettingsLyricsControlsProvider {
-                lyricsViewModelProvider()?.let(::MainSettingsLyricsControls)
-            },
-            SettingsFloatingLyricsControlsProvider {
-                MainSettingsFloatingLyricsControls(context, permissionControllerProvider)
-            }
-        )
-}
-
 internal class MainSettingsLyricsControls(
     private val viewModel: LyricsViewModel
 ) : SettingsLyricsControls {

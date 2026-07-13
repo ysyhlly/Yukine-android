@@ -22,16 +22,6 @@ internal data class NetworkActionUseCases(
     val saveWebDavSourceUseCase: SaveWebDavSourceUseCase
 )
 
-internal fun interface MainNetworkActionsListenerFactory {
-    fun create(
-        nowPlayingViewModel: NowPlayingViewModel,
-        libraryReplacementSink: MainNetworkActionsListener.LibraryReplacementSink,
-        networkNavigator: MainNetworkActionsListener.NetworkNavigator,
-        collectionsReloader: MainNetworkActionsListener.CollectionsReloader,
-        statusSink: MainNetworkActionsListener.StatusSink
-    ): NetworkActionsViewModel.Listener
-}
-
 internal class MainNetworkActionsListener(
     private val nowPlayingViewModel: NowPlayingViewModel,
     private val libraryReplacementSink: LibraryReplacementSink,

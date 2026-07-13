@@ -2,18 +2,6 @@ package app.yukine
 
 import app.yukine.model.Track
 
-internal fun interface MainTrackListRenderListenerFactory {
-    fun create(
-        trackListPlayer: MainTrackListRenderListener.TrackListPlayer,
-        favoriteToggler: MainTrackListRenderListener.FavoriteToggler,
-        playlistAdder: MainTrackListRenderListener.PlaylistAdder,
-        trackDownloader: MainTrackListRenderListener.TrackDownloader,
-        tracksDownloader: MainTrackListRenderListener.TracksDownloader,
-        streamEditor: MainTrackListRenderListener.StreamEditor,
-        trackDeleteConfirmer: MainTrackListRenderListener.TrackDeleteConfirmer
-    ): TrackListRenderController.Listener
-}
-
 internal class MainTrackListRenderListener(
     private val trackListPlayer: TrackListPlayer,
     private val favoriteToggler: FavoriteToggler,

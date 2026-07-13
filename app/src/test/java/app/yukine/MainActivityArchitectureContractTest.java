@@ -408,6 +408,26 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void libraryAndSettingsConstructionFactoriesAreDeleted() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
+        String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
+        String runtimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
+        assertFalse(activity.contains("RenderListenerFactory"));
+        assertFalse(activity.contains("libraryStoreFactory"));
+        assertFalse(activity.contains("libraryGatewayFactory"));
+        assertFalse(activity.contains("networkActionsListenerFactory"));
+        assertFalse(activity.contains("settingsRuntimeApplierFactory"));
+        assertFalse(libraryModule.contains("ListenerFactory"));
+        assertFalse(libraryModule.contains("GatewayFactory"));
+        assertFalse(libraryModule.contains("ControllerFactory"));
+        assertFalse(settingsModule.contains("RuntimeApplierFactory"));
+        assertFalse(runtimeApplier.contains("class MainSettingsRuntimeApplierFactory"));
+        assertTrue(activity.contains("new MainCollectionsRenderListener("));
+        assertTrue(activity.contains("new SettingsRuntimeApplier("));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

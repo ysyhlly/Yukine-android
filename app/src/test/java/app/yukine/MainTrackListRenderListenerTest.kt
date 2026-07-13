@@ -36,9 +36,9 @@ class MainTrackListRenderListenerTest {
     }
 
     @Test
-    fun factoryCreatesTrackListRenderControllerListener() {
+    fun directConstructionCreatesTrackListRenderControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = LibraryModule.provideMainTrackListRenderListenerFactory().create(
+        val listener = MainTrackListRenderListener(
             MainTrackListRenderListener.TrackListPlayer { tracks, index -> calls += "play:${tracks.size}:$index" },
             MainTrackListRenderListener.FavoriteToggler { calls += "favorite:${it.id}" },
             MainTrackListRenderListener.PlaylistAdder { calls += "playlist:${it.id}" },

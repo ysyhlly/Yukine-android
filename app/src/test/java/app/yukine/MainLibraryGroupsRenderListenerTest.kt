@@ -84,9 +84,9 @@ class MainLibraryGroupsRenderListenerTest {
     }
 
     @Test
-    fun factoryCreatesLibraryGroupsRenderControllerListener() {
+    fun directConstructionCreatesLibraryGroupsRenderControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = LibraryModule.provideMainLibraryGroupsRenderListenerFactory().create(
+        val listener = MainLibraryGroupsRenderListener(
             MainLibraryGroupsRenderListener.GroupOpener { key, title -> calls += "open:$key:$title" },
             MainLibraryGroupsRenderListener.GroupSelectionClearer { calls += "clear" },
             MainLibraryGroupsRenderListener.GroupCloser { calls += "close" },

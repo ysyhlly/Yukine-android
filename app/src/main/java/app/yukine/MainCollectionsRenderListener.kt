@@ -3,34 +3,6 @@ package app.yukine
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 
-internal fun interface MainCollectionsRenderListenerFactory {
-    fun create(
-        playlistCreator: MainCollectionsRenderListener.PlaylistCreator,
-        playlistM3uPicker: MainCollectionsRenderListener.PlaylistM3uPicker,
-        playHistoryClearConfirmer: MainCollectionsRenderListener.PlayHistoryClearConfirmer,
-        backRequester: MainCollectionsRenderListener.BackRequester,
-        trackListPlayer: MainCollectionsRenderListener.TrackListPlayer,
-        favoriteToggler: MainCollectionsRenderListener.FavoriteToggler,
-        playlistAdder: MainCollectionsRenderListener.PlaylistAdder,
-        trackDownloader: MainCollectionsRenderListener.TrackDownloader,
-        tracksDownloader: MainCollectionsRenderListener.TracksDownloader,
-        playlistSelector: MainCollectionsRenderListener.PlaylistSelector,
-        playlistRenamer: MainCollectionsRenderListener.PlaylistRenamer,
-        playlistDeleteConfirmer: MainCollectionsRenderListener.PlaylistDeleteConfirmer,
-        selectedPlaylistIdSource: MainCollectionsRenderListener.SelectedPlaylistIdSource,
-        selectedPlaylistTracksSource: MainCollectionsRenderListener.SelectedPlaylistTracksSource,
-        selectedPlaylistNameSource: MainCollectionsRenderListener.SelectedPlaylistNameSource,
-        statusKeySink: MainCollectionsRenderListener.StatusKeySink,
-        playlistExportDocumentOpener: MainCollectionsRenderListener.PlaylistExportDocumentOpener,
-        selectedPlaylistStreamingImporter: MainCollectionsRenderListener.SelectedPlaylistStreamingImporter,
-        favoritesStreamingImporter: MainCollectionsRenderListener.FavoritesStreamingImporter,
-        streamingFavoritesImporter: MainCollectionsRenderListener.StreamingFavoritesImporter,
-        selectedPlaylistStreamingSyncer: MainCollectionsRenderListener.SelectedPlaylistStreamingSyncer,
-        selectedPlaylistTrackMover: MainCollectionsRenderListener.SelectedPlaylistTrackMover,
-        selectedPlaylistTrackRemover: MainCollectionsRenderListener.SelectedPlaylistTrackRemover
-    ): CollectionsRenderController.Listener
-}
-
 internal class MainCollectionsRenderListener(
     private val playlistCreator: PlaylistCreator,
     private val playlistM3uPicker: PlaylistM3uPicker,

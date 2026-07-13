@@ -13,10 +13,6 @@ import kotlinx.coroutines.withContext
 import java.util.ArrayList
 import java.util.HashSet
 
-internal fun interface MainLibraryStoreFactory {
-    fun create(viewModel: MainActivityViewModel): MainLibraryStore
-}
-
 /** A fully prepared, owned library payload that is safe to publish without another full-list copy. */
 internal data class PreparedLibraryReplacement(
     val sourceCandidatesByTrackId: Map<Long, List<Track>>,

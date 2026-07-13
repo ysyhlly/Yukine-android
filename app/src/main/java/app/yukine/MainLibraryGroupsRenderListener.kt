@@ -8,19 +8,6 @@ import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import java.util.ArrayList
 
-internal fun interface MainLibraryGroupsRenderListenerFactory {
-    fun create(
-        groupOpener: MainLibraryGroupsRenderListener.GroupOpener,
-        groupSelectionClearer: MainLibraryGroupsRenderListener.GroupSelectionClearer,
-        groupCloser: MainLibraryGroupsRenderListener.GroupCloser,
-        languageModeProvider: MainLibraryGroupsRenderListener.LanguageModeProvider,
-        trackListPlayer: MainLibraryGroupsRenderListener.TrackListPlayer,
-        groupDeleteConfirmer: MainLibraryGroupsRenderListener.GroupDeleteConfirmer,
-        chromePublisher: MainLibraryGroupsRenderListener.ChromePublisher,
-        trackListRenderer: MainLibraryGroupsRenderListener.TrackListRenderer
-    ): LibraryGroupsRenderController.Listener
-}
-
 internal class MainLibraryGroupsRenderListener(
     private val groupOpener: GroupOpener,
     private val groupSelectionClearer: GroupSelectionClearer,

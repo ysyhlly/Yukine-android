@@ -20,7 +20,7 @@ class MainNetworkActionsListenerTest {
         val statuses = mutableListOf<String>()
         var reloads = 0
         nowPlayingViewModel.bindPlaybackGateway(playbackGateway)
-        val listener = LibraryModule.provideMainNetworkActionsListenerFactory().create(
+        val listener = MainNetworkActionsListener(
             nowPlayingViewModel,
             { cached, favorites, status -> replacements += "replace:${cached.ids()}:${favorites.sorted()}:$status" },
             { page -> navigation += page },

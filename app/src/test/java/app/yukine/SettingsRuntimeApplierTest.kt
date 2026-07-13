@@ -119,15 +119,17 @@ class SettingsRuntimeApplierTest {
     }
 
     @Test
-    fun factoryCreatesApplierWithOptionalRuntimeOwners() {
+    fun directConstructionPreservesOptionalRuntimeOwners() {
         val calls = mutableListOf<String>()
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val applier = MainSettingsRuntimeApplierFactory(context).create(
+        val applier = SettingsRuntimeApplier(
             applyThemeSurfaceAction = SettingsThemeSurfaceApplier { calls += "theme" },
             customBackgroundAccentRefresher = SettingsCustomBackgroundAccentRefresher { calls += "accent" },
             playbackServiceControlsProvider = SettingsPlaybackServiceControlsProvider { null },
-            lyricsViewModelProvider = { null },
-            permissionControllerProvider = { null }
+            lyricsControlsProvider = SettingsLyricsControlsProvider { null },
+            floatingLyricsControlsProvider = SettingsFloatingLyricsControlsProvider {
+                MainSettingsFloatingLyricsControls(context) { null }
+            }
         )
 
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyThemeSurface))

@@ -57,7 +57,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject LoadSettingsPreferencesUseCase loadSettingsPreferencesUseCase;
     @Inject ApplySettingsPreferenceUseCase applySettingsPreferenceUseCase;
     @Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;
-    @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
+    @Inject LibrarySearchUseCase librarySearchUseCase;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
     @Inject LyricsLoader lyricsLoader;
     @Inject NetworkActionUseCases networkActionUseCases;
@@ -96,16 +96,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainSettingsStore settingsStore;
     @Inject NowPlayingPlaybackServiceStarter nowPlayingPlaybackServiceStarter;
     @Inject PlaybackServiceCommandQueue playbackServiceCommandQueue;
-    @Inject MainLibraryStoreFactory libraryStoreFactory;
-    @Inject MainPlayHistoryActionControllerFactory playHistoryActionControllerFactory;
-    @Inject MainNetworkActionsListenerFactory networkActionsListenerFactory;
-    @Inject MainLibraryGatewayFactory libraryGatewayFactory;
     @Inject LibraryDeletionUseCase libraryDeletionUseCase;
     @Inject ArtistInfoRepository artistInfoRepository;
-    @Inject MainLibraryGroupsRenderListenerFactory libraryGroupsRenderListenerFactory;
-    @Inject MainCollectionsRenderListenerFactory collectionsRenderListenerFactory;
     private StatusMessageController statusMessageController;
-    @Inject MainSettingsRuntimeApplierFactory settingsRuntimeApplierFactory;
     private MainPermissionController permissionController;
     private PermissionResultOwner permissionResultOwner;
     private MainUiShellController uiShellController;
@@ -289,7 +282,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryViewModel.bindFavoriteIdsProvider(
                 () -> libraryStore == null ? Collections.emptySet() : libraryStore.favoriteIds()
         );
-        libraryViewModel.bindGateway(libraryGatewayFactory.create(
+        libraryViewModel.bindGateway(new MainLibraryGateway(
                 (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
@@ -531,7 +524,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeNavigationRendering() {
-        trackListRenderController = new TrackListRenderController(libraryViewModel, trackListRenderListenerFactory.create(
+        trackListRenderController = new TrackListRenderController(libraryViewModel, new MainTrackListRenderListener(
                 (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
                 track -> libraryViewModel.onEvent(new LibraryEvent.AddToPlaylist(track)),
@@ -817,7 +810,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StreamingSearchRenderController initializeStoresAndDataGateways(
             MainActivityStreamingActionGateway streamingActionGateway
     ) {
-        libraryStore = libraryStoreFactory.create(viewModel);
+        libraryStore = new MainLibraryStore(librarySearchUseCase, viewModel);
         searchViewModel.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
@@ -828,7 +821,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
         }
         libraryViewModel.bindPlaylistActionGateway(libraryPlaylistActionGateway);
-        playHistoryActionController = playHistoryActionControllerFactory.create(
+        playHistoryActionController = new PlayHistoryActionController(
                 libraryViewModel,
                 () -> settingsStore.languageMode(),
                 viewModel::clearPlayHistory,
@@ -891,7 +884,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         libraryGroupsRenderController = new LibraryGroupsRenderController(
                 libraryViewModel,
-                libraryGroupsRenderListenerFactory.create(
+                new MainLibraryGroupsRenderListener(
                         (key, title) -> libraryViewModel.onEvent(new LibraryEvent.OpenGroup(key, title)),
                         () -> routeController.clearLibraryGroup(),
                         () -> libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE),
@@ -908,7 +901,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryViewModel,
                 playlistIntents
         );
-        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, collectionsRenderListenerFactory.create(
+        collectionsRenderController = new CollectionsRenderController(collectionsViewModel, new MainCollectionsRenderListener(
                 () -> playlistDialogController.showCreatePlaylist(),
                 () -> documentPickerController.openPlaylistM3uFilePicker(),
                 () -> confirmationDialogController.confirmClearPlayHistory(),
@@ -994,12 +987,15 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         settingsViewModel.bindPreferenceGateway(applySettingsPreferenceUseCase::execute);
         settingsViewModel.bindStoreMirror(settingsStore::sync);
-        SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
+        SettingsRuntimeApplier settingsRuntimeApplier = new SettingsRuntimeApplier(
                 () -> uiShellController.applyThemeSurface(),
                 customBackgroundAccentController::refresh,
                 () -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService),
-                () -> lyricsViewModel,
-                () -> permissionController
+                () -> lyricsViewModel == null ? null : new MainSettingsLyricsControls(lyricsViewModel),
+                () -> new MainSettingsFloatingLyricsControls(
+                        MainActivityBase.this,
+                        () -> permissionController
+                )
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         playlistMutationOwner = new PlaylistMutationOwner(
@@ -1019,7 +1015,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
         networkActionsViewModel.bindUseCases(networkActionUseCases);
-        networkActionsViewModel.bindListener(networkActionsListenerFactory.create(
+        networkActionsViewModel.bindListener(new MainNetworkActionsListener(
                 nowPlayingViewModel,
                 libraryImportOwner::replaceLibrary,
                 this::navigateToNetworkTabPage,

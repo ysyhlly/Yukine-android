@@ -81,9 +81,9 @@ class MainCollectionsRenderListenerTest {
     }
 
     @Test
-    fun factoryCreatesCollectionsRenderControllerListener() {
+    fun directConstructionCreatesCollectionsRenderControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = LibraryModule.provideMainCollectionsRenderListenerFactory().create(
+        val listener = MainCollectionsRenderListener(
             MainCollectionsRenderListener.PlaylistCreator { calls += "create-playlist" },
             MainCollectionsRenderListener.PlaylistM3uPicker { calls += "open-m3u" },
             MainCollectionsRenderListener.PlayHistoryClearConfirmer { calls += "confirm-clear-history" },

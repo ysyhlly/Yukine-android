@@ -1,15 +1,5 @@
 package app.yukine
 
-internal fun interface MainPlayHistoryActionControllerFactory {
-    fun create(
-        viewModel: LibraryViewModel,
-        languageModeProvider: () -> String,
-        libraryStateStore: PlayHistoryStateStore,
-        statusSink: (String) -> Unit,
-        collectionsReloadAction: Runnable
-    ): PlayHistoryActionController
-}
-
 internal class PlayHistoryActionController(
     private val viewModel: LibraryViewModel,
     private val languageModeProvider: () -> String,

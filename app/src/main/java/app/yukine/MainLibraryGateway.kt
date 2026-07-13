@@ -2,23 +2,6 @@ package app.yukine
 
 import app.yukine.model.Track
 
-internal fun interface MainLibraryGatewayFactory {
-    fun create(
-        trackListPlayer: MainLibraryGateway.TrackListPlayer,
-        languageModeProvider: MainLibraryGateway.LanguageModeProvider,
-        statusSink: MainLibraryGateway.StatusSink,
-        favoriteApplier: MainLibraryGateway.FavoriteApplier,
-        collectionsLoader: MainLibraryGateway.CollectionsLoader,
-        playlistAdder: MainLibraryGateway.PlaylistAdder,
-        routeActions: LibraryRouteActions,
-        searchApplier: MainLibraryGateway.SearchApplier,
-        audioImporter: MainLibraryGateway.AudioImporter,
-        libraryScanner: MainLibraryGateway.LibraryScanner,
-        deleteRequester: MainLibraryGateway.DeleteRequester,
-        tracksDownloader: MainLibraryGateway.TracksDownloader
-    ): LibraryGateway
-}
-
 internal interface LibraryRouteActions {
     fun setLibraryMode(mode: String)
     fun selectLibraryGroup(key: String, title: String)
