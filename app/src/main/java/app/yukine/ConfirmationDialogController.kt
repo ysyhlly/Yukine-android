@@ -6,40 +6,59 @@ import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 import app.yukine.ui.EchoDialog
 
+internal fun interface PlayHistoryClearAction {
+    fun clear()
+}
+
+internal fun interface QueueClearAction {
+    fun clear()
+}
+
+internal fun interface AllStreamsDeleteAction {
+    fun deleteAll()
+}
+
+internal fun interface StreamTrackDeleteAction {
+    fun delete(trackId: Long, status: String)
+}
+
+internal fun interface StreamTracksDeleteAction {
+    fun delete(trackIds: List<Long>, status: String)
+}
+
+internal fun interface RemoteSourceDeleteAction {
+    fun delete(sourceId: Long)
+}
+
+internal data class ConfirmationActions(
+    val clearPlayHistory: PlayHistoryClearAction,
+    val clearQueue: QueueClearAction,
+    val deleteAllStreams: AllStreamsDeleteAction,
+    val deleteTrack: StreamTrackDeleteAction,
+    val deleteTracks: StreamTracksDeleteAction,
+    val deleteRemoteSource: RemoteSourceDeleteAction
+)
+
 internal class ConfirmationDialogController(
     private val context: Context,
     private val languageProvider: DialogLanguageProvider,
-    private val listener: Listener
+    private val actions: ConfirmationActions
 ) {
-    interface Listener {
-        fun clearPlayHistory()
-
-        fun clearQueue()
-
-        fun deleteAllStreams()
-
-        fun deleteTrack(trackId: Long, status: String)
-
-        fun deleteTracks(trackIds: List<Long>, status: String)
-
-        fun deleteRemoteSource(sourceId: Long, name: String)
-    }
-
     fun confirmClearPlayHistory() {
         confirm(text("clear.play.history.title"), text("clear.play.history.message")) {
-            listener.clearPlayHistory()
+            actions.clearPlayHistory.clear()
         }
     }
 
     fun confirmClearQueue() {
         confirm(text("clear.queue.title"), text("clear.queue.message")) {
-            listener.clearQueue()
+            actions.clearQueue.clear()
         }
     }
 
     fun confirmDeleteAllStreams() {
         confirm(text("delete.all.streams.title"), text("delete.all.streams.message")) {
-            listener.deleteAllStreams()
+            actions.deleteAllStreams.deleteAll()
         }
     }
 
@@ -51,7 +70,7 @@ internal class ConfirmationDialogController(
             text("delete.stream.title"),
             text("delete.stream.message.prefix") + track.title + text("delete.message.suffix")
         ) {
-            listener.deleteTrack(track.id, text("deleted.stream"))
+            actions.deleteTrack.delete(track.id, text("deleted.stream"))
         }
     }
 
@@ -65,7 +84,7 @@ internal class ConfirmationDialogController(
             text("delete"),
             text("delete.group.message.prefix") + name + text("delete.group.message.middle") + ids.size + text("delete.group.message.suffix")
         ) {
-            listener.deleteTracks(ids, text("deleted.group.prefix") + ids.size)
+            actions.deleteTracks.delete(ids, text("deleted.group.prefix") + ids.size)
         }
     }
 
@@ -77,7 +96,7 @@ internal class ConfirmationDialogController(
             text("delete.source.title"),
             text("delete.source.message.prefix") + source.name + text("delete.message.suffix")
         ) {
-            listener.deleteRemoteSource(source.id, source.name)
+            actions.deleteRemoteSource.delete(source.id)
         }
     }
 

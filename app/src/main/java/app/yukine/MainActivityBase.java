@@ -1081,37 +1081,18 @@ public abstract class MainActivityBase extends ComponentActivity {
         DialogLanguageProvider dialogLanguageProvider =
                 () -> settingsStore.languageMode();
         networkDialogController = new NetworkDialogController(this, dialogLanguageProvider, networkRequestController);
-        confirmationDialogController = new ConfirmationDialogController(this, dialogLanguageProvider, new ConfirmationDialogController.Listener() {
-            @Override
-            public void clearPlayHistory() {
-                playHistoryActionController.clearPlayHistory();
-            }
-
-            @Override
-            public void clearQueue() {
-                queueActionController.clearQueue();
-            }
-
-            @Override
-            public void deleteAllStreams() {
-                networkRequestController.deleteAllStreams();
-            }
-
-            @Override
-            public void deleteTrack(long trackId, String status) {
-                networkRequestController.deleteTrack(trackId, status);
-            }
-
-            @Override
-            public void deleteTracks(List<Long> trackIds, String status) {
-                networkRequestController.deleteTracks(trackIds, status);
-            }
-
-            @Override
-            public void deleteRemoteSource(long sourceId, String name) {
-                networkRequestController.deleteRemoteSource(sourceId);
-            }
-        });
+        confirmationDialogController = new ConfirmationDialogController(
+                this,
+                dialogLanguageProvider,
+                new ConfirmationActions(
+                        playHistoryActionController::clearPlayHistory,
+                        queueActionController::clearQueue,
+                        networkRequestController::deleteAllStreams,
+                        networkRequestController::deleteTrack,
+                        networkRequestController::deleteTracks,
+                        networkRequestController::deleteRemoteSource
+                )
+        );
         initializeNetworkRendering(streamingSearchRenderController);
         streamingAuthCallbackController.handleInitialIntent(getIntent());
         uiShellController.applyThemeSurface();

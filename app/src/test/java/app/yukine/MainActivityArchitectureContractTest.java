@@ -368,6 +368,17 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void confirmationDialogsUseTypedActionsWithoutAnonymousListener() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String controller = read("app/src/main/java/app/yukine/ConfirmationDialogController.kt");
+        assertFalse(activity.contains("new ConfirmationDialogController.Listener"));
+        assertTrue(activity.contains("new ConfirmationActions("));
+        assertTrue(controller.contains("private val actions: ConfirmationActions"));
+        assertFalse(controller.contains("interface Listener"));
+        assertTrue(controller.contains("actions.deleteTracks.delete(ids"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
