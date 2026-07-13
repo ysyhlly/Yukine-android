@@ -104,6 +104,7 @@ class QueueDestinationTest {
         val readModel = FakePlaybackReadModel().apply {
             state.value = playbackState
             queue.value = PlaybackQueueSnapshot(tracks = tracks, revision = 1L)
+            connection.value = PlaybackConnectionState.Connected
         }
         viewModel.bindStateSources(
             readModel,
