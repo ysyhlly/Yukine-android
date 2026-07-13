@@ -37,14 +37,14 @@ internal class MainRouteController(
         selectedRemoteSourceId: Long
     ): NavigationRouteState {
         return NavigationRouteState(
-            selectedTab,
+            TabRoute.fromKey(selectedTab)?.let(::normalizeTab) ?: HomeTab,
             libraryMode,
             selectedLibraryGroupKey,
             selectedLibraryGroupTitle,
             selectedPlaylistId,
             searchQuery,
             networkPage,
-            settingsPage,
+            SettingsPage.fromRoute(settingsPage),
             selectedRemoteSourceId
         )
     }
@@ -84,7 +84,7 @@ internal class MainRouteController(
     }
 
     fun selectedTab(): String {
-        return state.selectedTab
+        return state.selectedTab.route
     }
 
     fun libraryMode(): String {
@@ -112,11 +112,11 @@ internal class MainRouteController(
     }
 
     fun settingsPage(): String {
-        return state.settingsPage
+        return state.settingsPage.route
     }
 
     /** Typed settings boundary; the route string is kept only for saved-state compatibility. */
-    fun settingsPageModel(): SettingsPage = SettingsPage.fromRoute(state.settingsPage)
+    fun settingsPageModel(): SettingsPage = state.settingsPage
 
     fun selectedRemoteSourceId(): Long {
         return state.selectedRemoteSourceId
@@ -305,9 +305,9 @@ internal class MainRouteController(
             viewModel.updateRoute(entry.origin)
             networkEntry = null
             return MainBackNavigationPolicy.Result.navigate(
-                entry.origin.selectedTab,
+                entry.origin.selectedTab.route,
                 entry.origin.networkPage,
-                entry.origin.settingsPage,
+                entry.origin.settingsPage.route,
                 true
             )
         }

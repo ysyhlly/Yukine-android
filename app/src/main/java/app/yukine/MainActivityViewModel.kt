@@ -483,9 +483,11 @@ object NavigationRouteStateStore {
         val restoredTab = savedStateHandle[SELECTED_TAB] ?: MainRoutes.TAB_HOME
         val restoredLibraryMode = savedStateHandle[LIBRARY_MODE] ?: LibraryGrouping.SONGS
         val selectedTab = when {
-            restoredTab == MainRoutes.TAB_NOW -> MainRoutes.TAB_HOME
-            restoredTab == MainRoutes.TAB_LIBRARY && restoredLibraryMode == LibraryGrouping.HOME -> MainRoutes.TAB_HOME
-            else -> restoredTab
+            restoredTab == MainRoutes.TAB_NOW -> app.yukine.navigation.HomeTab
+            restoredTab == MainRoutes.TAB_LIBRARY && restoredLibraryMode == LibraryGrouping.HOME ->
+                app.yukine.navigation.HomeTab
+            else -> app.yukine.navigation.TabRoute.fromKey(restoredTab)
+                ?: app.yukine.navigation.HomeTab
         }
         val libraryMode = if (restoredLibraryMode == LibraryGrouping.HOME) {
             LibraryGrouping.SONGS
@@ -500,20 +502,20 @@ object NavigationRouteStateStore {
             selectedPlaylistId = savedStateHandle[SELECTED_PLAYLIST_ID] ?: -1L,
             searchQuery = savedStateHandle[SEARCH_QUERY] ?: "",
             networkPage = savedStateHandle[NETWORK_PAGE] ?: MainRoutes.NETWORK_HOME,
-            settingsPage = savedStateHandle[SETTINGS_PAGE] ?: MainRoutes.SETTINGS_HOME,
+            settingsPage = SettingsPage.fromRoute(savedStateHandle[SETTINGS_PAGE]),
             selectedRemoteSourceId = savedStateHandle[SELECTED_REMOTE_SOURCE_ID] ?: -1L
         )
     }
 
     fun save(savedStateHandle: SavedStateHandle, state: NavigationRouteState) {
-        savedStateHandle[SELECTED_TAB] = state.selectedTab
+        savedStateHandle[SELECTED_TAB] = state.selectedTab.route
         savedStateHandle[LIBRARY_MODE] = state.libraryMode
         savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] = state.selectedLibraryGroupKey
         savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] = state.selectedLibraryGroupTitle
         savedStateHandle[SELECTED_PLAYLIST_ID] = state.selectedPlaylistId
         savedStateHandle[SEARCH_QUERY] = state.searchQuery
         savedStateHandle[NETWORK_PAGE] = state.networkPage
-        savedStateHandle[SETTINGS_PAGE] = state.settingsPage
+        savedStateHandle[SETTINGS_PAGE] = state.settingsPage.route
         savedStateHandle[SELECTED_REMOTE_SOURCE_ID] = state.selectedRemoteSourceId
     }
 }

@@ -46,10 +46,15 @@ public final class MainActivityArchitectureContractTest {
     public void navigationHasOnePersistentRouteOwner() throws Exception {
         String hostState = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavHostState.kt");
         String graph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");
+        String routeState = read("feature/navigation/src/main/java/app/yukine/NavigationRouteState.kt");
         String routeController = read("app/src/main/java/app/yukine/MainRouteController.kt");
         assertFalse(hostState.contains("selectedTabRoute"));
         assertFalse(graph.contains("hostState.selectedTabRoute"));
         assertTrue(graph.contains("route.selectedTab"));
+        assertTrue(routeState.contains("val selectedTab: TabRoute"));
+        assertTrue(routeState.contains("val settingsPage: SettingsPage"));
+        assertFalse(routeState.contains("val selectedTab: String"));
+        assertFalse(routeState.contains("val settingsPage: String"));
         assertTrue(routeController.contains("private val state: NavigationRouteState"));
         assertFalse(routeController.contains("private var state:"));
         assertTrue(routeController.contains("viewModel.updateRoute"));

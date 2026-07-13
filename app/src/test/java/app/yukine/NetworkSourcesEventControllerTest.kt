@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import app.yukine.navigation.NetworkTab
+import app.yukine.navigation.SettingsTab
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.util.ArrayList
@@ -36,8 +38,8 @@ class NetworkSourcesEventControllerTest {
 
         controller.backToNetwork()
 
-        assertEquals(MainRoutes.TAB_SETTINGS, fakes.navigationViewModel.state.value.selectedTab)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, fakes.navigationViewModel.state.value.settingsPage)
+        assertEquals(SettingsTab, fakes.navigationViewModel.state.value.selectedTab)
+        assertEquals(SettingsPage.SourcesGroup, fakes.navigationViewModel.state.value.settingsPage)
     }
 
     @Test
@@ -99,7 +101,7 @@ class NetworkSourcesEventControllerTest {
         init {
             routeController.persist(
                 NavigationRouteState(
-                    selectedTab = MainRoutes.TAB_NETWORK,
+                    selectedTab = NetworkTab,
                     networkPage = MainRoutes.NETWORK_SOURCES
                 )
             )
@@ -125,8 +127,8 @@ class NetworkSourcesEventControllerTest {
         fun openSourcesFromSettings() {
             routeController.persist(
                 NavigationRouteState(
-                    selectedTab = MainRoutes.TAB_SETTINGS,
-                    settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
+                    selectedTab = SettingsTab,
+                    settingsPage = SettingsPage.SourcesGroup
                 )
             )
             routeController.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)

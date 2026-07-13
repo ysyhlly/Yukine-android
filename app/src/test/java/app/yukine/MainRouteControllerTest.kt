@@ -1,11 +1,39 @@
 package app.yukine
 
 import androidx.lifecycle.SavedStateHandle
-import app.yukine.NavigationViewModel
+import app.yukine.navigation.CollectionsTab
+import app.yukine.navigation.LibraryTab
+import app.yukine.navigation.NetworkTab
+import app.yukine.navigation.SettingsTab
+import app.yukine.navigation.TabRoute
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MainRouteControllerTest {
+    @Test
+    fun savedStateKeepsLegacyStringsAtSerializationBoundaryOnly() {
+        val handle = SavedStateHandle(
+            mapOf(
+                "selectedTab" to MainRoutes.TAB_SETTINGS,
+                "settingsPage" to MainRoutes.SETTINGS_APPEARANCE
+            )
+        )
+        val viewModel = NavigationViewModel(handle)
+
+        assertEquals(SettingsTab, viewModel.state.value.selectedTab)
+        assertEquals(SettingsPage.Appearance, viewModel.state.value.settingsPage)
+
+        viewModel.updateRoute(
+            viewModel.state.value.copy(
+                selectedTab = NetworkTab,
+                settingsPage = SettingsPage.SourcesGroup
+            )
+        )
+
+        assertEquals(MainRoutes.TAB_NETWORK, handle.get<String>("selectedTab"))
+        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, handle.get<String>("settingsPage"))
+    }
+
     @Test
     fun typedSettingsPageBoundaryKeepsLegacyRouteStorage() {
         val controller = controllerWith(selectedTab = MainRoutes.TAB_SETTINGS)
@@ -13,7 +41,7 @@ class MainRouteControllerTest {
         controller.setSettingsPage(SettingsPage.Appearance)
 
         assertEquals(SettingsPage.Appearance, controller.settingsPageModel())
-        assertEquals(MainRoutes.SETTINGS_APPEARANCE, controller.current().settingsPage)
+        assertEquals(SettingsPage.Appearance, controller.current().settingsPage)
     }
 
     @Test
@@ -27,7 +55,7 @@ class MainRouteControllerTest {
         controller.navigateToTab(app.yukine.navigation.NetworkTab, userInitiated = false)
 
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
+        assertEquals(NetworkTab, state.selectedTab)
         assertEquals(MainRoutes.NETWORK_STREAM_LIST, state.networkPage)
         assertEquals(42L, state.selectedRemoteSourceId)
     }
@@ -41,15 +69,15 @@ class MainRouteControllerTest {
 
         controller.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_HOME)
 
-        assertEquals(MainRoutes.TAB_NETWORK, controller.current().selectedTab)
+        assertEquals(NetworkTab, controller.current().selectedTab)
         assertEquals(MainRoutes.NETWORK_HOME, controller.current().networkPage)
 
         val result = controller.applyBackNavigation()
 
         assertEquals(true, result.handled)
         assertEquals(true, result.navigateTab)
-        assertEquals(MainRoutes.TAB_SETTINGS, controller.current().selectedTab)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+        assertEquals(SettingsTab, controller.current().selectedTab)
+        assertEquals(SettingsPage.SourcesGroup, controller.current().settingsPage)
     }
 
     @Test
@@ -63,13 +91,13 @@ class MainRouteControllerTest {
 
         controller.applyBackNavigation()
 
-        assertEquals(MainRoutes.TAB_NETWORK, controller.current().selectedTab)
+        assertEquals(NetworkTab, controller.current().selectedTab)
         assertEquals(MainRoutes.NETWORK_SOURCES, controller.current().networkPage)
 
         controller.applyBackNavigation()
 
-        assertEquals(MainRoutes.TAB_SETTINGS, controller.current().selectedTab)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+        assertEquals(SettingsTab, controller.current().selectedTab)
+        assertEquals(SettingsPage.SourcesGroup, controller.current().settingsPage)
     }
 
     @Test
@@ -82,8 +110,8 @@ class MainRouteControllerTest {
         controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = false)
 
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_SETTINGS, state.selectedTab)
-        assertEquals(MainRoutes.SETTINGS_APPEARANCE, state.settingsPage)
+        assertEquals(SettingsTab, state.selectedTab)
+        assertEquals(SettingsPage.Appearance, state.settingsPage)
     }
 
     @Test
@@ -99,7 +127,7 @@ class MainRouteControllerTest {
         controller.navigateToTab(app.yukine.navigation.LibraryTab, userInitiated = false)
 
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_LIBRARY, state.selectedTab)
+        assertEquals(LibraryTab, state.selectedTab)
         assertEquals(LibraryGrouping.PLAYLISTS, state.libraryMode)
         assertEquals("playlist:7", state.selectedLibraryGroupKey)
         assertEquals("Favorites", state.selectedLibraryGroupTitle)
@@ -141,7 +169,7 @@ class MainRouteControllerTest {
 
         controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = true)
         state = controller.current()
-        assertEquals(MainRoutes.SETTINGS_HOME, state.settingsPage)
+        assertEquals(SettingsPage.Home, state.settingsPage)
     }
 
     @Test
@@ -154,7 +182,7 @@ class MainRouteControllerTest {
         val result = controller.applyBackNavigation()
 
         assertEquals(true, result.handled)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+        assertEquals(SettingsPage.SourcesGroup, controller.current().settingsPage)
     }
 
     @Test
@@ -167,7 +195,7 @@ class MainRouteControllerTest {
         val result = controller.applyBackNavigation()
 
         assertEquals(true, result.handled)
-        assertEquals(MainRoutes.SETTINGS_HOME, controller.current().settingsPage)
+        assertEquals(SettingsPage.Home, controller.current().settingsPage)
     }
 
     @Test
@@ -180,7 +208,7 @@ class MainRouteControllerTest {
         val result = controller.applyBackNavigation()
 
         assertEquals(true, result.handled)
-        assertEquals(MainRoutes.SETTINGS_APPEARANCE, controller.current().settingsPage)
+        assertEquals(SettingsPage.Appearance, controller.current().settingsPage)
     }
 
     @Test
@@ -193,7 +221,7 @@ class MainRouteControllerTest {
         val result = controller.applyBackNavigation()
 
         assertEquals(true, result.handled)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, controller.current().settingsPage)
+        assertEquals(SettingsPage.SourcesGroup, controller.current().settingsPage)
     }
 
     @Test
@@ -209,7 +237,7 @@ class MainRouteControllerTest {
         assertEquals(true, result.handled)
         assertEquals(false, result.navigateTab)
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
+        assertEquals(NetworkTab, state.selectedTab)
         assertEquals(MainRoutes.NETWORK_HOME, state.networkPage)
         assertEquals(-1L, state.selectedRemoteSourceId)
     }
@@ -227,7 +255,7 @@ class MainRouteControllerTest {
         assertEquals(true, result.handled)
         assertEquals(false, result.navigateTab)
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
+        assertEquals(NetworkTab, state.selectedTab)
         assertEquals(MainRoutes.NETWORK_STREAMING, state.networkPage)
         assertEquals(42L, state.selectedRemoteSourceId)
     }
@@ -262,7 +290,7 @@ class MainRouteControllerTest {
 
         assertEquals(true, result.handled)
         val state = controller.current()
-        assertEquals(MainRoutes.TAB_COLLECTIONS, state.selectedTab)
+        assertEquals(CollectionsTab, state.selectedTab)
         assertEquals(-1L, state.selectedPlaylistId)
     }
 
@@ -280,13 +308,13 @@ class MainRouteControllerTest {
         val controller = MainRouteController(viewModel)
         controller.persist(
             NavigationRouteState(
-                selectedTab = selectedTab,
+                selectedTab = TabRoute.fromKey(selectedTab) ?: error("Unknown tab: $selectedTab"),
                 libraryMode = libraryMode,
                 selectedLibraryGroupKey = selectedLibraryGroupKey,
                 selectedLibraryGroupTitle = selectedLibraryGroupTitle,
                 selectedPlaylistId = selectedPlaylistId,
                 networkPage = networkPage,
-                settingsPage = settingsPage,
+                settingsPage = SettingsPage.fromRoute(settingsPage),
                 selectedRemoteSourceId = selectedRemoteSourceId
             )
         )

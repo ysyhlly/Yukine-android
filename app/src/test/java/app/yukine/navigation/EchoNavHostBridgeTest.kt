@@ -120,7 +120,7 @@ class EchoNavHostBridgeTest {
                     hostState = state,
                     onTabChanged = { tab ->
                         navigationViewModel.updateRoute(
-                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                            navigationViewModel.state.value.copy(selectedTab = tab)
                         )
                     }
                 )
@@ -130,7 +130,7 @@ class EchoNavHostBridgeTest {
         composeRule.onNode(hasContentDescription("Playing") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
+        assertEquals(QueueTab, navigationViewModel.state.value.selectedTab)
     }
 
     @Test

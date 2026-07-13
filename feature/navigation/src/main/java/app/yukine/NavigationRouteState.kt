@@ -1,15 +1,18 @@
 package app.yukine
 
+import app.yukine.navigation.HomeTab
+import app.yukine.navigation.TabRoute
+
 private const val DefaultLibraryMode = "songs"
 
 data class NavigationRouteState(
-    val selectedTab: String = MainRoutes.TAB_HOME,
+    val selectedTab: TabRoute = HomeTab,
     val libraryMode: String = DefaultLibraryMode,
     val selectedLibraryGroupKey: String = "",
     val selectedLibraryGroupTitle: String = "",
     val selectedPlaylistId: Long = -1L,
     val searchQuery: String = "",
     val networkPage: String = MainRoutes.NETWORK_HOME,
-    val settingsPage: String = MainRoutes.SETTINGS_HOME,
+    val settingsPage: SettingsPage = SettingsPage.Home,
     val selectedRemoteSourceId: Long = -1L
 )
