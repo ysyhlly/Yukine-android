@@ -5,16 +5,10 @@ import app.yukine.playback.PlaybackStateSnapshot
 
 internal fun interface MainPlaybackStateEventListenerFactory {
     fun create(
-        selectedTabSource: MainPlaybackStateEventListener.SelectedTabSource,
-        queueVisibilitySource: MainPlaybackStateEventListener.QueueVisibilitySource,
         currentLyricsTrackIdSource: MainPlaybackStateEventListener.CurrentLyricsTrackIdSource,
         playbackSettingsSaver: MainPlaybackStateEventListener.PlaybackSettingsSaver,
         lyricsLoader: MainPlaybackStateEventListener.LyricsLoader,
         collectionsLoader: MainPlaybackStateEventListener.CollectionsLoader,
-        nowBarRenderer: MainPlaybackStateEventListener.NowBarRenderer,
-        homeDashboardPlaybackUpdater: MainPlaybackStateEventListener.HomeDashboardPlaybackUpdater,
-        selectedTabRenderer: MainPlaybackStateEventListener.SelectedTabRenderer,
-        nowPlayingContentUpdater: MainPlaybackStateEventListener.NowPlayingContentUpdater,
         nextStreamingTrackPreResolver: MainPlaybackStateEventListener.NextStreamingTrackPreResolver,
         streamingBufferingRecoveryHandler: MainPlaybackStateEventListener.StreamingBufferingRecoveryHandler,
         currentStreamingTrackResolver: MainPlaybackStateEventListener.CurrentStreamingTrackResolver,
@@ -23,29 +17,15 @@ internal fun interface MainPlaybackStateEventListenerFactory {
 }
 
 internal class MainPlaybackStateEventListener(
-    private val selectedTabSource: SelectedTabSource,
-    private val queueVisibilitySource: QueueVisibilitySource,
     private val currentLyricsTrackIdSource: CurrentLyricsTrackIdSource,
     private val playbackSettingsSaver: PlaybackSettingsSaver,
     private val lyricsLoader: LyricsLoader,
     private val collectionsLoader: CollectionsLoader,
-    private val nowBarRenderer: NowBarRenderer,
-    private val homeDashboardPlaybackUpdater: HomeDashboardPlaybackUpdater,
-    private val selectedTabRenderer: SelectedTabRenderer,
-    private val nowPlayingContentUpdater: NowPlayingContentUpdater,
     private val nextStreamingTrackPreResolver: NextStreamingTrackPreResolver,
     private val streamingBufferingRecoveryHandler: StreamingBufferingRecoveryHandler,
     private val currentStreamingTrackResolver: CurrentStreamingTrackResolver,
     private val statusSink: StatusSink
 ) : PlaybackStateEventController.Listener {
-    fun interface SelectedTabSource {
-        fun selectedTab(): String
-    }
-
-    fun interface QueueVisibilitySource {
-        fun queueVisible(): Boolean
-    }
-
     fun interface CurrentLyricsTrackIdSource {
         fun currentLyricsTrackId(): Long
     }
@@ -60,22 +40,6 @@ internal class MainPlaybackStateEventListener(
 
     fun interface CollectionsLoader {
         fun loadCollections()
-    }
-
-    fun interface NowBarRenderer {
-        fun renderNowBar()
-    }
-
-    fun interface HomeDashboardPlaybackUpdater {
-        fun updateHomeDashboardPlayback(snapshot: PlaybackStateSnapshot)
-    }
-
-    fun interface SelectedTabRenderer {
-        fun renderSelectedTab()
-    }
-
-    fun interface NowPlayingContentUpdater {
-        fun updateNowPlayingContent()
     }
 
     fun interface NextStreamingTrackPreResolver {
@@ -94,10 +58,6 @@ internal class MainPlaybackStateEventListener(
         fun setStatus(status: String)
     }
 
-    override fun selectedTab(): String = selectedTabSource.selectedTab()
-
-    override fun queueVisible(): Boolean = queueVisibilitySource.queueVisible()
-
     override fun currentLyricsTrackId(): Long = currentLyricsTrackIdSource.currentLyricsTrackId()
 
     override fun savePlaybackSettings(playbackSpeed: Float, appVolume: Float) {
@@ -110,22 +70,6 @@ internal class MainPlaybackStateEventListener(
 
     override fun loadCollections() {
         collectionsLoader.loadCollections()
-    }
-
-    override fun renderNowBar() {
-        nowBarRenderer.renderNowBar()
-    }
-
-    override fun updateHomeDashboardPlayback(snapshot: PlaybackStateSnapshot) {
-        homeDashboardPlaybackUpdater.updateHomeDashboardPlayback(snapshot)
-    }
-
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
-    }
-
-    override fun updateNowPlayingContent() {
-        nowPlayingContentUpdater.updateNowPlayingContent()
     }
 
     override fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot) {

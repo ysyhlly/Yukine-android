@@ -8,12 +8,10 @@ import app.yukine.streaming.StreamingPlaybackAdapter
 
 internal class PlaybackStateEventController(
     private val mainHandler: Handler,
-    private val playbackStore: MainPlaybackStore,
-    private val queueSnapshotSource: QueueSnapshotSource,
     private val listener: Listener
 ) : PlaybackStateListener {
     private var lastAutoResolveTrackId = -1L
-    private var lastPublishedQueueKey = QueueKey.empty()
+    private var lastHistoryRefreshTrackId = -1L
     private val stateDispatchLock = Any()
     private var pendingStateSnapshot: PlaybackStateSnapshot? = null
     private var stateDispatchPosted = false
@@ -30,10 +28,6 @@ internal class PlaybackStateEventController(
     }
 
     interface Listener {
-        fun selectedTab(): String
-
-        fun queueVisible(): Boolean
-
         fun currentLyricsTrackId(): Long
 
         fun savePlaybackSettings(playbackSpeed: Float, appVolume: Float)
@@ -41,14 +35,6 @@ internal class PlaybackStateEventController(
         fun loadLyrics(track: Track?)
 
         fun loadCollections()
-
-        fun renderNowBar()
-
-        fun updateHomeDashboardPlayback(snapshot: PlaybackStateSnapshot)
-
-        fun renderSelectedTab()
-
-        fun updateNowPlayingContent()
 
         fun preResolveNextStreamingTrack(snapshot: PlaybackStateSnapshot)
 
@@ -62,10 +48,6 @@ internal class PlaybackStateEventController(
         fun resolveCurrentStreamingTrackIfNeeded(): Boolean
 
         fun setStatus(status: String)
-    }
-
-    interface QueueSnapshotSource {
-        fun queueSnapshot(): List<Track>
     }
 
     override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
@@ -93,31 +75,20 @@ internal class PlaybackStateEventController(
     }
 
     private fun handlePlaybackState(snapshot: PlaybackStateSnapshot) {
-        val previous = playbackStore.replaceSnapshot(snapshot)
         listener.savePlaybackSettings(snapshot.playbackSpeed, snapshot.appVolume)
         val result = PlaybackStateUpdateController.resolve(
-            listener.selectedTab(),
-            previous,
             snapshot,
             listener.currentLyricsTrackId(),
-            playbackStore.lastHistoryRefreshTrackId()
+            lastHistoryRefreshTrackId
         )
-        playbackStore.setLastHistoryRefreshTrackId(result.lastHistoryRefreshTrackId)
+        lastHistoryRefreshTrackId = result.lastHistoryRefreshTrackId
         if (result.loadLyrics) {
             listener.loadLyrics(snapshot.currentTrack)
         }
         if (result.refreshCollections) {
             listener.loadCollections()
         }
-        publishQueueIfChanged(snapshot)
-        listener.renderNowBar()
-        listener.updateHomeDashboardPlayback(snapshot)
         listener.preResolveNextStreamingTrack(snapshot)
-        if (result.renderSelectedTab) {
-            listener.renderSelectedTab()
-        } else if (result.updateNowPlaying) {
-            listener.updateNowPlayingContent()
-        }
         if (result.showError) {
             // 流媒体地址可能在后台或冷启动恢复后过期。任何流媒体播放错误都先自动刷新
             // 当前 URL；占位曲和已解析但已失效的临时地址走同一条恢复路径。
@@ -137,34 +108,4 @@ internal class PlaybackStateEventController(
         }
     }
 
-    private fun publishQueueIfChanged(snapshot: PlaybackStateSnapshot) {
-        if (!listener.queueVisible()) {
-            return
-        }
-        val nextKey = QueueKey.from(snapshot)
-        if (nextKey == lastPublishedQueueKey) {
-            return
-        }
-        lastPublishedQueueKey = nextKey
-        playbackStore.publish(queueSnapshotSource.queueSnapshot())
-    }
-
-    private data class QueueKey(
-        val currentTrackId: Long,
-        val currentIndex: Int,
-        val queueSize: Int,
-        val queueRevision: Long
-    ) {
-        companion object {
-            fun empty(): QueueKey = QueueKey(-1L, -1, 0, 0L)
-
-            fun from(snapshot: PlaybackStateSnapshot): QueueKey =
-                QueueKey(
-                    snapshot.currentTrack?.id ?: -1L,
-                    snapshot.currentIndex,
-                    snapshot.queueSize,
-                    snapshot.queueRevision
-                )
-        }
-    }
 }

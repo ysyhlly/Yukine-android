@@ -6,15 +6,11 @@ internal object PlaybackStateUpdateController {
     data class Result(
         val loadLyrics: Boolean,
         val refreshCollections: Boolean,
-        val renderSelectedTab: Boolean,
-        val updateNowPlaying: Boolean,
         val showError: Boolean,
         val lastHistoryRefreshTrackId: Long
     )
 
     fun resolve(
-        selectedTab: String,
-        previous: PlaybackStateSnapshot?,
         next: PlaybackStateSnapshot,
         currentLyricsTrackId: Long,
         lastHistoryRefreshTrackId: Long
@@ -29,14 +25,10 @@ internal object PlaybackStateUpdateController {
         } else {
             lastHistoryRefreshTrackId
         }
-        val renderSelectedTab = PlaybackRenderPolicy.shouldRenderForPlaybackChange(selectedTab, previous, next)
-        val updateNowPlaying = !renderSelectedTab && MainRoutes.TAB_NOW == selectedTab
         val showError = next.errorMessage.isNotEmpty()
         return Result(
             loadLyrics,
             refreshCollections,
-            renderSelectedTab,
-            updateNowPlaying,
             showError,
             nextHistoryRefreshTrackId
         )

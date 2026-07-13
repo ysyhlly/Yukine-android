@@ -13,7 +13,7 @@ class MainStreamingPlaybackListenerTest {
     fun delegatesStreamingPlaybackCallbacksToInjectedOwners() {
         val queue = listOf(streamingPlaybackTrack(1L), streamingPlaybackTrack(2L))
         val snapshot = PlaybackStateSnapshot.empty()
-        val result = PlaybackActionResultUi(snapshot, "played", true, true, true, false)
+        val result = PlaybackActionResultUi("played", true, false)
         val appendedSnapshots = mutableListOf<PlaybackStateSnapshot>()
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
         val statuses = mutableListOf<String>()
@@ -59,7 +59,7 @@ class MainStreamingPlaybackListenerTest {
             PlaybackActionResultSink { calls += "result:${it?.status}" },
             StreamingPlaybackStatusSink { calls += "status:$it" }
         )
-        val result = PlaybackActionResultUi(null, "queued", false, false, false, false)
+        val result = PlaybackActionResultUi("queued", false, false)
 
         assertEquals("en", listener.languageMode())
         assertEquals(StreamingAudioQuality.STANDARD, listener.adaptiveStreamingQuality())

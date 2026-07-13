@@ -25,10 +25,6 @@ internal class PlaybackServiceHostController(
         fun resetPlaybackStore()
 
         fun playPendingTracksIfNeeded()
-
-        fun renderSelectedTab()
-
-        fun renderNowBar()
     }
 
     override fun onPlaybackServiceConnected(service: PlaybackServiceHostPort) {
@@ -41,17 +37,10 @@ internal class PlaybackServiceHostController(
         service.setPlaybackRestoreEnabled(host.playbackRestoreEnabled())
         service.setReplayGainEnabled(host.replayGainEnabled())
         host.playPendingTracksIfNeeded()
-        renderPlaybackChrome()
     }
 
     override fun onPlaybackServiceDisconnected() {
         host.clearPlaybackService()
         host.resetPlaybackStore()
-        renderPlaybackChrome()
-    }
-
-    private fun renderPlaybackChrome() {
-        host.renderSelectedTab()
-        host.renderNowBar()
     }
 }

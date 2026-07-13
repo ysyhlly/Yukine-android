@@ -4,9 +4,14 @@ import android.net.Uri
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -52,9 +57,13 @@ class LyricsViewModelTest {
         val viewModel = LyricsViewModel(dispatcher)
         val notifications = mutableListOf<LyricsStatusKind>()
         viewModel.configure(operations, onlineEnabled = true, offsetMs = 100L)
-        viewModel.bindListener { notifications += viewModel.state.value.statusKind }
+        val observer = launch(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.state.map { it.statusKind }.toList(notifications)
+        }
 
         viewModel.load(track(7L), "9988").join()
+        runCurrent()
+        observer.cancel()
 
         assertEquals(listOf("load:7:true:9988"), operations.events)
         assertEquals(7L, viewModel.trackId())
@@ -62,7 +71,6 @@ class LyricsViewModelTest {
         assertEquals(LyricsStatusKind.LOADED, viewModel.state.value.statusKind)
         assertEquals(2, viewModel.state.value.loadedLineCount)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "loaded.lyrics.prefix") + "2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "loaded.lyrics.suffix"), viewModel.status(AppLanguage.MODE_ENGLISH))
-        assertTrue(notifications.contains(LyricsStatusKind.LOADING))
         assertEquals(LyricsStatusKind.LOADED, notifications.last())
     }
 

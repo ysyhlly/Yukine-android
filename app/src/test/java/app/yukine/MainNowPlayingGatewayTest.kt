@@ -22,7 +22,7 @@ class MainNowPlayingGatewayTest {
         val seeks = mutableListOf<Long>()
         val gateway = MainNowPlayingGateway(
             playbackActionControllerProvider = PlaybackActionControllerProvider { controller },
-            playbackStoreProvider = MainPlaybackStoreProvider { null },
+            playbackSnapshotSource = MainPlaybackSnapshotSource { null },
             favoriteToggler = NowPlayingFavoriteToggler {},
             seekHandler = NowPlayingSeekHandler { seeks += it },
             statusTextProvider = NowPlayingStatusTextProvider { "text:$it" }
@@ -42,15 +42,12 @@ class MainNowPlayingGatewayTest {
     }
 
     @Test
-    fun toggleFavoriteUsesCurrentPlaybackStoreTrack() {
-        val playbackViewModel = PlaybackViewModel()
-        val store = MainPlaybackStore(playbackViewModel)
+    fun toggleFavoriteUsesCurrentPlaybackSnapshotTrack() {
         val track = track(7L)
-        playbackViewModel.replacePlaybackSnapshot(snapshot(track))
         val favorites = mutableListOf<Track>()
         val gateway = MainNowPlayingGateway(
             playbackActionControllerProvider = PlaybackActionControllerProvider { null },
-            playbackStoreProvider = MainPlaybackStoreProvider { store },
+            playbackSnapshotSource = MainPlaybackSnapshotSource { snapshot(track) },
             favoriteToggler = NowPlayingFavoriteToggler { favorites += it },
             seekHandler = NowPlayingSeekHandler {},
             statusTextProvider = NowPlayingStatusTextProvider { it }
@@ -64,11 +61,12 @@ class MainNowPlayingGatewayTest {
     @Test
     fun toggleFavoriteIgnoresMissingTrack() {
         val playbackViewModel = PlaybackViewModel()
-        val store = MainPlaybackStore(playbackViewModel)
         val favorites = mutableListOf<Track>()
         val gateway = MainNowPlayingGateway(
             playbackActionControllerProvider = PlaybackActionControllerProvider { null },
-            playbackStoreProvider = MainPlaybackStoreProvider { store },
+            playbackSnapshotSource = MainPlaybackSnapshotSource {
+                playbackViewModel.playbackSnapshot.value
+            },
             favoriteToggler = NowPlayingFavoriteToggler { favorites += it },
             seekHandler = NowPlayingSeekHandler {},
             statusTextProvider = NowPlayingStatusTextProvider { it }

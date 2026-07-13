@@ -8,7 +8,6 @@ internal fun interface MainLibraryGatewayFactory {
         languageModeProvider: MainLibraryGateway.LanguageModeProvider,
         statusSink: MainLibraryGateway.StatusSink,
         favoriteApplier: MainLibraryGateway.FavoriteApplier,
-        nowBarRenderer: MainLibraryGateway.NowBarRenderer,
         selectedTabRenderer: MainLibraryGateway.SelectedTabRenderer,
         collectionsLoader: MainLibraryGateway.CollectionsLoader,
         playlistAdder: MainLibraryGateway.PlaylistAdder,
@@ -34,7 +33,6 @@ internal class MainLibraryGateway(
     private val languageModeProvider: LanguageModeProvider,
     private val statusSink: StatusSink,
     private val favoriteApplier: FavoriteApplier,
-    private val nowBarRenderer: NowBarRenderer,
     private val selectedTabRenderer: SelectedTabRenderer,
     private val collectionsLoader: CollectionsLoader,
     private val playlistAdder: PlaylistAdder,
@@ -59,10 +57,6 @@ internal class MainLibraryGateway(
 
     fun interface FavoriteApplier {
         fun setFavorite(trackId: Long, favorite: Boolean)
-    }
-
-    fun interface NowBarRenderer {
-        fun renderNowBar()
     }
 
     fun interface SelectedTabRenderer {
@@ -99,7 +93,6 @@ internal class MainLibraryGateway(
 
     override fun applyFavorite(trackId: Long, favorite: Boolean) {
         favoriteApplier.setFavorite(trackId, favorite)
-        nowBarRenderer.renderNowBar()
         selectedTabRenderer.renderSelectedTab()
         collectionsLoader.loadCollections()
     }

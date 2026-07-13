@@ -1,5 +1,9 @@
 package app.yukine
 
+import app.yukine.navigation.HomeTab
+import app.yukine.navigation.NowTab
+import app.yukine.navigation.TabRoute
+
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
 ) : LibraryRouteActions {
@@ -132,8 +136,8 @@ internal class MainRouteController(
         )
     }
 
-    fun navigateToTab(tabKey: String, userInitiated: Boolean): Boolean {
-        val normalizedTab = normalizeTab(tabKey)
+    fun navigateToTab(tab: TabRoute, userInitiated: Boolean): Boolean {
+        val normalizedTab = normalizeTab(tab).route
         val sameTab = normalizedTab == selectedTab()
         if (userInitiated || (selectedTab() == MainRoutes.TAB_NETWORK && normalizedTab != MainRoutes.TAB_NETWORK)) {
             networkEntry = null
@@ -353,7 +357,7 @@ internal class MainRouteController(
         selectedRemoteSourceId: Long
     ) {
         viewModel.updateRoute(snapshot(
-            normalizeTab(selectedTab),
+            normalizeTabKey(selectedTab),
             normalizeLibraryMode(libraryMode),
             selectedLibraryGroupKey,
             selectedLibraryGroupTitle,
@@ -365,11 +369,12 @@ internal class MainRouteController(
         ))
     }
 
-    private fun normalizeTab(tabKey: String): String {
-        return when (tabKey) {
-            MainRoutes.TAB_NOW -> MainRoutes.TAB_HOME
-            else -> tabKey
-        }
+    private fun normalizeTab(tab: TabRoute): TabRoute {
+        return if (tab == NowTab) HomeTab else tab
+    }
+
+    private fun normalizeTabKey(tabKey: String): String {
+        return TabRoute.fromKey(tabKey)?.let(::normalizeTab)?.route ?: HomeTab.route
     }
 
     private fun normalizeLibraryMode(mode: String): String {

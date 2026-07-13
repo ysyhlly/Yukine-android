@@ -2,53 +2,34 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackCommands
+import app.yukine.playback.PlaybackConnectionState
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.service.PlaybackServiceActions
 import dagger.hilt.android.scopes.ActivityRetainedScoped
 import java.util.ArrayDeque
 import javax.inject.Inject
 
-interface NowPlayingPlaybackServicePort {
-    fun snapshot(): PlaybackStateSnapshot?
-    fun queueSnapshot(): List<Track>
-    fun skipToPrevious()
-    fun skipToNext()
-    fun seekTo(positionMs: Long)
-    fun removeTracksById(trackIds: Set<Long>)
-    fun clearQueue()
-    fun moveQueueTrack(fromIndex: Int, toIndex: Int)
-    fun replaceQueuedTrack(updated: Track)
-    fun updateQueuedTrackArtwork(trackId: Long, artworkUri: Uri) = Unit
-    fun replaceQueuedTracks(updated: List<Track>) {
-        updated.forEach { replaceQueuedTrack(it) }
-    }
-    fun replaceQueuedTrackById(oldTrackId: Long, updated: Track)
-    fun retainTracksById(trackIds: Set<Long>)
-    fun warmPlaybackTrack(track: Track)
-    fun appendToQueue(tracks: List<Track>)
-    fun replaceCurrentTrackAndResume(track: Track, positionMs: Long)
-    fun replaceCurrentSourceAndResume(expectedTrackId: Long, track: Track, positionMs: Long) = Unit
-    fun startSleepTimerMinutes(minutes: Int)
-    fun cancelSleepTimer()
-    fun playQueue(tracks: List<Track>, index: Int)
-    fun pause()
-    fun play()
-    fun setShuffleEnabled(enabled: Boolean)
-    fun cycleRepeatMode()
-    fun setRepeatMode(repeatMode: Int)
-}
-
 internal class MainNowPlayingPlaybackGatewayFactory(
     private val serviceStarter: (String?) -> Unit,
     private val commandQueue: PlaybackServiceCommandQueue
 ) {
-    fun create(serviceProvider: () -> NowPlayingPlaybackServicePort?): NowPlayingPlaybackGateway {
-        return NowPlayingPlaybackGatewayAdapter(serviceProvider, serviceStarter, commandQueue)
+    fun create(
+        serviceProvider: () -> PlaybackCommands?,
+        playbackReadModelProvider: () -> PlaybackReadModel?
+    ): NowPlayingPlaybackGateway {
+        return NowPlayingPlaybackGatewayAdapter(
+            serviceProvider,
+            playbackReadModelProvider,
+            serviceStarter,
+            commandQueue
+        )
     }
 }
 
 internal fun interface PlaybackServiceCommand {
-    fun execute(service: NowPlayingPlaybackServicePort)
+    fun execute(service: PlaybackCommands)
 }
 
 /**
@@ -61,10 +42,10 @@ internal class PlaybackServiceCommandQueue @Inject constructor() {
     private val pending = ArrayDeque<PlaybackServiceCommand>()
 
     fun executeOrEnqueue(
-        serviceProvider: () -> NowPlayingPlaybackServicePort?,
+        serviceProvider: () -> PlaybackCommands?,
         command: PlaybackServiceCommand
     ): Boolean {
-        val service: NowPlayingPlaybackServicePort
+        val service: PlaybackCommands
         val commands: List<PlaybackServiceCommand>
         synchronized(pending) {
             service = serviceProvider() ?: run {
@@ -77,7 +58,7 @@ internal class PlaybackServiceCommandQueue @Inject constructor() {
         return true
     }
 
-    fun flush(service: NowPlayingPlaybackServicePort) {
+    fun flush(service: PlaybackCommands) {
         val commands = synchronized(pending) { drainLocked() }
         commands.forEach { it.execute(service) }
     }
@@ -97,15 +78,23 @@ internal class PlaybackServiceCommandQueue @Inject constructor() {
 }
 
 internal class NowPlayingPlaybackGatewayAdapter(
-    private val serviceProvider: () -> NowPlayingPlaybackServicePort?,
+    private val serviceProvider: () -> PlaybackCommands?,
+    private val playbackReadModelProvider: () -> PlaybackReadModel? = { null },
     private val serviceStarter: (String?) -> Unit,
     private val commandQueue: PlaybackServiceCommandQueue = PlaybackServiceCommandQueue()
 ) : NowPlayingPlaybackGateway {
-    override fun serviceConnected(): Boolean = service() != null
+    override fun serviceConnected(): Boolean {
+        val readModel = playbackReadModelProvider()
+        return if (readModel == null) {
+            service() != null
+        } else {
+            readModel.connection.value == PlaybackConnectionState.Connected
+        }
+    }
 
-    override fun snapshot(): PlaybackStateSnapshot? = service()?.snapshot()
+    override fun snapshot(): PlaybackStateSnapshot? = playbackReadModelProvider()?.state?.value
 
-    override fun queueSnapshot(): List<Track> = service()?.queueSnapshot().orEmpty()
+    override fun queueSnapshot(): List<Track> = playbackReadModelProvider()?.queue?.value?.tracks.orEmpty()
 
     override fun skipToPrevious() {
         val service = service()
@@ -215,5 +204,5 @@ internal class NowPlayingPlaybackGatewayAdapter(
         commandQueue.executeOrEnqueue(serviceProvider, command)
     }
 
-    private fun service(): NowPlayingPlaybackServicePort? = serviceProvider()
+    private fun service(): PlaybackCommands? = serviceProvider()
 }

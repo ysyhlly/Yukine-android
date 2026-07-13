@@ -6,6 +6,7 @@ import app.yukine.dashboard.DashboardRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.ui.HomeDashboardActions
 import app.yukine.ui.HomeDashboardUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +15,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -25,6 +29,26 @@ class HomeDashboardViewModel @Inject constructor(
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
+    private var playbackBinding: Job? = null
+
+    fun bindPlayback(
+        playbackReadModel: PlaybackReadModel?,
+        settingsState: StateFlow<SettingsState>?
+    ) {
+        playbackBinding?.cancel()
+        playbackBinding = null
+        if (playbackReadModel == null || settingsState == null) return
+        val language = settingsState
+            .map { it.preferences.languageMode }
+            .distinctUntilChanged()
+        playbackBinding = viewModelScope.launch {
+            combine(playbackReadModel.state, language) { playback, languageMode ->
+                playback to languageMode
+            }.collect { (playback, languageMode) ->
+                updatePlayback(playback, languageMode)
+            }
+        }
+    }
 
     fun updateHomeDashboard(content: HomeDashboardUiState) {
         _uiState.value = _uiState.value.copy(content = content)
@@ -41,11 +65,7 @@ class HomeDashboardViewModel @Inject constructor(
         }
     }
 
-    fun updatePlayback(snapshot: PlaybackStateSnapshot?) {
-        updatePlayback(snapshot, AppLanguage.MODE_CHINESE)
-    }
-
-    fun updatePlayback(snapshot: PlaybackStateSnapshot?, languageMode: String) {
+    private fun updatePlayback(snapshot: PlaybackStateSnapshot?, languageMode: String) {
         val playback = snapshot ?: PlaybackStateSnapshot.empty()
         val track = playback.currentTrack ?: return
         val durationMs = when {

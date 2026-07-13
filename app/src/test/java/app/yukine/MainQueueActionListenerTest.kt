@@ -8,7 +8,7 @@ import org.junit.Test
 class MainQueueActionListenerTest {
     @Test
     fun delegatesQueueActionCallbacksToInjectedOwners() {
-        val result = PlaybackActionResultUi(PlaybackStateSnapshot.empty(), "moved", true, true, true, false)
+        val result = PlaybackActionResultUi("moved", true, false)
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
         val moves = mutableListOf<Pair<Int, Int>>()
         val calls = mutableListOf<String>()
@@ -47,7 +47,7 @@ class MainQueueActionListenerTest {
             QueueEmptyStatusProvider { "Queue empty" },
             QueueStatusSink { calls += "status:$it" }
         )
-        val result = PlaybackActionResultUi(null, null, false, false, false, false)
+        val result = PlaybackActionResultUi(null, false, false)
 
         listener.applyPlaybackActionResult(result)
         listener.moveQueueTrack(0, 2)

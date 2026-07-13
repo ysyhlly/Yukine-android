@@ -6,8 +6,8 @@ internal fun interface PlaybackActionControllerProvider {
     fun controller(): PlaybackActionController?
 }
 
-internal fun interface MainPlaybackStoreProvider {
-    fun store(): MainPlaybackStore?
+internal fun interface MainPlaybackSnapshotSource {
+    fun snapshot(): app.yukine.playback.PlaybackStateSnapshot?
 }
 
 internal fun interface NowPlayingFavoriteToggler {
@@ -25,7 +25,7 @@ internal fun interface NowPlayingStatusTextProvider {
 internal fun interface MainNowPlayingGatewayFactory {
     fun create(
         playbackActionControllerProvider: PlaybackActionControllerProvider,
-        playbackStoreProvider: MainPlaybackStoreProvider,
+        playbackSnapshotSource: MainPlaybackSnapshotSource,
         favoriteToggler: NowPlayingFavoriteToggler,
         seekHandler: NowPlayingSeekHandler,
         statusTextProvider: NowPlayingStatusTextProvider
@@ -34,7 +34,7 @@ internal fun interface MainNowPlayingGatewayFactory {
 
 internal class MainNowPlayingGateway(
     private val playbackActionControllerProvider: PlaybackActionControllerProvider,
-    private val playbackStoreProvider: MainPlaybackStoreProvider,
+    private val playbackSnapshotSource: MainPlaybackSnapshotSource,
     private val favoriteToggler: NowPlayingFavoriteToggler,
     private val seekHandler: NowPlayingSeekHandler,
     private val statusTextProvider: NowPlayingStatusTextProvider
@@ -56,7 +56,7 @@ internal class MainNowPlayingGateway(
     }
 
     override fun toggleFavorite() {
-        val track = playbackStoreProvider.store()?.snapshot()?.currentTrack ?: return
+        val track = playbackSnapshotSource.snapshot()?.currentTrack ?: return
         favoriteToggler.toggleFavorite(track)
     }
 

@@ -32,30 +32,6 @@ data class LyricsState @JvmOverloads constructor(
     val loadedLineCount: Int = 0
 )
 
-fun interface LyricsStateListener {
-    fun onLyricsStateChanged()
-}
-
-internal fun interface LyricsNowPlayingContentUpdater {
-    fun update(): Boolean
-}
-
-internal class LyricsStateRefreshListener(
-    private val selectedTabProvider: SettingsSelectedTabProvider,
-    private val renderNowBarAction: Runnable,
-    private val updateNowPlayingContentAction: LyricsNowPlayingContentUpdater,
-    private val renderSelectedTabAction: Runnable
-) : LyricsStateListener {
-    override fun onLyricsStateChanged() {
-        renderNowBarAction.run()
-        if (MainRoutes.TAB_NOW == selectedTabProvider.selectedTab() &&
-            !updateNowPlayingContentAction.update()
-        ) {
-            renderSelectedTabAction.run()
-        }
-    }
-}
-
 fun interface LyricsLoader {
     suspend fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine>
 }
@@ -111,7 +87,6 @@ class LyricsViewModel @JvmOverloads constructor(
     private var currentTrackProvider: CurrentLyricsTrackProvider? = null
     private var providerTrackIdResolver: LyricsProviderTrackIdResolver? = null
     private var reloadStatusSink: LyricsReloadStatusSink? = null
-    private var listener: LyricsStateListener? = null
     private var requestToken = 0L
 
     fun configure(
@@ -136,10 +111,6 @@ class LyricsViewModel @JvmOverloads constructor(
         this.currentTrackProvider = currentTrackProvider
         this.providerTrackIdResolver = providerTrackIdResolver
         this.reloadStatusSink = reloadStatusSink
-    }
-
-    fun bindListener(listener: LyricsStateListener?) {
-        this.listener = listener
     }
 
     fun stateSnapshot(): LyricsState = _state.value
@@ -271,6 +242,5 @@ class LyricsViewModel @JvmOverloads constructor(
 
     private fun updateState(next: LyricsState) {
         _state.value = next
-        listener?.onLyricsStateChanged()
     }
 }

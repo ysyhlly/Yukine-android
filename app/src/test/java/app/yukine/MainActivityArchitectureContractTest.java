@@ -118,7 +118,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(onDestroy >= 0);
         assertTrue(releaseBindings > onDestroy);
         assertTrue(releaseConnection > releaseBindings);
-        assertTrue(activity.contains("lyricsViewModel.bindListener(null)"));
+        assertFalse(activity.contains("lyricsViewModel.bindListener("));
         assertTrue(activity.contains("settingsViewModel.bindEffectListener(null)"));
         assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
         assertTrue(activity.contains("queueViewModel.bindIntentListener(null)"));

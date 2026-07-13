@@ -24,7 +24,7 @@ class MainRouteControllerTest {
             selectedRemoteSourceId = 42L
         )
 
-        controller.navigateToTab(MainRoutes.TAB_NETWORK, userInitiated = false)
+        controller.navigateToTab(app.yukine.navigation.NetworkTab, userInitiated = false)
 
         val state = controller.current()
         assertEquals(MainRoutes.TAB_NETWORK, state.selectedTab)
@@ -79,7 +79,7 @@ class MainRouteControllerTest {
             settingsPage = MainRoutes.SETTINGS_APPEARANCE
         )
 
-        controller.navigateToTab(MainRoutes.TAB_SETTINGS, userInitiated = false)
+        controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = false)
 
         val state = controller.current()
         assertEquals(MainRoutes.TAB_SETTINGS, state.selectedTab)
@@ -96,7 +96,7 @@ class MainRouteControllerTest {
             selectedPlaylistId = 7L
         )
 
-        controller.navigateToTab(MainRoutes.TAB_LIBRARY, userInitiated = false)
+        controller.navigateToTab(app.yukine.navigation.LibraryTab, userInitiated = false)
 
         val state = controller.current()
         assertEquals(MainRoutes.TAB_LIBRARY, state.selectedTab)
@@ -134,12 +134,12 @@ class MainRouteControllerTest {
             selectedRemoteSourceId = 42L
         )
 
-        controller.navigateToTab(MainRoutes.TAB_NETWORK, userInitiated = true)
+        controller.navigateToTab(app.yukine.navigation.NetworkTab, userInitiated = true)
         var state = controller.current()
         assertEquals(MainRoutes.NETWORK_HOME, state.networkPage)
         assertEquals(-1L, state.selectedRemoteSourceId)
 
-        controller.navigateToTab(MainRoutes.TAB_SETTINGS, userInitiated = true)
+        controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = true)
         state = controller.current()
         assertEquals(MainRoutes.SETTINGS_HOME, state.settingsPage)
     }

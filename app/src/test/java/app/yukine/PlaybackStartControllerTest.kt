@@ -113,7 +113,7 @@ class PlaybackStartControllerTest {
                 },
                 playbackTrackListPlayer = PlaybackTrackListPlayer { tracks, index ->
                     calls += "play:${tracks?.size ?: 0}:$index"
-                    val result = PlaybackActionResultUi(null, "played", false, false, false, false)
+                    val result = PlaybackActionResultUi("played", false, false)
                     calls += "result:${result.status}"
                     result
                 },

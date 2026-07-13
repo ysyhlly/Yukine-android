@@ -16,7 +16,6 @@ class MainLibraryGatewayTest {
         assertEquals(
             listOf(
                 "favorite:7:true",
-                "nowBar",
                 "render",
                 "loadCollections"
             ),
@@ -84,7 +83,6 @@ class MainLibraryGatewayTest {
             languageModeProvider = { "zh" },
             statusSink = { status -> events += "status:$status" },
             favoriteApplier = { trackId, favorite -> events += "favorite:$trackId:$favorite" },
-            nowBarRenderer = { events += "nowBar" },
             selectedTabRenderer = { events += "render" },
             collectionsLoader = { events += "loadCollections" },
             playlistAdder = { track -> events += "playlistAdd:${track.id}" },

@@ -24,9 +24,7 @@ class MainPlaybackServiceHostTest {
             playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
             playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
-            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            selectedTabRenderer = MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
-            nowBarRenderer = MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
+            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
 
         assertEquals(1.35f, host.playbackSpeed())
@@ -39,10 +37,8 @@ class MainPlaybackServiceHostTest {
         host.clearPlaybackService()
         host.resetPlaybackStore()
         host.playPendingTracksIfNeeded()
-        host.renderSelectedTab()
-        host.renderNowBar()
 
-        assertEquals(listOf("clear", "reset", "pending", "selected-tab", "now-bar"), calls)
+        assertEquals(listOf("clear", "reset", "pending"), calls)
     }
 
     @Test
@@ -62,9 +58,7 @@ class MainPlaybackServiceHostTest {
             },
             playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
-            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            selectedTabRenderer = MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
-            nowBarRenderer = MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
+            pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
 
         host.attachPlaybackService(service)
@@ -75,9 +69,7 @@ class MainPlaybackServiceHostTest {
     @Test
     fun factoryCreatesPlaybackServiceHostControllerHost() {
         val calls = mutableListOf<String>()
-        val host = PlaybackUiModule.provideMainPlaybackServiceHostFactory(
-            PlaybackServiceCommandQueue()
-        ).create(
+        val host = PlaybackUiModule.provideMainPlaybackServiceHostFactory().create(
             MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
             MainPlaybackServiceHost.AppVolumeSource { 0.9f },
             MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
@@ -88,9 +80,7 @@ class MainPlaybackServiceHostTest {
             MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
             MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
-            MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" },
-            MainPlaybackServiceHost.SelectedTabRenderer { calls += "selected-tab" },
-            MainPlaybackServiceHost.NowBarRenderer { calls += "now-bar" }
+            MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
 
         assertEquals(1.0f, host.playbackSpeed())

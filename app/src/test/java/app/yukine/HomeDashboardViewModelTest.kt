@@ -1,10 +1,14 @@
 package app.yukine
 
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.PlaybackConnectionState
+import app.yukine.playback.PlaybackQueueSnapshot
+import app.yukine.playback.PlaybackReadModel
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.emptyHomeDashboardActions
 import org.junit.Assert.assertEquals
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,9 +36,19 @@ class HomeDashboardViewModelTest {
     fun updatePlaybackUsesRequestedLanguageForContinueCopy() {
         val viewModel = HomeDashboardViewModel(null)
         val track = Track(1L, "Snowlight", "Yukine", "Winter", 200_000L, Uri.EMPTY, "file:1")
+        val readModel = FakePlaybackReadModel()
+        viewModel.bindPlayback(
+            readModel,
+            MutableStateFlow(
+                SettingsState(
+                    preferences = SettingsPreferencesSnapshot(
+                        languageMode = AppLanguage.MODE_ENGLISH
+                    )
+                )
+            )
+        )
 
-        viewModel.updatePlayback(
-            PlaybackStateSnapshot(
+        readModel.state.value = PlaybackStateSnapshot(
                 track,
                 0,
                 1,
@@ -48,9 +62,7 @@ class HomeDashboardViewModelTest {
                 1.0f,
                 1.0f,
                 0L
-            ),
-            AppLanguage.MODE_ENGLISH
-        )
+            )
 
         val content = viewModel.uiState.value.content
         assertEquals(
@@ -74,5 +86,11 @@ class HomeDashboardViewModelTest {
         viewModel.uiState.value.actions.onOpenNowPlaying.run()
 
         assertTrue(opened)
+    }
+
+    private class FakePlaybackReadModel : PlaybackReadModel {
+        override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
+        override val queue = MutableStateFlow(PlaybackQueueSnapshot())
+        override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
     }
 }

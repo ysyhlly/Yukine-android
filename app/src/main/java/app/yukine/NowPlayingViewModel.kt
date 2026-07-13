@@ -18,10 +18,13 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 sealed interface NowPlayingEffect {
@@ -55,12 +58,13 @@ interface NowPlayingGateway {
     fun statusMessage(key: String): String
 }
 
+fun interface NowPlayingStateObserver {
+    fun onStateChanged(state: NowPlayingUiState, lyricsState: LyricsState)
+}
+
 data class PlaybackActionResultUi(
-    @JvmField val snapshot: PlaybackStateSnapshot?,
     @JvmField val status: String?,
-    @JvmField val publishPlaybackState: Boolean,
     @JvmField val renderSelectedTab: Boolean,
-    @JvmField val renderNowBar: Boolean,
     @JvmField val navigateNow: Boolean
 )
 
@@ -109,6 +113,53 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private var luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver? = null
     private val sourceSwitchGeneration = AtomicLong(0L)
     private val artworkResolutionTrackIds = mutableSetOf<Long>()
+    private var stateSourcesBinding: Job? = null
+    private var stateObserver: NowPlayingStateObserver? = null
+
+    fun bindStateObserver(observer: NowPlayingStateObserver?) {
+        stateObserver = observer
+        observer?.onStateChanged(_uiState.value, LyricsState())
+    }
+
+    fun bindStateSources(
+        playbackReadModel: app.yukine.playback.PlaybackReadModel?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        lyricsState: StateFlow<LyricsState>?,
+        settingsState: StateFlow<SettingsState>?
+    ) {
+        stateSourcesBinding?.cancel()
+        stateSourcesBinding = null
+        if (
+            playbackReadModel == null ||
+            libraryState == null ||
+            lyricsState == null ||
+            settingsState == null
+        ) {
+            return
+        }
+        val favorites = libraryState
+            .map { it.favoriteTrackIds }
+            .distinctUntilChanged()
+        val language = settingsState
+            .map { it.preferences.languageMode }
+            .distinctUntilChanged()
+        stateSourcesBinding = viewModelScope.launch {
+            combine(playbackReadModel.state, favorites, lyricsState, language) {
+                    playback,
+                    favoriteIds,
+                    lyrics,
+                    languageMode ->
+                NowPlayingStateInputs(playback, favoriteIds, lyrics, languageMode)
+            }.collect { inputs ->
+                updateState(
+                    inputs.playback,
+                    inputs.favoriteIds,
+                    inputs.lyrics,
+                    inputs.languageMode
+                )
+            }
+        }
+    }
 
     fun bindGateway(nextGateway: NowPlayingGateway?) {
         gateway = nextGateway
@@ -170,6 +221,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             overlayState = overlay,
             appVolume = snapshot.appVolume
         )
+        stateObserver?.onStateChanged(_uiState.value, lyricsState ?: LyricsState())
         resolveMissingLuoxueArtwork(track)
     }
 
@@ -313,7 +365,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Status")
         }
         player.removeTracksById(setOf(track.id))
-        return stateChanged(player.snapshot(), "Status: ${track.title}")
+        return stateChanged("Status: ${track.title}")
     }
 
     fun hasQueue(): Boolean {
@@ -327,7 +379,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Queue is not connected")
         }
         player.clearQueue()
-        return stateChanged(player.snapshot(), "Status")
+        return stateChanged("Status")
     }
 
     fun replaceQueuedTrack(oldTrackId: Long, updated: Track?) {
@@ -422,11 +474,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
         player.startSleepTimerMinutes(minutes)
         return PlaybackActionResultUi(
-            player.snapshot(),
             "Sleep timer set: $minutes minutes",
-            publishPlaybackState = false,
             renderSelectedTab = true,
-            renderNowBar = true,
             navigateNow = false
         )
     }
@@ -438,11 +487,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
         player.cancelSleepTimer()
         return PlaybackActionResultUi(
-            player.snapshot(),
             "Sleep timer cancelled",
-            publishPlaybackState = false,
             renderSelectedTab = true,
-            renderNowBar = true,
             navigateNow = false
         )
     }
@@ -456,7 +502,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("No tracks to play")
         }
         player.playQueue(tracks, index)
-        return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
+        return PlaybackActionResultUi(null, false, false)
     }
 
     fun togglePlayback(
@@ -474,7 +520,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         } else if (!fallbackTracks.isNullOrEmpty()) {
             player.playQueue(fallbackTracks, 0)
         }
-        return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
+        return PlaybackActionResultUi(null, false, false)
     }
 
     fun toggleShuffle(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
@@ -483,7 +529,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.setShuffleEnabled(playbackState == null || !playbackState.shuffleEnabled)
-        return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
+        return PlaybackActionResultUi(null, false, false)
     }
 
     fun cycleRepeat(): PlaybackActionResultUi {
@@ -492,7 +538,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             return statusOnly("Playback service is not connected")
         }
         player.cycleRepeatMode()
-        return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
+        return PlaybackActionResultUi(null, false, false)
     }
 
     fun cycleBottomPlaybackMode(playbackState: PlaybackStateSnapshot?): PlaybackActionResultUi {
@@ -520,7 +566,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 player.setRepeatMode(PlaybackRepeatMode.REPEAT_ALL)
             }
         }
-        return PlaybackActionResultUi(player.snapshot(), null, false, false, true, false)
+        return PlaybackActionResultUi(null, false, false)
     }
 
     private fun toggleLyrics() {
@@ -547,11 +593,18 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
     }
 
-    private fun stateChanged(snapshot: PlaybackStateSnapshot?, status: String): PlaybackActionResultUi {
-        return PlaybackActionResultUi(snapshot, status, true, true, true, false)
+    private data class NowPlayingStateInputs(
+        val playback: PlaybackStateSnapshot,
+        val favoriteIds: Set<Long>,
+        val lyrics: LyricsState,
+        val languageMode: String
+    )
+
+    private fun stateChanged(status: String): PlaybackActionResultUi {
+        return PlaybackActionResultUi(status, true, false)
     }
 
     private fun statusOnly(status: String): PlaybackActionResultUi {
-        return PlaybackActionResultUi(null, status, false, false, false, false)
+        return PlaybackActionResultUi(status, false, false)
     }
 }

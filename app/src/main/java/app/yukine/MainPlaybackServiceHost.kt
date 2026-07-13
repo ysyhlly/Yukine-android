@@ -12,9 +12,7 @@ internal fun interface MainPlaybackServiceHostFactory {
         playbackServiceAttacher: MainPlaybackServiceHost.PlaybackServiceAttacher,
         playbackServiceClearer: MainPlaybackServiceHost.PlaybackServiceClearer,
         playbackStoreResetter: MainPlaybackServiceHost.PlaybackStoreResetter,
-        pendingTracksPlayer: MainPlaybackServiceHost.PendingTracksPlayer,
-        selectedTabRenderer: MainPlaybackServiceHost.SelectedTabRenderer,
-        nowBarRenderer: MainPlaybackServiceHost.NowBarRenderer
+        pendingTracksPlayer: MainPlaybackServiceHost.PendingTracksPlayer
     ): PlaybackServiceHostController.Host
 }
 
@@ -29,9 +27,7 @@ internal class MainPlaybackServiceHost(
     private val playbackServiceAttacher: PlaybackServiceAttacher,
     private val playbackServiceClearer: PlaybackServiceClearer,
     private val playbackStoreResetter: PlaybackStoreResetter,
-    private val pendingTracksPlayer: PendingTracksPlayer,
-    private val selectedTabRenderer: SelectedTabRenderer,
-    private val nowBarRenderer: NowBarRenderer
+    private val pendingTracksPlayer: PendingTracksPlayer
 ) : PlaybackServiceHostController.Host {
     fun interface PlaybackSpeedSource {
         fun playbackSpeed(): Float
@@ -77,14 +73,6 @@ internal class MainPlaybackServiceHost(
         fun playPendingTracksIfNeeded()
     }
 
-    fun interface SelectedTabRenderer {
-        fun renderSelectedTab()
-    }
-
-    fun interface NowBarRenderer {
-        fun renderNowBar()
-    }
-
     override fun playbackSpeed(): Float = playbackSpeedSource.playbackSpeed()
 
     override fun appVolume(): Float = appVolumeSource.appVolume()
@@ -117,11 +105,4 @@ internal class MainPlaybackServiceHost(
         pendingTracksPlayer.playPendingTracksIfNeeded()
     }
 
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
-    }
-
-    override fun renderNowBar() {
-        nowBarRenderer.renderNowBar()
-    }
 }

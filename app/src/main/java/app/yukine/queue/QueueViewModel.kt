@@ -1,13 +1,16 @@
 package app.yukine.queue
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import app.yukine.AppLanguage
+import app.yukine.LibraryStoreState
 import app.yukine.QueueDestinationState
 import app.yukine.QueueDestinationStateProvider
+import app.yukine.SettingsState
 import app.yukine.TrackRowKeyPolicy
 import app.yukine.TrackRowStateFactory
 import app.yukine.model.Track
-import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.ui.QueueScreenLabels
 import app.yukine.ui.QueueTrackUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,6 +19,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Intents emitted by the Queue screen. The host (MainActivity) collects [intents] and
@@ -35,8 +43,8 @@ sealed interface QueueIntent {
 /**
  * Reference MVVM ViewModel for the Queue tab.
  *
- * Inputs (queue, playback snapshot, favorites, language) are pushed in via [bind] from the
- * host's existing state flows. The ViewModel derives the immutable [uiState] consumed by the
+ * Inputs (queue, playback selection, favorites, language) are collected from [bindStateSources].
+ * The ViewModel derives the immutable [uiState] consumed by the
  * Compose screen and the matching positional action list, and forwards user actions as
  * [QueueIntent]s on [intents].
  *
@@ -78,22 +86,55 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     /** Snapshot of the tracks currently backing each rendered row, by row index. */
     @Volatile
     private var boundTracks: List<Track> = emptyList()
+    private var stateSourcesBinding: Job? = null
 
-    /**
-     * Recomputes the queue UI state from the latest playback inputs.
-     * Called by the host whenever the queue, snapshot, favorites, or language change.
-     */
-    fun bind(
-        queue: List<Track>?,
-        playbackState: PlaybackStateSnapshot?,
+    fun bindStateSources(
+        playbackReadModel: PlaybackReadModel?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        settingsState: StateFlow<SettingsState>?
+    ) {
+        stateSourcesBinding?.cancel()
+        stateSourcesBinding = null
+        if (playbackReadModel == null || libraryState == null || settingsState == null) {
+            return
+        }
+        val selection = playbackReadModel.state
+            .map { QueuePlaybackSelection(it.currentTrack, it.currentIndex) }
+            .distinctUntilChanged()
+        val favorites = libraryState
+            .map { it.favoriteTrackIds }
+            .distinctUntilChanged()
+        val language = settingsState
+            .map { it.preferences.languageMode }
+            .distinctUntilChanged()
+        stateSourcesBinding = viewModelScope.launch {
+            combine(playbackReadModel.queue, selection, favorites, language) {
+                    queue,
+                    playback,
+                    favoriteIds,
+                    languageMode ->
+                QueueStateInputs(queue.tracks, playback, favoriteIds, languageMode)
+            }.collect { inputs ->
+                bindRows(
+                    inputs.tracks,
+                    inputs.playback.currentTrack,
+                    inputs.playback.currentIndex,
+                    inputs.favoriteIds,
+                    inputs.languageMode
+                )
+            }
+        }
+    }
+
+    private fun bindRows(
+        tracks: List<Track>,
+        currentTrack: Track?,
+        currentIndex: Int?,
         favoriteIds: Set<Long>,
         languageMode: String
     ) {
-        val tracks = queue ?: emptyList()
         boundTracks = tracks
-        val currentTrack = playbackState?.currentTrack
-        val currentQueueIndex = playbackState?.currentIndex
-            ?.takeIf { it in tracks.indices }
+        val currentQueueIndex = currentIndex?.takeIf { it in tracks.indices }
         val keyFactory = QueueRowKeyFactory(tracks)
         val eagerTracks = tracks.take(EAGER_QUEUE_ROW_LIMIT)
         val eagerRows = eagerTracks.mapIndexed { index, track ->
@@ -144,6 +185,18 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
             dragReorder = AppLanguage.text(languageMode, "queue.drag.reorder")
         )
     }
+
+    private data class QueuePlaybackSelection(
+        val currentTrack: Track?,
+        val currentIndex: Int
+    )
+
+    private data class QueueStateInputs(
+        val tracks: List<Track>,
+        val playback: QueuePlaybackSelection,
+        val favoriteIds: Set<Long>,
+        val languageMode: String
+    )
 
     /** The tracks backing the current rows; used by the screen to build positional intents. */
     fun tracks(): List<Track> = boundTracks

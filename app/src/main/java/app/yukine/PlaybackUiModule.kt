@@ -13,14 +13,9 @@ import dagger.hilt.android.scopes.ActivityScoped
 internal object PlaybackUiModule {
     @Provides
     @ActivityScoped
-    fun provideMainPlaybackStoreFactory(): MainPlaybackStoreFactory =
-        MainPlaybackStoreFactory { viewModel -> MainPlaybackStore(viewModel) }
-
-    @Provides
-    @ActivityScoped
     fun provideMainNowPlayingGatewayFactory(): MainNowPlayingGatewayFactory =
-        MainNowPlayingGatewayFactory { playbackActions, playbackStore, favoriteToggler, seekHandler, statusText ->
-            MainNowPlayingGateway(playbackActions, playbackStore, favoriteToggler, seekHandler, statusText)
+        MainNowPlayingGatewayFactory { playbackActions, playbackSnapshot, favoriteToggler, seekHandler, statusText ->
+            MainNowPlayingGateway(playbackActions, playbackSnapshot, favoriteToggler, seekHandler, statusText)
         }
 
     @Provides
@@ -38,30 +33,6 @@ internal object PlaybackUiModule {
     ): MainNowPlayingPlaybackGatewayFactory {
         return MainNowPlayingPlaybackGatewayFactory(serviceStarter::startPlaybackService, commandQueue)
     }
-
-    @Provides
-    @ActivityScoped
-    fun provideMainNowPlayingStateListenerFactory(): MainNowPlayingStateListenerFactory =
-        MainNowPlayingStateListenerFactory {
-                storesReadySource,
-                playbackSnapshotSource,
-                favoriteIdsSource,
-                lyricsStateSource,
-                languageModeSource,
-                queueVisibilitySource,
-                floatingLyricsSink,
-                queueInputsSyncer ->
-            MainNowPlayingStateListener(
-                storesReadySource,
-                playbackSnapshotSource,
-                favoriteIdsSource,
-                lyricsStateSource,
-                languageModeSource,
-                queueVisibilitySource,
-                floatingLyricsSink,
-                queueInputsSyncer
-            )
-        }
 
     @Provides
     @ActivityScoped
@@ -138,31 +109,19 @@ internal object PlaybackUiModule {
     @ActivityScoped
     fun provideMainPlaybackStateEventListenerFactory(): MainPlaybackStateEventListenerFactory =
         MainPlaybackStateEventListenerFactory {
-                selectedTabSource,
-                queueVisibilitySource,
                 currentLyricsTrackIdSource,
                 playbackSettingsSaver,
                 lyricsLoader,
                 collectionsLoader,
-                nowBarRenderer,
-                homeDashboardPlaybackUpdater,
-                selectedTabRenderer,
-                nowPlayingContentUpdater,
                 nextStreamingTrackPreResolver,
                 streamingBufferingRecoveryHandler,
                 currentStreamingTrackResolver,
                 statusSink ->
             MainPlaybackStateEventListener(
-                selectedTabSource,
-                queueVisibilitySource,
                 currentLyricsTrackIdSource,
                 playbackSettingsSaver,
                 lyricsLoader,
                 collectionsLoader,
-                nowBarRenderer,
-                homeDashboardPlaybackUpdater,
-                selectedTabRenderer,
-                nowPlayingContentUpdater,
                 nextStreamingTrackPreResolver,
                 streamingBufferingRecoveryHandler,
                 currentStreamingTrackResolver,
@@ -172,9 +131,7 @@ internal object PlaybackUiModule {
 
     @Provides
     @ActivityScoped
-    fun provideMainPlaybackServiceHostFactory(
-        commandQueue: PlaybackServiceCommandQueue
-    ): MainPlaybackServiceHostFactory =
+    fun provideMainPlaybackServiceHostFactory(): MainPlaybackServiceHostFactory =
         MainPlaybackServiceHostFactory {
                 playbackSpeedSource,
                 appVolumeSource,
@@ -186,9 +143,7 @@ internal object PlaybackUiModule {
                 playbackServiceAttacher,
                 playbackServiceClearer,
                 playbackStoreResetter,
-                pendingTracksPlayer,
-                selectedTabRenderer,
-                nowBarRenderer ->
+                pendingTracksPlayer ->
             MainPlaybackServiceHost(
                 playbackSpeedSource,
                 appVolumeSource,
@@ -197,15 +152,10 @@ internal object PlaybackUiModule {
                 systemMediaLyricsTitleSource,
                 playbackRestoreSource,
                 replayGainSource,
-                MainPlaybackServiceHost.PlaybackServiceAttacher { service ->
-                    playbackServiceAttacher.attachPlaybackService(service)
-                    commandQueue.flush(service)
-                },
+                playbackServiceAttacher,
                 playbackServiceClearer,
                 playbackStoreResetter,
-                pendingTracksPlayer,
-                selectedTabRenderer,
-                nowBarRenderer
+                pendingTracksPlayer
             )
         }
 }
