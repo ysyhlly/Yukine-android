@@ -20,7 +20,6 @@ import app.yukine.ui.EchoTheme;
 import app.yukine.model.Playlist;
 import app.yukine.model.Track;
 import app.yukine.playback.PlaybackStateSnapshot;
-import app.yukine.queue.QueueIntent;
 import app.yukine.streaming.LuoxueSourceStore;
 import app.yukine.streaming.LuoxueTrackMetadataResolver;
 import app.yukine.streaming.StreamingAudioQuality;
@@ -1470,38 +1469,55 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (queueViewModel == null || navHostInstalled) {
             return;
         }
-        queueViewModel.bindIntentListener(intent -> {
-            if (intent instanceof QueueIntent.PlayAt playAt) {
-                libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(playAt.getTracks(), playAt.getIndex()));
-                return;
-            }
-            if (intent instanceof QueueIntent.ToggleFavorite toggleFavorite) {
-                libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(toggleFavorite.getTrack()));
-                return;
-            }
-            if (intent instanceof QueueIntent.AddToPlaylist addToPlaylist) {
-                playlistDialogController.showAddToPlaylist(addToPlaylist.getTrack());
-                return;
-            }
-            if (intent instanceof QueueIntent.Remove remove) {
-                queueActionController.removeQueueTrack(remove.getTrack());
-                return;
-            }
-            if (intent instanceof QueueIntent.Move move) {
-                queueActionController.moveQueueTrack(move.getFromIndex(), move.getToIndex());
-                return;
-            }
-            if (intent instanceof QueueIntent.ClearQueue) {
-                queueActionController.confirmClearQueue();
-                return;
-            }
-            if (intent instanceof QueueIntent.Back) {
-                MainActivityBase.this.handleAppBack();
-            }
-        });
+        queueViewModel.bindIntentListener(new QueueIntentOwner(
+                event -> {
+                    libraryViewModel.onEvent(event);
+                    return kotlin.Unit.INSTANCE;
+                },
+                track -> {
+                    playlistDialogController.showAddToPlaylist(track);
+                    return kotlin.Unit.INSTANCE;
+                },
+                track -> {
+                    queueActionController.removeQueueTrack(track);
+                    return kotlin.Unit.INSTANCE;
+                },
+                (fromIndex, toIndex) -> {
+                    queueActionController.moveQueueTrack(fromIndex, toIndex);
+                    return kotlin.Unit.INSTANCE;
+                },
+                () -> {
+                    queueActionController.confirmClearQueue();
+                    return kotlin.Unit.INSTANCE;
+                },
+                () -> {
+                    handleAppBack();
+                    return kotlin.Unit.INSTANCE;
+                }
+        ));
         createNavHostState();
         navHostInstalled = true;
-        EchoAppHost.installNavHost(this, new ActivityNavHostMount());
+        EchoAppHost.installNavHost(this, new MainNavHostMount(
+                () -> navHostState,
+                onboardingController.getState(),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                new app.yukine.ui.OnboardingActions(
+                        () -> permissionController.requestNeededPermissions(),
+                        () -> onboardingController.scanLibraryFromOnboarding(),
+                        () -> onboardingController.importPlaylistFromOnboarding(),
+                        () -> onboardingController.openStreamingFromOnboarding(),
+                        () -> onboardingController.finishOnboarding()
+                ),
+                () -> navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true),
+                event -> {
+                    handleNowPlayingEvent(event);
+                    return kotlin.Unit.INSTANCE;
+                },
+                tab -> {
+                    navigateToTab(tab, true);
+                    return kotlin.Unit.INSTANCE;
+                }
+        ));
     }
 
     private void createNavHostState() {
@@ -1522,7 +1538,14 @@ public abstract class MainActivityBase extends ComponentActivity {
                     playbackViewModel,
                     downloadsViewModel.getUiState(),
                     downloadsViewModel.openDirectoryRequests(),
-                    downloadsDestinationActions(),
+                    new DownloadsDestinationOwner(
+                            downloadsViewModel,
+                            trackDownloadManager,
+                            () -> {
+                                documentPickerController.openDownloadFolderPicker();
+                                return kotlin.Unit.INSTANCE;
+                            }
+                    ).actions(),
                     searchViewModel.getUiState(),
                     trackDownloadManager,
                     () -> playbackService == null ? 0f : playbackService.realtimeBeat(),
@@ -1531,143 +1554,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     visible -> { },
                     libraryViewModel::onLibraryAction
         );
-    }
-
-    private app.yukine.DownloadsDestinationActions downloadsDestinationActions() {
-        return new app.yukine.DownloadsDestinationActions(
-                () -> {
-                    downloadsViewModel.refresh(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    downloadsViewModel.useMusicDirectory(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    downloadsViewModel.useDownloadsDirectory(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    downloadsViewModel.chooseDirectory(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                id -> {
-                    downloadsViewModel.pause(trackDownloadManager, id);
-                    return kotlin.Unit.INSTANCE;
-                },
-                id -> {
-                    downloadsViewModel.resume(trackDownloadManager, id);
-                    return kotlin.Unit.INSTANCE;
-                },
-                id -> {
-                    downloadsViewModel.remove(trackDownloadManager, id);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    downloadsViewModel.pauseAll(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    downloadsViewModel.resumeAll(trackDownloadManager);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    openDownloadDirectoryPickerFromNav();
-                    return kotlin.Unit.INSTANCE;
-                }
-        );
-    }
-
-    private void openDownloadDirectoryPickerFromNav() {
-        if (documentPickerController == null) {
-            statusMessageController.showFeedback(AppLanguage.text(
-                    settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                    "download.directory.picker.unavailable"
-            ));
-            return;
-        }
-        documentPickerController.openDownloadFolderPicker();
-    }
-
-    private final class ActivityNavHostMount implements EchoNavHostMount {
-        @Override
-        public String languageMode() {
-            return settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-        }
-
-        @Override
-        public java.util.List<app.yukine.navigation.EchoTabItem> tabs() {
-            java.util.ArrayList<app.yukine.navigation.EchoTabItem> tabs = new java.util.ArrayList<>();
-            String lang = settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode();
-            tabs.add(new app.yukine.navigation.EchoTabItem(
-                    app.yukine.navigation.HomeTab.INSTANCE, AppLanguage.tabLabel(lang, TAB_HOME)));
-            tabs.add(new app.yukine.navigation.EchoTabItem(
-                    app.yukine.navigation.LibraryTab.INSTANCE, AppLanguage.tabLabel(lang, TAB_LIBRARY)));
-            tabs.add(new app.yukine.navigation.EchoTabItem(
-                    app.yukine.navigation.QueueTab.INSTANCE, AppLanguage.text(lang, "tab.playing")));
-            tabs.add(new app.yukine.navigation.EchoTabItem(
-                    app.yukine.navigation.SettingsTab.INSTANCE, AppLanguage.tabLabel(lang, TAB_SETTINGS)));
-            return tabs;
-        }
-
-        @Override
-        public java.lang.Runnable closeNowPlayingAction() {
-            return () -> navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true);
-        }
-
-        @Override
-        public kotlin.jvm.functions.Function1<app.yukine.NowPlayingEvent, kotlin.Unit> nowPlayingEventHandler() {
-            return event -> {
-                handleNowPlayingEvent(event);
-                return kotlin.Unit.INSTANCE;
-            };
-        }
-
-        @Override
-        public app.yukine.navigation.EchoNavHostState hostState() {
-            return navHostState;
-        }
-
-        @Override
-        public kotlinx.coroutines.flow.StateFlow<OnboardingUiState> onboardingState() {
-            return onboardingController.getState();
-        }
-
-        @Override
-        public app.yukine.ui.OnboardingActions onboardingActions() {
-            return new app.yukine.ui.OnboardingActions(
-                    () -> {
-                        if (permissionController != null) {
-                            permissionController.requestNeededPermissions();
-                        }
-                    },
-                    () -> {
-                        if (onboardingController != null) {
-                            onboardingController.scanLibraryFromOnboarding();
-                        }
-                    },
-                    () -> {
-                        if (onboardingController != null) {
-                            onboardingController.importPlaylistFromOnboarding();
-                        }
-                    },
-                    () -> {
-                        if (onboardingController != null) {
-                            onboardingController.openStreamingFromOnboarding();
-                        }
-                    },
-                    () -> {
-                        if (onboardingController != null) {
-                            onboardingController.finishOnboarding();
-                        }
-                    }
-            );
-        }
-
-        @Override
-        public void onTabChanged(app.yukine.navigation.TabRoute tab) {
-            navigateToTab(tab, true);
-        }
     }
 
     private void installBackNavigation() {

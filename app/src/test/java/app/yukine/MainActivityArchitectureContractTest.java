@@ -224,6 +224,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void composeMountAndDestinationIntentsAreOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String mount = read("app/src/main/java/app/yukine/MainNavHostMount.kt");
+        String queue = read("app/src/main/java/app/yukine/QueueIntentOwner.kt");
+        String downloads = read("app/src/main/java/app/yukine/DownloadsDestinationOwner.kt");
+        assertFalse(activity.contains("class ActivityNavHostMount"));
+        assertFalse(activity.contains("instanceof QueueIntent"));
+        assertFalse(activity.contains("downloadsDestinationActions()"));
+        assertTrue(mount.contains(": EchoNavHostMount"));
+        assertTrue(queue.contains(": QueueViewModel.IntentListener"));
+        assertTrue(downloads.contains("fun actions(): DownloadsDestinationActions"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
