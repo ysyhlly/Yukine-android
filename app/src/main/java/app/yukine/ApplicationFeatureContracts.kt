@@ -1,6 +1,5 @@
 package app.yukine
 
-import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.Playlist
 import app.yukine.model.PlaylistImportResult
 import app.yukine.model.Track
@@ -304,57 +303,5 @@ interface StreamingTrackMatchStore {
         storeSnapshot: PlaybackStateSnapshot?,
         queue: List<Track?>?
     ): String = ""
-}
-
-object NavigationRouteStateStore {
-    private const val SELECTED_TAB = "selectedTab"
-    private const val LIBRARY_MODE = "libraryMode"
-    private const val SELECTED_LIBRARY_GROUP_KEY = "selectedLibraryGroupKey"
-    private const val SELECTED_LIBRARY_GROUP_TITLE = "selectedLibraryGroupTitle"
-    private const val SELECTED_PLAYLIST_ID = "selectedPlaylistId"
-    private const val SEARCH_QUERY = "searchQuery"
-    private const val NETWORK_PAGE = "networkPage"
-    private const val SETTINGS_PAGE = "settingsPage"
-    private const val SELECTED_REMOTE_SOURCE_ID = "selectedRemoteSourceId"
-
-    fun restore(savedStateHandle: SavedStateHandle): NavigationRouteState {
-        val restoredTab = savedStateHandle[SELECTED_TAB] ?: MainRoutes.TAB_HOME
-        val restoredLibraryMode = savedStateHandle[LIBRARY_MODE] ?: LibraryGrouping.SONGS
-        val selectedTab = when {
-            restoredTab == MainRoutes.TAB_NOW -> app.yukine.navigation.HomeTab
-            restoredTab == MainRoutes.TAB_LIBRARY && restoredLibraryMode == LibraryGrouping.HOME ->
-                app.yukine.navigation.HomeTab
-            else -> app.yukine.navigation.TabRoute.fromKey(restoredTab)
-                ?: app.yukine.navigation.HomeTab
-        }
-        val libraryMode = if (restoredLibraryMode == LibraryGrouping.HOME) {
-            LibraryGrouping.SONGS
-        } else {
-            restoredLibraryMode
-        }
-        return NavigationRouteState(
-            selectedTab = selectedTab,
-            libraryMode = libraryMode,
-            selectedLibraryGroupKey = savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] ?: "",
-            selectedLibraryGroupTitle = savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] ?: "",
-            selectedPlaylistId = savedStateHandle[SELECTED_PLAYLIST_ID] ?: -1L,
-            searchQuery = savedStateHandle[SEARCH_QUERY] ?: "",
-            networkPage = savedStateHandle[NETWORK_PAGE] ?: MainRoutes.NETWORK_HOME,
-            settingsPage = SettingsPage.fromRoute(savedStateHandle[SETTINGS_PAGE]),
-            selectedRemoteSourceId = savedStateHandle[SELECTED_REMOTE_SOURCE_ID] ?: -1L
-        )
-    }
-
-    fun save(savedStateHandle: SavedStateHandle, state: NavigationRouteState) {
-        savedStateHandle[SELECTED_TAB] = state.selectedTab.route
-        savedStateHandle[LIBRARY_MODE] = state.libraryMode
-        savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] = state.selectedLibraryGroupKey
-        savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] = state.selectedLibraryGroupTitle
-        savedStateHandle[SELECTED_PLAYLIST_ID] = state.selectedPlaylistId
-        savedStateHandle[SEARCH_QUERY] = state.searchQuery
-        savedStateHandle[NETWORK_PAGE] = state.networkPage
-        savedStateHandle[SETTINGS_PAGE] = state.settingsPage.route
-        savedStateHandle[SELECTED_REMOTE_SOURCE_ID] = state.selectedRemoteSourceId
-    }
 }
 

@@ -41,6 +41,22 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void navigationViewModelAndSavedStateOwnerLiveInNavigationFeature() throws Exception {
+        Path appViewModel = root().resolve("app/src/main/java/app/yukine/NavigationViewModel.kt");
+        String featureViewModel = read(
+                "feature/navigation/src/main/java/app/yukine/NavigationViewModel.kt"
+        );
+        String savedStateOwner = read(
+                "feature/navigation/src/main/java/app/yukine/NavigationRouteStateStore.kt"
+        );
+
+        assertFalse(Files.exists(appViewModel));
+        assertTrue(featureViewModel.contains("class NavigationViewModel"));
+        assertTrue(savedStateOwner.contains("object NavigationRouteStateStore"));
+        assertFalse(savedStateOwner.contains("LibraryGrouping"));
+    }
+
+    @Test
     public void compositionRootOnlyAssemblesFocusedBindings() throws Exception {
         String composition = read("app/src/main/java/app/yukine/MainActivityComposition.kt");
         for (String binding : new String[]{
