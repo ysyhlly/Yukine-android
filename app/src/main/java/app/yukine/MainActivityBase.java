@@ -58,7 +58,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private HomeDashboardViewModel homeDashboardViewModel;
     private DownloadsViewModel downloadsViewModel;
     private LibraryFeatureBinding libraryFeatureBinding;
-      private SettingsViewModel settingsViewModel;
+    private SettingsFeatureBinding settingsFeatureBinding;
       private NetworkMenuViewModel networkMenuViewModel;
       private StatusMessageViewModel statusMessageViewModel;
       private NetworkSourcesViewModel networkSourcesViewModel;
@@ -77,16 +77,12 @@ public abstract class MainActivityBase extends ComponentActivity {
     private CustomBackgroundAccentController customBackgroundAccentController;
     private LibraryFileDeleteLauncher libraryFileDeleteLauncher;
     private DocumentPickerController documentPickerController;
-    private BackgroundImagePickerController backgroundImagePickerController;
-    private BackgroundImageSelectionOwner backgroundImageSelectionOwner;
     private BackupRestoreLauncher backupRestoreLauncher;
     private DownloadRequestController downloadRequestController;
     private DownloadDirectoryOwner downloadDirectoryOwner;
     private LuoxueSourceImportController luoxueSourceImportController;
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
     private NetworkRenderCoordinator networkRenderCoordinator;
-    private SettingsContextProvider settingsContextProvider;
-    private SettingsEffectOwner settingsEffectOwner;
     private NetworkActionsViewModel networkActionsViewModel;
     private NetworkRequestController networkRequestController;
     private LyricsViewModel lyricsViewModel;
@@ -98,6 +94,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         initializeViewModels(createActivityViewModels());
+        initializeSettingsFeatureBinding();
         initializeRouteStoresAndStatus();
         initializeStreamingFeatureBinding();
         initializeLibraryFeatureBinding();
@@ -119,13 +116,23 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     protected abstract MainActivityViewModels createActivityViewModels();
 
+    private void initializeSettingsFeatureBinding() {
+        settingsFeatureBinding = new SettingsFeatureBinding(
+                activityViewModels,
+                settingsStore,
+                loadSettingsPreferencesUseCase,
+                applySettingsPreferenceUseCase,
+                loadLyricsSettingsUseCase
+        );
+    }
+
     private void initializeLibraryFeatureBinding() {
         libraryFeatureBinding = new LibraryFeatureBinding(
                 this,
                 activityViewModels,
                 viewModel,
                 navigationViewModel,
-                settingsViewModel,
+                settingsFeatureBinding.viewModel(),
                 settingsStore,
                 navigationFeatureBinding,
                 statusMessageController,
@@ -149,7 +156,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         homeDashboardViewModel = viewModels.getHomeDashboardViewModel();
         downloadsViewModel = viewModels.getDownloadsViewModel();
         lyricsViewModel = viewModels.getLyricsViewModel();
-        settingsViewModel = viewModels.getSettingsViewModel();
         networkMenuViewModel = viewModels.getNetworkMenuViewModel();
         networkActionsViewModel = (NetworkActionsViewModel) viewModels.getNetworkActionsViewModel();
         statusMessageViewModel = (StatusMessageViewModel) viewModels.getStatusMessageViewModel();
@@ -221,7 +227,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         navigationFeatureBinding = new NavigationFeatureBinding(
                 this,
                 navigationViewModel,
-                settingsViewModel,
+                settingsFeatureBinding.viewModel(),
                 settingsStore
         );
         statusMessageController = new StatusMessageController(
@@ -289,19 +295,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryFeatureBinding::importPlaylistM3u,
                 uris -> luoxueSourceImportController.importSelectedUris(uris)
         ));
-        backgroundImageSelectionOwner = new BackgroundImageSelectionOwner(
-                settingsViewModel,
-                settingsStore::pageBackgrounds,
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                statusMessageController::setStatus
-        );
-        backgroundImagePickerController = new BackgroundImagePickerController(
-                this,
-                backgroundImageSelectionOwner,
-                task -> executors.io(task),
-                task -> mainHandler.post(task),
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
-        );
         libraryFileDeleteLauncher = new LibraryFileDeleteLauncher(
                 this,
                 libraryDeletionUseCase,
@@ -360,51 +353,31 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeSettingsEffects() {
-        settingsEffectOwner = new SettingsEffectOwner(
-                new SettingsNavigationEffectActions(
-                        statusMessageController::setStatus,
-                        navigationFeatureBinding.getRouteController()::setSettingsPage,
-                        navigationFeatureBinding::navigateToNetworkTabPage,
-                        () -> navigationFeatureBinding.navigateToTab(
-                                app.yukine.navigation.DownloadsTab.INSTANCE,
-                                true
-                        )
-                ),
-                new SettingsLibraryEffectActions(
-                        permissionController::requestNeededPermissions,
-                        () -> libraryFeatureBinding.loadLibrary(false),
-                        documentPickerController::openAudioFilePicker,
-                        documentPickerController::openAudioFolderPicker,
-                        luoxueSourceImportDialogController::showSourceManager,
-                        luoxueSourceImportDialogController::showImportDialog,
-                        libraryFeatureBinding::restoreHidden,
-                        libraryFeatureBinding::restoreAllHidden
-                ),
-                new SettingsPlaybackEffectActions(
-                        () -> lyricsViewModel.reloadCurrentLyrics(settingsStore.languageMode()),
-                        minutes -> playbackFeatureBinding.applyActionResult(
-                                playbackFeatureBinding.getNowPlayingViewModel().startSleepTimer(minutes)
-                        ),
-                        () -> playbackFeatureBinding.applyActionResult(
-                                playbackFeatureBinding.getNowPlayingViewModel().cancelSleepTimer()
-                        ),
-                        settingsViewModel::openFloatingLyricsPermission
-                ),
-                new SettingsFileEffectActions(
-                        backgroundImagePickerController::open,
-                        backupRestoreLauncher::exportBackup,
-                        backupRestoreLauncher::importBackup
-                ),
-                streamingFeatureBinding::applyEndpoint
+        settingsFeatureBinding.bindFeatures(
+                this,
+                mainHandler,
+                executors,
+                statusMessageController,
+                uiShellController,
+                customBackgroundAccentController,
+                navigationFeatureBinding,
+                libraryFeatureBinding,
+                playbackFeatureBinding,
+                streamingFeatureBinding,
+                lyricsViewModel,
+                lyricsLoader,
+                permissionController,
+                documentPickerController,
+                luoxueSourceImportDialogController,
+                backupRestoreLauncher,
+                navigationViewModel,
+                streamingGatewaySettingsStore,
+                luoxueSourceStore,
+                repository
         );
-        settingsViewModel.bindEffectListener(settingsEffectOwner);
     }
 
     private StreamingSearchRenderController initializeStoresAndDataGateways() {
-        settingsStore.load(loadSettingsPreferencesUseCase.execute());
-        if (EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
-            customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
-        }
         StreamingSearchRenderController streamingSearchRenderController = libraryFeatureBinding.bindUi(
                 playbackFeatureBinding,
                 streamingFeatureBinding,
@@ -416,27 +389,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> networkDialogController.showEditStream(track),
                 () -> confirmationDialogController.confirmClearPlayHistory()
         );
-        LoadedLyricsSettings loadedLyricsSettings = loadLyricsSettingsUseCase.execute();
-        lyricsViewModel.configure(
-                lyricsLoader,
-                loadedLyricsSettings.onlineLyricsEnabled,
-                loadedLyricsSettings.lyricsOffsetMs
-        );
-        settingsViewModel.bindPreferenceGateway(applySettingsPreferenceUseCase::execute);
-        settingsViewModel.bindStoreMirror(settingsStore::sync);
-        SettingsRuntimeApplier settingsRuntimeApplier = new SettingsRuntimeApplier(
-                () -> uiShellController.applyThemeSurface(),
-                customBackgroundAccentController::refresh,
-                () -> !playbackFeatureBinding.isConnected()
-                        ? null
-                        : new MainSettingsPlaybackServiceControls(playbackFeatureBinding.getConnection()),
-                () -> lyricsViewModel == null ? null : new MainSettingsLyricsControls(lyricsViewModel),
-                () -> new MainSettingsFloatingLyricsControls(
-                        MainActivityBase.this,
-                        () -> permissionController
-                )
-        );
-        settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         return streamingSearchRenderController;
     }
 
@@ -454,24 +406,10 @@ public abstract class MainActivityBase extends ComponentActivity {
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> statusMessageController.setStatus(status)
         );
-        settingsContextProvider = new SettingsContextProvider(
-                settingsStore,
-                libraryFeatureBinding.store(),
-                permissionController,
-                playbackFeatureBinding.getConnection(),
-                playbackFeatureBinding.getPlaybackViewModel(),
-                lyricsViewModel,
-                streamingGatewaySettingsStore,
-                luoxueSourceStore,
-                repository
-        );
-        settingsViewModel.bindContextLoader(settingsContextProvider);
-        settingsViewModel.bindRouteState(navigationViewModel.getState());
-        settingsViewModel.refreshSettingsContext();
         playbackFeatureBinding.bindStateSources(
                 viewModel,
                 lyricsViewModel,
-                settingsViewModel,
+                settingsFeatureBinding.viewModel(),
                 streamingFeatureBinding.viewModel(),
                 homeDashboardViewModel,
                 libraryFeatureBinding.homeDashboardIntentHandler()
@@ -543,7 +481,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         networkRenderCoordinator.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
-                settingsViewModel.getState()
+                settingsFeatureBinding.viewModel().getState()
         );
     }
 
@@ -643,13 +581,8 @@ public abstract class MainActivityBase extends ComponentActivity {
      * releasing the host so asynchronous work cannot publish into a destroyed Activity.
      */
     private void releaseViewModelHostBindings() {
-        if (settingsViewModel != null) {
-            settingsViewModel.bindRouteState(null);
-            settingsViewModel.bindContextLoader(null);
-            settingsViewModel.bindEffectListener(null);
-            settingsViewModel.bindRuntimeEffectListener(null);
-            settingsViewModel.bindPreferenceGateway(null);
-            settingsViewModel.bindStoreMirror(null);
+        if (settingsFeatureBinding != null) {
+            settingsFeatureBinding.release();
         }
         if (networkActionsViewModel != null) {
             networkActionsViewModel.bindListener(null);

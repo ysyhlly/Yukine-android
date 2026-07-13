@@ -289,9 +289,11 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void settingsEffectsAreDispatchedByFocusedActionGroups() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
         String owner = read("app/src/main/java/app/yukine/SettingsEffectOwner.kt");
         assertFalse(activity.contains("effect instanceof SettingsEffect"));
-        assertTrue(activity.contains("settingsViewModel.bindEffectListener(settingsEffectOwner)"));
+        assertFalse(activity.contains("settingsViewModel.bindEffectListener(settingsEffectOwner)"));
+        assertTrue(binding.contains("viewModel.bindEffectListener(effectOwner)"));
         assertTrue(owner.contains("private val navigation: SettingsNavigationEffectActions"));
         assertTrue(owner.contains("private val library: SettingsLibraryEffectActions"));
         assertTrue(owner.contains("private val playback: SettingsPlaybackEffectActions"));
@@ -299,8 +301,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private val streaming: SettingsStreamingEffectActions"));
         assertFalse(activity.contains("applyStreamingGatewayEndpoint"));
         assertFalse(activity.contains("refreshAfterHiddenLibraryRestore"));
-        assertTrue(activity.contains("streamingFeatureBinding::applyEndpoint"));
-        assertTrue(activity.contains("libraryFeatureBinding::restoreHidden"));
+        assertTrue(binding.contains("streaming::applyEndpoint"));
+        assertTrue(binding.contains("library::restoreHidden"));
     }
 
     @Test
@@ -329,11 +331,13 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void backgroundImageSelectionPolicyIsOutsideActivity() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
         String owner = read("app/src/main/java/app/yukine/BackgroundImageSelectionOwner.kt");
         String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
         assertFalse(activity.contains("settingsStore.pageBackgrounds().withBackground"));
         assertFalse(activity.contains("page.background.copy.failed"));
-        assertTrue(activity.contains("backgroundImageSelectionOwner"));
+        assertFalse(activity.contains("backgroundImageSelectionOwner"));
+        assertTrue(binding.contains("BackgroundImageSelectionOwner backgroundImageSelectionOwner"));
         assertTrue(owner.contains(": BackgroundImagePickerController.Listener"));
         assertTrue(owner.contains("backgroundsSource.current().withBackground"));
         assertFalse(platformModule.contains("MainBackgroundImagePickerListenerFactory"));
@@ -447,6 +451,7 @@ public final class MainActivityArchitectureContractTest {
         String libraryBinding = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
         String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
+        String settingsBinding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
         String runtimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
         assertFalse(activity.contains("RenderListenerFactory"));
         assertFalse(activity.contains("libraryStoreFactory"));
@@ -460,7 +465,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(runtimeApplier.contains("class MainSettingsRuntimeApplierFactory"));
         assertFalse(activity.contains("new MainCollectionsRenderListener("));
         assertTrue(libraryBinding.contains("new MainCollectionsRenderListener("));
-        assertTrue(activity.contains("new SettingsRuntimeApplier("));
+        assertFalse(activity.contains("new SettingsRuntimeApplier("));
+        assertTrue(settingsBinding.contains("new SettingsRuntimeApplier("));
     }
 
     @Test
@@ -512,6 +518,34 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(binding.contains("new MainLibraryGateway("));
         assertTrue(binding.contains("new LibraryRenderOwner("));
         assertTrue(binding.contains("new CollectionsRenderController("));
+        assertTrue(binding.contains("void release()"));
+    }
+
+    @Test
+    public void settingsAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
+
+        for (String forbidden : new String[]{
+                "private SettingsViewModel settingsViewModel",
+                "private SettingsContextProvider settingsContextProvider",
+                "private SettingsEffectOwner settingsEffectOwner",
+                "private BackgroundImageSelectionOwner backgroundImageSelectionOwner",
+                "private BackgroundImagePickerController backgroundImagePickerController",
+                "new SettingsNavigationEffectActions(",
+                "new SettingsLibraryEffectActions(",
+                "new SettingsPlaybackEffectActions(",
+                "new SettingsFileEffectActions(",
+                "new SettingsContextProvider("
+        }) {
+            assertFalse("Activity still owns settings assembly: " + forbidden, activity.contains(forbidden));
+        }
+        assertTrue(activity.contains("private SettingsFeatureBinding settingsFeatureBinding"));
+        assertTrue(activity.contains("settingsFeatureBinding.release()"));
+        assertTrue(binding.contains("void bindFeatures("));
+        assertTrue(binding.contains("new SettingsEffectOwner("));
+        assertTrue(binding.contains("new SettingsContextProvider("));
+        assertTrue(binding.contains("new SettingsRuntimeApplier("));
         assertTrue(binding.contains("void release()"));
     }
 
@@ -573,7 +607,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(releaseBindings > onDestroy);
         assertTrue(releasePlayback > releaseBindings);
         assertFalse(activity.contains("lyricsViewModel.bindListener("));
-        assertTrue(activity.contains("settingsViewModel.bindEffectListener(null)"));
+        assertFalse(activity.contains("settingsViewModel.bindEffectListener(null)"));
+        assertTrue(read("app/src/main/java/app/yukine/SettingsFeatureBinding.java")
+                .contains("viewModel.bindEffectListener(null)"));
         assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
         assertFalse(activity.contains("queueViewModel.bindIntentListener(null)"));
         assertTrue(activity.contains("navigationFeatureBinding.release()"));
