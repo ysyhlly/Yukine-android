@@ -221,7 +221,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 streamingPlaybackQualityPolicy::adaptive,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 launch -> StreamingAuthLauncher.INSTANCE.launch(MainActivityBase.this, launch),
-                (tracks, index) -> playTrackListFromHost(tracks, index),
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 provider -> streamingPlaylistController.onStreamingLoginSuccess(provider),
                 provider -> streamingViewModel.selectStreamingProvider(provider),
                 () -> {
@@ -292,7 +292,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> libraryStore == null ? Collections.emptySet() : libraryStore.favoriteIds()
         );
         libraryViewModel.bindGateway(new MainLibraryGateway(
-                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
@@ -575,7 +575,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 },
                 this::continueDashboardPlayback,
                 () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
-                this::playTrackListFromHost,
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 () -> libraryImportOwner.loadLibrary(true),
                 () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
@@ -845,7 +845,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 streamingSearchActionHandler,
                 settingsStore,
                 streamingPlaybackQualityPolicy,
-                this::playTrackListFromHost,
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 message -> {
                     statusMessageController.showFeedback(message);
                     return kotlin.Unit.INSTANCE;
@@ -913,7 +913,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> documentPickerController.openPlaylistM3uFilePicker(),
                 () -> confirmationDialogController.confirmClearPlayHistory(),
                 navigationIntentOwner::handleBack,
-                (tracks, index) -> MainActivityBase.this.playTrackListFromHost(tracks, index),
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
                 track -> playlistDialogController.showAddToPlaylist(track),
                 track -> downloadRequestController.downloadTrack(track),
@@ -1099,7 +1099,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> libraryStore.remoteSources(),
                 sourceIds -> networkRequestController.syncAllWebDavSources(sourceIds),
                 () -> confirmationDialogController.confirmDeleteAllStreams(),
-                (tracks, index) -> playTrackListFromHost(tracks, index),
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> statusMessageController.setStatus(status),
                 networkMenuViewModel
@@ -1111,7 +1111,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 sourceId -> libraryStore.webDavTracksForSource(sourceId),
                 source -> networkDialogController.showEditWebDav(source),
                 source -> confirmationDialogController.confirmDeleteRemoteSource(source),
-                (tracks, index) -> playTrackListFromHost(tracks, index),
+                (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> statusMessageController.setStatus(status)
         );
@@ -1331,7 +1331,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         if (track != null) {
-            playTrackListFromHost(Collections.singletonList(track), 0);
+            playbackStartController.playTrackList(Collections.singletonList(track), 0);
         }
     }
 
@@ -1344,21 +1344,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 recommendationActionCallbacks
         );
-    }
-
-    private void playTrackListFromHost(List<Track> tracks, int index) {
-        if (playbackStartController != null) {
-            playbackStartController.playTrackList(tracks, index);
-            return;
-        }
-        if (playbackStartListener != null) {
-            playbackStartListener.savePendingPlayback(
-                    tracks == null ? Collections.emptyList() : new ArrayList<>(tracks),
-                    index
-            );
-            playbackStartListener.setStatus(playbackStartListener.resolvingStatus());
-            return;
-        }
     }
 
     private void installNavHostShell() {

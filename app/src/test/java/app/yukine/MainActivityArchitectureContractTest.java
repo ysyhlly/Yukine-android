@@ -416,6 +416,8 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(activity.contains("new PlaybackDomainReactionOwner("));
         assertTrue(reactions.contains(") : PlaybackStateListener"));
         assertTrue(reactions.contains("UI rendering observes"));
+        assertFalse(activity.contains("playTrackListFromHost"));
+        assertTrue(activity.contains("playbackStartController.playTrackList(tracks, index)"));
     }
 
     @Test
