@@ -98,7 +98,7 @@ final class SettingsFeatureBinding {
                         () -> playback.applyActionResult(
                                 playback.getNowPlayingViewModel().cancelSleepTimer()
                         ),
-                        viewModel::openFloatingLyricsPermission
+                        viewModel.lyricsOwner()::openFloatingLyricsPermission
                 ),
                 new SettingsFileEffectActions(
                         backgroundImagePickerController::open,

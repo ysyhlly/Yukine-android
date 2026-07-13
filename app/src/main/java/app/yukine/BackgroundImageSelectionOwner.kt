@@ -22,7 +22,7 @@ internal class BackgroundImageSelectionOwner(
     }
 
     override fun backgroundImagePicked(page: String, uri: Uri, transform: BackgroundTransform) {
-        settingsViewModel.applyPageBackgrounds(
+        settingsViewModel.appearance.applyPageBackgrounds(
             backgroundsSource.current().withBackground(page, uri.toString(), transform),
             page,
             false

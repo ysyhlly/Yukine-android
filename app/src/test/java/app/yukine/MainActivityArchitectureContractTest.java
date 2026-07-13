@@ -286,6 +286,32 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void settingsCommandsAreSplitByPageWithoutGiantEventSurface() throws Exception {
+        String viewModel = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
+        String owners = read("app/src/main/java/app/yukine/SettingsPageStateOwners.kt");
+        String mutations = read("app/src/main/java/app/yukine/SettingsMutationContext.kt");
+        String contentFactory = read("app/src/main/java/app/yukine/SettingsPageContentFactory.kt");
+
+        assertTrue(viewModel.lines().count() < 450);
+        assertFalse(viewModel.contains("sealed interface SettingsEvent"));
+        assertFalse(viewModel.contains("fun onEvent("));
+        assertFalse(viewModel.contains("fun applyThemeMode("));
+        assertFalse(viewModel.contains("fun applyPlaybackSpeed("));
+        assertFalse(viewModel.contains("fun setOnlineLyricsEnabled("));
+        assertTrue(owners.contains("class AppearanceSettingsStateOwner"));
+        assertTrue(owners.contains("class PlaybackSettingsStateOwner"));
+        assertTrue(owners.contains("class LyricsSettingsStateOwner"));
+        assertTrue(owners.contains("class LibrarySettingsStateOwner"));
+        assertTrue(owners.contains("class NetworkSettingsStateOwner"));
+        assertTrue(mutations.contains("private val writeMutex = Mutex()"));
+        assertTrue(mutations.contains("private fun restore("));
+        assertFalse(contentFactory.contains("SettingsEvent"));
+        assertTrue(contentFactory.contains("appearance.applyThemeMode(mode)"));
+        assertTrue(contentFactory.contains("playback.applyPlaybackSpeed(speed)"));
+        assertTrue(contentFactory.contains("lyrics.setOnlineLyricsEnabled(enabled)"));
+    }
+
+    @Test
     public void nowPlayingPresentationUsesFocusedImmutableSubstates() throws Exception {
         String nowBar = read("feature/ui-common/src/main/java/app/yukine/ui/NowBar.kt");
         String nowPlaying = read("feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt");
