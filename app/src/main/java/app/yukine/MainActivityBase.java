@@ -67,7 +67,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject MainStreamingSearchActionHandlerFactory streamingSearchActionHandlerFactory;
     @Inject MainStreamingSearchRenderListenerFactory streamingSearchRenderListenerFactory;
     @Inject MainDocumentPickerListenerFactory documentPickerListenerFactory;
-    @Inject MainBackgroundImagePickerListenerFactory backgroundImagePickerListenerFactory;
     @Inject MainPermissionListenerFactory permissionListenerFactory;
     @Inject MainTrackListRenderListenerFactory trackListRenderListenerFactory;
     @Inject LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
@@ -134,6 +133,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LibraryDeletionCompletionOwner libraryDeletionCompletionOwner;
     private DocumentPickerController documentPickerController;
     private BackgroundImagePickerController backgroundImagePickerController;
+    private BackgroundImageSelectionOwner backgroundImageSelectionOwner;
     private BackupRestoreLauncher backupRestoreLauncher;
     private DownloadRequestController downloadRequestController;
     private DownloadDirectoryOwner downloadDirectoryOwner;
@@ -414,19 +414,15 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryImportOwner::importPlaylistM3u,
                 uris -> luoxueSourceImportController.importSelectedUris(uris)
         ));
+        backgroundImageSelectionOwner = new BackgroundImageSelectionOwner(
+                settingsViewModel,
+                settingsStore::pageBackgrounds,
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                statusMessageController::setStatus
+        );
         backgroundImagePickerController = new BackgroundImagePickerController(
                 this,
-                backgroundImagePickerListenerFactory.create(
-                        (page, uri, transform) -> settingsViewModel.applyPageBackgrounds(
-                                settingsStore.pageBackgrounds().withBackground(page, uri.toString(), transform),
-                                page,
-                                false
-                        ),
-                        page -> statusMessageController.setStatus(AppLanguage.text(
-                                settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                                "page.background.copy.failed"
-                        ))
-                ),
+                backgroundImageSelectionOwner,
                 task -> executors.io(task),
                 task -> mainHandler.post(task),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()

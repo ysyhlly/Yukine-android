@@ -315,6 +315,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void backgroundImageSelectionPolicyIsOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/BackgroundImageSelectionOwner.kt");
+        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
+        assertFalse(activity.contains("settingsStore.pageBackgrounds().withBackground"));
+        assertFalse(activity.contains("page.background.copy.failed"));
+        assertTrue(activity.contains("backgroundImageSelectionOwner"));
+        assertTrue(owner.contains(": BackgroundImagePickerController.Listener"));
+        assertTrue(owner.contains("backgroundsSource.current().withBackground"));
+        assertFalse(platformModule.contains("MainBackgroundImagePickerListenerFactory"));
+        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainBackgroundImagePickerListener.kt")));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

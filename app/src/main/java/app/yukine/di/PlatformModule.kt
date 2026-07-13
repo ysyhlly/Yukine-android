@@ -2,8 +2,6 @@ package app.yukine.di
 
 import android.os.Handler
 import android.os.Looper
-import app.yukine.MainBackgroundImagePickerListener
-import app.yukine.MainBackgroundImagePickerListenerFactory
 import app.yukine.MainDocumentPickerListener
 import app.yukine.MainDocumentPickerListenerFactory
 import app.yukine.MainPermissionListener
@@ -41,13 +39,6 @@ internal object PlatformModule {
                 playlistM3uImporter,
                 luoxueSourceUrisImporter
             )
-        }
-
-    @Provides
-    @ActivityScoped
-    fun provideMainBackgroundImagePickerListenerFactory(): MainBackgroundImagePickerListenerFactory =
-        MainBackgroundImagePickerListenerFactory { pageImageApplier, copyFailedStatusSink ->
-            MainBackgroundImagePickerListener(pageImageApplier, copyFailedStatusSink)
         }
 
     @Provides
