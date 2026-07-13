@@ -63,20 +63,28 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void activityDoesNotPersistRoutesDuringEveryRender() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
         assertFalse(activity.contains("routeController.persist()"));
         assertFalse(activity.contains("renderSelectedTab"));
         assertFalse(activity.contains("syncNavHostState"));
-        assertTrue(activity.contains("private void createNavHostState()"));
+        assertFalse(activity.contains("private void createNavHostState()"));
+        assertFalse(activity.contains("private MainRouteController routeController"));
+        assertTrue(binding.contains("val routeController = MainRouteController"));
+        assertTrue(binding.contains("private fun createNavHostState("));
     }
 
     @Test
     public void composeRootIsMountedOnceAndOnboardingIsReactive() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
         String onboarding = read("app/src/main/java/app/yukine/OnboardingController.kt");
         String app = read("app/src/main/java/app/yukine/EchoApp.kt");
-        assertTrue(activity.contains("navHostInstalled"));
-        assertTrue(activity.contains("private void installNavHostShell()"));
-        assertTrue(activity.contains("queueViewModel == null || navHostInstalled"));
+        assertFalse(activity.contains("navHostInstalled"));
+        assertFalse(activity.contains("private void installNavHostShell()"));
+        assertTrue(activity.contains("navigationFeatureBinding.bindRoot("));
+        assertTrue(binding.contains("private var rootInstalled = false"));
+        assertTrue(binding.contains("if (rootInstalled) return"));
+        assertTrue(binding.contains("EchoAppHost.installNavHost(activity"));
         assertFalse(activity.contains("mountNavHostShell"));
         assertFalse(onboarding.contains("mountNavHostShell"));
         assertTrue(onboarding.contains("StateFlow<OnboardingUiState>"));
@@ -267,10 +275,12 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void nowPlayingEffectsAreDispatchedOutsideActivity() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String navigationBinding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
         String owner = read("app/src/main/java/app/yukine/NowPlayingEffectOwner.kt");
         assertFalse(activity.contains("handleNowPlayingEffects"));
         assertFalse(activity.contains("instanceof NowPlayingEffect"));
-        assertTrue(activity.contains("nowPlayingEffectOwner.handle(event)"));
+        assertFalse(activity.contains("nowPlayingEffectOwner.handle(event)"));
+        assertTrue(navigationBinding.contains("nowPlayingEffectOwner::handle"));
         assertTrue(owner.contains("viewModel.drainEffects().forEach(::dispatch)"));
         assertTrue(owner.contains("is NowPlayingEffect.SwitchSource ->"));
         assertTrue(owner.contains("is NowPlayingEffect.SwitchLibrarySource ->"));
@@ -517,7 +527,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(activity.contains("lyricsViewModel.bindListener("));
         assertTrue(activity.contains("settingsViewModel.bindEffectListener(null)"));
         assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
-        assertTrue(activity.contains("queueViewModel.bindIntentListener(null)"));
+        assertFalse(activity.contains("queueViewModel.bindIntentListener(null)"));
+        assertTrue(activity.contains("navigationFeatureBinding.release()"));
+        assertTrue(read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt")
+                .contains("boundQueueViewModel?.bindIntentListener(null)"));
         assertTrue(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
     }
 

@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import androidx.activity.ComponentActivity;
-import androidx.activity.OnBackPressedCallback;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,12 +32,7 @@ import app.yukine.ui.TrackRowUiState;
 
 public abstract class MainActivityBase extends ComponentActivity {
     private static final String TAG = "MainActivity";
-    private static final String TAB_HOME = MainRoutes.TAB_HOME;
-    private static final String TAB_QUEUE = MainRoutes.TAB_QUEUE;
-    private static final String NETWORK_HOME = MainRoutes.NETWORK_HOME;
     private static final String NETWORK_STREAMING = MainRoutes.NETWORK_STREAMING;
-    private static final String SETTINGS_HOME = MainRoutes.SETTINGS_HOME;
-    private static final String LIBRARY_SONGS = LibraryGrouping.SONGS;
     @Inject Handler mainHandler;
     @Inject MainExecutors executors;
     @Inject LuoxueSourceStore luoxueSourceStore;
@@ -73,6 +67,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject
     TrackShareOperations trackShareOperations;
 
+    private MainActivityViewModels activityViewModels;
     private MainActivityViewModel viewModel;
     private NavigationViewModel navigationViewModel;
     private PlaybackViewModel playbackViewModel;
@@ -89,8 +84,7 @@ public abstract class MainActivityBase extends ComponentActivity {
       private NetworkSourcesViewModel networkSourcesViewModel;
     private StreamingViewModel streamingViewModel;
     private StreamingRecommendationViewModel streamingRecommendationViewModel;
-    private MainRouteController routeController;
-    private MainNavigationIntentOwner navigationIntentOwner;
+    private NavigationFeatureBinding navigationFeatureBinding;
     private MainLibraryStore libraryStore;
     private LibraryCollectionsOwner libraryCollectionsOwner;
     @Inject MainSettingsStore settingsStore;
@@ -152,8 +146,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LyricsViewModel lyricsViewModel;
     private MainPlaybackStartListener playbackStartListener;
     private UnifiedSearchOwner unifiedSearchOwner;
-    private app.yukine.navigation.EchoNavHostState navHostState;
-    private boolean navHostInstalled;
 
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
@@ -190,12 +182,13 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryStore = new MainLibraryStore(librarySearchUseCase, viewModel);
         libraryCollectionsOwner = new LibraryCollectionsOwner(
                 libraryViewModel,
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 libraryStore
         );
     }
 
     private void initializeViewModels(MainActivityViewModels viewModels) {
+        activityViewModels = viewModels;
         viewModel = viewModels.getMainActivityViewModel();
         navigationViewModel = viewModels.getNavigationViewModel();
         playbackViewModel = viewModels.getPlaybackViewModel();
@@ -298,11 +291,14 @@ public abstract class MainActivityBase extends ComponentActivity {
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
                 libraryCollectionsOwner::load,
                 track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 unifiedSearchOwner::applyCurrentSearch,
                 () -> documentPickerController.openAudioFilePicker(),
                 allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
-                tracks -> libraryFileDeleteLauncher.request(tracks, selectedPlaylistId()),
+                tracks -> libraryFileDeleteLauncher.request(
+                        tracks,
+                        navigationFeatureBinding.selectedPlaylistId()
+                ),
                 tracks -> downloadRequestController.downloadTracks(tracks)
         ));
     }
@@ -324,10 +320,11 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializeRouteStoresAndStatus() {
         uiShellController = new MainUiShellController(this);
-        routeController = new MainRouteController(navigationViewModel);
-        navigationIntentOwner = new MainNavigationIntentOwner(
-                routeController,
-                settingsViewModel::scrollToTopOnNextRender
+        navigationFeatureBinding = new NavigationFeatureBinding(
+                this,
+                navigationViewModel,
+                settingsViewModel,
+                settingsStore
         );
         streamingPlaybackQualityPolicy = new StreamingPlaybackQualityPolicy(this, settingsStore);
         statusMessageController = new StatusMessageController(
@@ -375,7 +372,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         libraryImportOwner = new LibraryImportOwner(
                 libraryViewModel,
                 libraryStore,
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
@@ -385,7 +382,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         onboardingOwner.onLibraryScanResult(canScan);
                     }
                 },
-                () -> navigateToNetworkTabPage(NETWORK_STREAMING)
+                () -> navigationFeatureBinding.navigateToNetworkTabPage(NETWORK_STREAMING)
         );
         downloadDirectoryOwner = new DownloadDirectoryOwner(
                 trackDownloadManager,
@@ -518,7 +515,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializeNowPlayingEffectOwner() {
         nowPlayingEffectOwner = new NowPlayingEffectOwner(
                 nowPlayingViewModel,
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 playlistDialogController::showAddToPlaylist,
                 trackShareLauncher::share,
                 downloadRequestController::downloadTrack,
@@ -538,7 +535,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> networkDialogController.showEditStream(track),
                 track -> libraryFileDeleteLauncher.request(
                         java.util.Collections.singletonList(track),
-                        selectedPlaylistId()
+                        navigationFeatureBinding.selectedPlaylistId()
                 )
         ));
         trackListStatePublisher = new TrackListStatePublisher(
@@ -570,17 +567,17 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         homeDashboardIntentHandler = new MainHomeDashboardRenderListener(
                 mode -> {
-                    routeController.setLibraryMode(mode);
-                    navigationIntentOwner.navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true);
+                    navigationFeatureBinding.getRouteController().setLibraryMode(mode);
+                    navigationFeatureBinding.navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true);
                 },
                 this::continueDashboardPlayback,
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
                 (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 () -> libraryImportOwner.loadLibrary(true),
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
-                () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
+                () -> navigationFeatureBinding.navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
                 () -> runRecommendationAction(new RecommendationAction.PlayDaily(StreamingProviderName.NETEASE)),
                 () -> runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE))
         );
@@ -646,7 +643,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         null
                 ).getResolving(),
                 status -> statusMessageController.setStatus(status),
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true)
+                () -> navigationFeatureBinding.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true)
         );
         playbackStartController = new PlaybackStartController(
                 streamingPlaybackController::resolveAndPlayStreamingTrack,
@@ -685,9 +682,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         settingsEffectOwner = new SettingsEffectOwner(
                 new SettingsNavigationEffectActions(
                         statusMessageController::setStatus,
-                        routeController::setSettingsPage,
-                        this::navigateToNetworkTabPage,
-                        () -> navigationIntentOwner.navigateToTab(
+                        navigationFeatureBinding.getRouteController()::setSettingsPage,
+                        navigationFeatureBinding::navigateToNetworkTabPage,
+                        () -> navigationFeatureBinding.navigateToTab(
                                 app.yukine.navigation.DownloadsTab.INSTANCE,
                                 true
                         )
@@ -757,8 +754,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 streamingViewModel,
                 () -> settingsStore.languageMode(),
                 new MainStreamingPlaylistListener(
-                        () -> routeController.selectedPlaylistId(),
-                        playlistId -> routeController.setSelectedPlaylistId(playlistId),
+                        navigationFeatureBinding::selectedPlaylistId,
+                        playlistId -> navigationFeatureBinding.getRouteController().setSelectedPlaylistId(playlistId),
                         () -> libraryCollectionsOwner.load(),
                         () -> libraryImportOwner.loadLibrary(true),
                         () -> MainActivityBase.this.selectedPlaylistName(),
@@ -767,7 +764,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         (playlistName, tracks) ->
                                 streamingPlaylistDialogController.showStreamingProviderPicker(playlistName, tracks),
-                        () -> navigateToNetworkTabPage(NETWORK_STREAMING),
+                        () -> navigationFeatureBinding.navigateToNetworkTabPage(NETWORK_STREAMING),
                         message -> streamingPlaylistDialogController.showStreamingPlaylistLoadedDialog(message),
                         (provider, playlists) ->
                                 streamingPlaylistDialogController.showAccountPlaylistImportPicker(provider, playlists),
@@ -837,7 +834,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         streamingSearchActionHandler = new DefaultStreamingSearchActionHandler(streamingViewModel, streamingActionGateway);
         unifiedSearchOwner = new UnifiedSearchOwner(
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 searchViewModel,
                 streamingViewModel,
                 libraryViewModel,
@@ -860,7 +857,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         StreamingSearchRenderController streamingSearchRenderController = new StreamingSearchRenderController(
                 () -> settingsStore.languageMode(),
                 new MainStreamingSearchRenderListener(
-                        navigationIntentOwner::handleBack,
+                        navigationFeatureBinding::handleBack,
                         streamingSearchActionHandler,
                         () -> streamingViewModel.getStreaming().getValue().getSelectedProvider(),
                         (provider, providerPlaylistId) ->
@@ -893,7 +890,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryViewModel,
                 new MainLibraryGroupsRenderListener(
                         (key, title) -> libraryViewModel.onEvent(new LibraryEvent.OpenGroup(key, title)),
-                        () -> routeController.clearLibraryGroup(),
+                        () -> navigationFeatureBinding.getRouteController().clearLibraryGroup(),
                         () -> libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE),
                         () -> settingsStore.languageMode(),
                         (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
@@ -912,7 +909,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> playlistDialogController.showCreatePlaylist(),
                 () -> documentPickerController.openPlaylistM3uFilePicker(),
                 () -> confirmationDialogController.confirmClearPlayHistory(),
-                navigationIntentOwner::handleBack,
+                navigationFeatureBinding::handleBack,
                 (tracks, index) -> playbackStartController.playTrackList(tracks, index),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
                 track -> playlistDialogController.showAddToPlaylist(track),
@@ -921,7 +918,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryCollectionsOwner::selectAndLoad,
                 playlist -> playlistDialogController.showRenamePlaylist(playlist),
                 playlist -> playlistDialogController.confirmDeletePlaylist(playlist),
-                this::selectedPlaylistId,
+                navigationFeatureBinding::selectedPlaylistId,
                 () -> libraryStore.selectedPlaylistTracks(),
                 this::selectedPlaylistName,
                 key -> statusMessageController.setStatusKey(key),
@@ -1006,7 +1003,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
         playlistMutationOwner = new PlaylistMutationOwner(
                 libraryViewModel,
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 libraryCollectionsOwner::load
@@ -1024,7 +1021,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         networkActionsViewModel.bindListener(new MainNetworkActionsListener(
                 nowPlayingViewModel,
                 libraryImportOwner::replaceLibrary,
-                this::navigateToNetworkTabPage,
+                navigationFeatureBinding::navigateToNetworkTabPage,
                 libraryCollectionsOwner::load,
                 status -> statusMessageController.setStatus(status)
         ));
@@ -1087,8 +1084,8 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializeNetworkRendering(StreamingSearchRenderController streamingSearchRenderController) {
         NetworkMenuEventController menuEvents = new NetworkMenuEventController(
-                this::navigateNetworkPage,
-                navigationIntentOwner::handleBack,
+                navigationFeatureBinding::navigateNetworkPage,
+                navigationFeatureBinding::handleBack,
                 () -> networkDialogController.showAddStream(),
                 () -> networkDialogController.showImportM3u(),
                 () -> networkDialogController.showAddWebDav(),
@@ -1105,7 +1102,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 networkMenuViewModel
         );
         NetworkSourcesEventController sourcesEvents = new NetworkSourcesEventController(
-                routeController,
+                navigationFeatureBinding.getRouteController(),
                 networkRequestController,
                 sourceId -> libraryStore.remoteSourceName(sourceId, settingsStore.languageMode()),
                 sourceId -> libraryStore.webDavTracksForSource(sourceId),
@@ -1116,7 +1113,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                 status -> statusMessageController.setStatus(status)
         );
         NetworkTrackListRenderController trackListRenderer = new NetworkTrackListRenderController(
-                new NetworkTrackListOwner(routeController, sourcesEvents, trackListStatePublisher)
+                new NetworkTrackListOwner(
+                        navigationFeatureBinding.getRouteController(),
+                        sourcesEvents,
+                        trackListStatePublisher
+                )
         );
         networkRenderCoordinator = new NetworkRenderCoordinator(
                 libraryStore,
@@ -1143,7 +1144,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         libraryImportOwner::loadLibrary,
                         libraryImportOwner::cancelLibraryLoad
                 ),
-                this::navigateToNetworkTabPage,
+                navigationFeatureBinding::navigateToNetworkTabPage,
                 documentPickerController::openPlaylistM3uFilePicker,
                 new OnboardingCompletionStore(
                         () -> repository == null || !repository.loadOnboardingCompleted(),
@@ -1158,8 +1159,17 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new HandlerOnboardingScheduler(mainHandler)
         );
         onboardingOwner.initialize();
-        installNavHostShell();
-        installBackNavigation();
+        navigationFeatureBinding.bindRoot(
+                activityViewModels,
+                onboardingOwner,
+                permissionController,
+                nowPlayingEffectOwner,
+                playlistDialogController,
+                queueActionController,
+                documentPickerController,
+                trackDownloadManager,
+                playbackServiceConnectionController
+        );
         playbackServiceConnectionController.bind();
         if (!onboardingOwner.showOnboarding()) {
             permissionController.requestNeededPermissions();
@@ -1195,6 +1205,9 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Override
     protected void onDestroy() {
         releaseViewModelHostBindings();
+        if (navigationFeatureBinding != null) {
+            navigationFeatureBinding.release();
+        }
         if (onboardingOwner != null) {
             onboardingOwner.release();
         }
@@ -1233,7 +1246,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         if (queueViewModel != null) {
             queueViewModel.bindStateSources(null, null, null);
-            queueViewModel.bindIntentListener(null);
         }
         if (homeDashboardViewModel != null) {
             homeDashboardViewModel.bindStateSources(null, null, null, null, null);
@@ -1288,43 +1300,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
     }
 
-    private String selectedTab() {
-        return routeController == null ? TAB_HOME : routeController.selectedTab();
-    }
-
-    private boolean isQueueVisible() {
-        return TAB_QUEUE.equals(selectedTab())
-                || (navHostState != null && navHostState.getQueueSheetVisible());
-    }
-
-    private String libraryMode() {
-        return routeController == null ? LIBRARY_SONGS : routeController.libraryMode();
-    }
-
-    private String selectedLibraryGroupKey() {
-        return routeController == null ? "" : routeController.selectedLibraryGroupKey();
-    }
-
-    private String selectedLibraryGroupTitle() {
-        return routeController == null ? "" : routeController.selectedLibraryGroupTitle();
-    }
-
-    private long selectedPlaylistId() {
-        return routeController == null ? -1L : routeController.selectedPlaylistId();
-    }
-
-    private String networkPage() {
-        return routeController == null ? NETWORK_HOME : routeController.networkPage();
-    }
-
-    private String settingsPage() {
-        return routeController == null ? SETTINGS_HOME : routeController.settingsPage();
-    }
-
-    private long selectedRemoteSourceId() {
-        return routeController == null ? -1L : routeController.selectedRemoteSourceId();
-    }
-
     private void continueDashboardPlayback(Track track) {
         if (playbackSnapshot().hasTrack()) {
             playbackActionController.togglePlayback();
@@ -1346,121 +1321,8 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
     }
 
-    private void installNavHostShell() {
-        if (queueViewModel == null || navHostInstalled) {
-            return;
-        }
-        queueViewModel.bindIntentListener(new QueueIntentOwner(
-                event -> {
-                    libraryViewModel.onEvent(event);
-                    return kotlin.Unit.INSTANCE;
-                },
-                track -> {
-                    playlistDialogController.showAddToPlaylist(track);
-                    return kotlin.Unit.INSTANCE;
-                },
-                track -> {
-                    queueActionController.removeQueueTrack(track);
-                    return kotlin.Unit.INSTANCE;
-                },
-                (fromIndex, toIndex) -> {
-                    queueActionController.moveQueueTrack(fromIndex, toIndex);
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    queueActionController.confirmClearQueue();
-                    return kotlin.Unit.INSTANCE;
-                },
-                () -> {
-                    navigationIntentOwner.handleBack();
-                    return kotlin.Unit.INSTANCE;
-                }
-        ));
-        createNavHostState();
-        navHostInstalled = true;
-        EchoAppHost.installNavHost(this, new MainNavHostMount(
-                () -> navHostState,
-                onboardingOwner.getState(),
-                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                new app.yukine.ui.OnboardingActions(
-                        () -> permissionController.requestNeededPermissions(),
-                        onboardingOwner::scanLibrary,
-                        onboardingOwner::importPlaylist,
-                        onboardingOwner::openStreaming,
-                        onboardingOwner::finish
-                ),
-                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true),
-                event -> {
-                    nowPlayingEffectOwner.handle(event);
-                    return kotlin.Unit.INSTANCE;
-                },
-                tab -> {
-                    navigationIntentOwner.navigateToTab(tab, true);
-                    return kotlin.Unit.INSTANCE;
-                }
-        ));
-    }
-
-    private void createNavHostState() {
-        navHostState = new app.yukine.navigation.EchoNavHostState(
-                    navigationViewModel.getState(),
-                    homeDashboardViewModel.getUiState(),
-                    nowPlayingViewModel,
-                    queueViewModel,
-                    libraryViewModel.getLibraryGroups(),
-                    libraryViewModel.getTrackList(),
-                    collectionsViewModel,
-                    settingsViewModel.getState(),
-                    settingsViewModel.getChromeState(),
-                    settingsViewModel.getScrollState(),
-                    networkMenuViewModel.getUiState(),
-                    networkSourcesViewModel.getUiState(),
-                    streamingViewModel.getStreaming(),
-                    playbackViewModel,
-                    downloadsViewModel.getUiState(),
-                    downloadsViewModel.openDirectoryRequests(),
-                    new DownloadsDestinationOwner(
-                            downloadsViewModel,
-                            trackDownloadManager,
-                            () -> {
-                                documentPickerController.openDownloadFolderPicker();
-                                return kotlin.Unit.INSTANCE;
-                            }
-                    ).actions(),
-                    searchViewModel.getUiState(),
-                    trackDownloadManager,
-                    playbackServiceConnectionController::realtimeBeat,
-                    playbackServiceConnectionController::realtimeBands,
-                    true,
-                    visible -> { },
-                    libraryViewModel::onLibraryAction
-        );
-    }
-
-    private void installBackNavigation() {
-        OnBackPressedCallback backCallback = new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                if (navigationIntentOwner.handleBack()) {
-                    return;
-                }
-                setEnabled(false);
-                getOnBackPressedDispatcher().onBackPressed();
-            }
-        };
-        getOnBackPressedDispatcher().addCallback(this, backCallback);
-    }
-
-    private void navigateNetworkPage(String page) {
-        routeController.setNetworkPage(page);
-    }
-
-    private void navigateToNetworkTabPage(String page) {
-        routeController.navigateToNetworkPageFromCurrent(page);
-    }
-
     private String selectedPlaylistName() {
-        return libraryStore.selectedPlaylistName(selectedPlaylistId());
+        return libraryStore.selectedPlaylistName(navigationFeatureBinding.selectedPlaylistId());
     }
 
     private List<Track> heartbeatLibraryContextTracks() {
