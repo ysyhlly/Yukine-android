@@ -14,7 +14,6 @@ import app.yukine.model.Track;
 /** Owns Activity-scoped library/search/collections assembly and lifecycle. */
 final class LibraryFeatureBinding {
     private final ComponentActivity activity;
-    private final MainActivityViewModel mainViewModel;
     private final NavigationViewModel navigationViewModel;
     private final SettingsViewModel settingsViewModel;
     private final MainSettingsStore settingsStore;
@@ -34,7 +33,7 @@ final class LibraryFeatureBinding {
     private final LibraryViewModel viewModel;
     private final CollectionsViewModel collectionsViewModel;
     private final HomeDashboardViewModel homeDashboardViewModel;
-    private final MainLibraryStore store;
+    private final LibraryDataStateOwner store;
     private final LibraryCollectionsOwner collectionsOwner;
 
     private LibraryImportOwner importOwner;
@@ -55,14 +54,12 @@ final class LibraryFeatureBinding {
     LibraryFeatureBinding(
             ComponentActivity activity,
             MainActivityViewModels viewModels,
-            MainActivityViewModel mainViewModel,
             NavigationViewModel navigationViewModel,
             SettingsViewModel settingsViewModel,
             MainSettingsStore settingsStore,
             NavigationFeatureBinding navigation,
             StatusMessageController statusMessages,
             MusicLibraryRepository repository,
-            LibrarySearchUseCase searchUseCase,
             ToggleFavoriteUseCase toggleFavoriteUseCase,
             LoadPlaylistTracksUseCase loadPlaylistTracksUseCase,
             LibraryCollectionGateway collectionGateway,
@@ -73,7 +70,6 @@ final class LibraryFeatureBinding {
             ArtistInfoRepository artistInfoRepository
     ) {
         this.activity = activity;
-        this.mainViewModel = mainViewModel;
         this.navigationViewModel = navigationViewModel;
         this.settingsViewModel = settingsViewModel;
         this.settingsStore = settingsStore;
@@ -92,7 +88,7 @@ final class LibraryFeatureBinding {
         this.viewModel = viewModels.getLibraryViewModel();
         this.collectionsViewModel = viewModels.getCollectionsViewModel();
         this.homeDashboardViewModel = viewModels.getHomeDashboardViewModel();
-        this.store = new MainLibraryStore(searchUseCase, mainViewModel);
+        this.store = viewModel.dataOwner();
         this.collectionsOwner = new LibraryCollectionsOwner(
                 viewModel,
                 navigation.getRouteController(),
@@ -104,7 +100,7 @@ final class LibraryFeatureBinding {
         return viewModel;
     }
 
-    MainLibraryStore store() {
+    LibraryDataStateOwner store() {
         return store;
     }
 
@@ -134,7 +130,7 @@ final class LibraryFeatureBinding {
             LyricsViewModel lyricsViewModel
     ) {
         playback.bindStateSources(
-                mainViewModel,
+                viewModel.getLibrary(),
                 lyricsViewModel,
                 settingsViewModel,
                 streaming.viewModel(),
@@ -213,20 +209,20 @@ final class LibraryFeatureBinding {
         );
         trackListStatePublisher = new TrackListStatePublisher(
                 trackListRenderController,
-                mainViewModel.getLibrary(),
+                viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel()
         );
         searchViewModel.bindStateSources(
                 navigationViewModel.getState(),
-                mainViewModel.getLibrary(),
+                viewModel.getLibrary(),
                 repository::search
         );
         viewModel.bindPlaylistActionGateway(playlistActionGateway);
         playHistoryActionController = new PlayHistoryActionController(
                 viewModel,
                 this::languageMode,
-                mainViewModel::clearPlayHistory,
+                store::clearPlayHistory,
                 status -> {
                     statusMessages.setStatus(status);
                     return kotlin.Unit.INSTANCE;
@@ -306,7 +302,7 @@ final class LibraryFeatureBinding {
                 (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),
                 this::languageMode,
                 statusMessages::setStatus,
-                mainViewModel::setFavorite,
+                store::setFavorite,
                 collectionsOwner::load,
                 playlistDialogController::showAddToPlaylist,
                 navigation.getRouteController(),
@@ -394,7 +390,7 @@ final class LibraryFeatureBinding {
         );
         collectionsRenderController.bindStateSources(
                 navigationViewModel.getState(),
-                mainViewModel.getLibrary(),
+                viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel(),
                 () -> new CollectionsInsightSnapshot(
@@ -429,7 +425,7 @@ final class LibraryFeatureBinding {
         );
         renderOwner.bindStateSources(
                 navigationViewModel.getState(),
-                mainViewModel.getLibrary(),
+                viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel()
         );

@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelProvider
 import app.yukine.queue.QueueViewModel
 
 data class MainActivityViewModels(
-    val mainActivityViewModel: MainActivityViewModel,
     val navigationViewModel: NavigationViewModel,
     val playbackViewModel: PlaybackViewModel,
     val streamingViewModel: StreamingViewModel,
@@ -29,7 +28,6 @@ data class MainActivityViewModels(
         fun from(activity: ComponentActivity): MainActivityViewModels {
             val provider = ViewModelProvider(activity)
             return MainActivityViewModels(
-                mainActivityViewModel = provider[MainActivityViewModel::class.java],
                 navigationViewModel = provider[NavigationViewModel::class.java],
                 playbackViewModel = provider[PlaybackViewModel::class.java],
                 streamingViewModel = provider[StreamingViewModel::class.java],

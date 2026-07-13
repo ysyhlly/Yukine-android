@@ -4,7 +4,7 @@ import app.yukine.navigation.PlaybackSnapshotProvider
 
 internal class SettingsContextProvider(
     private val settingsStore: MainSettingsStore,
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val permissionController: MainPermissionController,
     private val playbackConnectionController: PlaybackServiceConnectionController,
     private val playbackSnapshotProvider: PlaybackSnapshotProvider,

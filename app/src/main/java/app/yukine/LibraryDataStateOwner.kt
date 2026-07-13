@@ -4,14 +4,31 @@ import app.yukine.model.Playlist
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.ArrayList
 import java.util.HashSet
+import java.util.Locale
+
+data class LibraryStoreState(
+    val sourceCandidatesByTrackId: Map<Long, List<Track>> = emptyMap(),
+    val allTracks: List<Track> = emptyList(),
+    val visibleTracks: List<Track> = emptyList(),
+    val favoriteTrackIds: Set<Long> = emptySet(),
+    val favoriteTracks: List<Track> = emptyList(),
+    val recentRecords: List<TrackPlayRecord> = emptyList(),
+    val mostPlayedRecords: List<TrackPlayRecord> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
+    val selectedPlaylistTracks: List<Track> = emptyList(),
+    val remoteSources: List<RemoteSource> = emptyList()
+)
 
 /** A fully prepared, owned library payload that is safe to publish without another full-list copy. */
 internal data class PreparedLibraryReplacement(
@@ -21,12 +38,13 @@ internal data class PreparedLibraryReplacement(
     val favoriteTrackIds: Set<Long>
 )
 
-internal class MainLibraryStore @JvmOverloads constructor(
-    private val searchUseCase: LibrarySearchUseCase,
-    private val viewModel: MainActivityViewModel,
+/** The only mutable owner of the library data snapshot used by library, player and navigation. */
+internal class LibraryDataStateOwner @JvmOverloads constructor(
+    private val scope: CoroutineScope,
     private val preparationDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
-    private val combinedSearchUseCase = LibraryCombinedSearchUseCase(searchUseCase)
+    private val mutableState = MutableStateFlow(LibraryStoreState())
+    val state: StateFlow<LibraryStoreState> = mutableState.asStateFlow()
     private var replacementJob: Job? = null
     private var searchJob: Job? = null
     private var libraryRevision = 0L
@@ -99,7 +117,7 @@ internal class MainLibraryStore @JvmOverloads constructor(
         latestSearchQuery = normalizedSearchQuery(searchQuery)
         replacementJob?.cancel()
         searchJob?.cancel()
-        replacementJob = viewModel.viewModelScope.launch {
+        replacementJob = scope.launch {
             val base = withContext(preparationDispatcher) {
                 prepareLibraryBase(tracks, favorites)
             }
@@ -137,37 +155,38 @@ internal class MainLibraryStore @JvmOverloads constructor(
     }
 
     private fun applyPreparedLibrary(prepared: PreparedLibraryReplacement) {
-        viewModel.replaceLibrary(
-            prepared.sourceCandidatesByTrackId,
-            prepared.allTracks,
-            prepared.visibleTracks,
-            prepared.favoriteTrackIds
+        val current = mutableState.value
+        mutableState.value = current.copy(
+            sourceCandidatesByTrackId = prepared.sourceCandidatesByTrackId,
+            allTracks = prepared.allTracks,
+            visibleTracks = prepared.visibleTracks,
+            favoriteTrackIds = prepared.favoriteTrackIds
         )
         libraryRevision++
     }
 
     fun applyCollections(snapshot: LibraryCollectionsResult) {
-        viewModel.applyCollections(
-            HashSet(snapshot.favoriteIds),
-            ArrayList(snapshot.favoriteTracks),
-            ArrayList(snapshot.recentRecords),
-            ArrayList(snapshot.mostPlayedRecords),
-            ArrayList(snapshot.playlists),
-            ArrayList(snapshot.selectedPlaylistTracks),
-            ArrayList(snapshot.remoteSources)
+        mutableState.value = mutableState.value.copy(
+            favoriteTrackIds = HashSet(snapshot.favoriteIds),
+            favoriteTracks = ArrayList(snapshot.favoriteTracks),
+            recentRecords = ArrayList(snapshot.recentRecords),
+            mostPlayedRecords = ArrayList(snapshot.mostPlayedRecords),
+            playlists = ArrayList(snapshot.playlists),
+            selectedPlaylistTracks = ArrayList(snapshot.selectedPlaylistTracks),
+            remoteSources = ArrayList(snapshot.remoteSources)
         )
     }
 
     fun applySearch(query: String?) {
         latestSearchQuery = normalizedSearchQuery(query)
-        viewModel.updateVisibleTracks(searchVisibleTracks(state(), latestSearchQuery))
+        updateVisibleTracks(searchVisibleTracks(state(), latestSearchQuery))
     }
 
     /** Keeps per-keystroke filtering and duplicate merging off the UI thread. */
     fun applySearchAsync(query: String?, onApplied: Runnable) {
         latestSearchQuery = normalizedSearchQuery(query)
         searchJob?.cancel()
-        searchJob = viewModel.viewModelScope.launch {
+        searchJob = scope.launch {
             while (true) {
                 val queryForSearch = latestSearchQuery
                 val source = state()
@@ -176,7 +195,7 @@ internal class MainLibraryStore @JvmOverloads constructor(
                     searchVisibleTracks(source, queryForSearch)
                 }
                 if (queryForSearch == latestSearchQuery && revision == libraryRevision) {
-                    viewModel.updateVisibleTracks(visibleTracks)
+                    updateVisibleTracks(visibleTracks)
                     onApplied.run()
                     return@launch
                 }
@@ -214,7 +233,7 @@ internal class MainLibraryStore @JvmOverloads constructor(
     }
 
     fun filteredTracks(tracks: List<Track>, searchQuery: String?): ArrayList<Track> {
-        return ArrayList(searchUseCase.execute(tracks, searchQuery))
+        return ArrayList(search(tracks, normalizedSearchQuery(searchQuery)))
     }
 
     fun filteredSelectedPlaylistTracks(searchQuery: String?): ArrayList<Track> {
@@ -245,8 +264,39 @@ internal class MainLibraryStore @JvmOverloads constructor(
         return NetworkLibrary.remoteSourceName(remoteSources(), sourceId, languageMode)
     }
 
+    fun clearPlayHistory() {
+        mutableState.value = mutableState.value.copy(
+            recentRecords = emptyList(),
+            mostPlayedRecords = emptyList()
+        )
+    }
+
+    fun toggleFavorite(trackId: Long): Boolean {
+        val favorite = trackId !in mutableState.value.favoriteTrackIds
+        setFavorite(trackId, favorite)
+        return favorite
+    }
+
+    fun setFavorite(trackId: Long, favorite: Boolean) {
+        val current = mutableState.value
+        val favoriteIds = current.favoriteTrackIds.toMutableSet().apply {
+            if (favorite) add(trackId) else remove(trackId)
+        }
+        mutableState.value = current.copy(
+            favoriteTrackIds = favoriteIds,
+            favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
+        )
+    }
+
     private fun state(): LibraryStoreState {
-        return viewModel.library.value
+        return mutableState.value
+    }
+
+    private fun updateVisibleTracks(visibleTracks: List<Track>) {
+        val current = mutableState.value
+        if (current.visibleTracks !== visibleTracks) {
+            mutableState.value = current.copy(visibleTracks = visibleTracks)
+        }
     }
 
     private fun normalizedSearchQuery(query: String?): String = query.orEmpty().trim()
@@ -255,12 +305,32 @@ internal class MainLibraryStore @JvmOverloads constructor(
         if (query.isEmpty() && current.selectedPlaylistTracks.isEmpty()) {
             return current.allTracks
         }
-        val searchedTracks = combinedSearchUseCase.execute(
-            current.allTracks,
-            current.selectedPlaylistTracks,
-            query
-        )
+        val searchedTracks = search(current.allTracks, query) + search(current.selectedPlaylistTracks, query)
         return LibraryTrackMergePolicy.merge(searchedTracks)
+    }
+
+    private fun search(source: List<Track>, query: String): List<Track> {
+        if (query.isBlank()) return source
+        val normalized = query.trim().lowercase(Locale.ROOT)
+        return source.filter { track ->
+            track.title.lowercase(Locale.ROOT).contains(normalized) ||
+                track.artist.lowercase(Locale.ROOT).contains(normalized) ||
+                track.album.lowercase(Locale.ROOT).contains(normalized)
+        }
+    }
+
+    private fun updateFavoriteTracks(
+        current: LibraryStoreState,
+        trackId: Long,
+        favorite: Boolean
+    ): List<Track> {
+        if (!favorite) return current.favoriteTracks.filterNot { it.id == trackId }
+        if (current.favoriteTracks.any { it.id == trackId }) return current.favoriteTracks
+        val track = current.allTracks.firstOrNull { it.id == trackId }
+            ?: current.visibleTracks.firstOrNull { it.id == trackId }
+            ?: current.selectedPlaylistTracks.firstOrNull { it.id == trackId }
+            ?: return current.favoriteTracks
+        return current.favoriteTracks + track
     }
 
     private data class PreparedLibraryBase(
@@ -273,7 +343,7 @@ internal class MainLibraryStore @JvmOverloads constructor(
         val visibleTracks = if (searchQuery.isEmpty()) {
             librarySnapshot.mergedTracks
         } else {
-            LibraryTrackMergePolicy.merge(searchUseCase.execute(sourceTracks, searchQuery))
+            LibraryTrackMergePolicy.merge(search(sourceTracks, searchQuery))
         }
         return PreparedLibraryReplacement(
             sourceCandidatesByTrackId = librarySnapshot.sourceCandidatesByTrackId,

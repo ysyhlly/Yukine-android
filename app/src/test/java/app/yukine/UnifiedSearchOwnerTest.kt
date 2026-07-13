@@ -87,16 +87,8 @@ class UnifiedSearchOwnerTest {
         val routeController = MainRouteController(NavigationViewModel(SavedStateHandle()))
         val searchViewModel = SearchViewModel()
         val streamingViewModel = StreamingViewModel()
-        val libraryViewModel = LibraryViewModel()
-        val mainViewModel = MainActivityViewModel(SavedStateHandle())
-        val libraryStore = MainLibraryStore(
-            LibrarySearchUseCase(object : LibrarySearchOperations {
-                override fun search(source: List<Track>, query: String?): List<Track> =
-                    source.filter { it.title.contains(query.orEmpty(), ignoreCase = true) }
-            }),
-            mainViewModel,
-            Dispatchers.Unconfined
-        )
+        val libraryViewModel = LibraryViewModel(preparationDispatcher = Dispatchers.Unconfined)
+        val libraryStore = libraryViewModel.dataOwner()
         val streamingHandler = RecordingStreamingSearchHandler()
         val settingsStore = MainSettingsStore().apply {
             setLanguageMode(AppLanguage.MODE_ENGLISH)

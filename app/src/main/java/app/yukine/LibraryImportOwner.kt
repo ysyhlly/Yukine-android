@@ -6,7 +6,7 @@ import app.yukine.model.Track
 /** Owns the complete library scan/import-to-state publication pipeline. */
 internal class LibraryImportOwner(
     private val viewModel: LibraryViewModel,
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val routeController: MainRouteController,
     private val audioPermissionSource: AudioPermissionSource,
     private val languageModeSource: LanguageModeSource,

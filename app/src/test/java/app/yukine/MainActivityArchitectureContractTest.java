@@ -423,12 +423,16 @@ public final class MainActivityArchitectureContractTest {
     public void libraryStateAndMutationsAreSplitIntoFocusedOwners() throws Exception {
         String viewModel = read("app/src/main/java/app/yukine/LibraryViewModel.kt");
         String classBody = viewModel.substring(viewModel.indexOf("class LibraryViewModel"));
+        String data = read("app/src/main/java/app/yukine/LibraryDataStateOwner.kt");
         String presentation = read("app/src/main/java/app/yukine/LibraryPresentationStateOwner.kt");
         String loading = read("app/src/main/java/app/yukine/LibraryLoadStateOwner.kt");
         String playlists = read("app/src/main/java/app/yukine/LibraryPlaylistStateOwner.kt");
         String favorites = read("app/src/main/java/app/yukine/LibraryFavoriteStateOwner.kt");
         String mutations = read("app/src/main/java/app/yukine/LibraryMutationContext.kt");
 
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/MainActivityViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/MainLibraryStore.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/LibrarySearchUseCase.kt")));
         assertTrue(viewModel.lines().count() < 350);
         assertFalse(classBody.contains("MutableStateFlow"));
         assertFalse(classBody.contains("fun loadLibrary("));
@@ -439,6 +443,10 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(classBody.contains("internal val loading = LibraryLoadStateOwner"));
         assertTrue(classBody.contains("internal val playlists = LibraryPlaylistStateOwner"));
         assertTrue(classBody.contains("internal val favorites = LibraryFavoriteStateOwner"));
+        assertTrue(classBody.contains("internal val data = LibraryDataStateOwner(viewModelScope"));
+        assertTrue(classBody.contains("val library: StateFlow<LibraryStoreState> = data.state"));
+        assertTrue(data.contains("private val mutableState = MutableStateFlow(LibraryStoreState())"));
+        assertTrue(data.contains("val state: StateFlow<LibraryStoreState> = mutableState.asStateFlow()"));
         assertTrue(presentation.contains("private val trackListState = MutableStateFlow"));
         assertTrue(presentation.contains("private val groupsState = MutableStateFlow"));
         assertTrue(presentation.contains("private val uiState = MutableStateFlow"));

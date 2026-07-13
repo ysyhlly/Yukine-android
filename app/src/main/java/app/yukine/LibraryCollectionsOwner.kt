@@ -4,7 +4,7 @@ package app.yukine
 internal class LibraryCollectionsOwner(
     private val viewModel: LibraryViewModel,
     private val routeController: MainRouteController,
-    private val libraryStore: MainLibraryStore
+    private val libraryStore: LibraryDataStateOwner
 ) {
     fun load() {
         viewModel.playlists.loadCollections(routeController.selectedPlaylistId()) { result ->

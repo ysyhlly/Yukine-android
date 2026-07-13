@@ -19,15 +19,8 @@ class LibraryCollectionsOwnerTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val navigationViewModel = NavigationViewModel(SavedStateHandle())
         val routeController = MainRouteController(navigationViewModel)
-        val activityViewModel = MainActivityViewModel(SavedStateHandle())
-        val libraryStore = MainLibraryStore(
-            LibrarySearchUseCase(object : LibrarySearchOperations {
-                override fun search(source: List<app.yukine.model.Track>, query: String?) = source
-            }),
-            activityViewModel,
-            dispatcher
-        )
-        val libraryViewModel = LibraryViewModel(dispatcher)
+        val libraryViewModel = LibraryViewModel(dispatcher, dispatcher)
+        val libraryStore = libraryViewModel.dataOwner()
         val requestedIds = mutableListOf<Long>()
         libraryViewModel.bindCollectionGateway(object : LibraryCollectionGateway {
             override fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult {
@@ -55,16 +48,8 @@ class LibraryCollectionsOwnerTest {
     fun selectAndLoadUpdatesRouteBeforeReadingGateway() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val routeController = MainRouteController(NavigationViewModel(SavedStateHandle()))
-        val activityViewModel = MainActivityViewModel(SavedStateHandle())
-        val libraryStore = MainLibraryStore(
-            LibrarySearchUseCase(object : LibrarySearchOperations {
-                override fun search(source: List<app.yukine.model.Track>, query: String?) = source
-            }),
-            activityViewModel,
-            dispatcher
-        )
         val requestedIds = mutableListOf<Long>()
-        val libraryViewModel = LibraryViewModel(dispatcher).apply {
+        val libraryViewModel = LibraryViewModel(dispatcher, dispatcher).apply {
             bindCollectionGateway(object : LibraryCollectionGateway {
                 override fun loadCollections(selectedPlaylistId: Long): LibraryCollectionsResult {
                     requestedIds += selectedPlaylistId
@@ -74,6 +59,7 @@ class LibraryCollectionsOwnerTest {
                 override fun clearPlayHistory(): Int = 0
             })
         }
+        val libraryStore = libraryViewModel.dataOwner()
         val owner = LibraryCollectionsOwner(libraryViewModel, routeController, libraryStore)
 
         owner.selectAndLoad(21L)

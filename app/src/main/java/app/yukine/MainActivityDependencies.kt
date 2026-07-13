@@ -26,7 +26,6 @@ internal class MainActivityDependencies @Inject constructor(
     val loadSettingsPreferencesUseCase: LoadSettingsPreferencesUseCase,
     val applySettingsPreferenceUseCase: ApplySettingsPreferenceUseCase,
     val streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations,
-    val librarySearchUseCase: LibrarySearchUseCase,
     val loadLyricsSettingsUseCase: LoadLyricsSettingsUseCase,
     val lyricsLoader: LyricsLoader,
     val networkActionUseCases: NetworkActionUseCases,

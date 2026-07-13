@@ -15,7 +15,7 @@ internal class UnifiedSearchOwner @JvmOverloads constructor(
     private val searchViewModel: SearchViewModel,
     private val streamingViewModel: StreamingViewModel,
     private val libraryViewModel: LibraryViewModel,
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val streamingSearch: StreamingSearchActionHandler,
     private val settingsStore: MainSettingsStore,
     private val quality: StreamingPlaybackQuality,

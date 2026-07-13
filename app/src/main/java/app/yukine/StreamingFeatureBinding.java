@@ -44,7 +44,7 @@ final class StreamingFeatureBinding {
 
     private PlaybackFeatureBinding playback;
     private NavigationFeatureBinding navigation;
-    private MainLibraryStore libraryStore;
+    private LibraryDataStateOwner libraryStore;
     private LibraryCollectionsOwner libraryCollectionsOwner;
     private LibraryImportOwner libraryImportOwner;
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
@@ -121,7 +121,7 @@ final class StreamingFeatureBinding {
     void bindPlayback(
             PlaybackFeatureBinding playback,
             NavigationFeatureBinding navigation,
-            MainLibraryStore libraryStore,
+            LibraryDataStateOwner libraryStore,
             LyricsViewModel lyricsViewModel,
             QueueClearQueueConfirmer clearQueueConfirmer
     ) {

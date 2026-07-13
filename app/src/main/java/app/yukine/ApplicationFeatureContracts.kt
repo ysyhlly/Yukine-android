@@ -1,13 +1,9 @@
 package app.yukine
 
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import app.yukine.model.Playlist
 import app.yukine.model.PlaylistImportResult
-import app.yukine.model.RemoteSource
 import app.yukine.model.Track
-import app.yukine.model.TrackPlayRecord
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingAuthKind
@@ -23,31 +19,9 @@ import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 
 internal const val STREAMING_AUTH_REDIRECT_URI = "echo-next://streaming-auth"
-
-data class LibraryStoreState(
-    /** Lookup of only duplicate groups, built when the library is refreshed. */
-    val sourceCandidatesByTrackId: Map<Long, List<Track>> = emptyMap(),
-    val allTracks: List<Track> = emptyList(),
-    val visibleTracks: List<Track> = emptyList(),
-    val favoriteTrackIds: Set<Long> = emptySet(),
-    val favoriteTracks: List<Track> = emptyList(),
-    val recentRecords: List<TrackPlayRecord> = emptyList(),
-    val mostPlayedRecords: List<TrackPlayRecord> = emptyList(),
-    val playlists: List<Playlist> = emptyList(),
-    val selectedPlaylistTracks: List<Track> = emptyList(),
-    val remoteSources: List<RemoteSource> = emptyList()
-)
 
 data class StreamingManualCookieDialogState(
     val provider: StreamingProviderName? = null,
@@ -330,142 +304,6 @@ interface StreamingTrackMatchStore {
         storeSnapshot: PlaybackStateSnapshot?,
         queue: List<Track?>?
     ): String = ""
-}
-
-@HiltViewModel
-class MainActivityViewModel @Inject constructor(
-    @Suppress("UNUSED_PARAMETER") savedStateHandle: SavedStateHandle
-) : ViewModel() {
-    private val libraryState = MutableStateFlow(LibraryStoreState())
-
-    val library: StateFlow<LibraryStoreState> = libraryState.asStateFlow()
-
-    fun updateLibrary(snapshot: LibraryStoreState) {
-        libraryState.value = snapshot
-    }
-
-    fun replaceLibrary(
-        sourceCandidatesByTrackId: Map<Long, List<Track>>,
-        allTracks: List<Track>,
-        visibleTracks: List<Track>,
-        favoriteTrackIds: Set<Long>
-    ) {
-        val current = libraryState.value
-        libraryState.value = current.copy(
-            // MainLibraryStore publishes a freshly built, owned snapshot. Copying every large
-            // collection again here doubles allocation and delays the first visible list frame.
-            sourceCandidatesByTrackId = sourceCandidatesByTrackId,
-            allTracks = allTracks,
-            visibleTracks = visibleTracks,
-            favoriteTrackIds = favoriteTrackIds
-        )
-    }
-
-    fun updateVisibleTracks(visibleTracks: List<Track>) {
-        val current = libraryState.value
-        if (current.visibleTracks === visibleTracks) {
-            return
-        }
-        libraryState.value = current.copy(visibleTracks = visibleTracks)
-    }
-
-    fun applyCollections(
-        favoriteTrackIds: Set<Long>,
-        favoriteTracks: List<Track>,
-        recentRecords: List<TrackPlayRecord>,
-        mostPlayedRecords: List<TrackPlayRecord>,
-        playlists: List<Playlist>,
-        selectedPlaylistTracks: List<Track>,
-        remoteSources: List<RemoteSource>
-    ) {
-        val current = libraryState.value
-        libraryState.value = current.copy(
-            favoriteTrackIds = favoriteTrackIds.toSet(),
-            favoriteTracks = favoriteTracks.toList(),
-            recentRecords = recentRecords.toList(),
-            mostPlayedRecords = mostPlayedRecords.toList(),
-            playlists = playlists.toList(),
-            selectedPlaylistTracks = selectedPlaylistTracks.toList(),
-            remoteSources = remoteSources.toList()
-        )
-    }
-
-    fun clearPlayHistory() {
-        libraryState.value = libraryState.value.copy(
-            recentRecords = emptyList(),
-            mostPlayedRecords = emptyList()
-        )
-    }
-
-    fun toggleFavorite(trackId: Long): Boolean {
-        val current = libraryState.value
-        val nextFavoriteIds = current.favoriteTrackIds.toMutableSet()
-        val nextValue = if (nextFavoriteIds.contains(trackId)) {
-            nextFavoriteIds.remove(trackId)
-            false
-        } else {
-            nextFavoriteIds.add(trackId)
-            true
-        }
-        libraryState.value = current.copy(
-            favoriteTrackIds = nextFavoriteIds,
-            favoriteTracks = updateFavoriteTracks(current, trackId, nextValue)
-        )
-        return nextValue
-    }
-
-    fun setFavorite(trackId: Long, favorite: Boolean) {
-        val current = libraryState.value
-        val nextFavoriteIds = current.favoriteTrackIds.toMutableSet()
-        if (favorite) {
-            nextFavoriteIds.add(trackId)
-        } else {
-            nextFavoriteIds.remove(trackId)
-        }
-        libraryState.value = current.copy(
-            favoriteTrackIds = nextFavoriteIds,
-            favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
-        )
-    }
-
-    private fun updateFavoriteTracks(
-        current: LibraryStoreState,
-        trackId: Long,
-        favorite: Boolean
-    ): List<Track> {
-        if (!favorite) {
-            return current.favoriteTracks.filterNot { it.id == trackId }
-        }
-        if (current.favoriteTracks.any { it.id == trackId }) {
-            return current.favoriteTracks
-        }
-        val track = current.allTracks.firstOrNull { it.id == trackId }
-            ?: current.visibleTracks.firstOrNull { it.id == trackId }
-            ?: current.selectedPlaylistTracks.firstOrNull { it.id == trackId }
-            ?: return current.favoriteTracks
-        return current.favoriteTracks + track
-    }
-
-    /**
-     * Loads the playlists saved on the user's account for the given provider (requires the
-     * gateway's userPlaylists endpoint). Results are kept on [StreamingSearchState.userPlaylists].
-     */
-    /**
-     * Fetches the user's liked/saved tracks from the provider and delivers them via callback.
-     */
-    /**
-     * Fetches the provider's daily recommendation tracks (e.g. NetEase 每日推荐) and delivers them
-     * via callback. Delivers an empty list on failure.
-     */
-    /**
-     * Fetches the provider's heartbeat / intelligence recommendation tracks (e.g. NetEase 心动推荐)
-     * and delivers them via callback. Delivers an empty list on failure.
-     */
-    /**
-     * Fetches a streaming playlist's full track list and delivers the contained streaming tracks
-     * via [onResolved] so the caller (MainActivity) can persist them as a local playlist. Delivers
-     * an empty list on failure.
-     */
 }
 
 object NavigationRouteStateStore {

@@ -7,7 +7,6 @@ import app.yukine.model.Track;
 /** Owns Activity-scoped network screens, actions, dialogs and rendering lifecycle. */
 final class NetworkFeatureBinding {
     private final ComponentActivity activity;
-    private final MainActivityViewModel mainViewModel;
     private final NavigationViewModel navigationViewModel;
     private final NetworkMenuViewModel menuViewModel;
     private final NetworkActionsViewModel actionsViewModel;
@@ -35,7 +34,6 @@ final class NetworkFeatureBinding {
             PlaybackFeatureBinding playback
     ) {
         this.activity = activity;
-        this.mainViewModel = viewModels.getMainActivityViewModel();
         this.navigationViewModel = viewModels.getNavigationViewModel();
         this.menuViewModel = viewModels.getNetworkMenuViewModel();
         this.actionsViewModel = (NetworkActionsViewModel) viewModels.getNetworkActionsViewModel();
@@ -125,7 +123,7 @@ final class NetworkFeatureBinding {
         );
         renderCoordinator.bindStateSources(
                 navigationViewModel.getState(),
-                mainViewModel.getLibrary(),
+                library.viewModel().getLibrary(),
                 settings.viewModel().getState()
         );
     }

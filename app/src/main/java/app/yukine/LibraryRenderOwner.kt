@@ -27,7 +27,7 @@ internal fun interface LibraryStatusSink {
 }
 
 internal class LibraryRenderOwner @JvmOverloads constructor(
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val viewModel: LibraryViewModel,
     private val trackListRenderer: TrackListRenderController,
     private val groupsRenderer: LibraryGroupsRenderController,

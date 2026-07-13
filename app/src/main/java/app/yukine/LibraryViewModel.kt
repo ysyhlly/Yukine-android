@@ -200,6 +200,7 @@ fun interface LibraryTrackAddedToPlaylistCallback {
 
 class LibraryViewModel @JvmOverloads constructor(
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    preparationDispatcher: CoroutineDispatcher = Dispatchers.Default,
     libraryRefreshDiagnosticTimeoutMs: Long = DEFAULT_LIBRARY_REFRESH_DIAGNOSTIC_TIMEOUT_MS
 ) : ViewModel() {
     private var gateway: LibraryGateway? = null
@@ -213,10 +214,15 @@ class LibraryViewModel @JvmOverloads constructor(
         libraryRefreshDiagnosticTimeoutMs
     )
     internal val presentation = LibraryPresentationStateOwner({ gateway }, favorites, playlists)
+    internal val data = LibraryDataStateOwner(viewModelScope, preparationDispatcher)
 
     val trackList: StateFlow<LibraryTrackListDestinationState> = presentation.trackList
     val libraryGroups: StateFlow<LibraryGroupsDestinationState> = presentation.groups
     val libraryUi: StateFlow<LibraryUiState> = presentation.ui
+    val library: StateFlow<LibraryStoreState> = data.state
+
+    @JvmName("dataOwner")
+    internal fun dataOwner(): LibraryDataStateOwner = data
 
     @JvmName("playlistOwner")
     internal fun playlistOwner(): LibraryPlaylistStateOwner = playlists

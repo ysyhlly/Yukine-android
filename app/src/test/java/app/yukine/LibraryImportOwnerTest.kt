@@ -28,8 +28,8 @@ class LibraryImportOwnerTest {
         fixture.owner.importAudioUris(listOf(Uri.EMPTY))
         advanceUntilIdle()
 
-        assertEquals(listOf(track), fixture.mainViewModel.library.value.allTracks)
-        assertEquals(setOf(track.id), fixture.mainViewModel.library.value.favoriteTrackIds)
+        assertEquals(listOf(track), fixture.libraryViewModel.library.value.allTracks)
+        assertEquals(setOf(track.id), fixture.libraryViewModel.library.value.favoriteTrackIds)
         assertEquals(1, fixture.collectionsLoads)
         assertEquals(
             listOf(
@@ -51,7 +51,7 @@ class LibraryImportOwnerTest {
         fixture.owner.loadLibrary(allowCachedFirst = false)
         advanceUntilIdle()
 
-        assertEquals(listOf(track), fixture.mainViewModel.library.value.allTracks)
+        assertEquals(listOf(track), fixture.libraryViewModel.library.value.allTracks)
         assertEquals(listOf(true), fixture.scanResults)
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "library.scan.found.prefix") +
@@ -65,16 +65,9 @@ class LibraryImportOwnerTest {
         gateway: FakeImportGateway,
         dispatcher: CoroutineDispatcher
     ): Fixture {
-        val libraryViewModel = LibraryViewModel(dispatcher)
+        val libraryViewModel = LibraryViewModel(dispatcher, dispatcher)
         libraryViewModel.bindImportGateway(gateway)
-        val mainViewModel = MainActivityViewModel(SavedStateHandle())
-        val store = MainLibraryStore(
-            LibrarySearchUseCase(object : LibrarySearchOperations {
-                override fun search(source: List<Track>, query: String?): List<Track> = source
-            }),
-            mainViewModel,
-            dispatcher
-        )
+        val store = libraryViewModel.dataOwner()
         val routeController = MainRouteController(NavigationViewModel(SavedStateHandle()))
         val statuses = mutableListOf<String>()
         val scanResults = mutableListOf<Boolean>()
@@ -90,7 +83,7 @@ class LibraryImportOwnerTest {
             LibraryImportOwner.OnboardingScanObserver(scanResults::add),
             LibraryImportOwner.NetworkNavigator {}
         )
-        return Fixture(owner, mainViewModel, statuses, scanResults) { collectionsLoads }
+        return Fixture(owner, libraryViewModel, statuses, scanResults) { collectionsLoads }
     }
 
     private class FakeImportGateway(
@@ -106,7 +99,7 @@ class LibraryImportOwnerTest {
 
     private class Fixture(
         val owner: LibraryImportOwner,
-        val mainViewModel: MainActivityViewModel,
+        val libraryViewModel: LibraryViewModel,
         val statuses: List<String>,
         val scanResults: List<Boolean>,
         private val collectionsLoadCount: () -> Int

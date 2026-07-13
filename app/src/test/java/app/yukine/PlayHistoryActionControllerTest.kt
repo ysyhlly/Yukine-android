@@ -20,33 +20,26 @@ class PlayHistoryActionControllerTest {
     @Test
     fun clearPlayHistoryPublishesStatusUpdatesStoreAndReloadsCollections() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val viewModel = LibraryViewModel(dispatcher)
-        val activityViewModel = MainActivityViewModel(SavedStateHandle())
-        val store = MainLibraryStore(
-            LibrarySearchUseCase(object : LibrarySearchOperations {
-                override fun search(source: List<Track>, query: String?): List<Track> = source
-            }),
-            activityViewModel
-        )
+        val viewModel = LibraryViewModel(dispatcher, dispatcher)
+        val store = viewModel.dataOwner()
         val statuses = mutableListOf<String>()
         var reloads = 0
         viewModel.bindCollectionGateway(FakeCollectionGateway(removed = 4))
         val controller = PlayHistoryActionController(
             viewModel,
             { AppLanguage.MODE_ENGLISH },
-            PlayHistoryStateStore { activityViewModel.clearPlayHistory() },
+            PlayHistoryStateStore { store.clearPlayHistory() },
             { statuses += it },
             Runnable { reloads += 1 }
         )
 
-        activityViewModel.applyCollections(
-            favoriteTrackIds = hashSetOf(),
-            favoriteTracks = arrayListOf(),
-            recentRecords = arrayListOf(record(1L), record(2L)),
-            mostPlayedRecords = arrayListOf(record(3L)),
-            playlists = arrayListOf(),
-            selectedPlaylistTracks = arrayListOf(),
-            remoteSources = arrayListOf()
+        store.applyCollections(
+            LibraryCollectionsResult(
+                favoriteIds = emptySet(),
+                favoriteTracks = listOf(),
+                recentRecords = listOf(record(1L), record(2L)),
+                mostPlayedRecords = listOf(record(3L))
+            )
         )
 
         controller.clearPlayHistory()

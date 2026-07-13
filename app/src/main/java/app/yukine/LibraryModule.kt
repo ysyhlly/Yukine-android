@@ -20,11 +20,6 @@ internal object LibraryModule {
 
     @Provides
     @ActivityScoped
-    fun provideLibrarySearchUseCase(repository: MusicLibraryRepository): LibrarySearchUseCase =
-        LibrarySearchUseCase(MusicLibrarySearchOperations(repository))
-
-    @Provides
-    @ActivityScoped
     fun provideArtistInfoRepository(): ArtistInfoRepository = ArtistInfoRepository()
 
     @Provides

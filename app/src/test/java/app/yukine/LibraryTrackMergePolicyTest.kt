@@ -113,26 +113,8 @@ class LibraryTrackMergePolicyTest {
     }
 
     @Test
-    fun mainLibraryStoreUsesMergedTracksForTheLibraryAndSearchResults() {
-        var searchCalls = 0
-        val store = MainLibraryStore(
-            LibrarySearchUseCase(
-                object : LibrarySearchOperations {
-                    override fun search(source: List<Track>, query: String?): List<Track> {
-                        searchCalls++
-                        val normalizedQuery = query.orEmpty().trim()
-                        return if (normalizedQuery.isEmpty()) {
-                            source
-                        } else {
-                            source.filter { track ->
-                                track.title.contains(normalizedQuery, ignoreCase = true)
-                            }
-                        }
-                    }
-                }
-            ),
-            MainActivityViewModel(SavedStateHandle())
-        )
+    fun libraryDataOwnerUsesMergedTracksForTheLibraryAndSearchResults() {
+        val store = LibraryViewModel().dataOwner()
         store.replaceLibrary(
             listOf(
                 track(1L, "NPC", "Luna / ねんね", "Bed Time Story", 250_000L, "/Music/npc.flac"),
@@ -145,7 +127,6 @@ class LibraryTrackMergePolicyTest {
 
         assertEquals(listOf(1L, 3L), store.allTracks().map { it.id })
         assertEquals(listOf(1L, 3L), store.visibleTracks().map { it.id })
-        assertEquals(0, searchCalls)
         assertEquals(listOf(1L, 2L), store.sourceCandidatesFor(track(1L, "NPC", "Luna / ねんね", "Bed Time Story", 250_000L, "/Music/npc.flac")).map { it.id })
 
         store.applySearch("npc")

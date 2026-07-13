@@ -173,7 +173,7 @@ internal class PlaybackFeatureBinding(
     }
 
     fun bindStateSources(
-        mainViewModel: MainActivityViewModel,
+        libraryState: StateFlow<LibraryStoreState>,
         lyricsViewModel: LyricsViewModel,
         settingsViewModel: SettingsViewModel,
         streamingViewModel: StreamingViewModel,
@@ -182,19 +182,19 @@ internal class PlaybackFeatureBinding(
     ) {
         nowPlayingViewModel.bindStateSources(
             connection,
-            mainViewModel.library,
+            libraryState,
             lyricsViewModel.state,
             settingsViewModel.state
         )
         homeDashboardViewModel.bindStateSources(
             connection,
-            mainViewModel.library,
+            libraryState,
             streamingViewModel.streaming,
             settingsViewModel.state,
             homeIntentHandler
         )
         boundHomeDashboardViewModel = homeDashboardViewModel
-        queueViewModel.bindStateSources(connection, mainViewModel.library, settingsViewModel.state)
+        queueViewModel.bindStateSources(connection, libraryState, settingsViewModel.state)
     }
 
     fun bindEffects(

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 internal class NetworkRenderCoordinator @JvmOverloads constructor(
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val menuRenderer: NetworkMenuRenderController,
     private val trackListRenderer: NetworkTrackListRenderController,
     private val sourcesRenderer: NetworkSourcesRenderController,
