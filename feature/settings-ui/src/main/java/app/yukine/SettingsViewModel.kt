@@ -3,7 +3,6 @@ import app.yukine.streaming.StreamingQualityPreference
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.yukine.navigation.SettingsTab
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
@@ -63,6 +62,7 @@ data class SettingsPreferencesSnapshot(
 )
 
 data class RuntimeSettingsStatus(
+    val appVersionName: String = "",
     val audioPermissionGranted: Boolean = false,
     val notificationPermissionGranted: Boolean = false,
     val overlayPermissionGranted: Boolean = false,
@@ -73,7 +73,7 @@ data class RuntimeSettingsStatus(
     val librarySongCount: Int = 0,
     val libraryAlbumCount: Int = 0,
     val libraryArtistCount: Int = 0,
-    val streamingGatewayEndpoint: String = StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT,
+    val streamingGatewayEndpoint: String = "gateway://unconfigured",
     val streamingGatewayConfigured: Boolean = false,
     val luoxueImportedSourceCount: Int = 0,
     val luoxueEnabledSourceCount: Int = 0,
@@ -81,6 +81,12 @@ data class RuntimeSettingsStatus(
 )
 
 data class HiddenLibraryItemUi(val sourceKey: String, val label: String)
+
+/** Narrow route projection supplied by the navigation feature. */
+data class SettingsRouteState(
+    val active: Boolean = false,
+    val page: SettingsPage = SettingsPage.Home
+)
 
 data class SettingsState(
     val page: SettingsPage = SettingsPage.Home,
@@ -194,14 +200,14 @@ class SettingsViewModel @JvmOverloads constructor(
         updateRuntimeState = ::updateRuntime,
         replaceSnapshot = ::replaceSnapshot
     )
-    internal val appearance = AppearanceSettingsStateOwner(mutations)
-    internal val playback = PlaybackSettingsStateOwner(mutations)
-    internal val lyrics = LyricsSettingsStateOwner(mutations)
-    internal val library = LibrarySettingsStateOwner(mutations)
-    internal val network = NetworkSettingsStateOwner(mutations)
-    internal val platform = PlatformSettingsStateOwner(mutations)
+    val appearance = AppearanceSettingsStateOwner(mutations)
+    val playback = PlaybackSettingsStateOwner(mutations)
+    val lyrics = LyricsSettingsStateOwner(mutations)
+    val library = LibrarySettingsStateOwner(mutations)
+    val network = NetworkSettingsStateOwner(mutations)
+    val platform = PlatformSettingsStateOwner(mutations)
     @JvmName("lyricsOwner")
-    internal fun lyricsOwner(): LyricsSettingsStateOwner = lyrics
+    fun lyricsOwner(): LyricsSettingsStateOwner = lyrics
     private var contextLoader: SettingsContextLoader? = null
     private var contextLoadJob: Job? = null
     private var routeStateJob: Job? = null
@@ -227,17 +233,17 @@ class SettingsViewModel @JvmOverloads constructor(
         contextLoader = nextLoader
     }
 
-    fun bindRouteState(nextState: StateFlow<NavigationRouteState>?) {
+    fun bindRouteState(nextState: StateFlow<SettingsRouteState>?) {
         routeStateJob?.cancel()
         routeStateJob = nextState?.let { routeState ->
             viewModelScope.launch {
                 routeState
-                    .map { it.selectedTab to it.settingsPage }
+                    .map { it.active to it.page }
                     .distinctUntilChanged()
-                    .collect { (selectedTab, page) ->
+                    .collect { (active, page) ->
                         val current = _state.value
                         renderCurrentPage(page, current.preferences, current.runtime)
-                        if (selectedTab == SettingsTab) {
+                        if (active) {
                             refreshSettingsContext()
                         }
                     }
@@ -289,7 +295,7 @@ class SettingsViewModel @JvmOverloads constructor(
         syncChromeState(preferences)
     }
 
-    internal fun renderCurrentPage(
+    fun renderCurrentPage(
         page: SettingsPage,
         preferences: SettingsPreferencesSnapshot,
         runtime: RuntimeSettingsStatus
@@ -308,7 +314,7 @@ class SettingsViewModel @JvmOverloads constructor(
         return content
     }
 
-    internal fun renderCurrentPage(): SettingsPageStateContent {
+    fun renderCurrentPage(): SettingsPageStateContent {
         val current = _state.value
         val content = buildPageContent(current.page, current.preferences, current.runtime)
         _state.value = current.copy(
@@ -340,7 +346,7 @@ class SettingsViewModel @JvmOverloads constructor(
         ::navigateSettingsPage
     )
 
-    internal fun navigateSettingsPage(page: SettingsPage) {
+    fun navigateSettingsPage(page: SettingsPage) {
         val current = _state.value
         renderCurrentPage(page, current.preferences, current.runtime)
         mutations.emit(SettingsEffect.NavigatePage(page))

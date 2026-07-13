@@ -1,4 +1,6 @@
 package app.yukine
+
+import app.yukine.feature.settingsui.R
 import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.playback.AudioEffectSettings
@@ -14,12 +16,12 @@ import kotlin.math.abs
 import kotlin.math.round
 import kotlin.math.roundToInt
 
-internal data class SettingsPageStateContent(
+data class SettingsPageStateContent(
     val uiState: SettingsUiState,
     val actions: List<SettingsAction>
 )
 
-internal object SettingsPageStateBuilder {
+object SettingsPageStateBuilder {
     fun build(
         title: String,
         metrics: List<SettingsMetric>,
@@ -132,6 +134,7 @@ internal object SettingsPageStateBuilder {
 
     fun aboutGroup(
         languageMode: String,
+        appVersionName: String,
         audioPermissionGranted: Boolean,
         notificationPermissionGranted: Boolean,
         playbackServiceConnected: Boolean,
@@ -142,7 +145,7 @@ internal object SettingsPageStateBuilder {
         onDebugPromptsEnabledChange: (Boolean) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
-            SettingsMetric(text(languageMode, "version"), BuildConfig.VERSION_NAME),
+            SettingsMetric(text(languageMode, "version"), appVersionName),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode)),
             SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))
@@ -984,9 +987,9 @@ internal object SettingsPageStateBuilder {
         )
         val actions = buildList {
             add(backNavigationAction(text(languageMode, "back"), SettingsBackStack.parent(SettingsPage.StreamingGateway), onNavigate))
-            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT, "streaming.gateway.emulator", onApplyEndpoint))
-            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT, "streaming.gateway.localhost", onApplyEndpoint))
-            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewaySettingsStore.UNCONFIGURED_ENDPOINT, "disable", onApplyEndpoint))
+            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.EMULATOR_HOST, "streaming.gateway.emulator", onApplyEndpoint))
+            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.LOCALHOST, "streaming.gateway.localhost", onApplyEndpoint))
+            add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.UNCONFIGURED, "disable", onApplyEndpoint))
         }
         return buildContent(text(languageMode, "streaming.gateway"), metrics, actions)
     }
@@ -1308,7 +1311,7 @@ internal object SettingsPageStateBuilder {
     }
 
     private fun selectedEndpointLabel(label: String, currentEndpoint: String, optionEndpoint: String, languageMode: String): String {
-        return if (StreamingGatewaySettingsStore.normalize(currentEndpoint) == StreamingGatewaySettingsStore.normalize(optionEndpoint)) {
+        return if (StreamingGatewayEndpoint.normalize(currentEndpoint) == StreamingGatewayEndpoint.normalize(optionEndpoint)) {
             label + text(languageMode, "selected")
         } else {
             label
@@ -1326,8 +1329,8 @@ internal object SettingsPageStateBuilder {
         onClick = Runnable { onApplyEndpoint(endpoint) },
         style = SettingsActionStyle.Choice,
         icon = EchoIconKind.Network,
-        checked = StreamingGatewaySettingsStore.normalize(currentEndpoint) ==
-            StreamingGatewaySettingsStore.normalize(endpoint)
+        checked = StreamingGatewayEndpoint.normalize(currentEndpoint) ==
+            StreamingGatewayEndpoint.normalize(endpoint)
     )
 
     private fun themeOption(

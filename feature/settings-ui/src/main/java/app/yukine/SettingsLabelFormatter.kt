@@ -7,7 +7,7 @@ import kotlin.math.abs
 import kotlin.math.round
 import kotlin.math.roundToInt
 
-internal object SettingsLabelFormatter {
+object SettingsLabelFormatter {
     @JvmStatic
     fun playbackSpeedLabel(speed: Float): String {
         val normalized = normalizePlaybackSpeed(speed)

@@ -1,10 +1,9 @@
 package app.yukine
 
-import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.model.WebDavSyncResult
 
-internal interface WebDavSourceOperations {
+interface WebDavSourceOperations {
     fun testRemoteSource(sourceId: Long): String
 
     fun syncRemoteSource(sourceId: Long): WebDavSyncResult?
@@ -14,36 +13,20 @@ internal interface WebDavSourceOperations {
     fun loadFavoriteIds(): Set<Long>
 }
 
-internal class MusicLibraryWebDavSourceOperations(
-    private val repository: MusicLibraryRepository
-) : WebDavSourceOperations {
-    override fun testRemoteSource(sourceId: Long): String =
-        repository.testRemoteSource(sourceId)
-
-    override fun syncRemoteSource(sourceId: Long): WebDavSyncResult? =
-        repository.syncRemoteSource(sourceId)
-
-    override fun loadCachedTracks(): List<Track> =
-        repository.loadCachedTracks()
-
-    override fun loadFavoriteIds(): Set<Long> =
-        repository.loadFavoriteIds()
-}
-
-internal data class WebDavSourceSnapshot(
+data class WebDavSourceSnapshot(
     val cached: List<Track>,
     val favorites: Set<Long>,
     val status: String
 )
 
-internal class TestWebDavSourceUseCase(
+class TestWebDavSourceUseCase(
     private val operations: WebDavSourceOperations
 ) {
     fun execute(sourceId: Long): String =
         operations.testRemoteSource(sourceId)
 }
 
-internal class SyncWebDavSourceUseCase(
+class SyncWebDavSourceUseCase(
     private val operations: WebDavSourceOperations
 ) {
     fun execute(sourceId: Long, sourceName: String): WebDavSourceSnapshot {
@@ -57,7 +40,7 @@ internal class SyncWebDavSourceUseCase(
     }
 }
 
-internal class SyncAllWebDavSourcesUseCase(
+class SyncAllWebDavSourcesUseCase(
     private val operations: WebDavSourceOperations
 ) {
     fun execute(sourceIds: List<Long>): WebDavSourceSnapshot {

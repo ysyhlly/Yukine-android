@@ -11,7 +11,7 @@ data class HeartbeatRefillRequest(
     val provider: StreamingProviderName
 )
 
-internal class StreamingHeartbeatRecommendationUseCase(
+class StreamingHeartbeatRecommendationUseCase(
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val refillRemainingThreshold: Int = 18,
     private val refillRetryMs: Long = 8_000L,

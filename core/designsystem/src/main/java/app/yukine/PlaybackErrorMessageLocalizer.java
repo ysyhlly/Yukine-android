@@ -1,10 +1,10 @@
 package app.yukine;
 
-final class PlaybackErrorMessageLocalizer {
+public final class PlaybackErrorMessageLocalizer {
     private PlaybackErrorMessageLocalizer() {
     }
 
-    static String localize(String message, String languageMode) {
+    public static String localize(String message, String languageMode) {
         if (message == null || message.trim().isEmpty()) {
             return "";
         }

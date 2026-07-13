@@ -130,7 +130,7 @@ final class SettingsFeatureBinding {
                 repository
         );
         viewModel.bindContextLoader(contextProvider);
-        viewModel.bindRouteState(navigationViewModel.getState());
+        viewModel.bindRouteState(navigationViewModel.getSettingsRouteState());
         viewModel.refreshSettingsContext();
         LoadedLyricsSettings loadedLyricsSettings = loadLyricsSettingsUseCase.execute();
         lyricsViewModel.configure(

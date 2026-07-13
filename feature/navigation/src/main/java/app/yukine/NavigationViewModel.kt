@@ -3,6 +3,7 @@ package app.yukine
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.yukine.navigation.SettingsTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,13 @@ class NavigationViewModel @Inject constructor(
     val searchQuery: StateFlow<String> = state
         .map { it.searchQuery }
         .stateIn(viewModelScope, SharingStarted.Eagerly, state.value.searchQuery)
+    val settingsRouteState: StateFlow<SettingsRouteState> = state
+        .map { route -> SettingsRouteState(route.selectedTab == SettingsTab, route.settingsPage) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            SettingsRouteState(state.value.selectedTab == SettingsTab, state.value.settingsPage)
+        )
 
     fun updateRoute(snapshot: NavigationRouteState) {
         routeState.value = snapshot

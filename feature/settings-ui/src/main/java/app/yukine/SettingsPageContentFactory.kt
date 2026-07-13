@@ -123,6 +123,7 @@ internal object SettingsPageContentFactory {
             SettingsPage.AboutGroup ->
                 SettingsPageStateBuilder.aboutGroup(
                     languageMode,
+                    runtime.appVersionName,
                     runtime.audioPermissionGranted,
                     runtime.notificationPermissionGranted,
                     runtime.playbackServiceConnected,

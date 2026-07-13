@@ -2,7 +2,7 @@ package app.yukine
 
 import app.yukine.model.Track
 
-internal interface NetworkOperationSink {
+interface NetworkOperationSink {
     fun addStreamUrl(title: String, url: String)
 
     fun updateStreamUrl(oldTrack: Track?, title: String, url: String)

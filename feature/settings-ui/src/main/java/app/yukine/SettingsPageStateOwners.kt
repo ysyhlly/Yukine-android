@@ -5,7 +5,7 @@ import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
 
 /** Appearance page commands and their runtime/persistence effects. */
-internal class AppearanceSettingsStateOwner(private val context: SettingsMutationContext) {
+class AppearanceSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun applyThemeMode(nextMode: String) {
         val mode = EchoTheme.normalizeMode(nextMode)
         EchoTheme.setMode(mode)
@@ -109,7 +109,7 @@ internal class AppearanceSettingsStateOwner(private val context: SettingsMutatio
 }
 
 /** Playback page commands and their runtime/persistence effects. */
-internal class PlaybackSettingsStateOwner(private val context: SettingsMutationContext) {
+class PlaybackSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun applyPlaybackSpeed(speed: Float) {
         val normalized = normalizePlaybackSpeed(speed)
         context.applyRuntime(SettingsRuntimeEffect.ApplyPlaybackSpeed(normalized))
@@ -213,7 +213,7 @@ internal class PlaybackSettingsStateOwner(private val context: SettingsMutationC
 }
 
 /** Lyrics page commands and their runtime/persistence effects. */
-internal class LyricsSettingsStateOwner(private val context: SettingsMutationContext) {
+class LyricsSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun setOnlineLyricsEnabled(enabled: Boolean) {
         context.applyRuntime(SettingsRuntimeEffect.SetOnlineLyricsEnabled(enabled))
         context.updateRuntime { it.copy(onlineLyricsEnabled = enabled) }
@@ -290,7 +290,7 @@ internal class LyricsSettingsStateOwner(private val context: SettingsMutationCon
     }
 }
 
-internal class LibrarySettingsStateOwner(private val context: SettingsMutationContext) {
+class LibrarySettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun loadLibrary() = context.emit(SettingsEffect.LoadLibrary)
     fun openAudioFilePicker() = context.emit(SettingsEffect.OpenAudioFilePicker)
     fun openAudioFolderPicker() = context.emit(SettingsEffect.OpenAudioFolderPicker)
@@ -298,7 +298,7 @@ internal class LibrarySettingsStateOwner(private val context: SettingsMutationCo
     fun restoreAllHiddenItems() = context.emit(SettingsEffect.RestoreAllHiddenLibraryItems)
 }
 
-internal class NetworkSettingsStateOwner(private val context: SettingsMutationContext) {
+class NetworkSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun openPage(page: String) = context.emit(SettingsEffect.OpenNetworkPage(page))
     fun openLuoxueSourceManager() = context.emit(SettingsEffect.OpenLuoxueSourceManager)
     fun importLuoxueSource() = context.emit(SettingsEffect.ImportLuoxueSource)
@@ -306,7 +306,7 @@ internal class NetworkSettingsStateOwner(private val context: SettingsMutationCo
         context.emit(SettingsEffect.ApplyStreamingGatewayEndpoint(endpoint))
 }
 
-internal class PlatformSettingsStateOwner(private val context: SettingsMutationContext) {
+class PlatformSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
     fun openDownloads() = context.emit(SettingsEffect.OpenDownloads)
     fun requestNeededPermissions() = context.emit(SettingsEffect.RequestNeededPermissions)
     fun openFloatingLyricsPermission() = context.emit(SettingsEffect.OpenFloatingLyricsPermission)

@@ -5,11 +5,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-internal data class StatusMessageState(
+data class StatusMessageState(
     val message: String = ""
 )
 
-internal class StatusMessageViewModel : ViewModel() {
+class StatusMessageViewModel : ViewModel() {
     private val mutableState = MutableStateFlow(StatusMessageState())
     val state: StateFlow<StatusMessageState> = mutableState.asStateFlow()
 

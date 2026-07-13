@@ -413,10 +413,10 @@ public final class MainActivityArchitectureContractTest {
 
     @Test
     public void settingsCommandsAreSplitByPageWithoutGiantEventSurface() throws Exception {
-        String viewModel = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
-        String owners = read("app/src/main/java/app/yukine/SettingsPageStateOwners.kt");
-        String mutations = read("app/src/main/java/app/yukine/SettingsMutationContext.kt");
-        String contentFactory = read("app/src/main/java/app/yukine/SettingsPageContentFactory.kt");
+        String viewModel = read("feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt");
+        String owners = read("feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt");
+        String mutations = read("feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt");
+        String contentFactory = read("feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt");
 
         assertTrue(viewModel.lines().count() < 450);
         assertFalse(viewModel.contains("sealed interface SettingsEvent"));
@@ -435,6 +435,11 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(contentFactory.contains("appearance.applyThemeMode(mode)"));
         assertTrue(contentFactory.contains("playback.applyPlaybackSpeed(speed)"));
         assertTrue(contentFactory.contains("lyrics.setOnlineLyricsEnabled(enabled)"));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/SettingsViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/NetworkActionsViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/NetworkMenuViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/NetworkSourcesViewModel.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/StatusMessageViewModel.kt")));
     }
 
     @Test

@@ -91,6 +91,7 @@ class SettingsPageStateBuilderTest {
 
         val content = SettingsPageStateBuilder.aboutGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
+            appVersionName = "0.1.21",
             audioPermissionGranted = true,
             notificationPermissionGranted = true,
             playbackServiceConnected = false,
@@ -106,7 +107,7 @@ class SettingsPageStateBuilderTest {
         assertEquals(5, content.actions.size)
         assertTrue(content.actions[0].isBack)
         assertEquals("1013122077", content.actions[1].value)
-        assertEquals(R.drawable.qq_group_qr, content.actions[1].imageDialog?.imageResId)
+        assertEquals(app.yukine.feature.settingsui.R.drawable.qq_group_qr, content.actions[1].imageDialog?.imageResId)
         assertEquals(SettingsActionStyle.Toggle, content.actions[2].style)
         assertEquals(false, content.actions[2].checked)
         assertEquals(SettingsActionStyle.Destructive, content.actions[4].style)

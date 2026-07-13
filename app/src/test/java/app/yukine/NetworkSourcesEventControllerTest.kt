@@ -7,10 +7,14 @@ import app.yukine.model.Track
 import app.yukine.navigation.NetworkTab
 import app.yukine.navigation.SettingsTab
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import java.util.ArrayList
 
 class NetworkSourcesEventControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun navigationUpdatesReactiveRouteState() {
         val fakes = Fakes()

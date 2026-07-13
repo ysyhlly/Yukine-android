@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * The owner deliberately knows nothing about UI loading/error state. It only throttles duplicate
  * provider checks, publishes successful auth snapshots, and refreshes diagnostics after the pass.
  */
-internal class StreamingAuthSessionMaintenance(
+class StreamingAuthSessionMaintenance(
     private val scope: CoroutineScope,
     private val refresh: suspend (StreamingProviderName) -> StreamingAuthState,
     private val diagnostics: () -> StreamingGatewayDiagnostics,

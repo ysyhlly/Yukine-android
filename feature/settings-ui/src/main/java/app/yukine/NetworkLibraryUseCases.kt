@@ -1,36 +1,35 @@
 package app.yukine
 
-import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.StreamImportResult
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 
-internal data class NetworkLibrarySnapshot(
+data class NetworkLibrarySnapshot(
     val cached: List<Track>,
     val favorites: Set<Long>
 )
 
-internal data class AddStreamUrlResult(
+data class AddStreamUrlResult(
     val track: Track?,
     val snapshot: NetworkLibrarySnapshot
 )
 
-internal data class UpdateStreamUrlResult(
+data class UpdateStreamUrlResult(
     val updated: Track?,
     val snapshot: NetworkLibrarySnapshot
 )
 
-internal data class ImportStreamPlaylistResult(
+data class ImportStreamPlaylistResult(
     val importResult: StreamImportResult?,
     val snapshot: NetworkLibrarySnapshot
 )
 
-internal data class SaveWebDavSourceResult(
+data class SaveWebDavSourceResult(
     val savedSourceId: Long,
     val snapshot: NetworkLibrarySnapshot
 )
 
-internal interface NetworkLibraryOperations {
+interface NetworkLibraryOperations {
     fun addStreamUrl(title: String, url: String): Track?
     fun updateStreamUrl(trackId: Long, title: String, url: String): Track?
     fun importM3uPlaylistWithResult(url: String): StreamImportResult?
@@ -50,52 +49,7 @@ internal interface NetworkLibraryOperations {
     fun loadFavoriteIds(): Set<Long>
 }
 
-internal class MusicLibraryNetworkLibraryOperations(
-    private val repository: MusicLibraryRepository
-) : NetworkLibraryOperations {
-    override fun addStreamUrl(title: String, url: String): Track? =
-        repository.addStreamUrl(title, url)
-
-    override fun updateStreamUrl(trackId: Long, title: String, url: String): Track? =
-        repository.updateStreamUrl(trackId, title, url)
-
-    override fun importM3uPlaylistWithResult(url: String): StreamImportResult? =
-        repository.importM3uPlaylistWithResult(url)
-
-    override fun deleteAllStreams() {
-        repository.deleteAllStreams()
-    }
-
-    override fun deleteTrack(trackId: Long) {
-        repository.deleteTrack(trackId)
-    }
-
-    override fun deleteTracks(trackIds: List<Long>) {
-        for (trackId in trackIds) {
-            repository.deleteTrack(trackId)
-        }
-    }
-
-    override fun deleteRemoteSource(sourceId: Long) {
-        repository.deleteRemoteSource(sourceId)
-    }
-
-    override fun saveWebDavSource(
-        sourceId: Long,
-        name: String,
-        baseUrl: String,
-        username: String,
-        password: String,
-        rootPath: String
-    ): Long =
-        repository.saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath)
-
-    override fun loadCachedTracks(): List<Track> = repository.loadCachedTracks()
-
-    override fun loadFavoriteIds(): Set<Long> = repository.loadFavoriteIds()
-}
-
-internal class AddStreamUrlUseCase(
+class AddStreamUrlUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(title: String, url: String): AddStreamUrlResult =
@@ -105,7 +59,7 @@ internal class AddStreamUrlUseCase(
         )
 }
 
-internal class UpdateStreamUrlUseCase(
+class UpdateStreamUrlUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(oldTrack: Track?, title: String, url: String): UpdateStreamUrlResult? {
@@ -119,7 +73,7 @@ internal class UpdateStreamUrlUseCase(
     }
 }
 
-internal class ImportStreamPlaylistUseCase(
+class ImportStreamPlaylistUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(url: String): ImportStreamPlaylistResult =
@@ -129,7 +83,7 @@ internal class ImportStreamPlaylistUseCase(
         )
 }
 
-internal class DeleteAllStreamsUseCase(
+class DeleteAllStreamsUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(): NetworkLibrarySnapshot {
@@ -138,7 +92,7 @@ internal class DeleteAllStreamsUseCase(
     }
 }
 
-internal class DeleteNetworkTrackUseCase(
+class DeleteNetworkTrackUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(trackId: Long): NetworkLibrarySnapshot {
@@ -149,7 +103,7 @@ internal class DeleteNetworkTrackUseCase(
     }
 }
 
-internal class DeleteNetworkTracksUseCase(
+class DeleteNetworkTracksUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(trackIds: List<Long>): NetworkLibrarySnapshot {
@@ -158,7 +112,7 @@ internal class DeleteNetworkTracksUseCase(
     }
 }
 
-internal class DeleteRemoteSourceUseCase(
+class DeleteRemoteSourceUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(sourceId: Long): NetworkLibrarySnapshot {
@@ -169,7 +123,7 @@ internal class DeleteRemoteSourceUseCase(
     }
 }
 
-internal class SaveWebDavSourceUseCase(
+class SaveWebDavSourceUseCase(
     private val operations: NetworkLibraryOperations
 ) {
     fun execute(

@@ -211,7 +211,7 @@ class SettingsViewModelTest {
     fun routeStateDrivesCurrentPageWithoutHostRendering() = runTest {
         val viewModel = SettingsViewModel()
         val routes = MutableStateFlow(
-            NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.PlaybackGroup)
+            SettingsRouteState(active = true, page = SettingsPage.PlaybackGroup)
         )
 
         viewModel.bindRouteState(routes)
@@ -220,7 +220,7 @@ class SettingsViewModelTest {
         assertEquals(SettingsPage.PlaybackGroup, viewModel.state.value.page)
         assertEquals(viewModel.state.value.ui, viewModel.uiState.value)
 
-        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Lyrics)
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Lyrics)
         advanceUntilIdle()
 
         assertEquals(SettingsPage.Lyrics, viewModel.state.value.page)
@@ -234,7 +234,7 @@ class SettingsViewModelTest {
     fun enteringSettingsRefreshesRuntimeContextEvenWhenPageIsUnchanged() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val viewModel = SettingsViewModel(dispatcher)
-        val routes = MutableStateFlow(NavigationRouteState(settingsPage = SettingsPage.Home))
+        val routes = MutableStateFlow(SettingsRouteState(page = SettingsPage.Home))
         var loads = 0
         viewModel.bindContextLoader {
             loads += 1
@@ -243,11 +243,11 @@ class SettingsViewModelTest {
         viewModel.bindRouteState(routes)
         advanceUntilIdle()
 
-        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Home)
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Home)
         advanceUntilIdle()
-        routes.value = NavigationRouteState(settingsPage = SettingsPage.Home)
+        routes.value = SettingsRouteState(page = SettingsPage.Home)
         advanceUntilIdle()
-        routes.value = NavigationRouteState(selectedTab = SettingsTab, settingsPage = SettingsPage.Home)
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Home)
         advanceUntilIdle()
 
         assertEquals(2, loads)

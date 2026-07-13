@@ -1,7 +1,7 @@
 package app.yukine
 
 /** Stateless localization for settings command feedback. */
-internal object SettingsStatusTextFactory {
+object SettingsStatusTextFactory {
     fun applied(
         languageMode: String,
         themeMode: String,

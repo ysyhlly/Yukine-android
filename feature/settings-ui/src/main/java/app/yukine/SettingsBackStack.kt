@@ -1,6 +1,6 @@
 package app.yukine
 
-internal object SettingsBackStack {
+object SettingsBackStack {
     fun parent(settingsPage: SettingsPage): SettingsPage {
         return when (settingsPage) {
             SettingsPage.AppearanceGroup,

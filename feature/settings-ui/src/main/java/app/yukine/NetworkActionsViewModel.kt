@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal data class NetworkActionUseCases(
+data class NetworkActionUseCases(
     val testWebDavSourceUseCase: TestWebDavSourceUseCase,
     val syncWebDavSourceUseCase: SyncWebDavSourceUseCase,
     val syncAllWebDavSourcesUseCase: SyncAllWebDavSourcesUseCase,
@@ -22,97 +22,7 @@ internal data class NetworkActionUseCases(
     val saveWebDavSourceUseCase: SaveWebDavSourceUseCase
 )
 
-internal class MainNetworkActionsListener(
-    private val nowPlayingViewModel: NowPlayingViewModel,
-    private val libraryReplacementSink: LibraryReplacementSink,
-    private val networkNavigator: NetworkNavigator,
-    private val collectionsReloader: CollectionsReloader,
-    private val statusSink: StatusSink
-) : NetworkActionsViewModel.Listener {
-    fun interface LibraryReplacementSink {
-        fun replaceLibrary(cached: List<Track>, favorites: Set<Long>, status: String)
-    }
-
-    fun interface NetworkNavigator {
-        fun navigateToNetworkPage(page: String)
-    }
-
-    fun interface CollectionsReloader {
-        fun loadCollections()
-    }
-
-    fun interface StatusSink {
-        fun setStatus(status: String)
-    }
-
-    override fun onStreamAdded(cached: List<Track>, favorites: Set<Long>, status: String) {
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-    }
-
-    override fun onStreamUpdated(
-        oldTrackId: Long,
-        updated: Track?,
-        cached: List<Track>,
-        favorites: Set<Long>,
-        status: String
-    ) {
-        if (updated != null) {
-            nowPlayingViewModel.replaceQueuedTrack(oldTrackId, updated)
-        }
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAM_LIST)
-    }
-
-    override fun onStreamPlaylistImported(cached: List<Track>, favorites: Set<Long>, status: String) {
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAMING)
-    }
-
-    override fun onAllStreamsDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
-        nowPlayingViewModel.retainTracks(cached)
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAMING)
-    }
-
-    override fun onTrackDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
-        nowPlayingViewModel.retainTracks(cached)
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_STREAM_LIST)
-    }
-
-    override fun onRemoteSourceDeleted(cached: List<Track>, favorites: Set<Long>, status: String) {
-        nowPlayingViewModel.retainTracks(cached)
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_SOURCES)
-        collectionsReloader.loadCollections()
-    }
-
-    override fun onWebDavSourceSaved(sourceId: Long, cached: List<Track>, favorites: Set<Long>, status: String) {
-        nowPlayingViewModel.retainTracks(cached)
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(
-            if (sourceId > 0L) MainRoutes.NETWORK_SOURCES else MainRoutes.NETWORK_WEBDAV
-        )
-        collectionsReloader.loadCollections()
-    }
-
-    override fun onRemoteSourceTested(status: String) {
-        statusSink.setStatus(status)
-        collectionsReloader.loadCollections()
-    }
-
-    override fun onRemoteSourceSynced(cached: List<Track>, favorites: Set<Long>, status: String) {
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_SOURCES)
-    }
-
-    override fun onAllWebDavSourcesSynced(cached: List<Track>, favorites: Set<Long>, status: String) {
-        libraryReplacementSink.replaceLibrary(cached, favorites, status)
-        networkNavigator.navigateToNetworkPage(MainRoutes.NETWORK_WEBDAV)
-    }
-}
-
-internal class NetworkActionsViewModel @JvmOverloads constructor(
+class NetworkActionsViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val networkDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel(), NetworkOperationSink {
@@ -195,7 +105,7 @@ internal class NetworkActionsViewModel @JvmOverloads constructor(
             val status = if (result.importResult == null || result.importResult.isEmpty) {
                 "No streams imported"
             } else {
-                M3uDocumentHelper.streamImportStatus("Imported streams", result.importResult)
+                streamImportStatus("Imported streams", result.importResult)
             }
             listener?.onStreamPlaylistImported(result.snapshot.cached, result.snapshot.favorites, status)
         }
@@ -292,4 +202,13 @@ internal class NetworkActionsViewModel @JvmOverloads constructor(
             listener?.onAllWebDavSourcesSynced(result.cached, result.favorites, result.status)
         }
     }
+}
+
+private fun streamImportStatus(prefix: String, result: app.yukine.model.StreamImportResult): String {
+    if (result.isEmpty) return "$prefix: none"
+    var status = "$prefix: added ${result.addedCount}, skipped ${result.duplicateCount}"
+    if (result.candidateCount != result.addedCount + result.duplicateCount) {
+        status += ", parsed ${result.candidateCount}"
+    }
+    return status
 }

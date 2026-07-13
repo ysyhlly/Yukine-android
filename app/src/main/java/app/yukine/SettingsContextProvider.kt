@@ -24,6 +24,7 @@ internal class SettingsContextProvider(
         val allTracks = libraryStore.allTracks()
         val luoxueSources = luoxueSourceStore.load()
         return RuntimeSettingsStatus(
+            appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
             notificationPermissionGranted = permissionController.hasNotificationPermission(),
             overlayPermissionGranted = permissionController.hasOverlayPermission(),
