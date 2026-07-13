@@ -8,8 +8,6 @@ internal class MainPlaybackServiceHost(
     private val systemMediaLyricsTitleSource: SystemMediaLyricsTitleSource,
     private val playbackRestoreSource: PlaybackRestoreSource,
     private val replayGainSource: ReplayGainSource,
-    private val playbackServiceAttacher: PlaybackServiceAttacher,
-    private val playbackServiceClearer: PlaybackServiceClearer,
     private val playbackStoreResetter: PlaybackStoreResetter,
     private val pendingTracksPlayer: PendingTracksPlayer
 ) : PlaybackServiceHostController.Host {
@@ -41,14 +39,6 @@ internal class MainPlaybackServiceHost(
         fun replayGainEnabled(): Boolean
     }
 
-    fun interface PlaybackServiceAttacher {
-        fun attachPlaybackService(service: PlaybackServiceHostPort)
-    }
-
-    fun interface PlaybackServiceClearer {
-        fun clearPlaybackService()
-    }
-
     fun interface PlaybackStoreResetter {
         fun resetPlaybackStore()
     }
@@ -71,15 +61,6 @@ internal class MainPlaybackServiceHost(
     override fun playbackRestoreEnabled(): Boolean = playbackRestoreSource.playbackRestoreEnabled()
 
     override fun replayGainEnabled(): Boolean = replayGainSource.replayGainEnabled()
-
-    override fun attachPlaybackService(service: PlaybackServiceHostPort) {
-        playbackServiceAttacher.attachPlaybackService(service)
-        service.setAppVisible(true)
-    }
-
-    override fun clearPlaybackService() {
-        playbackServiceClearer.clearPlaybackService()
-    }
 
     override fun resetPlaybackStore() {
         playbackStoreResetter.resetPlaybackStore()

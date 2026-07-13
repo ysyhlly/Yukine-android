@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.IBinder
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.AudioEffectSettings
 import app.yukine.playback.PlaybackCommands
 import app.yukine.playback.PlaybackConnectionState
 import app.yukine.playback.PlaybackQueueSnapshot
@@ -24,7 +25,7 @@ internal class PlaybackServiceConnectionController(
     private val listener: Listener,
     private val serviceStarter: NowPlayingPlaybackServiceStarter,
     private val commandQueue: PlaybackServiceCommandQueue
-) : PlaybackReadModel, PlaybackCommands {
+) : PlaybackReadModel, PlaybackCommands, SettingsPlaybackServicePort {
     interface Listener {
         fun onPlaybackServiceConnected(service: PlaybackServiceHostPort)
 
@@ -60,6 +61,7 @@ internal class PlaybackServiceConnectionController(
             bound = true
             readModel.markConnected()
             nextService.registerListener(readModelListener)
+            nextService.snapshot()?.let(::publishReadModel)
             commandQueue.flush(nextService)
             listener.onPlaybackServiceConnected(nextService)
         }
@@ -107,6 +109,22 @@ internal class PlaybackServiceConnectionController(
 
     fun isBound(): Boolean {
         return bound
+    }
+
+    fun isConnected(): Boolean = service != null && connection.value == PlaybackConnectionState.Connected
+
+    fun queueSnapshot(): List<Track> = queue.value.tracks
+
+    fun queueSize(): Int = queue.value.tracks.size
+
+    fun queueTrackAt(index: Int): Track? = queue.value.tracks.getOrNull(index)
+
+    fun realtimeBeat(): Float = service?.realtimeBeat() ?: 0f
+
+    fun realtimeBands(): FloatArray = service?.realtimeBands() ?: FloatArray(0)
+
+    fun setAppVisible(visible: Boolean) {
+        service?.setAppVisible(visible)
     }
 
     private fun clearServiceReference() {
@@ -195,6 +213,38 @@ internal class PlaybackServiceConnectionController(
 
     override fun setRepeatMode(repeatMode: Int) =
         executeOrQueue { it.setRepeatMode(repeatMode) }
+
+    override fun setPlaybackSpeed(speed: Float) {
+        service?.setPlaybackSpeed(speed)
+    }
+
+    override fun setAppVolume(volume: Float) {
+        service?.setAppVolume(volume)
+    }
+
+    override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+        service?.setConcurrentPlaybackEnabled(enabled)
+    }
+
+    override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+        service?.applyAudioEffectSettings(settings)
+    }
+
+    override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+        service?.setStatusBarLyricsEnabled(enabled)
+    }
+
+    override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+        service?.setSystemMediaLyricsTitleEnabled(enabled)
+    }
+
+    override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+        service?.setPlaybackRestoreEnabled(enabled)
+    }
+
+    override fun setReplayGainEnabled(enabled: Boolean) {
+        service?.setReplayGainEnabled(enabled)
+    }
 
     private fun executeOrQueue(command: PlaybackServiceCommand) {
         commandQueue.executeOrEnqueue({ service }, command)

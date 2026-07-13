@@ -21,8 +21,6 @@ class MainPlaybackServiceHostTest {
             systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
             replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
-            playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
@@ -34,15 +32,14 @@ class MainPlaybackServiceHostTest {
         assertTrue(host.systemMediaLyricsTitleEnabled())
         assertTrue(host.playbackRestoreEnabled())
         assertFalse(host.replayGainEnabled())
-        host.clearPlaybackService()
         host.resetPlaybackStore()
         host.playPendingTracksIfNeeded()
 
-        assertEquals(listOf("clear", "reset", "pending"), calls)
+        assertEquals(listOf("reset", "pending"), calls)
     }
 
     @Test
-    fun attachUsesHostPortAndMarksPlaybackVisible() {
+    fun controllerConfiguresConnectedServiceAndMarksPlaybackVisible() {
         val calls = mutableListOf<String>()
         val service = FakePlaybackServiceHostPort()
         val host = MainPlaybackServiceHost(
@@ -53,17 +50,26 @@ class MainPlaybackServiceHostTest {
             systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { false },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
             replayGainSource = MainPlaybackServiceHost.ReplayGainSource { false },
-            playbackServiceAttacher = MainPlaybackServiceHost.PlaybackServiceAttacher {
-                calls += "attach"
-            },
-            playbackServiceClearer = MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             playbackStoreResetter = MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             pendingTracksPlayer = MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
 
-        host.attachPlaybackService(service)
+        PlaybackServiceHostController(host).onPlaybackServiceConnected(service)
 
-        assertEquals(listOf("attach", "visible:true"), calls + service.calls)
+        assertEquals(
+            listOf(
+                "visible:true",
+                "speed:1.0",
+                "volume:1.0",
+                "concurrent:false",
+                "statusLyrics:true",
+                "systemMediaTitle:false",
+                "restore:true",
+                "replayGain:false"
+            ),
+            service.calls
+        )
+        assertEquals(listOf("pending"), calls)
     }
 
     @Test
@@ -77,8 +83,6 @@ class MainPlaybackServiceHostTest {
             MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             MainPlaybackServiceHost.PlaybackRestoreSource { false },
             MainPlaybackServiceHost.ReplayGainSource { true },
-            MainPlaybackServiceHost.PlaybackServiceAttacher { calls += "attach" },
-            MainPlaybackServiceHost.PlaybackServiceClearer { calls += "clear" },
             MainPlaybackServiceHost.PlaybackStoreResetter { calls += "reset" },
             MainPlaybackServiceHost.PendingTracksPlayer { calls += "pending" }
         )
@@ -158,20 +162,34 @@ class MainPlaybackServiceHostTest {
 
         override fun setRepeatMode(repeatMode: Int) = Unit
 
-        override fun setPlaybackSpeed(speed: Float) = Unit
+        override fun setPlaybackSpeed(speed: Float) {
+            calls += "speed:$speed"
+        }
 
-        override fun setAppVolume(volume: Float) = Unit
+        override fun setAppVolume(volume: Float) {
+            calls += "volume:$volume"
+        }
 
-        override fun setConcurrentPlaybackEnabled(enabled: Boolean) = Unit
+        override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+            calls += "concurrent:$enabled"
+        }
 
         override fun applyAudioEffectSettings(settings: AudioEffectSettings) = Unit
 
-        override fun setStatusBarLyricsEnabled(enabled: Boolean) = Unit
+        override fun setStatusBarLyricsEnabled(enabled: Boolean) {
+            calls += "statusLyrics:$enabled"
+        }
 
-        override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) = Unit
+        override fun setSystemMediaLyricsTitleEnabled(enabled: Boolean) {
+            calls += "systemMediaTitle:$enabled"
+        }
 
-        override fun setPlaybackRestoreEnabled(enabled: Boolean) = Unit
+        override fun setPlaybackRestoreEnabled(enabled: Boolean) {
+            calls += "restore:$enabled"
+        }
 
-        override fun setReplayGainEnabled(enabled: Boolean) = Unit
+        override fun setReplayGainEnabled(enabled: Boolean) {
+            calls += "replayGain:$enabled"
+        }
     }
 }

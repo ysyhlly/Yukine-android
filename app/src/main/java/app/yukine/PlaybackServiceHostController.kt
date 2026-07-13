@@ -18,17 +18,13 @@ internal class PlaybackServiceHostController(
 
         fun replayGainEnabled(): Boolean
 
-        fun attachPlaybackService(service: PlaybackServiceHostPort)
-
-        fun clearPlaybackService()
-
         fun resetPlaybackStore()
 
         fun playPendingTracksIfNeeded()
     }
 
     override fun onPlaybackServiceConnected(service: PlaybackServiceHostPort) {
-        host.attachPlaybackService(service)
+        service.setAppVisible(true)
         service.setPlaybackSpeed(host.playbackSpeed())
         service.setAppVolume(host.appVolume())
         service.setConcurrentPlaybackEnabled(host.concurrentPlaybackEnabled())
@@ -40,7 +36,6 @@ internal class PlaybackServiceHostController(
     }
 
     override fun onPlaybackServiceDisconnected() {
-        host.clearPlaybackService()
         host.resetPlaybackStore()
     }
 }

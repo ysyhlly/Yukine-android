@@ -397,6 +397,7 @@ public final class MainActivityArchitectureContractTest {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String module = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
         String adapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        String connection = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
         assertFalse(activity.contains("nowPlayingPlaybackGatewayFactory"));
         assertFalse(activity.contains("playbackServiceHostFactory"));
         assertFalse(activity.contains("playbackStateEventListenerFactory"));
@@ -405,6 +406,10 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(module.contains("Factory"));
         assertFalse(adapter.contains("class MainNowPlayingPlaybackGatewayFactory"));
         assertTrue(adapter.contains("@ActivityRetainedScoped"));
+        assertFalse(activity.contains("PlaybackServiceHostPort playbackService"));
+        assertFalse(activity.contains("playbackService."));
+        assertTrue(connection.contains("PlaybackCommands, SettingsPlaybackServicePort"));
+        assertTrue(connection.contains("nextService.snapshot()?.let(::publishReadModel)"));
     }
 
     @Test

@@ -38,7 +38,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private static final String NETWORK_HOME = MainRoutes.NETWORK_HOME;
     private static final String NETWORK_STREAMING = MainRoutes.NETWORK_STREAMING;
     private static final String SETTINGS_HOME = MainRoutes.SETTINGS_HOME;
-    private static final float[] EMPTY_REALTIME_BANDS = new float[0];
     private static final String LIBRARY_SONGS = LibraryGrouping.SONGS;
     @Inject Handler mainHandler;
     @Inject MainExecutors executors;
@@ -150,7 +149,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private CollectionsRenderController collectionsRenderController;
     private PlayHistoryActionController playHistoryActionController;
     private LyricsViewModel lyricsViewModel;
-    private PlaybackServiceHostPort playbackService;
     private MainPlaybackStartListener playbackStartListener;
     private UnifiedSearchOwner unifiedSearchOwner;
     private app.yukine.navigation.EchoNavHostState navHostState;
@@ -486,8 +484,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore.systemMediaLyricsTitleEnabled(),
                         () -> settingsStore.playbackRestoreEnabled(),
                         () -> settingsStore.replayGainEnabled(),
-                        service -> playbackService = service,
-                        () -> playbackService = null,
                         () -> playbackViewModel.resetPlayback(),
                         () -> playbackStartController.playPendingTracksIfNeeded()
                 )
@@ -546,8 +542,8 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializePlaybackControllers() {
         heartbeatSeedBinder = new HeartbeatRecommendationSeedBinder(
-                () -> playbackService == null ? null : playbackService.snapshot(),
-                () -> playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot(),
+                this::playbackSnapshot,
+                this::playbackQueueSnapshot,
                 this::playbackSnapshot,
                 () -> playbackViewModel == null || playbackViewModel.getPlayback().getValue() == null
                         ? Collections.emptyList()
@@ -583,7 +579,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 nowPlayingViewModel,
                 new MainPlaybackActionListener(
                         this::resolveCurrentStreamingQueueTrackIfNeeded,
-                        () -> playbackService == null ? playbackSnapshot() : playbackService.snapshot(),
+                        this::playbackSnapshot,
                         () -> libraryStore == null ? Collections.emptyList() : libraryStore.visibleTracks(),
                         this::applyPlaybackActionResult
                 )
@@ -592,7 +588,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 streamingRecommendationViewModel,
                 () -> settingsStore.languageMode(),
                 new MainHeartbeatRecommendationListener(
-                        () -> playbackService != null,
+                        () -> playbackServiceConnectionController.isConnected(),
                         provider -> heartbeatSeedBinder == null
                                 ? new HeartbeatRecommendationSeedRequest()
                                 : heartbeatSeedBinder.request(provider),
@@ -614,17 +610,17 @@ public abstract class MainActivityBase extends ComponentActivity {
                         new StreamingQueueReadSource() {
                             @Override
                             public List<Track> queueSnapshot() {
-                                return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
+                                return playbackServiceConnectionController.queueSnapshot();
                             }
 
                             @Override
                             public int queueSize() {
-                                return playbackService == null ? 0 : playbackService.queueSize();
+                                return playbackServiceConnectionController.queueSize();
                             }
 
                             @Override
                             public Track queueTrackAt(int index) {
-                                return playbackService == null ? null : playbackService.queueTrackAt(index);
+                                return playbackServiceConnectionController.queueTrackAt(index);
                             }
                         },
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
@@ -635,7 +631,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         playbackStartListener = new MainPlaybackStartListener(
                 () -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode(),
                 () -> nowPlayingPlaybackServiceStarter.startPlaybackService(null),
-                () -> playbackService != null,
+                () -> playbackServiceConnectionController.isConnected(),
                 () -> streamingViewModel.prepareStreamingPlaybackStatusText(
                         settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         null
@@ -654,8 +650,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                 nowPlayingViewModel,
                 new MainQueueActionListener(
                         this::applyPlaybackActionResult,
-                        () -> playbackService != null,
-                        (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),
+                        () -> playbackServiceConnectionController.isConnected(),
+                        playbackServiceConnectionController::moveQueueTrack,
                         () -> confirmationDialogController.confirmClearQueue(),
                         () -> AppLanguage.text(settingsStore.languageMode(), "queue.empty"),
                         status -> statusMessageController.setStatus(status)
@@ -990,7 +986,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         SettingsRuntimeApplier settingsRuntimeApplier = new SettingsRuntimeApplier(
                 () -> uiShellController.applyThemeSurface(),
                 customBackgroundAccentController::refresh,
-                () -> playbackService == null ? null : new MainSettingsPlaybackServiceControls(playbackService),
+                () -> playbackServiceConnectionController == null || !playbackServiceConnectionController.isConnected()
+                        ? null
+                        : new MainSettingsPlaybackServiceControls(playbackServiceConnectionController),
                 () -> lyricsViewModel == null ? null : new MainSettingsLyricsControls(lyricsViewModel),
                 () -> new MainSettingsFloatingLyricsControls(
                         MainActivityBase.this,
@@ -1171,8 +1169,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (playbackService != null) {
-            playbackService.setAppVisible(true);
+        if (playbackServiceConnectionController != null) {
+            playbackServiceConnectionController.setAppVisible(true);
         }
         // Stored throttles keep this lightweight; it only verifies/renews sessions that are due.
         streamingViewModel.maintainStreamingAuthSessions();
@@ -1180,8 +1178,8 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     @Override
     protected void onPause() {
-        if (playbackService != null) {
-            playbackService.setAppVisible(false);
+        if (playbackServiceConnectionController != null) {
+            playbackServiceConnectionController.setAppVisible(false);
         }
         super.onPause();
     }
@@ -1438,8 +1436,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                     ).actions(),
                     searchViewModel.getUiState(),
                     trackDownloadManager,
-                    () -> playbackService == null ? 0f : playbackService.realtimeBeat(),
-                    () -> playbackService == null ? EMPTY_REALTIME_BANDS : playbackService.realtimeBands(),
+                    playbackServiceConnectionController::realtimeBeat,
+                    playbackServiceConnectionController::realtimeBands,
                     true,
                     visible -> { },
                     libraryViewModel::onLibraryAction
@@ -1511,13 +1509,13 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private boolean resolveCurrentStreamingQueueTrackIfNeeded() {
-        if (playbackService == null) {
+        if (playbackServiceConnectionController == null || !playbackServiceConnectionController.isConnected()) {
             return false;
         }
-        PlaybackStateSnapshot snapshot = playbackService.snapshot();
+        PlaybackStateSnapshot snapshot = playbackSnapshot();
         StreamingQueueResolveTarget target = streamingViewModel.prepareCurrentStreamingQueueResolveTarget(
                 snapshot,
-                playbackService.queueSnapshot()
+                playbackQueueSnapshot()
         );
         Track currentTrack = snapshot == null ? null : snapshot.currentTrack;
         return target != null
@@ -1568,7 +1566,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         if (published != null) {
             return published;
         }
-        return playbackService == null ? Collections.emptyList() : playbackService.queueSnapshot();
+        return playbackServiceConnectionController == null
+                ? Collections.emptyList()
+                : playbackServiceConnectionController.queueSnapshot();
     }
 
 }
