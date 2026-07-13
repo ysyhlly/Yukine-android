@@ -33,7 +33,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
     private val activity: ComponentActivity,
     private val useCase: LibraryDeletionUseCase,
     private val languageMode: () -> String,
-    private val onCompleted: (LibraryDeletionResult) -> Unit,
+    private val completionHandler: LibraryDeletionCompletionHandler,
     intentLauncher: LibraryDeleteIntentLauncher? = null
 ) {
     private val resolver: ContentResolver = activity.contentResolver
@@ -125,7 +125,9 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                     finalizeDeleted(deleted + confirmed, failed + remaining, skipped)
                 }
             } else {
-                onCompleted(LibraryDeletionResult(deleted, failed, skipped + media, cancelled = true))
+                completionHandler.onCompleted(
+                    LibraryDeletionResult(deleted, failed, skipped + media, cancelled = true)
+                )
             }
         }
     }
@@ -234,7 +236,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                     LibraryDeletionResult(emptyList(), deleted)
                 }
             }
-            onCompleted(
+            completionHandler.onCompleted(
                 LibraryDeletionResult(
                     removed = finalized.removed,
                     failed = failed + finalized.failed,
@@ -255,7 +257,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                     LibraryDeletionResult(emptyList(), failed = tracks)
                 }
             }
-            onCompleted(result)
+            completionHandler.onCompleted(result)
         }
     }
 

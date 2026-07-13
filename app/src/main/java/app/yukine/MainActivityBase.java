@@ -131,6 +131,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private TrackShareLauncher trackShareLauncher;
     private CustomBackgroundAccentController customBackgroundAccentController;
     private LibraryFileDeleteLauncher libraryFileDeleteLauncher;
+    private LibraryDeletionCompletionOwner libraryDeletionCompletionOwner;
     private DocumentPickerController documentPickerController;
     private BackgroundImagePickerController backgroundImagePickerController;
     private BackupRestoreLauncher backupRestoreLauncher;
@@ -430,29 +431,18 @@ public abstract class MainActivityBase extends ComponentActivity {
                 task -> mainHandler.post(task),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode()
         );
+        libraryDeletionCompletionOwner = new LibraryDeletionCompletionOwner(
+                nowPlayingViewModel::removeQueueTracks,
+                () -> libraryViewModel.onLibraryAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE),
+                () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
+                statusMessageController::setStatus,
+                libraryImportOwner::loadLibrary
+        );
         libraryFileDeleteLauncher = new LibraryFileDeleteLauncher(
                 this,
                 libraryDeletionUseCase,
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
-                result -> {
-                    java.util.Set<Long> removedIds = new java.util.HashSet<>();
-                    for (Track track : result.getRemoved()) {
-                        removedIds.add(track.id);
-                    }
-                    nowPlayingViewModel.removeQueueTracks(removedIds);
-                    libraryViewModel.onLibraryAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE);
-                    int removed = result.getRemoved().size();
-                    int failed = result.getFailed().size();
-                    int skipped = result.getSkipped().size();
-                    statusMessageController.setStatus(
-                            AppLanguage.text(settingsStore.languageMode(), "library.delete.result")
-                                    .replace("%d", String.valueOf(removed))
-                                    .replace("%f", String.valueOf(failed))
-                                    .replace("%s", String.valueOf(skipped))
-                    );
-                    libraryImportOwner.loadLibrary(true);
-                    return kotlin.Unit.INSTANCE;
-                }
+                libraryDeletionCompletionOwner
         );
         backupRestoreLauncher = new BackupRestoreLauncher(
                 this,

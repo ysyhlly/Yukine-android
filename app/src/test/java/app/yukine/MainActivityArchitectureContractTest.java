@@ -304,6 +304,17 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void libraryDeletionCompletionPolicyIsOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/LibraryDeletionCompletionOwner.kt");
+        assertFalse(activity.contains("result.getRemoved()"));
+        assertFalse(activity.contains("replace(\"%d\""));
+        assertTrue(activity.contains("libraryDeletionCompletionOwner"));
+        assertTrue(owner.contains("result.removed.mapTo(linkedSetOf())"));
+        assertTrue(owner.contains("libraryReloader.reload(true)"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
