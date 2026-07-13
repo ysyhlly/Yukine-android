@@ -18,7 +18,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -121,28 +120,27 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     fun bindStateSources(
         playbackReadModel: app.yukine.playback.PlaybackReadModel?,
-        libraryState: StateFlow<LibraryStoreState>?,
+        favoriteIds: StateFlow<Set<Long>>?,
         lyricsState: StateFlow<LyricsState>?,
-        settingsState: StateFlow<SettingsState>?
+        languageMode: StateFlow<String>?
     ) {
         stateSourcesBinding?.cancel()
         stateSourcesBinding = null
         if (
             playbackReadModel == null ||
-            libraryState == null ||
+            favoriteIds == null ||
             lyricsState == null ||
-            settingsState == null
+            languageMode == null
         ) {
             return
         }
-        val favorites = libraryState
-            .map { it.favoriteTrackIds }
-            .distinctUntilChanged()
-        val language = settingsState
-            .map { it.preferences.languageMode }
-            .distinctUntilChanged()
         stateSourcesBinding = viewModelScope.launch {
-            combine(playbackReadModel.state, favorites, lyricsState, language) {
+            combine(
+                playbackReadModel.state,
+                favoriteIds,
+                lyricsState,
+                languageMode
+            ) {
                     playback,
                     favoriteIds,
                     lyrics,

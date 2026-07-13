@@ -3,12 +3,8 @@ package app.yukine.queue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.AppLanguage
-import app.yukine.LibraryStoreState
 import app.yukine.QueueDestinationState
 import app.yukine.QueueDestinationStateProvider
-import app.yukine.SettingsState
-import app.yukine.TrackRowKeyPolicy
-import app.yukine.TrackRowStateFactory
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackConnectionState
@@ -91,25 +87,25 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
 
     fun bindStateSources(
         playbackReadModel: PlaybackReadModel?,
-        libraryState: StateFlow<LibraryStoreState>?,
-        settingsState: StateFlow<SettingsState>?
+        favoriteIds: StateFlow<Set<Long>>?,
+        languageMode: StateFlow<String>?
     ) {
         stateSourcesBinding?.cancel()
         stateSourcesBinding = null
-        if (playbackReadModel == null || libraryState == null || settingsState == null) {
+        if (playbackReadModel == null || favoriteIds == null || languageMode == null) {
             return
         }
         val selection = playbackReadModel.state
             .map { QueuePlaybackSelection(it.currentTrack, it.currentIndex) }
             .distinctUntilChanged()
-        val favorites = libraryState
-            .map { it.favoriteTrackIds }
-            .distinctUntilChanged()
-        val language = settingsState
-            .map { it.preferences.languageMode }
-            .distinctUntilChanged()
         stateSourcesBinding = viewModelScope.launch {
-            combine(playbackReadModel.queue, selection, favorites, language, playbackReadModel.connection) {
+            combine(
+                playbackReadModel.queue,
+                selection,
+                favoriteIds,
+                languageMode,
+                playbackReadModel.connection
+            ) {
                     queue,
                     playback,
                     favoriteIds,
@@ -258,12 +254,17 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         currentTrack: Track?,
         favoriteIds: Set<Long>,
         isCurrent: Boolean
-    ) = TrackRowStateFactory.queueRow(
-        keyFactory.keyFor(index),
-        track,
-        currentTrack,
-        favoriteIds
-    ).copy(current = isCurrent)
+    ) = QueueTrackUiState(
+        key = keyFactory.keyFor(index),
+        id = track.id,
+        title = track.title,
+        subtitle = track.subtitle(),
+        audioSpec = track.audioSpecSummary(),
+        duration = Track.formatDuration(track.durationMs),
+        albumArtUri = track.albumArtUri,
+        current = isCurrent,
+        favorite = favoriteIds.contains(track.id)
+    )
 
     private class QueueRowKeyFactory(private val tracks: List<Track>) {
         // Queue rows are lazy. Do not reserve one slot for every track while only the first
@@ -286,7 +287,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                 }
                 scannedUntil = index
             }
-            return keys[index] ?: TrackRowKeyPolicy.occurrenceKey(tracks, index)
+            return keys[index] ?: "${tracks[index].id}:1"
         }
     }
 }

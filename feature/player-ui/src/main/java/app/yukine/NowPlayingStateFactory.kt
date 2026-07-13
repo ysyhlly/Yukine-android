@@ -9,7 +9,7 @@ import app.yukine.ui.NowPlayingUiState
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-internal object NowPlayingStateFactory {
+object NowPlayingStateFactory {
     @JvmStatic
     fun create(
         playbackState: PlaybackStateSnapshot,

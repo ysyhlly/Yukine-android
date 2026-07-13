@@ -45,6 +45,8 @@ class LibraryDataStateOwner @JvmOverloads constructor(
 ) {
     private val mutableState = MutableStateFlow(LibraryStoreState())
     val state: StateFlow<LibraryStoreState> = mutableState.asStateFlow()
+    private val mutableFavoriteTrackIds = MutableStateFlow<Set<Long>>(emptySet())
+    val favoriteTrackIds: StateFlow<Set<Long>> = mutableFavoriteTrackIds.asStateFlow()
     private var replacementJob: Job? = null
     private var searchJob: Job? = null
     private var libraryRevision = 0L
@@ -162,12 +164,14 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             visibleTracks = prepared.visibleTracks,
             favoriteTrackIds = prepared.favoriteTrackIds
         )
+        mutableFavoriteTrackIds.value = prepared.favoriteTrackIds
         libraryRevision++
     }
 
     fun applyCollections(snapshot: LibraryCollectionsResult) {
+        val favoriteIds = HashSet(snapshot.favoriteIds)
         mutableState.value = mutableState.value.copy(
-            favoriteTrackIds = HashSet(snapshot.favoriteIds),
+            favoriteTrackIds = favoriteIds,
             favoriteTracks = ArrayList(snapshot.favoriteTracks),
             recentRecords = ArrayList(snapshot.recentRecords),
             mostPlayedRecords = ArrayList(snapshot.mostPlayedRecords),
@@ -175,6 +179,7 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             selectedPlaylistTracks = ArrayList(snapshot.selectedPlaylistTracks),
             remoteSources = ArrayList(snapshot.remoteSources)
         )
+        mutableFavoriteTrackIds.value = favoriteIds
     }
 
     fun applySearch(query: String?) {
@@ -286,6 +291,7 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             favoriteTrackIds = favoriteIds,
             favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
         )
+        mutableFavoriteTrackIds.value = favoriteIds
     }
 
     private fun state(): LibraryStoreState {

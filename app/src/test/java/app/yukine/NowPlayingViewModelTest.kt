@@ -146,18 +146,16 @@ class NowPlayingViewModelTest {
     fun boundStateSourcesReactToPlaybackFavoritesLyricsAndLanguage() {
         val viewModel = NowPlayingViewModel()
         val readModel = FakePlaybackReadModel()
-        val library = MutableStateFlow(LibraryStoreState())
+        val favoriteIds = MutableStateFlow<Set<Long>>(emptySet())
         val lyrics = MutableStateFlow(LyricsState())
-        val settings = MutableStateFlow(SettingsState())
+        val languageMode = MutableStateFlow(AppLanguage.MODE_SYSTEM)
         val track = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:7")
 
-        viewModel.bindStateSources(readModel, library, lyrics, settings)
+        viewModel.bindStateSources(readModel, favoriteIds, lyrics, languageMode)
         readModel.state.value = snapshotWithTrack(track = track)
-        library.value = LibraryStoreState(favoriteTrackIds = setOf(7L))
+        favoriteIds.value = setOf(7L)
         lyrics.value = LyricsState(trackId = 7L, loadedLineCount = 1, statusKind = LyricsStatusKind.LOADED)
-        settings.value = SettingsState(
-            preferences = SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_CHINESE)
-        )
+        languageMode.value = AppLanguage.MODE_CHINESE
 
         assertEquals(7L, viewModel.uiState.value.track.trackId)
         assertTrue(viewModel.uiState.value.modes.favorite)

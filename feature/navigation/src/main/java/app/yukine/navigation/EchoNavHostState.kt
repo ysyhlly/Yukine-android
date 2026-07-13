@@ -15,6 +15,7 @@ import app.yukine.ui.LibraryActionHandler
 import app.yukine.NetworkMenuUiState
 import app.yukine.NetworkSourcesUiState
 import app.yukine.NowPlayingScreenStateProvider
+import app.yukine.PlaybackSnapshotProvider
 import app.yukine.QueueDestinationState
 import app.yukine.QueueDestinationStateProvider
 import app.yukine.SettingsChromeState

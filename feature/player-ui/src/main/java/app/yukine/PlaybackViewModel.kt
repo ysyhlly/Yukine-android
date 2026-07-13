@@ -3,7 +3,6 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
-import app.yukine.navigation.PlaybackSnapshotProvider
 import app.yukine.playback.PlaybackReadModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +14,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+
+interface PlaybackSnapshotProvider {
+    val playbackSnapshot: StateFlow<PlaybackStateSnapshot>
+}
 
 data class PlaybackViewState(
     val snapshot: PlaybackStateSnapshot = PlaybackStateSnapshot.empty(),

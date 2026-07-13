@@ -1,6 +1,5 @@
 package app.yukine
 
-import app.yukine.navigation.PlaybackSnapshotProvider
 
 internal class SettingsContextProvider(
     private val settingsStore: MainSettingsStore,

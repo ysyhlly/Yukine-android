@@ -14,7 +14,7 @@ import app.yukine.ui.NowBarTrackState
 import app.yukine.ui.NowBarWaveformState
 import app.yukine.ui.WaveformSamples
 
-internal object NowBarStateFactory {
+object NowBarStateFactory {
     @JvmStatic
     fun create(
         playbackState: PlaybackStateSnapshot,

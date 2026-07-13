@@ -48,13 +48,6 @@ fun interface LyricsReloadStatusSink {
     fun setStatus(status: String)
 }
 
-internal class LoadTrackLyricsUseCaseLyricsLoader(
-    private val useCase: LoadTrackLyricsUseCase
-) : LyricsLoader {
-    override suspend fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine> =
-        useCase.execute(track, onlineEnabled, neteaseProviderTrackId)
-}
-
 object LyricsStatusText {
     @JvmStatic
     fun status(languageMode: String?, statusKind: LyricsStatusKind?, loadedLineCount: Int): String {

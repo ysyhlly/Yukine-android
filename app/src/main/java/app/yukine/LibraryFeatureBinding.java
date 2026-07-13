@@ -133,6 +133,7 @@ final class LibraryFeatureBinding {
     ) {
         playback.bindStateSources(
                 viewModel.getLibrary(),
+                store.getFavoriteTrackIds(),
                 lyricsViewModel,
                 settingsViewModel,
                 streaming.viewModel(),

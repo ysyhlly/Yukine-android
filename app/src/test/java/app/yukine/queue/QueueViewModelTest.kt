@@ -250,12 +250,8 @@ class QueueViewModelTest {
         }
         viewModel.bindStateSources(
             readModel,
-            MutableStateFlow(LibraryStoreState(favoriteTrackIds = favoriteIds)),
-            MutableStateFlow(
-                SettingsState(
-                    preferences = SettingsPreferencesSnapshot(languageMode = languageMode)
-                )
-            )
+            MutableStateFlow(favoriteIds),
+            MutableStateFlow(languageMode)
         )
     }
 

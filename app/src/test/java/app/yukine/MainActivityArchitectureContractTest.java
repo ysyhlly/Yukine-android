@@ -57,6 +57,26 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void appModuleContainsNoBusinessViewModelDeclarations() throws Exception {
+        Path appSources = root().resolve("app/src/main/java");
+        try (Stream<Path> paths = Files.walk(appSources)) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".kt") || path.toString().endsWith(".java"))
+                    .filter(path -> {
+                        try {
+                            return Files.readAllLines(path, StandardCharsets.UTF_8).stream()
+                                    .anyMatch(line -> line.matches(".*\\bclass\\s+\\w*ViewModel\\b.*"));
+                        } catch (IOException error) {
+                            throw new IllegalStateException(error);
+                        }
+                    })
+                    .collect(Collectors.toList());
+            assertTrue("Business ViewModels must live in feature modules: " + offenders, offenders.isEmpty());
+        }
+    }
+
+    @Test
     public void compositionRootOnlyAssemblesFocusedBindings() throws Exception {
         String composition = read("app/src/main/java/app/yukine/MainActivityComposition.kt");
         for (String binding : new String[]{
@@ -489,7 +509,7 @@ public final class MainActivityArchitectureContractTest {
         String nowBar = read("feature/player-ui/src/main/java/app/yukine/ui/NowBar.kt");
         String nowBarStateSource = read("feature/player-ui/src/main/java/app/yukine/ui/NowBarState.kt");
         String nowPlaying = read("feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt");
-        String factory = read("app/src/main/java/app/yukine/NowBarStateFactory.kt");
+        String factory = read("feature/player-ui/src/main/java/app/yukine/NowBarStateFactory.kt");
 
         String nowBarState = nowBarStateSource.substring(
                 nowBarStateSource.indexOf("data class NowBarState("),
