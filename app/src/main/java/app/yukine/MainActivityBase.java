@@ -41,7 +41,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private static final String TAB_NOW = MainRoutes.TAB_NOW;
     private static final String TAB_NETWORK = MainRoutes.TAB_NETWORK;
     private static final String TAB_DOWNLOADS = MainRoutes.TAB_DOWNLOADS;
-    private static final String TAB_SEARCH = MainRoutes.TAB_SEARCH;
     private static final String TAB_SETTINGS = MainRoutes.TAB_SETTINGS;
     private static final String NETWORK_HOME = MainRoutes.NETWORK_HOME;
     private static final String NETWORK_STREAMING = MainRoutes.NETWORK_STREAMING;
@@ -188,7 +187,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private LyricsViewModel lyricsViewModel;
     private PlaybackServiceHostPort playbackService;
     private MainPlaybackStartListener playbackStartListener;
-    private int unifiedStreamingPlaybackRequestId = 0;
+    private UnifiedSearchOwner unifiedSearchOwner;
     private app.yukine.navigation.EchoNavHostState navHostState;
     private boolean navHostInstalled;
 
@@ -206,7 +205,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         initializeStreamingPlaybackCoordinator();
         initializeNowPlayingGateways();
         initializeDownloadRequests();
-        initializeLibraryGateway();
         initializeStreamingStartup(streamingActionGateway);
         initializePlatformControllers();
         initializePlaybackLifecycleControllers();
@@ -324,7 +322,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::loadCollections,
                 track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
                 routeController,
-                this::applySearch,
+                unifiedSearchOwner::applyCurrentSearch,
                 () -> documentPickerController.openAudioFilePicker(),
                 allowCachedFirst -> libraryImportOwner.loadLibrary(allowCachedFirst),
                 tracks -> libraryFileDeleteLauncher.request(tracks, selectedPlaylistId()),
@@ -544,18 +542,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeNavigationRendering() {
-        searchViewModel.updateActions(new app.yukine.ui.UnifiedSearchActions(
-                this::updateUnifiedSearchQuery,
-                this::performUnifiedSearch,
-                this::playUnifiedSearchTrack,
-                this::playUnifiedStreamingTrack,
-                () -> {
-                    if (streamingSearchActionHandler != null) {
-                        streamingSearchActionHandler.loadNextPage();
-                    }
-                },
-                this::clearUnifiedSearchOnExit
-        ));
         trackListRenderController = new TrackListRenderController(libraryViewModel, trackListRenderListenerFactory.create(
                 (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
@@ -872,6 +858,27 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> loadCollections()
         );
         streamingSearchActionHandler = streamingSearchActionHandlerFactory.create(streamingViewModel, streamingActionGateway);
+        unifiedSearchOwner = new UnifiedSearchOwner(
+                routeController,
+                searchViewModel,
+                streamingViewModel,
+                libraryViewModel,
+                libraryStore,
+                streamingSearchActionHandler,
+                settingsStore,
+                streamingPlaybackQualityPolicy,
+                this::playTrackListFromHost,
+                message -> {
+                    statusMessageController.showFeedback(message);
+                    return kotlin.Unit.INSTANCE;
+                },
+                message -> {
+                    statusMessageController.setStatus(message);
+                    return kotlin.Unit.INSTANCE;
+                }
+        );
+        searchViewModel.updateActions(unifiedSearchOwner.actions());
+        initializeLibraryGateway();
         StreamingSearchRenderController streamingSearchRenderController = new StreamingSearchRenderController(
                 () -> settingsStore.languageMode(),
                 streamingSearchRenderListenerFactory.create(
@@ -1389,10 +1396,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         return routeController == null ? -1L : routeController.selectedPlaylistId();
     }
 
-    private String searchQuery() {
-        return routeController == null ? "" : routeController.searchQuery();
-    }
-
     private String networkPage() {
         return routeController == null ? NETWORK_HOME : routeController.networkPage();
     }
@@ -1602,75 +1605,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         });
     }
 
-    private void performUnifiedSearch(String query) {
-        String safeQuery = query == null ? "" : query.trim();
-        routeController.setSearchQuery(safeQuery);
-        if (streamingSearchActionHandler != null && !safeQuery.isEmpty()) {
-            streamingSearchActionHandler.search(safeQuery);
-        }
-    }
-
-    private void updateUnifiedSearchQuery(String query) {
-        if (searchViewModel != null) {
-            searchViewModel.updateQuery(query == null ? "" : query);
-        }
-    }
-
-    private void clearUnifiedSearchOnExit() {
-        if (routeController != null && searchQuery() != null && !searchQuery().isEmpty()) {
-            routeController.setSearchQuery("");
-        }
-        if (searchViewModel != null) {
-            searchViewModel.clearSearch();
-        }
-        if (streamingViewModel != null) {
-            streamingViewModel.clearStreamingSearchSession();
-        }
-        unifiedStreamingPlaybackRequestId++;
-        if (libraryStore != null) {
-            libraryStore.applySearch("");
-        }
-        if (libraryViewModel != null) {
-            libraryViewModel.syncSearchQuery("");
-        }
-    }
-
-    private void playUnifiedSearchTrack(Track track) {
-        if (track != null) {
-            playTrackListFromHost(Collections.singletonList(track), 0);
-        }
-    }
-
-    private void playUnifiedStreamingTrack(app.yukine.streaming.StreamingTrack track) {
-        if (track == null) {
-            return;
-        }
-        if (!track.getPlayable()) {
-            String reason = track.getUnavailableReason();
-            statusMessageController.showFeedback(reason == null || reason.trim().isEmpty() ? "\u8be5\u5728\u7ebf\u6b4c\u66f2\u6682\u4e0d\u53ef\u64ad\u653e" : reason);
-            return;
-        }
-        final int requestId = ++unifiedStreamingPlaybackRequestId;
-        statusMessageController.showFeedback("\u6b63\u5728\u89e3\u6790\u5728\u7ebf\u6b4c\u66f2\uff1a" + track.getTitle());
-        streamingViewModel.resolveStreamingTrackForPlayback(
-                track.getProvider(),
-                track.getProviderTrackId(),
-                track,
-                streamingPlaybackQualityPolicy.selected(),
-                resolved -> {
-                    if (requestId != unifiedStreamingPlaybackRequestId) {
-                        return;
-                    }
-                    if (resolved == null) {
-                        statusMessageController.showFeedback("\u5728\u7ebf\u6b4c\u66f2\u89e3\u6790\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5");
-                        return;
-                    }
-                    playTrackListFromHost(Collections.singletonList(resolved), 0);
-                    statusMessageController.showFeedback("\u5f00\u59cb\u64ad\u653e\uff1a" + resolved.title);
-                }
-        );
-    }
-
     private void loadLyrics(final Track track) {
         if (lyricsViewModel != null) {
             lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
@@ -1682,27 +1616,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track,
                 app.yukine.streaming.StreamingProviderName.NETEASE
         );
-    }
-
-    private void applySearch() {
-        String query = searchQuery();
-        libraryStore.applySearchAsync(query, () -> {
-            if (query != null && !query.trim().isEmpty() && libraryStore.visibleTracks().isEmpty()) {
-                statusMessageController.setStatus(AppLanguage.text(settingsStore.languageMode(), "search.no.results"));
-            }
-        });
-        if (TAB_SEARCH.equals(selectedTab())) {
-            if (streamingSearchActionHandler != null && searchQuery() != null && !searchQuery().trim().isEmpty()) {
-                streamingSearchActionHandler.search(searchQuery());
-            }
-        }
-        if (TAB_NETWORK.equals(selectedTab())
-                && (NETWORK_STREAMING.equals(networkPage())
-                || MainRoutes.NETWORK_STREAMING_HUB.equals(networkPage()))) {
-            if (streamingSearchActionHandler != null) {
-                streamingSearchActionHandler.search(searchQuery());
-            }
-        }
     }
 
     private void navigateToTab(app.yukine.navigation.TabRoute tab) {

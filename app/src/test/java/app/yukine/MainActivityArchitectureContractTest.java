@@ -238,6 +238,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void unifiedSearchPolicyIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/UnifiedSearchOwner.kt");
+        assertFalse(activity.contains("performUnifiedSearch"));
+        assertFalse(activity.contains("clearUnifiedSearchOnExit"));
+        assertFalse(activity.contains("playUnifiedStreamingTrack"));
+        assertFalse(activity.contains("unifiedStreamingPlaybackRequestId"));
+        assertTrue(owner.contains("private var streamingPlaybackGeneration"));
+        assertTrue(owner.contains("fun applyCurrentSearch()"));
+        assertTrue(owner.contains("if (requestId != streamingPlaybackGeneration)"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
