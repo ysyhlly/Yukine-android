@@ -251,6 +251,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void mainNavigationIntentPolicyIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/MainNavigationIntentOwner.kt");
+        assertFalse(activity.contains("private boolean handleAppBack"));
+        assertFalse(activity.contains("currentDirectoryKey"));
+        assertFalse(activity.contains("handleContentHorizontalSwipe"));
+        assertFalse(activity.contains("closeLibraryDetailIfNeeded"));
+        assertTrue(owner.contains("routeController.applyBackNavigation().handled"));
+        assertTrue(owner.contains("val route = routeController.current()"));
+        assertTrue(owner.contains("requestSettingsScrollToTop.run()"));
+        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/SwipeGesturePolicy.java")));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
