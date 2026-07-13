@@ -120,6 +120,24 @@ class LyricsViewModelTest {
     }
 
     @Test
+    fun playbackTrackLoadUsesBoundProviderResolverWithoutActivityPolicy() = runTest {
+        val operations = FakeLyricsLoader().apply {
+            result = listOf(LyricsLine(1000L, "hello"))
+        }
+        val viewModel = LyricsViewModel(dispatcher)
+        viewModel.configure(operations, onlineEnabled = true, offsetMs = 0L)
+        viewModel.bindReloadGateway(
+            CurrentLyricsTrackProvider { null },
+            LyricsProviderTrackIdResolver { nextTrack -> "provider:${nextTrack?.id}" },
+            null
+        )
+
+        viewModel.loadPlaybackTrack(track(13L)).join()
+
+        assertEquals(listOf("load:13:true:provider:13"), operations.events)
+    }
+
+    @Test
     fun reloadCurrentLyricsPublishesNoTrackStatusWhenCurrentTrackIsMissing() = runTest {
         val operations = FakeLyricsLoader()
         val viewModel = LyricsViewModel(dispatcher)

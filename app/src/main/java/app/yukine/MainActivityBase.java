@@ -92,6 +92,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private MainRouteController routeController;
     private MainNavigationIntentOwner navigationIntentOwner;
     private MainLibraryStore libraryStore;
+    private LibraryCollectionsOwner libraryCollectionsOwner;
     @Inject MainSettingsStore settingsStore;
     @Inject NowPlayingPlaybackServiceStarter nowPlayingPlaybackServiceStarter;
     @Inject PlaybackServiceCommandQueue playbackServiceCommandQueue;
@@ -164,6 +165,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         super.onCreate(savedInstanceState);
         initializeViewModels(createActivityViewModels());
         initializeRouteStoresAndStatus();
+        initializeLibraryStateOwners();
         MainActivityStreamingActionGateway streamingActionGateway = createStreamingActionGateway();
         initializeStreamingPlaybackCoordinator();
         initializeNowPlayingGateways();
@@ -183,6 +185,15 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     protected abstract MainActivityViewModels createActivityViewModels();
+
+    private void initializeLibraryStateOwners() {
+        libraryStore = new MainLibraryStore(librarySearchUseCase, viewModel);
+        libraryCollectionsOwner = new LibraryCollectionsOwner(
+                libraryViewModel,
+                routeController,
+                libraryStore
+        );
+    }
 
     private void initializeViewModels(MainActivityViewModels viewModels) {
         viewModel = viewModels.getMainActivityViewModel();
@@ -285,7 +296,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
                 (trackId, favorite) -> viewModel.setFavorite(trackId, favorite),
-                this::loadCollections,
+                libraryCollectionsOwner::load,
                 track -> MainActivityBase.this.playlistDialogController.showAddToPlaylist(track),
                 routeController,
                 unifiedSearchOwner::applyCurrentSearch,
@@ -368,7 +379,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> permissionController != null && permissionController.hasAudioPermission(),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
-                this::loadCollections,
+                libraryCollectionsOwner::load,
                 canScan -> {
                     if (onboardingOwner != null) {
                         onboardingOwner.onLibraryScanResult(canScan);
@@ -466,8 +477,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                     settingsStore.setPlaybackSpeed(playbackSpeed);
                     settingsStore.setAppVolume(appVolume);
                 },
-                this::loadLyrics,
-                this::loadCollections,
+                track -> lyricsViewModel.loadPlaybackTrack(track),
+                libraryCollectionsOwner::load,
                 snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),
                 snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
                 this::resolveCurrentStreamingQueueTrackIfNeeded,
@@ -657,7 +668,10 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         lyricsViewModel.bindReloadGateway(
                 () -> playbackSnapshot().currentTrack,
-                this::neteaseProviderTrackIdForLyrics,
+                track -> streamingViewModel.streamingProviderTrackIdFor(
+                        track,
+                        app.yukine.streaming.StreamingProviderName.NETEASE
+                ),
                 status -> statusMessageController.setStatus(status)
         );
     }
@@ -745,7 +759,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new MainStreamingPlaylistListener(
                         () -> routeController.selectedPlaylistId(),
                         playlistId -> routeController.setSelectedPlaylistId(playlistId),
-                        () -> MainActivityBase.this.loadCollections(),
+                        () -> libraryCollectionsOwner.load(),
                         () -> libraryImportOwner.loadLibrary(true),
                         () -> MainActivityBase.this.selectedPlaylistName(),
                         () -> libraryStore.selectedPlaylistTracks(),
@@ -804,7 +818,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StreamingSearchRenderController initializeStoresAndDataGateways(
             MainActivityStreamingActionGateway streamingActionGateway
     ) {
-        libraryStore = new MainLibraryStore(librarySearchUseCase, viewModel);
         searchViewModel.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
@@ -820,7 +833,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> settingsStore.languageMode(),
                 viewModel::clearPlayHistory,
                 status -> { statusMessageController.setStatus(status); return kotlin.Unit.INSTANCE; },
-                () -> loadCollections()
+                libraryCollectionsOwner::load
         );
         streamingSearchActionHandler = new DefaultStreamingSearchActionHandler(streamingViewModel, streamingActionGateway);
         unifiedSearchOwner = new UnifiedSearchOwner(
@@ -905,10 +918,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 track -> playlistDialogController.showAddToPlaylist(track),
                 track -> downloadRequestController.downloadTrack(track),
                 tracks -> downloadRequestController.downloadTracks(tracks),
-                playlistId -> {
-                    routeController.setSelectedPlaylistId(playlistId);
-                    loadCollections();
-                },
+                libraryCollectionsOwner::selectAndLoad,
                 playlist -> playlistDialogController.showRenamePlaylist(playlist),
                 playlist -> playlistDialogController.confirmDeletePlaylist(playlist),
                 this::selectedPlaylistId,
@@ -999,7 +1009,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 routeController,
                 () -> settingsStore.languageMode(),
                 status -> statusMessageController.setStatus(status),
-                this::loadCollections
+                libraryCollectionsOwner::load
         );
         playlistDialogController = new PlaylistDialogController(
                 this,
@@ -1015,7 +1025,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 nowPlayingViewModel,
                 libraryImportOwner::replaceLibrary,
                 this::navigateToNetworkTabPage,
-                this::loadCollections,
+                libraryCollectionsOwner::load,
                 status -> statusMessageController.setStatus(status)
         ));
         networkRequestController = new NetworkRequestController(
@@ -1161,7 +1171,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         } else {
             libraryImportOwner.loadLibrary(true);
         }
-        loadCollections();
+        libraryCollectionsOwner.load();
     }
 
     @Override
@@ -1454,26 +1464,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
         };
         getOnBackPressedDispatcher().addCallback(this, backCallback);
-    }
-
-    private void loadCollections() {
-        libraryViewModel.loadCollectionsJava(selectedPlaylistId(), result -> {
-            routeController.setSelectedPlaylistId(result.getSelectedPlaylistId());
-            libraryStore.applyCollections(result);
-        });
-    }
-
-    private void loadLyrics(final Track track) {
-        if (lyricsViewModel != null) {
-            lyricsViewModel.load(track, neteaseProviderTrackIdForLyrics(track));
-        }
-    }
-
-    private String neteaseProviderTrackIdForLyrics(Track track) {
-        return streamingViewModel.streamingProviderTrackIdFor(
-                track,
-                app.yukine.streaming.StreamingProviderName.NETEASE
-        );
     }
 
     private void navigateNetworkPage(String page) {

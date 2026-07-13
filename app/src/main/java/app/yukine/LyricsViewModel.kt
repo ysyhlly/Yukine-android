@@ -151,8 +151,7 @@ class LyricsViewModel @JvmOverloads constructor(
     @JvmOverloads
     fun reloadCurrentLyrics(languageMode: String? = AppLanguage.MODE_SYSTEM): Job {
         val track = currentTrackProvider?.currentTrack()
-        val providerTrackId = track?.let { providerTrackIdResolver?.providerTrackId(it) }.orEmpty()
-        val job = load(track, providerTrackId)
+        val job = loadPlaybackTrack(track)
         reloadStatusSink?.setStatus(
             AppLanguage.text(
                 languageMode ?: AppLanguage.MODE_SYSTEM,
@@ -160,6 +159,11 @@ class LyricsViewModel @JvmOverloads constructor(
             )
         )
         return job
+    }
+
+    fun loadPlaybackTrack(track: Track?): Job {
+        val providerTrackId = track?.let { providerTrackIdResolver?.providerTrackId(it) }.orEmpty()
+        return load(track, providerTrackId)
     }
 
     @JvmOverloads

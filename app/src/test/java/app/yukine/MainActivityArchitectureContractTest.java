@@ -439,6 +439,24 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void collectionAndLyricsReactionsDoNotRouteThroughActivityMethods() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String collectionsOwner = read("app/src/main/java/app/yukine/LibraryCollectionsOwner.kt");
+        String lyricsViewModel = read("app/src/main/java/app/yukine/LyricsViewModel.kt");
+        assertFalse(activity.contains("private void loadCollections()"));
+        assertFalse(activity.contains("private void loadLyrics("));
+        assertFalse(activity.contains("neteaseProviderTrackIdForLyrics"));
+        assertTrue(activity.contains("libraryCollectionsOwner::load"));
+        assertTrue(activity.contains("lyricsViewModel.loadPlaybackTrack(track)"));
+        assertTrue(collectionsOwner.contains("viewModel.loadCollections(routeController.selectedPlaylistId())"));
+        assertTrue(lyricsViewModel.contains("fun loadPlaybackTrack(track: Track?)"));
+        assertTrue(
+                activity.indexOf("initializeLibraryStateOwners();")
+                        < activity.indexOf("initializePlatformControllers();")
+        );
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
