@@ -198,6 +198,7 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private NetworkDialogController networkDialogController;
     private PlaylistDialogController playlistDialogController;
+    private PlaylistMutationOwner playlistMutationOwner;
     private ConfirmationDialogController confirmationDialogController;
     private OnboardingController onboardingController;
     @Override
@@ -974,9 +975,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> streamingPlaylistDialogController.showImportStreamingFavoritesProviderPicker(),
                 () -> streamingPlaylistController.syncSelectedPlaylistFromStreaming(),
                 (playlistId, track, trackIndex, direction) ->
-                        libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, MainActivityBase.this::onSelectedPlaylistTrackMoved),
+                        libraryViewModel.moveSelectedPlaylistTrackJava(playlistId, track, trackIndex, direction, playlistMutationOwner::onSelectedPlaylistTrackMoved),
                 (playlistId, track) ->
-                        libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, MainActivityBase.this::onSelectedPlaylistTrackRemoved)
+                        libraryViewModel.removeSelectedPlaylistTrackJava(playlistId, track, playlistMutationOwner::onSelectedPlaylistTrackRemoved)
         ));
         collectionsRenderController.bindStateSources(
                 navigationViewModel.getState(),
@@ -1042,7 +1043,19 @@ public abstract class MainActivityBase extends ComponentActivity {
                 () -> permissionController
         );
         settingsViewModel.bindRuntimeEffectListener(settingsRuntimeApplier::apply);
-        playlistDialogController = createPlaylistDialogController();
+        playlistMutationOwner = new PlaylistMutationOwner(
+                libraryViewModel,
+                routeController,
+                () -> settingsStore.languageMode(),
+                status -> statusMessageController.setStatus(status),
+                this::loadCollections
+        );
+        playlistDialogController = new PlaylistDialogController(
+                this,
+                () -> settingsStore.languageMode(),
+                () -> libraryStore.playlists(),
+                playlistMutationOwner
+        );
     }
 
     private void initializeNetworkOwners(StreamingSearchRenderController streamingSearchRenderController) {
@@ -2071,104 +2084,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private String selectedPlaylistName() {
         return libraryStore.selectedPlaylistName(selectedPlaylistId());
-    }
-
-    private PlaylistDialogController createPlaylistDialogController() {
-        return new PlaylistDialogController(
-                this,
-                () -> settingsStore.languageMode(),
-                () -> libraryStore.playlists(),
-                new PlaylistDialogController.Listener() {
-                    @Override
-                    public void createPlaylist(String name) {
-                        libraryViewModel.createPlaylistJava(name, MainActivityBase.this::onPlaylistCreated);
-                    }
-
-                    @Override
-                    public void renamePlaylist(long playlistId, String name) {
-                        libraryViewModel.renamePlaylistJava(playlistId, name, MainActivityBase.this::onPlaylistRenamed);
-                    }
-
-                    @Override
-                    public void deletePlaylist(long playlistId, String name) {
-                        libraryViewModel.deletePlaylistJava(playlistId, name, MainActivityBase.this::onPlaylistDeleted);
-                    }
-
-                    @Override
-                    public void addToDefaultPlaylist(Track track) {
-                        libraryViewModel.addToDefaultPlaylistJava(track, (playlistId, added) ->
-                                MainActivityBase.this.onDefaultPlaylistTrackAdded(playlistId, added)
-                        );
-                    }
-
-                    @Override
-                    public void addTrackToPlaylist(long playlistId, long trackId) {
-                        libraryViewModel.addTrackToPlaylistJava(playlistId, trackId, MainActivityBase.this::onTrackAddedToPlaylist);
-                    }
-                }
-        );
-    }
-
-    private void onDefaultPlaylistTrackAdded(long playlistId, boolean added) {
-        statusMessageController.setStatus(
-                libraryViewModel.defaultPlaylistAddPresentation(added, settingsStore.languageMode()).getStatus()
-        );
-        routeController.setSelectedPlaylistId(playlistId);
-        loadCollections();
-    }
-
-    private void onPlaylistCreated(long playlistId) {
-        if (playlistId >= 0L) {
-            routeController.setSelectedPlaylistId(playlistId);
-        }
-        statusMessageController.setStatus(
-                libraryViewModel.playlistCreatedPresentation(settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
-    }
-
-    private void onPlaylistRenamed(long playlistId, boolean renamed) {
-        if (renamed) {
-            routeController.setSelectedPlaylistId(playlistId);
-        }
-        statusMessageController.setStatus(
-                libraryViewModel.playlistRenamedPresentation(renamed, settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
-    }
-
-    private void onPlaylistDeleted(long playlistId, String name, boolean deleted) {
-        if (deleted && selectedPlaylistId() == playlistId) {
-            routeController.setSelectedPlaylistId(-1L);
-        }
-        statusMessageController.setStatus(
-                libraryViewModel.playlistDeletedPresentation(name, deleted, settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
-    }
-
-    private void onSelectedPlaylistTrackRemoved(long playlistId, Track track) {
-        routeController.setSelectedPlaylistId(playlistId);
-        statusMessageController.setStatus(
-                libraryViewModel.selectedPlaylistTrackRemovedPresentation(track, settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
-    }
-
-    private void onSelectedPlaylistTrackMoved(long playlistId, Track track, int direction, boolean moved) {
-        routeController.setSelectedPlaylistId(playlistId);
-        statusMessageController.setStatus(
-                libraryViewModel.selectedPlaylistTrackMovedPresentation(track, direction, moved, settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
-    }
-
-    private void onTrackAddedToPlaylist(long playlistId, boolean added) {
-        routeController.setSelectedPlaylistId(playlistId);
-        statusMessageController.setStatus(
-                libraryViewModel.trackAddedToPlaylistPresentation(added, settingsStore.languageMode()).getStatus()
-        );
-        loadCollections();
     }
 
     private void refreshAfterHiddenLibraryRestore(boolean changed) {

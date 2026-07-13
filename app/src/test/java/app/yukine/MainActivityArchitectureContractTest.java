@@ -186,6 +186,18 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playlistMutationPolicyIsOwnedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/PlaylistMutationOwner.kt");
+        assertFalse(activity.contains("createPlaylistDialogController"));
+        assertFalse(activity.contains("private void onPlaylist"));
+        assertFalse(activity.contains("private void onSelectedPlaylistTrack"));
+        assertTrue(owner.contains(": PlaylistDialogController.Listener"));
+        assertTrue(owner.contains("routeController.setSelectedPlaylistId"));
+        assertTrue(owner.contains("collectionsLoader.loadCollections()"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
