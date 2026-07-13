@@ -98,7 +98,7 @@ final class StreamingFeatureBinding {
                 this::languageMode,
                 statusMessages::setStatus
         );
-        viewModel.bindStreamingPlaybackCoordinator(resolvePlaybackUseCase, playbackTaskScheduler);
+        viewModel.playbackResolutionOwner().bindPlaybackCoordinator(resolvePlaybackUseCase, playbackTaskScheduler);
         providerSettingsOwner.configureAndRefresh();
     }
 
@@ -138,7 +138,7 @@ final class StreamingFeatureBinding {
                         playlistController.onStreamingLoginSuccess(provider);
                     }
                 },
-                viewModel::selectStreamingProvider,
+                viewModel.authOwner()::selectProvider,
                 () -> {
                     if (manualCookieController != null) {
                         manualCookieController.showStreamingCookieDialog();
@@ -209,7 +209,7 @@ final class StreamingFeatureBinding {
                 this::resolveCurrentQueueTrackIfNeeded,
                 () -> libraryStore == null ? Collections.emptyList() : libraryStore.visibleTracks(),
                 recommendationViewModel::stopHeartbeatRecommendationMode,
-                () -> viewModel.prepareStreamingPlaybackStatusText(languageMode(), null).getResolving(),
+                () -> StreamingStatusTextFactory.playback(languageMode(), null).getResolving(),
                 () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 clearQueueConfirmer,
                 lyricsViewModel,
@@ -427,20 +427,20 @@ final class StreamingFeatureBinding {
     }
 
     void onResume() {
-        viewModel.maintainStreamingAuthSessions();
+        viewModel.authOwner().maintainSessions();
     }
 
     void release() {
-        viewModel.bindStreamingPlaybackCoordinator(null, null);
-        viewModel.bindStreamingLocalPlaylistOperations(null);
-        viewModel.bindStreamingTrackMatchStore(null);
+        viewModel.playbackResolutionOwner().bindPlaybackCoordinator(null, null);
+        viewModel.playlistOwner().bindLocalPlaylistOperations(null);
+        viewModel.playbackResolutionOwner().bindTrackMatchStore(null);
         recommendationViewModel.bindStreamingTrackMatchStore(null);
         playbackTaskScheduler.shutdownNow();
     }
 
     private void bindStores() {
-        viewModel.bindStreamingLocalPlaylistOperations(localPlaylistOperations);
-        viewModel.bindStreamingTrackMatchStore(trackMatchUseCase);
+        viewModel.playlistOwner().bindLocalPlaylistOperations(localPlaylistOperations);
+        viewModel.playbackResolutionOwner().bindTrackMatchStore(trackMatchUseCase);
         recommendationViewModel.bindStreamingTrackMatchStore(trackMatchUseCase);
         heartbeatSeedBinder.bind(trackMatchUseCase);
     }

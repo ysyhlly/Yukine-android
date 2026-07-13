@@ -568,7 +568,7 @@ internal class StreamingSearchStateOwner(
     }
 
 
-    private fun failRequest(message: String?) {
+    fun failRequest(message: String?) {
         stateOwner.value = stateOwner.value.copy(
             loading = false,
             loadingMore = false,

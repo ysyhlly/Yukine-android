@@ -45,7 +45,7 @@ final class StreamingPlaylistImportDialogController {
             return;
         }
         StreamingPlaylistImportDialogState dialogState =
-                streamingViewModel.prepareStreamingPlaylistImportDialogState(languageProvider.languageMode());
+                streamingViewModel.playlistOwner().prepareStreamingPlaylistImportDialogState(languageProvider.languageMode());
         final EditText input = new EditText(context);
         input.setSingleLine(true);
         input.setHint(dialogState.getHint());

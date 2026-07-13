@@ -28,7 +28,7 @@ internal class DefaultStreamingSearchActionHandler(
         val descriptor = state.providers.firstOrNull { it.name == provider }
         val capability = state.providerCapabilities.firstOrNull { it.provider == provider }
         if (descriptor != null && !(capability?.supportsAuth ?: StreamingCapabilityResolver.canAuth(descriptor))) {
-            streamingViewModel.failStreamingRequest(
+            streamingViewModel.search.failRequest(
                 descriptor.displayName + AppLanguage.text(actionGateway.languageMode(), "streaming.auth.unsupported")
             )
             return
@@ -60,12 +60,12 @@ internal class DefaultStreamingSearchActionHandler(
         val descriptor = streamingViewModel.state.providers.firstOrNull { it.name == track.provider }
         val capability = streamingViewModel.state.providerCapabilities.firstOrNull { it.provider == track.provider }
         if (descriptor != null && !(capability?.supportsPlayback ?: StreamingCapabilityResolver.canPlayback(descriptor))) {
-            streamingViewModel.failStreamingRequest(sourceMessage(descriptor.displayName, "streaming.playback.unsupported"))
+            streamingViewModel.search.failRequest(sourceMessage(descriptor.displayName, "streaming.playback.unsupported"))
             return
         }
         if (!track.playable) {
             val reason = track.unavailableReason
-            streamingViewModel.failStreamingRequest(
+            streamingViewModel.search.failRequest(
                 reason?.takeIf { it.isNotBlank() } ?: text("streaming.track.unavailable")
             )
             return
@@ -87,7 +87,7 @@ internal class DefaultStreamingSearchActionHandler(
         val descriptor = streamingViewModel.state.providers.firstOrNull { it.name == provider }
         val capability = streamingViewModel.state.providerCapabilities.firstOrNull { it.provider == provider }
         if (descriptor != null && !(capability?.supportsSearch ?: StreamingCapabilityResolver.canSearch(descriptor))) {
-            streamingViewModel.failStreamingRequest(sourceMessage(descriptor.displayName, "streaming.search.unavailable"))
+            streamingViewModel.search.failRequest(sourceMessage(descriptor.displayName, "streaming.search.unavailable"))
             return
         }
         streamingViewModel.search.searchNextStreamingPage()

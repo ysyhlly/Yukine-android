@@ -103,7 +103,7 @@ internal class StreamingPlaybackController(
     private fun publishResolveFailure() {
         val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
         listener.setStatus(
-            error ?: streamingViewModel.prepareStreamingPlaybackStatusText(
+            error ?: StreamingStatusTextFactory.playback(
                 listener.languageMode(),
                 null
             ).resolveFailed
@@ -112,7 +112,7 @@ internal class StreamingPlaybackController(
 
     private fun publishResolving() {
         listener.setStatus(
-            streamingViewModel.prepareStreamingPlaybackStatusText(listener.languageMode(), null).resolving
+            StreamingStatusTextFactory.playback(listener.languageMode(), null).resolving
         )
     }
 
@@ -216,7 +216,7 @@ internal class StreamingPlaybackController(
                 resolved.track,
                 resolved.positionMs
             )
-            val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+            val status = StreamingStatusTextFactory.playback(
                 listener.languageMode(),
                 resolved.quality
             )
@@ -224,7 +224,7 @@ internal class StreamingPlaybackController(
                 if (refuseAutomaticQualityDowngrade) status.qualityRefreshed else status.qualityDowngraded
             )
         } ?: return
-        val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+        val status = StreamingStatusTextFactory.playback(
             listener.languageMode(),
             recoveryQuality
         )

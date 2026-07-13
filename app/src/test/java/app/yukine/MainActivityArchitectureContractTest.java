@@ -216,10 +216,17 @@ public final class MainActivityArchitectureContractTest {
         String authOwner = read("app/src/main/java/app/yukine/StreamingAuthStateOwner.kt");
         String searchOwner = read("app/src/main/java/app/yukine/StreamingSearchStateOwner.kt");
         String resolutionOwner = read("app/src/main/java/app/yukine/StreamingPlaybackResolutionStateOwner.kt");
+        String playlistOwner = read("app/src/main/java/app/yukine/StreamingPlaylistStateOwner.kt");
+        String statusFactory = read("app/src/main/java/app/yukine/StreamingStatusTextFactory.kt");
         String actions = read("app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt");
+        String playlistController = read("app/src/main/java/app/yukine/StreamingPlaylistController.kt");
+        String playbackController = read("app/src/main/java/app/yukine/StreamingPlaybackController.kt");
+        String featureBinding = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
 
         assertTrue(viewModel.contains("private val streamingState = StreamingFeatureStateOwner()"));
+        assertTrue(viewModel.lines().count() < 140);
         assertFalse(viewModel.contains("MutableStateFlow(StreamingSearchState())"));
+        assertFalse(viewModel.contains("streamingState.value ="));
         assertTrue(stateOwner.contains("private val mutableState = MutableStateFlow(initial)"));
         assertTrue(authOwner.contains("class StreamingAuthStateOwner("));
         assertTrue(authOwner.contains("fun refreshProviders(): Job"));
@@ -234,12 +241,28 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(resolutionOwner.contains("private val queueWindowPreResolveInFlight"));
         assertTrue(resolutionOwner.contains("fun recoverStreamingBuffering("));
         assertTrue(resolutionOwner.contains("fun resolveStreamingTrackListForPlayback("));
+        assertTrue(playlistOwner.contains("class StreamingPlaylistStateOwner("));
+        assertTrue(playlistOwner.contains("private val playlistDataCoordinator"));
+        assertTrue(playlistOwner.contains("fun importAccountPlaylistsToLocal("));
+        assertTrue(playlistOwner.contains("fun syncStreamingPlaylistToLocal("));
         assertTrue(actions.contains("streamingViewModel.auth.startAuth("));
         assertTrue(actions.contains("streamingViewModel.auth.signOut(provider)"));
         assertTrue(actions.contains("streamingViewModel.search.searchAllStreaming("));
         assertFalse(viewModel.contains("private fun mergeStreamingSearchResults("));
         assertFalse(viewModel.contains("private var streamingPlaybackPlanner"));
         assertFalse(viewModel.contains("private val queueWindowPreResolveInFlight"));
+        assertFalse(viewModel.contains("streamingPlaylistDataCoordinator"));
+        assertFalse(viewModel.contains("streamingLocalPlaylistOperations"));
+        assertFalse(viewModel.contains("fun searchAllStreaming("));
+        assertFalse(viewModel.contains("fun completeStreamingAuth("));
+        assertFalse(viewModel.contains("fun resolveStreamingTrackListForPlayback("));
+        assertFalse(viewModel.contains("fun importStreamingPlaylistToLocal("));
+        assertFalse(viewModel.contains("fun fetchDailyRecommendations("));
+        assertTrue(playlistController.contains("streamingViewModel.playlists.importStreamingPlaylistToLocal("));
+        assertTrue(statusFactory.contains("internal object StreamingStatusTextFactory"));
+        assertTrue(playbackController.contains("StreamingStatusTextFactory.playback("));
+        assertTrue(playlistController.contains("StreamingStatusTextFactory.playback("));
+        assertTrue(featureBinding.contains("StreamingStatusTextFactory.playback("));
     }
 
     @Test

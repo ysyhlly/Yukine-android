@@ -41,7 +41,7 @@ class DefaultStreamingSearchActionHandlerTest {
     fun searchWithoutSearchableProviderReportsNoSearchableSource() {
         val streamingViewModel = StreamingViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
-        streamingViewModel.updateStreamingProviders(
+        streamingViewModel.auth.updateProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
                     name = StreamingProviderName.NETEASE,
@@ -66,7 +66,7 @@ class DefaultStreamingSearchActionHandlerTest {
         val streamingViewModel = StreamingViewModel()
         streamingViewModel.bindStreamingRepository(repository(netease, qq))
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
-        streamingViewModel.updateStreamingProviders(
+        streamingViewModel.auth.updateProviders(
             providers = listOf(netease.descriptor, qq.descriptor)
         )
 
@@ -87,7 +87,7 @@ class DefaultStreamingSearchActionHandlerTest {
     fun loginUnsupportedAuthUsesStreamingViewModelState() {
         val streamingViewModel = StreamingViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
-        streamingViewModel.updateStreamingProviders(
+        streamingViewModel.auth.updateProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
                     name = StreamingProviderName.NETEASE,
@@ -122,7 +122,7 @@ class DefaultStreamingSearchActionHandlerTest {
     fun playStreamingTrackUnsupportedProviderUsesStreamingViewModelState() {
         val streamingViewModel = StreamingViewModel()
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
-        streamingViewModel.updateStreamingProviders(
+        streamingViewModel.auth.updateProviders(
             providers = listOf(
                 StreamingProviderDescriptor(
                     name = StreamingProviderName.NETEASE,
@@ -157,7 +157,7 @@ class DefaultStreamingSearchActionHandlerTest {
             quality = StreamingAudioQuality.HIRES
         }
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, gateway)
-        streamingViewModel.updateStreamingProviders(
+        streamingViewModel.auth.updateProviders(
             providers = listOf(newProvider.descriptor)
         )
 
@@ -187,7 +187,7 @@ class DefaultStreamingSearchActionHandlerTest {
             streamingViewModel,
             gateway
         )
-        streamingViewModel.updateStreamingAuthLaunch(
+        streamingViewModel.auth.updateAuthLaunch(
             StreamingProviderName.NETEASE,
             StreamingAuthState(kind = StreamingAuthKind.REMOTE_GATEWAY),
             "https://login"

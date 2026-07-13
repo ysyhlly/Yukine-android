@@ -50,7 +50,7 @@ final class StreamingPlaylistDialogController {
     }
 
     void showStreamingProviderPicker(String playlistName, List<Track> tracks) {
-        StreamingProviderPickerRequest request = streamingViewModel.prepareStreamingImportProviderPickerRequest(
+        StreamingProviderPickerRequest request = streamingViewModel.playlistOwner().prepareStreamingImportProviderPickerRequest(
                 streamingViewModel.getStreaming().getValue().getProviders(),
                 true,
                 languageMode()
@@ -72,7 +72,7 @@ final class StreamingPlaylistDialogController {
 
     void showStreamingPlaylistLoadedDialog(String message) {
         EchoDialog.builder(context)
-                .setTitle(streamingViewModel.streamingPlaylistLoadedDialogTitle(languageMode()))
+                .setTitle(streamingViewModel.playlistOwner().streamingPlaylistLoadedDialogTitle(languageMode()))
                 .setMessage(message)
                 .setPositiveButton(text("ok"), null)
                 .show();
@@ -130,7 +130,7 @@ final class StreamingPlaylistDialogController {
     }
 
     void showImportStreamingFavoritesProviderPicker() {
-        StreamingProviderPickerRequest request = streamingViewModel.prepareStreamingImportProviderPickerRequest(
+        StreamingProviderPickerRequest request = streamingViewModel.playlistOwner().prepareStreamingImportProviderPickerRequest(
                 streamingViewModel.getStreaming().getValue().getProviders(),
                 false,
                 languageMode()

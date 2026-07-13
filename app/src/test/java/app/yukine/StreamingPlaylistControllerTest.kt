@@ -47,7 +47,7 @@ class StreamingPlaylistControllerTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         val controller = StreamingPlaylistController(
             viewModel,
@@ -85,7 +85,7 @@ class StreamingPlaylistControllerTest {
         )
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         listener.selectedPlaylistIdValue = 42L
         val controller = StreamingPlaylistController(
@@ -115,7 +115,7 @@ class StreamingPlaylistControllerTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         val controller = StreamingPlaylistController(
             viewModel,
