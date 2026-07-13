@@ -398,6 +398,7 @@ public final class MainActivityArchitectureContractTest {
         String module = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
         String adapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
         String connection = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
+        String reactions = read("app/src/main/java/app/yukine/PlaybackDomainReactionOwner.kt");
         assertFalse(activity.contains("nowPlayingPlaybackGatewayFactory"));
         assertFalse(activity.contains("playbackServiceHostFactory"));
         assertFalse(activity.contains("playbackStateEventListenerFactory"));
@@ -410,6 +411,11 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(activity.contains("playbackService."));
         assertTrue(connection.contains("PlaybackCommands, SettingsPlaybackServicePort"));
         assertTrue(connection.contains("nextService.snapshot()?.let(::publishReadModel)"));
+        assertFalse(activity.contains("PlaybackStateEventController"));
+        assertFalse(activity.contains("MainPlaybackStateEventListener"));
+        assertTrue(activity.contains("new PlaybackDomainReactionOwner("));
+        assertTrue(reactions.contains(") : PlaybackStateListener"));
+        assertTrue(reactions.contains("UI rendering observes"));
     }
 
     @Test

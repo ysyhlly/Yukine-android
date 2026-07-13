@@ -117,7 +117,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private StreamingPlaybackQualityPolicy streamingPlaybackQualityPolicy;
     private NowPlayingSourceSwitchOwner nowPlayingSourceSwitchOwner;
     private NowPlayingEffectOwner nowPlayingEffectOwner;
-    private PlaybackStateEventController playbackStateEventController;
+    private PlaybackDomainReactionOwner playbackDomainReactionOwner;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
     private SettingsEffectOwner settingsEffectOwner;
@@ -459,21 +459,19 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializePlaybackLifecycleControllers() {
-        playbackStateEventController = new PlaybackStateEventController(
+        playbackDomainReactionOwner = new PlaybackDomainReactionOwner(
                 mainHandler,
-                new MainPlaybackStateEventListener(
-                        () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
-                        (playbackSpeed, appVolume) -> {
-                            settingsStore.setPlaybackSpeed(playbackSpeed);
-                            settingsStore.setAppVolume(appVolume);
-                        },
-                        this::loadLyrics,
-                        this::loadCollections,
-                        snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),
-                        snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
-                        this::resolveCurrentStreamingQueueTrackIfNeeded,
-                        status -> statusMessageController.setStatus(status)
-                )
+                () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
+                (playbackSpeed, appVolume) -> {
+                    settingsStore.setPlaybackSpeed(playbackSpeed);
+                    settingsStore.setAppVolume(appVolume);
+                },
+                this::loadLyrics,
+                this::loadCollections,
+                snapshot -> streamingPlaybackController.preResolveNextStreamingTrack(snapshot),
+                snapshot -> streamingPlaybackController.recoverStreamingBuffering(snapshot),
+                this::resolveCurrentStreamingQueueTrackIfNeeded,
+                status -> statusMessageController.setStatus(status)
         );
         PlaybackServiceHostController playbackServiceHostController = new PlaybackServiceHostController(
                 new MainPlaybackServiceHost(
@@ -490,7 +488,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         playbackServiceConnectionController = new PlaybackServiceConnectionController(
                 this,
-                playbackStateEventController,
+                playbackDomainReactionOwner,
                 playbackServiceHostController,
                 nowPlayingPlaybackServiceStarter,
                 playbackServiceCommandQueue
