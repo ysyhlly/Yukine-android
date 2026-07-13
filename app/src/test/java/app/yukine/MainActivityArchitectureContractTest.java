@@ -300,7 +300,7 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(activity.contains("applyStreamingGatewayEndpoint"));
         assertFalse(activity.contains("refreshAfterHiddenLibraryRestore"));
         assertTrue(activity.contains("streamingFeatureBinding::applyEndpoint"));
-        assertTrue(activity.contains("hiddenLibraryRestoreOwner::restore"));
+        assertTrue(activity.contains("libraryFeatureBinding::restoreHidden"));
     }
 
     @Test
@@ -319,7 +319,9 @@ public final class MainActivityArchitectureContractTest {
         String owner = read("app/src/main/java/app/yukine/LibraryDeletionCompletionOwner.kt");
         assertFalse(activity.contains("result.getRemoved()"));
         assertFalse(activity.contains("replace(\"%d\""));
-        assertTrue(activity.contains("libraryDeletionCompletionOwner"));
+        assertFalse(activity.contains("libraryDeletionCompletionOwner"));
+        assertTrue(read("app/src/main/java/app/yukine/LibraryFeatureBinding.java")
+                .contains("LibraryDeletionCompletionOwner deletionCompletionOwner"));
         assertTrue(owner.contains("result.removed.mapTo(linkedSetOf())"));
         assertTrue(owner.contains("libraryReloader.reload(true)"));
     }
@@ -442,6 +444,7 @@ public final class MainActivityArchitectureContractTest {
     public void libraryAndSettingsConstructionFactoriesAreDeleted() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
+        String libraryBinding = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
         String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
         String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
         String runtimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
@@ -455,7 +458,8 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(libraryModule.contains("ControllerFactory"));
         assertFalse(settingsModule.contains("RuntimeApplierFactory"));
         assertFalse(runtimeApplier.contains("class MainSettingsRuntimeApplierFactory"));
-        assertTrue(activity.contains("new MainCollectionsRenderListener("));
+        assertFalse(activity.contains("new MainCollectionsRenderListener("));
+        assertTrue(libraryBinding.contains("new MainCollectionsRenderListener("));
         assertTrue(activity.contains("new SettingsRuntimeApplier("));
     }
 
@@ -474,9 +478,41 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(collectionsOwner.contains("viewModel.loadCollections(routeController.selectedPlaylistId())"));
         assertTrue(lyricsViewModel.contains("fun loadPlaybackTrack(track: Track?)"));
         assertTrue(
-                activity.indexOf("initializeLibraryStateOwners();")
+                activity.indexOf("initializeLibraryFeatureBinding();")
                         < activity.indexOf("initializePlatformControllers();")
         );
+    }
+
+    @Test
+    public void libraryAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
+
+        for (String forbidden : new String[]{
+                "private SearchViewModel searchViewModel",
+                "private LibraryViewModel libraryViewModel",
+                "private CollectionsViewModel collectionsViewModel",
+                "private MainLibraryStore libraryStore",
+                "private LibraryCollectionsOwner libraryCollectionsOwner",
+                "private LibraryImportOwner libraryImportOwner",
+                "private LibraryRenderOwner libraryRenderOwner",
+                "private CollectionsRenderController collectionsRenderController",
+                "private PlaylistMutationOwner playlistMutationOwner",
+                "private PlaylistDialogController playlistDialogController",
+                "initializeLibraryStateOwners()",
+                "initializeNavigationRendering()",
+                "initializeRenderOwners("
+        }) {
+            assertFalse("Activity still owns library assembly: " + forbidden, activity.contains(forbidden));
+        }
+        assertTrue(activity.contains("private LibraryFeatureBinding libraryFeatureBinding"));
+        assertTrue(activity.contains("libraryFeatureBinding.release()"));
+        assertTrue(binding.contains("void bindPlatform("));
+        assertTrue(binding.contains("StreamingSearchRenderController bindUi("));
+        assertTrue(binding.contains("new MainLibraryGateway("));
+        assertTrue(binding.contains("new LibraryRenderOwner("));
+        assertTrue(binding.contains("new CollectionsRenderController("));
+        assertTrue(binding.contains("void release()"));
     }
 
     @Test
