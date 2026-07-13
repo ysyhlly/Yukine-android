@@ -8,26 +8,19 @@ import app.yukine.ui.LibraryFilter
 import app.yukine.ui.LibrarySort
 import app.yukine.ui.TrackRowUiState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TestRule
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryViewModelTest {
     @get:Rule
-    val mainDispatcherRule = LibraryMainDispatcherRule()
+    val mainDispatcherRule = MainDispatcherRule()
 
     @Test
     fun libraryInteractionOwnsRevealSelectionAndBatchDelete() {
@@ -923,23 +916,6 @@ class LibraryViewModelTest {
 
         override fun downloadTracks(tracks: List<Track>) {
             calls.add("download:" + tracks.size)
-        }
-    }
-}
-
-@OptIn(ExperimentalCoroutinesApi::class)
-class LibraryMainDispatcherRule : TestRule {
-    override fun apply(base: Statement, description: Description): Statement {
-        return object : Statement() {
-            override fun evaluate() {
-                val dispatcher = UnconfinedTestDispatcher()
-                Dispatchers.setMain(dispatcher)
-                try {
-                    base.evaluate()
-                } finally {
-                    Dispatchers.resetMain()
-                }
-            }
         }
     }
 }

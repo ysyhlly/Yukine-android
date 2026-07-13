@@ -12,7 +12,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryCollectionsOwnerTest {
     @get:Rule
-    val mainDispatcherRule = LibraryMainDispatcherRule()
+    val mainDispatcherRule = MainDispatcherRule()
 
     @Test
     fun loadsCurrentSelectionAndPublishesNormalizedResult() = runTest {

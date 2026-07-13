@@ -6,9 +6,13 @@ import app.yukine.navigation.SettingsTab
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 class MainNavigationIntentOwnerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun repeatedUserNavigationToCurrentSettingsDirectoryRequestsScrollToTop() {
         val routeController = controllerWithSettingsHome()

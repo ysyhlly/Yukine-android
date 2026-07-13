@@ -17,7 +17,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
     @get:Rule
-    val mainDispatcherRule = LibraryMainDispatcherRule()
+    val mainDispatcherRule = MainDispatcherRule()
 
     @Test
     fun updateResultsPreservesSearchInputActions() {

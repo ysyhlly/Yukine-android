@@ -15,7 +15,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayHistoryActionControllerTest {
     @get:Rule
-    val mainDispatcherRule = LibraryMainDispatcherRule()
+    val mainDispatcherRule = MainDispatcherRule()
 
     @Test
     fun clearPlayHistoryPublishesStatusUpdatesStoreAndReloadsCollections() = runTest {

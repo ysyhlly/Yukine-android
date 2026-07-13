@@ -4,9 +4,13 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.Track
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class PlaylistMutationOwnerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun deletingSelectedPlaylistClearsRouteAndRefreshesCollections() {
         val fixture = fixture(selectedPlaylistId = 42L)
