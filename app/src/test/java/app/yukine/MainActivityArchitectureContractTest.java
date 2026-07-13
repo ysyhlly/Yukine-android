@@ -299,7 +299,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(owner.contains("private val streaming: SettingsStreamingEffectActions"));
         assertFalse(activity.contains("applyStreamingGatewayEndpoint"));
         assertFalse(activity.contains("refreshAfterHiddenLibraryRestore"));
-        assertTrue(activity.contains("streamingProviderSettingsOwner::applyEndpoint"));
+        assertTrue(activity.contains("streamingFeatureBinding::applyEndpoint"));
         assertTrue(activity.contains("hiddenLibraryRestoreOwner::restore"));
     }
 
@@ -391,12 +391,15 @@ public final class MainActivityArchitectureContractTest {
     @Test
     public void streamingConstructionFactoriesAreDeleted() throws Exception {
         String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
         String module = read("app/src/main/java/app/yukine/StreamingModule.kt");
         assertFalse(activity.contains("streamingActionGatewayFactory"));
         assertFalse(activity.contains("streamingSearchRenderListenerFactory"));
         assertFalse(activity.contains("streamingPlaylistListenerFactory"));
-        assertTrue(activity.contains("new MainStreamingActionGateway("));
-        assertTrue(activity.contains("new MainStreamingPlaylistListener("));
+        assertFalse(activity.contains("new MainStreamingActionGateway("));
+        assertFalse(activity.contains("new MainStreamingPlaylistListener("));
+        assertTrue(binding.contains("new MainStreamingActionGateway("));
+        assertTrue(binding.contains("new MainStreamingPlaylistListener("));
         assertFalse(module.contains("ListenerFactory"));
         assertFalse(module.contains("ActionGatewayFactory"));
         assertFalse(module.contains("ActionHandlerFactory"));
@@ -546,7 +549,41 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(playbackBinding.contains("nowPlayingViewModel.bindStateSources(null"));
         assertTrue(playbackBinding.contains("playbackViewModel.bind(null)"));
         assertTrue(playbackBinding.contains("connection.release()"));
-        assertTrue(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
+        assertFalse(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
+        assertTrue(read("app/src/main/java/app/yukine/StreamingFeatureBinding.java")
+                .contains("viewModel.bindStreamingPlaybackCoordinator(null, null)"));
+    }
+
+    @Test
+    public void streamingAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String binding = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
+
+        for (String forbidden : new String[]{
+                "private StreamingViewModel streamingViewModel",
+                "private StreamingRecommendationViewModel streamingRecommendationViewModel",
+                "private StreamingPlaybackController streamingPlaybackController",
+                "private StreamingPlaylistController streamingPlaylistController",
+                "private StreamingPlaylistDialogController streamingPlaylistDialogController",
+                "private StreamingPlaylistImportDialogController streamingPlaylistImportDialogController",
+                "private StreamingManualCookieController streamingManualCookieController",
+                "private HeartbeatRecommendationController heartbeatRecommendationController",
+                "initializeStreamingOwners(",
+                "initializeStreamingStartup(",
+                "resolveCurrentStreamingQueueTrackIfNeeded()",
+                "private void runRecommendationAction("
+        }) {
+            assertFalse("Activity still owns streaming assembly: " + forbidden, activity.contains(forbidden));
+        }
+        assertTrue(activity.contains("private StreamingFeatureBinding streamingFeatureBinding"));
+        assertTrue(activity.contains("streamingFeatureBinding.release()"));
+        assertTrue(binding.contains("void bindPlayback("));
+        assertTrue(binding.contains("void bindDialogs("));
+        assertTrue(binding.contains("StreamingSearchRenderController bindSearch("));
+        assertTrue(binding.contains("void handleNewIntent(Intent intent)"));
+        assertTrue(binding.contains("void onResume()"));
+        assertTrue(binding.contains("void release()"));
+        assertTrue(binding.contains("playbackTaskScheduler.shutdownNow()"));
     }
 
     @Test
@@ -572,7 +609,9 @@ public final class MainActivityArchitectureContractTest {
         }
         assertTrue(activity.contains("private PlaybackFeatureBinding playbackFeatureBinding"));
         assertTrue(activity.contains("playbackFeatureBinding.bindConnection("));
-        assertTrue(activity.contains("playbackFeatureBinding.bindActions("));
+        assertFalse(activity.contains("playbackFeatureBinding.bindActions("));
+        assertTrue(read("app/src/main/java/app/yukine/StreamingFeatureBinding.java")
+                .contains("playback.bindActions("));
         assertTrue(binding.contains("connection = PlaybackServiceConnectionController("));
         assertTrue(binding.contains("playbackViewModel.bind(connection)"));
         assertTrue(binding.contains("nowPlayingViewModel.bindPlaybackGateway("));
