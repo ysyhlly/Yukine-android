@@ -82,6 +82,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void homeDashboardIsFlowDrivenInsteadOfTabRendered() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String viewModel = read("app/src/main/java/app/yukine/HomeDashboardViewModel.kt");
+        String shellModule = read("app/src/main/java/app/yukine/di/ShellModule.kt");
+        assertFalse(activity.contains("private void renderHome()"));
+        assertFalse(activity.contains("HomeDashboardRenderController"));
+        assertFalse(activity.contains("homeDashboardRenderListenerFactory"));
+        assertTrue(viewModel.contains("fun bindStateSources("));
+        assertTrue(viewModel.contains("combine(libraryInputs, streamingConnected, currentTrackId)"));
+        assertFalse(shellModule.contains("MainHomeDashboardRenderListenerFactory"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

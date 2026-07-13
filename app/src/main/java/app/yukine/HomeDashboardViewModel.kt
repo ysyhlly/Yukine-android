@@ -16,9 +16,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+interface HomeDashboardIntentHandler {
+    fun openLibraryMode(mode: String)
+    fun continuePlayback(track: Track?)
+    fun openNowPlaying()
+    fun playTrack(track: Track)
+    fun refreshLibrary()
+    fun openQueue()
+    fun shuffleAll(tracks: List<Track>)
+    fun openStreaming()
+    fun openCollections()
+    fun openSearch()
+    fun playDailyRecommendations()
+    fun playHeartbeatRecommendations()
+}
 
 @HiltViewModel
 class HomeDashboardViewModel @Inject constructor(
@@ -30,6 +46,7 @@ class HomeDashboardViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
     private var playbackBinding: Job? = null
+    private var dashboardBinding: Job? = null
 
     fun bindPlayback(
         playbackReadModel: PlaybackReadModel?,
@@ -46,6 +63,53 @@ class HomeDashboardViewModel @Inject constructor(
                 playback to languageMode
             }.collect { (playback, languageMode) ->
                 updatePlayback(playback, languageMode)
+            }
+        }
+    }
+
+    fun bindStateSources(
+        playbackReadModel: PlaybackReadModel?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        streamingState: StateFlow<StreamingSearchState>?,
+        settingsState: StateFlow<SettingsState>?,
+        intentHandler: HomeDashboardIntentHandler?
+    ) {
+        bindPlayback(playbackReadModel, settingsState)
+        dashboardBinding?.cancel()
+        dashboardBinding = null
+        if (
+            playbackReadModel == null ||
+            libraryState == null ||
+            streamingState == null ||
+            settingsState == null ||
+            intentHandler == null
+        ) {
+            return
+        }
+        val libraryInputs = libraryState
+            .map { DashboardLibraryInputs(it.allTracks, it.visibleTracks, it.recentRecords) }
+            .distinctUntilChanged()
+        val streamingConnected = streamingState
+            .map(::isStreamingConnected)
+            .distinctUntilChanged()
+        val currentTrackId = playbackReadModel.state
+            .map { it.currentTrack?.id }
+            .distinctUntilChanged()
+        dashboardBinding = viewModelScope.launch {
+            combine(libraryInputs, streamingConnected, currentTrackId) {
+                    library,
+                    connected,
+                    _ ->
+                DashboardInputs(library, connected)
+            }.collectLatest { inputs ->
+                val playback = playbackReadModel.state.value
+                updateActions(inputs.library, playback, intentHandler)
+                loadHomeDashboard(
+                    localTracks = inputs.library.visibleTracks.ifEmpty { inputs.library.allTracks },
+                    localRecords = inputs.library.recentRecords,
+                    localPlayback = playback,
+                    streamingConnected = inputs.streamingConnected
+                )
             }
         }
     }
@@ -109,8 +173,20 @@ class HomeDashboardViewModel @Inject constructor(
         streamingConnected: Boolean = false,
         onComplete: Runnable? = null
     ): Job {
-        _loading.value = true
         return viewModelScope.launch {
+            loadHomeDashboard(localTracks, localRecords, localPlayback, streamingConnected)
+            onComplete?.run()
+        }
+    }
+
+    private suspend fun loadHomeDashboard(
+        localTracks: List<Track>,
+        localRecords: List<TrackPlayRecord>,
+        localPlayback: PlaybackStateSnapshot?,
+        streamingConnected: Boolean
+    ) {
+        _loading.value = true
+        try {
             val repo = dashboardRepository
             val state = if (repo != null) {
                 repo.fetchHome(localTracks, localRecords, localPlayback)
@@ -118,14 +194,70 @@ class HomeDashboardViewModel @Inject constructor(
                 HomeDashboardStateFactory.create(
                     "zh",
                     localTracks,
-                    if (localTracks.isNotEmpty()) localTracks else emptyList(),
+                    localTracks,
                     localRecords,
                     localPlayback
                 )
             }
-            _uiState.value = _uiState.value.copy(content = state.copy(streamingConnected = streamingConnected))
+            _uiState.value = _uiState.value.copy(
+                content = state.copy(streamingConnected = streamingConnected)
+            )
+        } finally {
             _loading.value = false
-            onComplete?.run()
         }
     }
+
+    private fun updateActions(
+        inputs: DashboardLibraryInputs,
+        playback: PlaybackStateSnapshot,
+        intentHandler: HomeDashboardIntentHandler
+    ) {
+        val recentTracks = inputs.recentRecords
+            .filter { it.track != null }
+            .sortedByDescending { it.playedAt }
+            .take(8)
+            .map { it.track }
+        val continueTrack = playback.currentTrack
+            ?: recentTracks.firstOrNull()
+            ?: inputs.visibleTracks.firstOrNull()
+            ?: inputs.allTracks.firstOrNull()
+        _uiState.value = _uiState.value.copy(
+            actions = HomeDashboardActions(
+                onOpenStat = listOf(
+                    LibraryGrouping.SONGS,
+                    LibraryGrouping.ALBUMS,
+                    LibraryGrouping.ARTISTS,
+                    LibraryGrouping.FOLDERS
+                ).map { mode -> Runnable { intentHandler.openLibraryMode(mode) } },
+                onContinue = Runnable { intentHandler.continuePlayback(continueTrack) },
+                onOpenNowPlaying = Runnable { intentHandler.openNowPlaying() },
+                onPlayRecent = recentTracks.map { track -> Runnable { intentHandler.playTrack(track) } },
+                onRefresh = Runnable { intentHandler.refreshLibrary() },
+                onViewQueue = Runnable { intentHandler.openQueue() },
+                onShuffleAll = Runnable { intentHandler.shuffleAll(inputs.allTracks) },
+                onRecentTabChanged = {},
+                onDailyRecommend = Runnable { intentHandler.playDailyRecommendations() },
+                onHeartbeatRecommend = Runnable { intentHandler.playHeartbeatRecommendations() },
+                onOpenCollections = Runnable { intentHandler.openCollections() },
+                onConnectStreaming = Runnable { intentHandler.openStreaming() },
+                onSearch = Runnable { intentHandler.openSearch() }
+            )
+        )
+    }
+
+    private fun isStreamingConnected(state: StreamingSearchState): Boolean {
+        return state.authStates.values.any { it.connected } ||
+            state.providers.any { it.auth.connected }
+    }
+
+    private data class DashboardLibraryInputs(
+        val allTracks: List<Track>,
+        val visibleTracks: List<Track>,
+        val recentRecords: List<TrackPlayRecord>
+    )
+
+    private data class DashboardInputs(
+        val library: DashboardLibraryInputs,
+        val streamingConnected: Boolean
+    )
 }

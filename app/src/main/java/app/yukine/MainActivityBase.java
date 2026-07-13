@@ -84,7 +84,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     @Inject LoadSettingsPreferencesUseCase loadSettingsPreferencesUseCase;
     @Inject ApplySettingsPreferenceUseCase applySettingsPreferenceUseCase;
     @Inject StreamingLocalPlaylistOperations streamingLocalPlaylistOperations;
-    @Inject MainHomeDashboardRenderListenerFactory homeDashboardRenderListenerFactory;
     @Inject MainHeartbeatRecommendationListenerFactory heartbeatRecommendationListenerFactory;
     @Inject MainRecommendationActionCallbacksFactory recommendationActionCallbacksFactory;
     @Inject MainStreamingPlaylistDialogListenerFactory streamingPlaylistDialogListenerFactory;
@@ -186,7 +185,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private HeartbeatRecommendationSeedBinder heartbeatSeedBinder;
     private NetworkActionsViewModel networkActionsViewModel;
     private NetworkRequestController networkRequestController;
-    private HomeDashboardRenderController homeDashboardRenderController;
+    private MainHomeDashboardRenderListener homeDashboardIntentHandler;
     private LibraryGroupsRenderController libraryGroupsRenderController;
     private LibraryPlaylistsRenderController libraryPlaylistsRenderController;
     private CollectionsRenderController collectionsRenderController;
@@ -529,7 +528,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializeNavigationRendering() {
         tabRenderDispatcher = new MainTabRenderDispatcher(
-                this::renderHome,
                 this::renderLibrary,
                 this::renderCollections,
                 this::renderQueue,
@@ -570,7 +568,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 presentation -> playbackStartController.playHeartbeatRecommendation(presentation),
                 this::logHeartbeatSeedMiss
         );
-        homeDashboardRenderController = new HomeDashboardRenderController(homeDashboardViewModel, homeDashboardRenderListenerFactory.create(
+        homeDashboardIntentHandler = new MainHomeDashboardRenderListener(
                 mode -> {
                     routeController.setLibraryMode(mode);
                     navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true, true);
@@ -580,7 +578,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 this::playTrackListFromHost,
                 () -> loadLibrary(true),
                 () -> navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true, true),
-                () -> libraryStore.allTracks(),
                 () -> navigateToNetworkTabPage(MainRoutes.NETWORK_STREAMING_HUB),
                 () -> {
                     routeController.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true);
@@ -593,9 +590,8 @@ public abstract class MainActivityBase extends ComponentActivity {
                     syncNavHostState();
                 },
                 () -> runRecommendationAction(new RecommendationAction.PlayDaily(StreamingProviderName.NETEASE)),
-                () -> runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE)),
-                actions -> homeDashboardViewModel.updateHomeDashboardActions(actions)
-        ));
+                () -> runRecommendationAction(new RecommendationAction.PlayHeartbeat(StreamingProviderName.NETEASE))
+        );
         playbackActionController = new PlaybackActionController(
                 nowPlayingViewModel,
                 playbackActionListenerFactory.create(
@@ -1041,9 +1037,12 @@ public abstract class MainActivityBase extends ComponentActivity {
                 lyricsViewModel.getState(),
                 settingsViewModel.getState()
         );
-        homeDashboardViewModel.bindPlayback(
+        homeDashboardViewModel.bindStateSources(
                 playbackServiceConnectionController,
-                settingsViewModel.getState()
+                viewModel.getLibrary(),
+                streamingViewModel.getStreaming(),
+                settingsViewModel.getState(),
+                homeDashboardIntentHandler
         );
         queueViewModel.bindStateSources(
                 playbackServiceConnectionController,
@@ -1321,7 +1320,7 @@ public abstract class MainActivityBase extends ComponentActivity {
             queueViewModel.bindIntentListener(null);
         }
         if (homeDashboardViewModel != null) {
-            homeDashboardViewModel.bindPlayback(null, null);
+            homeDashboardViewModel.bindStateSources(null, null, null, null, null);
         }
         if (playbackViewModel != null) {
             playbackViewModel.bind(null);
@@ -2237,26 +2236,6 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void renderSelectedTab() {
         renderSelectedTabForNavHostState();
         syncNavHostState();
-    }
-
-    private void renderHome() {
-        boolean anyStreamingConnected = false;
-        for (app.yukine.streaming.StreamingAuthState auth : streamingViewModel.getStreaming().getValue().getAuthStates().values()) {
-            if (auth.getConnected()) { anyStreamingConnected = true; break; }
-        }
-        if (!anyStreamingConnected) {
-            for (app.yukine.streaming.StreamingProviderDescriptor provider : streamingViewModel.getStreaming().getValue().getProviders()) {
-                if (provider.getAuth().getConnected()) { anyStreamingConnected = true; break; }
-            }
-        }
-        homeDashboardRenderController.render(
-                settingsStore.languageMode(),
-                libraryStore.allTracks(),
-                libraryStore.allTracks(),
-                libraryStore.recentRecords(),
-                playbackSnapshot(),
-                anyStreamingConnected
-        );
     }
 
     private void renderLibrary() {

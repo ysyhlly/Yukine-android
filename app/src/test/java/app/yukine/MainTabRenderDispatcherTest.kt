@@ -8,7 +8,6 @@ class MainTabRenderDispatcherTest {
     fun dispatcherKeepsExistingSelectedTabMapping() {
         val calls = mutableListOf<String>()
         val dispatcher = MainTabRenderDispatcher(
-            renderHomeAction = Runnable { calls += "home" },
             renderLibraryAction = Runnable { calls += "library" },
             renderCollectionsAction = Runnable { calls += "collections" },
             renderQueueAction = Runnable { calls += "queue" },
@@ -27,7 +26,7 @@ class MainTabRenderDispatcherTest {
         dispatcher.render("missing")
 
         assertEquals(
-            listOf("home", "library", "collections", "queue", "network", "search", "settings", "settings"),
+            listOf("library", "collections", "queue", "network", "search", "settings", "settings"),
             calls
         )
     }

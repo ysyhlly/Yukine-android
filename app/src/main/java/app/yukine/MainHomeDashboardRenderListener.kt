@@ -1,26 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
-import app.yukine.ui.HomeDashboardActions
 import java.util.Collections
-
-internal fun interface MainHomeDashboardRenderListenerFactory {
-    fun create(
-        libraryModeOpener: MainHomeDashboardRenderListener.LibraryModeOpener,
-        playbackContinuer: MainHomeDashboardRenderListener.PlaybackContinuer,
-        nowPlayingOpener: MainHomeDashboardRenderListener.NowPlayingOpener,
-        trackListPlayer: MainHomeDashboardRenderListener.TrackListPlayer,
-        libraryRefresher: MainHomeDashboardRenderListener.LibraryRefresher,
-        queueOpener: MainHomeDashboardRenderListener.QueueOpener,
-        allTracksSource: MainHomeDashboardRenderListener.AllTracksSource,
-        streamingOpener: MainHomeDashboardRenderListener.StreamingOpener,
-        collectionsOpener: MainHomeDashboardRenderListener.CollectionsOpener,
-        searchOpener: MainHomeDashboardRenderListener.SearchOpener,
-        dailyRecommendationsPlayer: MainHomeDashboardRenderListener.DailyRecommendationsPlayer,
-        heartbeatRecommendationsPlayer: MainHomeDashboardRenderListener.HeartbeatRecommendationsPlayer,
-        actionsPublisher: MainHomeDashboardRenderListener.ActionsPublisher
-    ): HomeDashboardRenderController.Listener
-}
 
 internal class MainHomeDashboardRenderListener(
     private val libraryModeOpener: LibraryModeOpener,
@@ -29,14 +10,12 @@ internal class MainHomeDashboardRenderListener(
     private val trackListPlayer: TrackListPlayer,
     private val libraryRefresher: LibraryRefresher,
     private val queueOpener: QueueOpener,
-    private val allTracksSource: AllTracksSource,
     private val streamingOpener: StreamingOpener,
     private val collectionsOpener: CollectionsOpener,
     private val searchOpener: SearchOpener,
     private val dailyRecommendationsPlayer: DailyRecommendationsPlayer,
-    private val heartbeatRecommendationsPlayer: HeartbeatRecommendationsPlayer,
-    private val actionsPublisher: ActionsPublisher
-) : HomeDashboardRenderController.Listener {
+    private val heartbeatRecommendationsPlayer: HeartbeatRecommendationsPlayer
+) : HomeDashboardIntentHandler {
     fun interface LibraryModeOpener {
         fun openLibraryMode(mode: String)
     }
@@ -61,10 +40,6 @@ internal class MainHomeDashboardRenderListener(
         fun openQueue()
     }
 
-    fun interface AllTracksSource {
-        fun allTracks(): List<Track>
-    }
-
     fun interface StreamingOpener {
         fun openStreaming()
     }
@@ -83,10 +58,6 @@ internal class MainHomeDashboardRenderListener(
 
     fun interface HeartbeatRecommendationsPlayer {
         fun playHeartbeatRecommendations()
-    }
-
-    fun interface ActionsPublisher {
-        fun publishHomeDashboardActions(actions: HomeDashboardActions)
     }
 
     override fun openLibraryMode(mode: String) {
@@ -113,12 +84,11 @@ internal class MainHomeDashboardRenderListener(
         queueOpener.openQueue()
     }
 
-    override fun shuffleAll() {
-        val allTracks = allTracksSource.allTracks()
-        if (allTracks.isEmpty()) {
+    override fun shuffleAll(tracks: List<Track>) {
+        if (tracks.isEmpty()) {
             return
         }
-        trackListPlayer.playTrackList(ArrayList(allTracks).also(Collections::shuffle), 0)
+        trackListPlayer.playTrackList(ArrayList(tracks).also(Collections::shuffle), 0)
     }
 
     override fun openStreaming() {
@@ -141,7 +111,4 @@ internal class MainHomeDashboardRenderListener(
         heartbeatRecommendationsPlayer.playHeartbeatRecommendations()
     }
 
-    override fun publishHomeDashboardActions(actions: HomeDashboardActions) {
-        actionsPublisher.publishHomeDashboardActions(actions)
-    }
 }

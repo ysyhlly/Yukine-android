@@ -9,6 +9,8 @@ import app.yukine.model.Track
 import app.yukine.emptyHomeDashboardActions
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -88,9 +90,55 @@ class HomeDashboardViewModelTest {
         assertTrue(opened)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun stateSourcesBuildDashboardAndActionsWithoutTabRenderCallback() = runTest {
+        val viewModel = HomeDashboardViewModel(null)
+        val readModel = FakePlaybackReadModel()
+        val track = Track(7L, "Flow", "Yukine", "Reactive", 180_000L, Uri.EMPTY, "file:7")
+        val handler = RecordingHomeIntentHandler()
+
+        viewModel.bindStateSources(
+            readModel,
+            MutableStateFlow(
+                LibraryStoreState(
+                    allTracks = listOf(track),
+                    visibleTracks = listOf(track)
+                )
+            ),
+            MutableStateFlow(StreamingSearchState()),
+            MutableStateFlow(SettingsState()),
+            handler
+        )
+        advanceUntilIdle()
+
+        assertEquals("Flow", viewModel.uiState.value.content.continueTitle)
+        viewModel.uiState.value.actions.onShuffleAll.run()
+        assertEquals(listOf(7L), handler.shuffledTrackIds)
+    }
+
     private class FakePlaybackReadModel : PlaybackReadModel {
         override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
         override val queue = MutableStateFlow(PlaybackQueueSnapshot())
         override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
+    }
+
+    private class RecordingHomeIntentHandler : HomeDashboardIntentHandler {
+        var shuffledTrackIds: List<Long> = emptyList()
+
+        override fun openLibraryMode(mode: String) = Unit
+        override fun continuePlayback(track: Track?) = Unit
+        override fun openNowPlaying() = Unit
+        override fun playTrack(track: Track) = Unit
+        override fun refreshLibrary() = Unit
+        override fun openQueue() = Unit
+        override fun shuffleAll(tracks: List<Track>) {
+            shuffledTrackIds = tracks.map { it.id }
+        }
+        override fun openStreaming() = Unit
+        override fun openCollections() = Unit
+        override fun openSearch() = Unit
+        override fun playDailyRecommendations() = Unit
+        override fun playHeartbeatRecommendations() = Unit
     }
 }
