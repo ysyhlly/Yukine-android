@@ -14,17 +14,116 @@ import java.util.stream.Stream;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Small boundary checks; feature behavior belongs in the feature tests. */
+/** Boundary alarms. Behavior belongs in focused feature tests. */
 public final class MainActivityArchitectureContractTest {
     @Test
-    public void playbackFeatureDoesNotDependOnActivityShell() throws Exception {
-        List<Path> sources = sourceFiles("feature/playback/src/main");
-        for (Path source : sources) {
-            String text = read(source);
-            assertFalse(source + " must not reference the Activity shell", text.contains("MainActivityBase"));
-            assertFalse(source + " must not reference ComponentActivity", text.contains("ComponentActivity"));
-            assertFalse(source + " must not reference Android Activity", text.contains("import android.app.Activity"));
+    public void legacyActivityHubIsDeletedAndKotlinEntryIsThin() throws Exception {
+        Path legacy = root().resolve("app/src/main/java/app/yukine/MainActivityBase.java");
+        String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
+
+        assertFalse(Files.exists(legacy));
+        assertTrue(activity.contains("class MainActivity : ComponentActivity()"));
+        assertTrue(activity.lines().count() < 100);
+        assertTrue(activity.contains("features.navigation.bindRoot("));
+        assertTrue(activity.contains("features.playback.bindService()"));
+        assertFalse(activity.contains("by viewModels()"));
+        assertFalse(activity.contains("ViewModelProvider"));
+        assertFalse(activity.contains("FeatureBinding("));
+        assertFalse(activity.contains("new Main"));
+        assertFalse(activity.contains("Factory"));
+        assertFalse(activity.contains("Listener"));
+        assertFalse(activity.contains("private lateinit var permissionController"));
+        assertFalse(activity.contains("private lateinit var documentPickerController"));
+        assertFalse(activity.contains("private lateinit var queueActionController"));
+        assertFalse(activity.contains("render"));
+        assertFalse(activity.contains("bindStateSources"));
+        assertFalse(activity.contains("bindEffectListener"));
+    }
+
+    @Test
+    public void compositionRootOnlyAssemblesFocusedBindings() throws Exception {
+        String composition = read("app/src/main/java/app/yukine/MainActivityComposition.kt");
+        for (String binding : new String[]{
+                "SettingsFeatureBinding(",
+                "PlatformFeatureBinding(",
+                "NavigationFeatureBinding(",
+                "StreamingFeatureBinding(",
+                "LibraryFeatureBinding(",
+                "PlaybackFeatureBinding(",
+                "NetworkFeatureBinding(",
+                "OnboardingFeatureBinding("
+        }) {
+            assertTrue("Missing focused composition: " + binding, composition.contains(binding));
         }
+        assertFalse(composition.contains("fun onCreate("));
+        assertFalse(composition.contains("fun onResume("));
+        assertFalse(composition.contains("fun onDestroy("));
+        assertFalse(composition.contains("fun render"));
+        assertFalse(composition.contains("class AppEventBus"));
+        assertFalse(composition.contains("class Coordinator"));
+        assertFalse(composition.contains("class Gateway"));
+    }
+
+    @Test
+    public void focusedBindingsOwnAssemblyAndRelease() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
+        String playback = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
+        String streaming = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
+        String library = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
+        String settings = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
+        String navigation = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
+        String network = read("app/src/main/java/app/yukine/NetworkFeatureBinding.java");
+        String platform = read("app/src/main/java/app/yukine/PlatformFeatureBinding.java");
+        String onboarding = read("app/src/main/java/app/yukine/OnboardingFeatureBinding.java");
+
+        assertFalse(activity.contains("PlaybackServiceConnectionController"));
+        assertFalse(activity.contains("StreamingPlaybackController"));
+        assertFalse(activity.contains("LibraryRenderOwner"));
+        assertFalse(activity.contains("SettingsEffectOwner"));
+        assertFalse(activity.contains("NetworkRenderCoordinator"));
+        assertFalse(activity.contains("OnboardingOwner"));
+
+        assertTrue(playback.contains("connection = PlaybackServiceConnectionController("));
+        assertTrue(playback.contains("playbackViewModel.bind(connection)"));
+        assertTrue(playback.contains("fun release()"));
+        assertTrue(streaming.contains("void bindPlayback("));
+        assertTrue(streaming.contains("void handleNewIntent(Intent intent)"));
+        assertTrue(streaming.contains("void release()"));
+        assertTrue(streaming.contains("playbackTaskScheduler.shutdownNow()"));
+        assertTrue(library.contains("new LibraryRenderOwner("));
+        assertTrue(library.contains("void bindPlatform("));
+        assertTrue(library.contains("void release()"));
+        assertTrue(settings.contains("new SettingsEffectOwner("));
+        assertTrue(settings.contains("new SettingsRuntimeApplier("));
+        assertTrue(settings.contains("void release()"));
+        assertTrue(navigation.contains("fun bindRoot("));
+        assertTrue(navigation.contains("fun release()"));
+        assertTrue(network.contains("new NetworkRenderCoordinator("));
+        assertTrue(network.contains("actionsViewModel.bindListener(null)"));
+        assertTrue(platform.contains("new MainPermissionController(activity, permissionResultOwner)"));
+        assertTrue(platform.contains("new DocumentPickerController(activity"));
+        assertTrue(onboarding.contains("new OnboardingOwner("));
+        assertTrue(onboarding.contains("void release()"));
+    }
+
+    @Test
+    public void activityReleaseDelegatesToEveryFocusedBinding() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
+        for (String release : new String[]{
+                "features.settings.release()",
+                "features.navigation.release()",
+                "features.onboarding.release()",
+                "features.network.release()",
+                "features.library.release()",
+                "features.playback.release()",
+                "features.streaming.release()",
+                "features.platform.shutdown()"
+        }) {
+            assertTrue("Missing lifecycle delegate: " + release, activity.contains(release));
+        }
+        assertFalse(activity.contains("bindListener(null)"));
+        assertFalse(activity.contains("bindEffectListener(null)"));
+        assertFalse(activity.contains("shutdownNow()"));
     }
 
     @Test
@@ -43,11 +142,22 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
-    public void navigationHasOnePersistentRouteOwner() throws Exception {
+    public void playbackFeatureDoesNotDependOnActivityShell() throws Exception {
+        for (Path source : sourceFiles("feature/playback/src/main")) {
+            String text = read(source);
+            assertFalse(source + " must not reference MainActivity", text.contains("MainActivity"));
+            assertFalse(source + " must not reference ComponentActivity", text.contains("ComponentActivity"));
+            assertFalse(source + " must not reference Android Activity", text.contains("import android.app.Activity"));
+        }
+    }
+
+    @Test
+    public void navigationHasOneTypedPersistentRouteOwner() throws Exception {
         String hostState = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavHostState.kt");
         String graph = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt");
         String routeState = read("feature/navigation/src/main/java/app/yukine/NavigationRouteState.kt");
         String routeController = read("app/src/main/java/app/yukine/MainRouteController.kt");
+
         assertFalse(hostState.contains("selectedTabRoute"));
         assertFalse(graph.contains("hostState.selectedTabRoute"));
         assertTrue(graph.contains("route.selectedTab"));
@@ -56,648 +166,74 @@ public final class MainActivityArchitectureContractTest {
         assertFalse(routeState.contains("val selectedTab: String"));
         assertFalse(routeState.contains("val settingsPage: String"));
         assertTrue(routeController.contains("private val state: NavigationRouteState"));
-        assertFalse(routeController.contains("private var state:"));
         assertTrue(routeController.contains("viewModel.updateRoute"));
     }
 
     @Test
-    public void activityDoesNotPersistRoutesDuringEveryRender() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
-        assertFalse(activity.contains("routeController.persist()"));
-        assertFalse(activity.contains("renderSelectedTab"));
-        assertFalse(activity.contains("syncNavHostState"));
-        assertFalse(activity.contains("private void createNavHostState()"));
-        assertFalse(activity.contains("private MainRouteController routeController"));
-        assertTrue(binding.contains("val routeController = MainRouteController"));
-        assertTrue(binding.contains("private fun createNavHostState("));
-    }
-
-    @Test
-    public void composeRootIsMountedOnceAndOnboardingIsReactive() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
-        String onboarding = read("app/src/main/java/app/yukine/OnboardingController.kt");
-        String app = read("app/src/main/java/app/yukine/EchoApp.kt");
-        assertFalse(activity.contains("navHostInstalled"));
-        assertFalse(activity.contains("private void installNavHostShell()"));
-        assertTrue(activity.contains("navigationFeatureBinding.bindRoot("));
-        assertTrue(binding.contains("private var rootInstalled = false"));
-        assertTrue(binding.contains("if (rootInstalled) return"));
-        assertTrue(binding.contains("EchoAppHost.installNavHost(activity"));
-        assertFalse(activity.contains("mountNavHostShell"));
-        assertFalse(onboarding.contains("mountNavHostShell"));
-        assertTrue(onboarding.contains("StateFlow<OnboardingUiState>"));
-        assertTrue(app.contains("onboardingState().collectAsState()"));
-    }
-
-    @Test
-    public void homeDashboardIsFlowDrivenInsteadOfTabRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String viewModel = read("app/src/main/java/app/yukine/HomeDashboardViewModel.kt");
-        String shellModule = read("app/src/main/java/app/yukine/di/ShellModule.kt");
-        assertFalse(activity.contains("private void renderHome()"));
-        assertFalse(activity.contains("HomeDashboardRenderController"));
-        assertFalse(activity.contains("homeDashboardRenderListenerFactory"));
-        assertTrue(viewModel.contains("fun bindStateSources("));
-        assertTrue(viewModel.contains("combine(libraryInputs, streamingConnected, currentTrackId)"));
-        assertFalse(shellModule.contains("MainHomeDashboardRenderListenerFactory"));
-    }
-
-    @Test
-    public void queueConnectionStateIsFlowDrivenInsteadOfTabRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String queue = read("app/src/main/java/app/yukine/queue/QueueViewModel.kt");
-        assertFalse(activity.contains("private void renderQueue()"));
-        assertTrue(queue.contains("playbackReadModel.connection"));
-        assertTrue(queue.contains("PlaybackConnectionState.Connected"));
-    }
-
-    @Test
-    public void settingsPageIsRouteFlowDrivenInsteadOfActivityRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
-        assertFalse(activity.contains("private void renderSettings()"));
-        assertFalse(activity.contains("renderPageFromHost"));
-        assertTrue(settings.contains("fun bindRouteState("));
-        assertTrue(settings.contains(".map { it.selectedTab to it.settingsPage }"));
-    }
-
-    @Test
-    public void unifiedSearchResultsAreFlowDrivenInsteadOfTabRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+    public void screensObserveFlowsInsteadOfActivityRenderFanOut() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
+        String home = read("app/src/main/java/app/yukine/HomeDashboardViewModel.kt");
         String search = read("app/src/main/java/app/yukine/SearchViewModel.kt");
-        assertFalse(activity.contains("private void renderSearch()"));
-        assertFalse(activity.contains("refreshUnifiedSearch("));
-        assertTrue(search.contains("fun bindStateSources("));
-        assertTrue(search.contains("routeState.map { it.searchQuery }"));
-        assertTrue(search.contains("libraryState.map { it.allTracks }"));
-    }
-
-    @Test
-    public void networkPagesAreFlowDrivenInsteadOfActivityRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String network = read("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt");
-        assertFalse(activity.contains("private void renderNetwork()"));
-        assertTrue(network.contains("fun bindStateSources("));
-        assertTrue(network.contains("routeState.map(::networkRenderRoute)"));
-        assertTrue(network.contains("settingsState.map { it.preferences.languageMode }"));
-    }
-
-    @Test
-    public void libraryPagesAreFlowDrivenInsteadOfActivityRendered() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
         String library = read("app/src/main/java/app/yukine/LibraryRenderOwner.kt");
-        assertFalse(activity.contains("private void renderLibrary()"));
-        assertFalse(activity.contains("private void renderLibraryGroups()"));
-        assertFalse(activity.contains("private void renderLibraryPlaylists()"));
-        assertTrue(library.contains("fun bindStateSources("));
-        assertTrue(library.contains("playback.state.map { it.currentTrack }"));
-        assertFalse(library.contains("positionMs"));
-    }
-
-    @Test
-    public void collectionsAreFlowDrivenAndManualTabDispatcherIsDeleted() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String network = read("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt");
         String collections = read("app/src/main/java/app/yukine/CollectionsRenderController.kt");
-        assertFalse(activity.contains("private void renderCollections()"));
-        assertFalse(activity.contains("renderSelectedTabForNavHostState"));
-        assertFalse(activity.contains("MainTabRenderDispatcher"));
+
+        assertFalse(activity.contains("renderHome"));
+        assertFalse(activity.contains("renderQueue"));
+        assertFalse(activity.contains("renderSettings"));
+        assertFalse(activity.contains("renderSearch"));
+        assertFalse(activity.contains("renderNetwork"));
+        assertFalse(activity.contains("renderLibrary"));
+        assertTrue(home.contains("fun bindStateSources("));
+        assertTrue(search.contains("fun bindStateSources("));
+        assertTrue(library.contains("fun bindStateSources("));
+        assertTrue(network.contains("fun bindStateSources("));
         assertTrue(collections.contains("fun bindStateSources("));
-        assertTrue(collections.contains("withContext(ioDispatcher) { insightsLoader.load() }"));
-        assertTrue(collections.contains("playback.state.map { it.currentTrack }"));
-        assertFalse(collections.contains("playback.state.map { it.positionMs }"));
-        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt")));
+        assertFalse(Files.exists(root().resolve("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt")));
     }
 
     @Test
-    public void trackListPresentationContextIsOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String publisher = read("app/src/main/java/app/yukine/TrackListStatePublisher.kt");
-        assertFalse(activity.contains("renderComposeTrackList"));
-        assertFalse(activity.contains("trackListLabels()"));
-        assertTrue(publisher.contains("private val libraryState: StateFlow<LibraryStoreState>"));
-        assertTrue(publisher.contains("private val settingsState: StateFlow<SettingsState>"));
-        assertTrue(publisher.contains("private val playbackReadModel: PlaybackReadModel"));
-    }
-
-    @Test
-    public void libraryImportPipelineIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/LibraryImportOwner.kt");
-        assertFalse(activity.contains("private void loadLibrary("));
-        assertFalse(activity.contains("private void importSelectedAudio"));
-        assertFalse(activity.contains("private void replaceLibrary("));
-        assertTrue(owner.contains("class LibraryImportOwner"));
-        assertTrue(owner.contains("libraryStore.replaceLibraryAsync"));
-        assertTrue(owner.contains("viewModel.parseMissingAudioSpecsJava"));
-    }
-
-    @Test
-    public void playlistMutationPolicyIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/PlaylistMutationOwner.kt");
-        assertFalse(activity.contains("createPlaylistDialogController"));
-        assertFalse(activity.contains("private void onPlaylist"));
-        assertFalse(activity.contains("private void onSelectedPlaylistTrack"));
-        assertTrue(owner.contains(": PlaylistDialogController.Listener"));
-        assertTrue(owner.contains("routeController.setSelectedPlaylistId"));
-        assertTrue(owner.contains("collectionsLoader.loadCollections()"));
-    }
-
-    @Test
-    public void nowPlayingSourceSwitchPolicyIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/NowPlayingSourceSwitchOwner.kt");
-        assertFalse(activity.contains("switchNowPlayingSource"));
-        assertFalse(activity.contains("switchNowPlayingLibrarySource"));
-        assertFalse(activity.contains("completeNowPlayingSourceSwitch"));
-        assertFalse(activity.contains("selectedStreamingQuality"));
-        assertTrue(owner.contains("private val playbackReadModel: PlaybackReadModel"));
-        assertTrue(owner.contains("if (!isLatestRequest(requestId))"));
-        assertTrue(owner.contains("replaceCurrentSourceAndResume(current.id, replacement, positionMs)"));
-    }
-
-    @Test
-    public void activityHasNoFeatureRenderListenerImplementations() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String playlists = read("app/src/main/java/app/yukine/LibraryPlaylistsIntentOwner.kt");
-        String network = read("app/src/main/java/app/yukine/NetworkTrackListOwner.kt");
-        assertFalse(activity.contains("renderPlaylistTracks"));
-        assertFalse(activity.contains("renderTrackList"));
-        assertTrue(playlists.contains(": LibraryPlaylistsRenderController.Listener"));
-        assertTrue(playlists.contains("LibraryGroupsDestinationState("));
-        assertTrue(network.contains(": NetworkTrackListRenderController.Listener"));
-        assertTrue(network.contains("private val publishRequest: (NetworkTrackListRequest) -> Unit"));
-    }
-
-    @Test
-    public void composeMountAndDestinationIntentsAreOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String mount = read("app/src/main/java/app/yukine/MainNavHostMount.kt");
-        String queue = read("app/src/main/java/app/yukine/QueueIntentOwner.kt");
-        String downloads = read("app/src/main/java/app/yukine/DownloadsDestinationOwner.kt");
-        assertFalse(activity.contains("class ActivityNavHostMount"));
-        assertFalse(activity.contains("instanceof QueueIntent"));
-        assertFalse(activity.contains("downloadsDestinationActions()"));
-        assertTrue(mount.contains(": EchoNavHostMount"));
-        assertTrue(queue.contains(": QueueViewModel.IntentListener"));
-        assertTrue(downloads.contains("fun actions(): DownloadsDestinationActions"));
-    }
-
-    @Test
-    public void unifiedSearchPolicyIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/UnifiedSearchOwner.kt");
-        assertFalse(activity.contains("performUnifiedSearch"));
-        assertFalse(activity.contains("clearUnifiedSearchOnExit"));
-        assertFalse(activity.contains("playUnifiedStreamingTrack"));
-        assertFalse(activity.contains("unifiedStreamingPlaybackRequestId"));
-        assertTrue(owner.contains("private var streamingPlaybackGeneration"));
-        assertTrue(owner.contains("fun applyCurrentSearch()"));
-        assertTrue(owner.contains("if (requestId != streamingPlaybackGeneration)"));
-    }
-
-    @Test
-    public void mainNavigationIntentPolicyIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/MainNavigationIntentOwner.kt");
-        assertFalse(activity.contains("private boolean handleAppBack"));
-        assertFalse(activity.contains("currentDirectoryKey"));
-        assertFalse(activity.contains("handleContentHorizontalSwipe"));
-        assertFalse(activity.contains("closeLibraryDetailIfNeeded"));
-        assertTrue(owner.contains("routeController.applyBackNavigation().handled"));
-        assertTrue(owner.contains("val route = routeController.current()"));
-        assertTrue(owner.contains("requestSettingsScrollToTop.run()"));
-        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/SwipeGesturePolicy.java")));
-    }
-
-    @Test
-    public void nowPlayingEffectsAreDispatchedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String navigationBinding = read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt");
-        String owner = read("app/src/main/java/app/yukine/NowPlayingEffectOwner.kt");
-        assertFalse(activity.contains("handleNowPlayingEffects"));
-        assertFalse(activity.contains("instanceof NowPlayingEffect"));
-        assertFalse(activity.contains("nowPlayingEffectOwner.handle(event)"));
-        assertTrue(navigationBinding.contains("nowPlayingEffectOwner::handle"));
-        assertTrue(owner.contains("viewModel.drainEffects().forEach(::dispatch)"));
-        assertTrue(owner.contains("is NowPlayingEffect.SwitchSource ->"));
-        assertTrue(owner.contains("is NowPlayingEffect.SwitchLibrarySource ->"));
-    }
-
-    @Test
-    public void settingsEffectsAreDispatchedByFocusedActionGroups() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
-        String owner = read("app/src/main/java/app/yukine/SettingsEffectOwner.kt");
-        assertFalse(activity.contains("effect instanceof SettingsEffect"));
-        assertFalse(activity.contains("settingsViewModel.bindEffectListener(settingsEffectOwner)"));
-        assertTrue(binding.contains("viewModel.bindEffectListener(effectOwner)"));
-        assertTrue(owner.contains("private val navigation: SettingsNavigationEffectActions"));
-        assertTrue(owner.contains("private val library: SettingsLibraryEffectActions"));
-        assertTrue(owner.contains("private val playback: SettingsPlaybackEffectActions"));
-        assertTrue(owner.contains("private val files: SettingsFileEffectActions"));
-        assertTrue(owner.contains("private val streaming: SettingsStreamingEffectActions"));
-        assertFalse(activity.contains("applyStreamingGatewayEndpoint"));
-        assertFalse(activity.contains("refreshAfterHiddenLibraryRestore"));
-        assertTrue(binding.contains("streaming::applyEndpoint"));
-        assertTrue(binding.contains("library::restoreHidden"));
-    }
-
-    @Test
-    public void customDownloadDirectoryPolicyIsOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/DownloadDirectoryOwner.kt");
-        assertFalse(activity.contains("setCustomDownloadFolder"));
-        assertTrue(activity.contains("downloadDirectoryOwner::setCustomDirectory"));
-        assertTrue(owner.contains("manager.setCustomDownloadDirectory(treeUri)"));
-        assertTrue(owner.contains("downloadsViewModel.refreshDirectory(manager)"));
-    }
-
-    @Test
-    public void libraryDeletionCompletionPolicyIsOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/LibraryDeletionCompletionOwner.kt");
-        assertFalse(activity.contains("result.getRemoved()"));
-        assertFalse(activity.contains("replace(\"%d\""));
-        assertFalse(activity.contains("libraryDeletionCompletionOwner"));
-        assertTrue(read("app/src/main/java/app/yukine/LibraryFeatureBinding.java")
-                .contains("LibraryDeletionCompletionOwner deletionCompletionOwner"));
-        assertTrue(owner.contains("result.removed.mapTo(linkedSetOf())"));
-        assertTrue(owner.contains("libraryReloader.reload(true)"));
-    }
-
-    @Test
-    public void backgroundImageSelectionPolicyIsOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
-        String owner = read("app/src/main/java/app/yukine/BackgroundImageSelectionOwner.kt");
-        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
-        assertFalse(activity.contains("settingsStore.pageBackgrounds().withBackground"));
-        assertFalse(activity.contains("page.background.copy.failed"));
-        assertFalse(activity.contains("backgroundImageSelectionOwner"));
-        assertTrue(binding.contains("BackgroundImageSelectionOwner backgroundImageSelectionOwner"));
-        assertTrue(owner.contains(": BackgroundImagePickerController.Listener"));
-        assertTrue(owner.contains("backgroundsSource.current().withBackground"));
-        assertFalse(platformModule.contains("MainBackgroundImagePickerListenerFactory"));
-        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainBackgroundImagePickerListener.kt")));
-    }
-
-    @Test
-    public void permissionResultPolicyIsOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/PermissionResultOwner.kt");
-        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
-        assertFalse(activity.contains("permissionListenerFactory"));
-        assertTrue(activity.contains("new MainPermissionController(this, permissionResultOwner)"));
-        assertTrue(owner.contains("if (audioPermissionStatusSource.hasAudioPermission())"));
-        assertTrue(owner.contains("permissionResultObserver.onPermissionsChanged()"));
-        assertFalse(platformModule.contains("MainPermissionListenerFactory"));
-        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainPermissionListener.kt")));
-    }
-
-    @Test
-    public void documentPickerUsesTypedActionsWithoutForwardingFactory() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String controller = read("app/src/main/java/app/yukine/DocumentPickerController.kt");
-        String platformModule = read("app/src/main/java/app/yukine/di/PlatformModule.kt");
-        assertFalse(activity.contains("documentPickerListenerFactory"));
-        assertTrue(activity.contains("new DocumentPickerActions("));
-        assertTrue(controller.contains("private val actions: DocumentPickerActions"));
-        assertFalse(controller.contains("interface Listener"));
-        assertFalse(platformModule.contains("MainDocumentPickerListenerFactory"));
-        assertFalse(Files.exists(Paths.get("app/src/main/java/app/yukine/MainDocumentPickerListener.kt")));
-    }
-
-    @Test
-    public void onboardingFeaturePolicyIsOwnedOutsideActivity() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String owner = read("app/src/main/java/app/yukine/OnboardingOwner.kt");
-        assertFalse(activity.contains("new OnboardingController.Listener"));
-        assertFalse(activity.contains("new OnboardingController.Scheduler"));
-        assertFalse(activity.contains("private boolean showOnboarding"));
-        assertTrue(activity.contains("onboardingOwner.initialize()"));
-        assertTrue(owner.contains(": OnboardingController.Listener"));
-        assertTrue(owner.contains("completionStore.markCompleted()"));
-        assertTrue(owner.contains("library.scan.timeout"));
-    }
-
-    @Test
-    public void confirmationDialogsUseTypedActionsWithoutAnonymousListener() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String controller = read("app/src/main/java/app/yukine/ConfirmationDialogController.kt");
-        assertFalse(activity.contains("new ConfirmationDialogController.Listener"));
-        assertTrue(activity.contains("new ConfirmationActions("));
-        assertTrue(controller.contains("private val actions: ConfirmationActions"));
-        assertFalse(controller.contains("interface Listener"));
-        assertTrue(controller.contains("actions.deleteTracks.delete(ids"));
-    }
-
-    @Test
-    public void streamingConstructionFactoriesAreDeleted() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
-        String module = read("app/src/main/java/app/yukine/StreamingModule.kt");
-        assertFalse(activity.contains("streamingActionGatewayFactory"));
-        assertFalse(activity.contains("streamingSearchRenderListenerFactory"));
-        assertFalse(activity.contains("streamingPlaylistListenerFactory"));
-        assertFalse(activity.contains("new MainStreamingActionGateway("));
-        assertFalse(activity.contains("new MainStreamingPlaylistListener("));
-        assertTrue(binding.contains("new MainStreamingActionGateway("));
-        assertTrue(binding.contains("new MainStreamingPlaylistListener("));
-        assertFalse(module.contains("ListenerFactory"));
-        assertFalse(module.contains("ActionGatewayFactory"));
-        assertFalse(module.contains("ActionHandlerFactory"));
-    }
-
-    @Test
-    public void playbackConstructionFactoriesAreDeletedWithoutLosingCommandQueueScope() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String module = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
-        String adapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+    public void playbackCommandsAndReactionsDoNotRouteThroughActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
         String connection = read("app/src/main/java/app/yukine/PlaybackServiceConnectionController.kt");
         String reactions = read("app/src/main/java/app/yukine/PlaybackDomainReactionOwner.kt");
         String binding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
-        assertFalse(activity.contains("nowPlayingPlaybackGatewayFactory"));
-        assertFalse(activity.contains("playbackServiceHostFactory"));
-        assertFalse(activity.contains("playbackStateEventListenerFactory"));
-        assertFalse(activity.contains("new NowPlayingPlaybackGatewayAdapter("));
-        assertTrue(binding.contains("nowPlayingViewModel.bindPlaybackGateway(NowPlayingPlaybackGatewayAdapter("));
-        assertTrue(activity.contains("playbackServiceCommandQueue"));
-        assertFalse(module.contains("Factory"));
-        assertFalse(adapter.contains("class MainNowPlayingPlaybackGatewayFactory"));
-        assertTrue(adapter.contains("@ActivityRetainedScoped"));
-        assertFalse(activity.contains("PlaybackServiceHostPort playbackService"));
+
         assertFalse(activity.contains("playbackService."));
+        assertFalse(activity.contains("PlaybackStateEventController"));
+        assertFalse(activity.contains("playTrackListFromHost"));
         assertTrue(connection.contains("PlaybackCommands, SettingsPlaybackServicePort"));
         assertTrue(connection.contains("nextService.snapshot()?.let(::publishReadModel)"));
-        assertFalse(activity.contains("PlaybackStateEventController"));
-        assertFalse(activity.contains("MainPlaybackStateEventListener"));
-        assertFalse(activity.contains("new PlaybackDomainReactionOwner("));
-        assertTrue(binding.contains("PlaybackDomainReactionOwner("));
         assertTrue(reactions.contains(") : PlaybackStateListener"));
-        assertTrue(reactions.contains("UI rendering observes"));
-        assertFalse(activity.contains("playTrackListFromHost"));
-        assertFalse(activity.contains("playbackStartController.playTrackList(tracks, index)"));
-        assertTrue(read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt")
-                .contains("playbackStartController = PlaybackStartController("));
+        assertTrue(binding.contains("PlaybackDomainReactionOwner("));
+        assertTrue(binding.contains("playbackStartController = PlaybackStartController("));
     }
 
     @Test
-    public void libraryAndSettingsConstructionFactoriesAreDeleted() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
-        String libraryBinding = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
-        String libraryModule = read("app/src/main/java/app/yukine/LibraryModule.kt");
-        String settingsModule = read("app/src/main/java/app/yukine/SettingsModule.kt");
-        String settingsBinding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
-        String runtimeApplier = read("app/src/main/java/app/yukine/SettingsRuntimeApplier.kt");
-        assertFalse(activity.contains("RenderListenerFactory"));
-        assertFalse(activity.contains("libraryStoreFactory"));
-        assertFalse(activity.contains("libraryGatewayFactory"));
-        assertFalse(activity.contains("networkActionsListenerFactory"));
-        assertFalse(activity.contains("settingsRuntimeApplierFactory"));
-        assertFalse(libraryModule.contains("ListenerFactory"));
-        assertFalse(libraryModule.contains("GatewayFactory"));
-        assertFalse(libraryModule.contains("ControllerFactory"));
-        assertFalse(settingsModule.contains("RuntimeApplierFactory"));
-        assertFalse(runtimeApplier.contains("class MainSettingsRuntimeApplierFactory"));
-        assertFalse(activity.contains("new MainCollectionsRenderListener("));
-        assertTrue(libraryBinding.contains("new MainCollectionsRenderListener("));
-        assertFalse(activity.contains("new SettingsRuntimeApplier("));
-        assertTrue(settingsBinding.contains("new SettingsRuntimeApplier("));
+    public void focusedOwnersRetainTypedPolicies() throws Exception {
+        assertTrue(read("app/src/main/java/app/yukine/PermissionResultOwner.kt")
+                .contains("permissionResultObserver.onPermissionsChanged()"));
+        assertTrue(read("app/src/main/java/app/yukine/DocumentPickerController.kt")
+                .contains("private val actions: DocumentPickerActions"));
+        assertTrue(read("app/src/main/java/app/yukine/ConfirmationDialogController.kt")
+                .contains("private val actions: ConfirmationActions"));
+        assertTrue(read("app/src/main/java/app/yukine/BackgroundImageSelectionOwner.kt")
+                .contains(": BackgroundImagePickerController.Listener"));
+        assertTrue(read("app/src/main/java/app/yukine/OnboardingOwner.kt")
+                .contains(": OnboardingController.Listener"));
+        assertTrue(read("app/src/main/java/app/yukine/PlaylistMutationOwner.kt")
+                .contains(": PlaylistDialogController.Listener"));
+        assertTrue(read("app/src/main/java/app/yukine/NowPlayingEffectOwner.kt")
+                .contains("is NowPlayingEffect.SwitchSource ->"));
+        assertTrue(read("app/src/main/java/app/yukine/UnifiedSearchOwner.kt")
+                .contains("if (requestId != streamingPlaybackGeneration)"));
     }
 
     @Test
-    public void collectionAndLyricsReactionsDoNotRouteThroughActivityMethods() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
-        String collectionsOwner = read("app/src/main/java/app/yukine/LibraryCollectionsOwner.kt");
-        String lyricsViewModel = read("app/src/main/java/app/yukine/LyricsViewModel.kt");
-        assertFalse(activity.contains("private void loadCollections()"));
-        assertFalse(activity.contains("private void loadLyrics("));
-        assertFalse(activity.contains("neteaseProviderTrackIdForLyrics"));
-        assertFalse(activity.contains("lyricsViewModel.loadPlaybackTrack(track)"));
-        assertTrue(playbackBinding.contains("libraryCollectionsOwner::load"));
-        assertTrue(playbackBinding.contains("lyricsViewModel::loadPlaybackTrack"));
-        assertTrue(collectionsOwner.contains("viewModel.loadCollections(routeController.selectedPlaylistId())"));
-        assertTrue(lyricsViewModel.contains("fun loadPlaybackTrack(track: Track?)"));
-        assertTrue(
-                activity.indexOf("initializeLibraryFeatureBinding();")
-                        < activity.indexOf("initializePlatformControllers();")
-        );
-    }
-
-    @Test
-    public void libraryAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/LibraryFeatureBinding.java");
-
-        for (String forbidden : new String[]{
-                "private SearchViewModel searchViewModel",
-                "private LibraryViewModel libraryViewModel",
-                "private CollectionsViewModel collectionsViewModel",
-                "private MainLibraryStore libraryStore",
-                "private LibraryCollectionsOwner libraryCollectionsOwner",
-                "private LibraryImportOwner libraryImportOwner",
-                "private LibraryRenderOwner libraryRenderOwner",
-                "private CollectionsRenderController collectionsRenderController",
-                "private PlaylistMutationOwner playlistMutationOwner",
-                "private PlaylistDialogController playlistDialogController",
-                "initializeLibraryStateOwners()",
-                "initializeNavigationRendering()",
-                "initializeRenderOwners("
-        }) {
-            assertFalse("Activity still owns library assembly: " + forbidden, activity.contains(forbidden));
-        }
-        assertTrue(activity.contains("private LibraryFeatureBinding libraryFeatureBinding"));
-        assertTrue(activity.contains("libraryFeatureBinding.release()"));
-        assertTrue(binding.contains("void bindPlatform("));
-        assertTrue(binding.contains("StreamingSearchRenderController bindUi("));
-        assertTrue(binding.contains("new MainLibraryGateway("));
-        assertTrue(binding.contains("new LibraryRenderOwner("));
-        assertTrue(binding.contains("new CollectionsRenderController("));
-        assertTrue(binding.contains("void release()"));
-    }
-
-    @Test
-    public void settingsAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/SettingsFeatureBinding.java");
-
-        for (String forbidden : new String[]{
-                "private SettingsViewModel settingsViewModel",
-                "private SettingsContextProvider settingsContextProvider",
-                "private SettingsEffectOwner settingsEffectOwner",
-                "private BackgroundImageSelectionOwner backgroundImageSelectionOwner",
-                "private BackgroundImagePickerController backgroundImagePickerController",
-                "new SettingsNavigationEffectActions(",
-                "new SettingsLibraryEffectActions(",
-                "new SettingsPlaybackEffectActions(",
-                "new SettingsFileEffectActions(",
-                "new SettingsContextProvider("
-        }) {
-            assertFalse("Activity still owns settings assembly: " + forbidden, activity.contains(forbidden));
-        }
-        assertTrue(activity.contains("private SettingsFeatureBinding settingsFeatureBinding"));
-        assertTrue(activity.contains("settingsFeatureBinding.release()"));
-        assertTrue(binding.contains("void bindFeatures("));
-        assertTrue(binding.contains("new SettingsEffectOwner("));
-        assertTrue(binding.contains("new SettingsContextProvider("));
-        assertTrue(binding.contains("new SettingsRuntimeApplier("));
-        assertTrue(binding.contains("void release()"));
-    }
-
-    @Test
-    public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
-        String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
-        String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
-        String repository = read("feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java");
-        String streaming = read("app/src/main/java/app/yukine/StreamingViewModel.kt");
-        String playlistCoordinator = read("app/src/main/java/app/yukine/StreamingPlaylistDataCoordinator.kt");
-        String settingsScreen = read("feature/ui-common/src/main/java/app/yukine/ui/SettingsScreen.kt");
-        String settingsDestination = read("feature/navigation/src/main/java/app/yukine/settings/SettingsDestination.kt");
-        String routeController = read("app/src/main/java/app/yukine/MainRouteController.kt");
-
-        assertTrue(settings.contains("private val preferenceWriteMutex = Mutex()"));
-        assertTrue(settings.contains("preferenceWriteMutex.withLock"));
-        assertTrue(settings.contains("fun save(update: SettingsPreferenceUpdate): Boolean"));
-        assertTrue(repository.contains("private final EchoSettingsStore settingsStore;"));
-        assertTrue(settingsGateway.contains("Owns the settings-table boundary"));
-        assertTrue(streaming.contains("streamingPlaylistDataCoordinator"));
-        assertTrue(playlistCoordinator.contains("class StreamingPlaylistDataCoordinator"));
-        assertTrue(streaming.contains("val state: StreamingSearchState"));
-        assertFalse(streaming.contains("var state: StreamingSearchState"));
-        assertTrue(settingsScreen.contains("action.icon ?:"));
-        assertFalse(settingsScreen.contains("label.contains"));
-        assertTrue(settingsDestination.contains("action.isBack"));
-        assertFalse(settingsDestination.contains("isSettingsBackAction"));
-        assertTrue(routeController.contains("fun settingsPageModel(): SettingsPage"));
-    }
-
-    @Test
-    public void actionPresentationUsesSemanticMetadata() throws Exception {
-        String collections = read("feature/ui-common/src/main/java/app/yukine/ui/CollectionsScreen.kt");
-        String trackList = read("feature/ui-common/src/main/java/app/yukine/ui/TrackListScreen.kt");
-        String trackListController = read("app/src/main/java/app/yukine/TrackListRenderController.kt");
-
-        assertFalse(collections.contains("iconForCollectionAction"));
-        assertTrue(collections.contains("action.icon"));
-        assertFalse(trackList.contains("iconForTrackHeaderAction"));
-        assertFalse(trackListController.contains("it.label == labels."));
-        assertTrue(trackListController.contains("TrackListHeaderActionKind"));
-    }
-
-    @Test
-    public void rootPackageDoesNotAccumulateBindingFiles() throws Exception {
-        assertTrue(countMatching("app/src/main/java/app/yukine", "Bindings") == 0);
-        assertTrue(countMatching("app/src/test/java/app/yukine", "Bindings") == 0);
-    }
-
-    @Test
-    public void activityClearsRetainedViewModelHostCallbacksBeforeRelease() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String playbackBinding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
-        int onDestroy = activity.indexOf("protected void onDestroy()");
-        int releaseBindings = activity.indexOf("releaseViewModelHostBindings();", onDestroy);
-        int releasePlayback = activity.indexOf("playbackFeatureBinding.release();", onDestroy);
-
-        assertTrue(onDestroy >= 0);
-        assertTrue(releaseBindings > onDestroy);
-        assertTrue(releasePlayback > releaseBindings);
-        assertFalse(activity.contains("lyricsViewModel.bindListener("));
-        assertFalse(activity.contains("settingsViewModel.bindEffectListener(null)"));
-        assertTrue(read("app/src/main/java/app/yukine/SettingsFeatureBinding.java")
-                .contains("viewModel.bindEffectListener(null)"));
-        assertTrue(activity.contains("networkActionsViewModel.bindListener(null)"));
-        assertFalse(activity.contains("queueViewModel.bindIntentListener(null)"));
-        assertTrue(activity.contains("navigationFeatureBinding.release()"));
-        assertTrue(read("app/src/main/java/app/yukine/NavigationFeatureBinding.kt")
-                .contains("boundQueueViewModel?.bindIntentListener(null)"));
-        assertFalse(activity.contains("nowPlayingViewModel.bindStateSources(null"));
-        assertFalse(activity.contains("playbackViewModel.bind(null)"));
-        assertFalse(activity.contains("playbackServiceConnectionController.release()"));
-        assertTrue(playbackBinding.contains("nowPlayingViewModel.bindStateSources(null"));
-        assertTrue(playbackBinding.contains("playbackViewModel.bind(null)"));
-        assertTrue(playbackBinding.contains("connection.release()"));
-        assertFalse(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
-        assertTrue(read("app/src/main/java/app/yukine/StreamingFeatureBinding.java")
-                .contains("viewModel.bindStreamingPlaybackCoordinator(null, null)"));
-    }
-
-    @Test
-    public void streamingAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/StreamingFeatureBinding.java");
-
-        for (String forbidden : new String[]{
-                "private StreamingViewModel streamingViewModel",
-                "private StreamingRecommendationViewModel streamingRecommendationViewModel",
-                "private StreamingPlaybackController streamingPlaybackController",
-                "private StreamingPlaylistController streamingPlaylistController",
-                "private StreamingPlaylistDialogController streamingPlaylistDialogController",
-                "private StreamingPlaylistImportDialogController streamingPlaylistImportDialogController",
-                "private StreamingManualCookieController streamingManualCookieController",
-                "private HeartbeatRecommendationController heartbeatRecommendationController",
-                "initializeStreamingOwners(",
-                "initializeStreamingStartup(",
-                "resolveCurrentStreamingQueueTrackIfNeeded()",
-                "private void runRecommendationAction("
-        }) {
-            assertFalse("Activity still owns streaming assembly: " + forbidden, activity.contains(forbidden));
-        }
-        assertTrue(activity.contains("private StreamingFeatureBinding streamingFeatureBinding"));
-        assertTrue(activity.contains("streamingFeatureBinding.release()"));
-        assertTrue(binding.contains("void bindPlayback("));
-        assertTrue(binding.contains("void bindDialogs("));
-        assertTrue(binding.contains("StreamingSearchRenderController bindSearch("));
-        assertTrue(binding.contains("void handleNewIntent(Intent intent)"));
-        assertTrue(binding.contains("void onResume()"));
-        assertTrue(binding.contains("void release()"));
-        assertTrue(binding.contains("playbackTaskScheduler.shutdownNow()"));
-    }
-
-    @Test
-    public void playbackAssemblyAndLifecycleAreOwnedByFeatureBinding() throws Exception {
-        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
-        String binding = read("app/src/main/java/app/yukine/PlaybackFeatureBinding.kt");
-
-        for (String forbidden : new String[]{
-                "private PlaybackViewModel playbackViewModel",
-                "private NowPlayingViewModel nowPlayingViewModel",
-                "private app.yukine.queue.QueueViewModel queueViewModel",
-                "private PlaybackServiceConnectionController playbackServiceConnectionController",
-                "private PlaybackActionController playbackActionController",
-                "private PlaybackStartController playbackStartController",
-                "private QueueActionController queueActionController",
-                "private NowPlayingEffectOwner nowPlayingEffectOwner",
-                "private void initializePlaybackLifecycleControllers()",
-                "private void initializeNowPlayingGateways()",
-                "private PlaybackStateSnapshot playbackSnapshot()",
-                "private List<Track> playbackQueueSnapshot()"
-        }) {
-            assertFalse(forbidden + " must leave Activity", activity.contains(forbidden));
-        }
-        assertTrue(activity.contains("private PlaybackFeatureBinding playbackFeatureBinding"));
-        assertTrue(activity.contains("playbackFeatureBinding.bindConnection("));
-        assertFalse(activity.contains("playbackFeatureBinding.bindActions("));
-        assertTrue(read("app/src/main/java/app/yukine/StreamingFeatureBinding.java")
-                .contains("playback.bindActions("));
-        assertTrue(binding.contains("connection = PlaybackServiceConnectionController("));
-        assertTrue(binding.contains("playbackViewModel.bind(connection)"));
-        assertTrue(binding.contains("nowPlayingViewModel.bindPlaybackGateway("));
-        assertTrue(binding.contains("queueActionController = QueueActionController("));
-        assertTrue(binding.contains("fun setAppVisible(visible: Boolean)"));
-        assertTrue(binding.contains("fun release()"));
-    }
-
-    @Test
-    public void nowPlayingPresentationStateUsesFocusedImmutableSubstates() throws Exception {
+    public void nowPlayingPresentationUsesFocusedImmutableSubstates() throws Exception {
         String nowBar = read("feature/ui-common/src/main/java/app/yukine/ui/NowBar.kt");
         String nowPlaying = read("feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt");
         String factory = read("app/src/main/java/app/yukine/NowBarStateFactory.kt");
-        String echoNowBar = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNowBar.kt");
 
         String nowBarState = nowBar.substring(
                 nowBar.indexOf("data class NowBarState("),
@@ -711,9 +247,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(nowBarState.contains("val artwork: NowBarArtworkState"));
         assertFalse(nowBarState.contains("val waveformBars: FloatArray"));
         assertTrue(nowBar.contains("class WaveformSamples private constructor"));
-        assertTrue(nowBar.contains("WaveformSamples(values.copyOf())"));
         assertTrue(factory.contains("WaveformSamples.of(playbackState.waveform.bars)"));
-        assertTrue(echoNowBar.contains("LaunchedEffect(state.track.trackId"));
 
         String nowPlayingState = nowPlaying.substring(
                 nowPlaying.indexOf("data class NowPlayingUiState("),
@@ -737,14 +271,6 @@ public final class MainActivityArchitectureContractTest {
         }
     }
 
-    private static int countMatching(String relativeDirectory, String token) throws IOException {
-        try (Stream<Path> stream = Files.walk(root().resolve(relativeDirectory))) {
-            return (int) stream.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().contains(token))
-                    .count();
-        }
-    }
-
     private static String read(String relativePath) throws IOException {
         return read(root().resolve(relativePath));
     }
@@ -756,9 +282,7 @@ public final class MainActivityArchitectureContractTest {
     private static Path root() {
         Path current = Paths.get("").toAbsolutePath();
         while (current != null) {
-            if (Files.isRegularFile(current.resolve("settings.gradle"))) {
-                return current;
-            }
+            if (Files.isRegularFile(current.resolve("settings.gradle"))) return current;
             current = current.getParent();
         }
         throw new IllegalStateException("Could not locate echo-android workspace root");

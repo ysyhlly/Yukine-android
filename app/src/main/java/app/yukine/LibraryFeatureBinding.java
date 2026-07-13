@@ -33,6 +33,7 @@ final class LibraryFeatureBinding {
     private final SearchViewModel searchViewModel;
     private final LibraryViewModel viewModel;
     private final CollectionsViewModel collectionsViewModel;
+    private final HomeDashboardViewModel homeDashboardViewModel;
     private final MainLibraryStore store;
     private final LibraryCollectionsOwner collectionsOwner;
 
@@ -90,6 +91,7 @@ final class LibraryFeatureBinding {
         this.searchViewModel = viewModels.getSearchViewModel();
         this.viewModel = viewModels.getLibraryViewModel();
         this.collectionsViewModel = viewModels.getCollectionsViewModel();
+        this.homeDashboardViewModel = viewModels.getHomeDashboardViewModel();
         this.store = new MainLibraryStore(searchUseCase, mainViewModel);
         this.collectionsOwner = new LibraryCollectionsOwner(
                 viewModel,
@@ -124,6 +126,21 @@ final class LibraryFeatureBinding {
 
     MainHomeDashboardRenderListener homeDashboardIntentHandler() {
         return homeDashboardIntentHandler;
+    }
+
+    void bindPlaybackStateSources(
+            PlaybackFeatureBinding playback,
+            StreamingFeatureBinding streaming,
+            LyricsViewModel lyricsViewModel
+    ) {
+        playback.bindStateSources(
+                mainViewModel,
+                lyricsViewModel,
+                settingsViewModel,
+                streaming.viewModel(),
+                homeDashboardViewModel,
+                homeDashboardIntentHandler
+        );
     }
 
     TrackListStatePublisher trackListStatePublisher() {
