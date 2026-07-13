@@ -188,6 +188,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private MainHomeDashboardRenderListener homeDashboardIntentHandler;
     private LibraryGroupsRenderController libraryGroupsRenderController;
     private LibraryPlaylistsRenderController libraryPlaylistsRenderController;
+    private LibraryRenderOwner libraryRenderOwner;
     private CollectionsRenderController collectionsRenderController;
     private PlayHistoryActionController playHistoryActionController;
     private LyricsViewModel lyricsViewModel;
@@ -528,7 +529,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void initializeNavigationRendering() {
         tabRenderDispatcher = new MainTabRenderDispatcher(
-                this::renderLibrary,
                 this::renderCollections
         );
         searchViewModel.updateActions(new app.yukine.ui.UnifiedSearchActions(
@@ -1002,6 +1002,21 @@ public abstract class MainActivityBase extends ComponentActivity {
                 return repository.restoreAllLibraryExclusions();
             }
         });
+        libraryRenderOwner = new LibraryRenderOwner(
+                libraryStore,
+                libraryViewModel,
+                trackListRenderController,
+                libraryGroupsRenderController,
+                libraryPlaylistsRenderController,
+                () -> permissionController != null && permissionController.hasAudioPermission(),
+                status -> statusMessageController.setStatus(status)
+        );
+        libraryRenderOwner.bindStateSources(
+                navigationViewModel.getState(),
+                viewModel.getLibrary(),
+                settingsViewModel.getState(),
+                playbackServiceConnectionController
+        );
         settingsViewModel.bindPreferenceGateway(applySettingsPreferenceUseCase::execute);
         settingsViewModel.bindStoreMirror(settingsStore::sync);
         SettingsRuntimeApplier settingsRuntimeApplier = settingsRuntimeApplierFactory.create(
@@ -1310,6 +1325,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         if (networkRenderCoordinator != null) {
             networkRenderCoordinator.release();
+        }
+        if (libraryRenderOwner != null) {
+            libraryRenderOwner.release();
         }
         if (playbackServiceConnectionController != null) {
             playbackServiceConnectionController.release();
@@ -2253,59 +2271,6 @@ public abstract class MainActivityBase extends ComponentActivity {
         syncNavHostState();
     }
 
-    private void renderLibrary() {
-        String languageMode = settingsStore.languageMode();
-        libraryViewModel.updateLibraryLabels(new LibraryUiLabels(
-                AppLanguage.text(languageMode, "library.search"),
-                AppLanguage.text(languageMode, "library.sort"),
-                AppLanguage.text(languageMode, "library.filter"),
-                AppLanguage.text(languageMode, "library.filter.all"),
-                AppLanguage.text(languageMode, "favorite"),
-                AppLanguage.text(languageMode, "library.filter.local"),
-                AppLanguage.text(languageMode, "library.filter.network"),
-                AppLanguage.text(languageMode, "library.select.all"),
-                AppLanguage.text(languageMode, "cancel"),
-                AppLanguage.text(languageMode, "play"),
-                AppLanguage.text(languageMode, "add.to.playlist"),
-                AppLanguage.text(languageMode, "favorite"),
-                AppLanguage.text(languageMode, "download"),
-                AppLanguage.text(languageMode, "delete"),
-                AppLanguage.text(languageMode, "more"),
-                AppLanguage.text(languageMode, "library.selected.suffix"),
-                AppLanguage.text(languageMode, "library.sort.title.asc"),
-                AppLanguage.text(languageMode, "library.sort.title.desc"),
-                AppLanguage.text(languageMode, "library.sort.artist"),
-                AppLanguage.text(languageMode, "library.sort.album"),
-                AppLanguage.text(languageMode, "library.sort.duration.asc"),
-                AppLanguage.text(languageMode, "library.sort.duration.desc")
-        ));
-        libraryViewModel.syncLibraryMode(libraryMode());
-        libraryViewModel.syncSearchQuery(searchQuery());
-        if (!permissionController.hasAudioPermission()) {
-            statusMessageController.setStatus(
-                    AppLanguage.text(settingsStore.languageMode(), "audio.permission.required") + ": "
-                            + AppLanguage.text(settingsStore.languageMode(), "audio.permission.description")
-            );
-            return;
-        }
-        if (libraryStore.visibleTracks().isEmpty() && !LIBRARY_PLAYLISTS.equals(libraryMode())) {
-            statusMessageController.setStatus(
-                    AppLanguage.text(settingsStore.languageMode(), "no.music") + ": "
-                            + AppLanguage.text(settingsStore.languageMode(), "no.music.description")
-            );
-            return;
-        }
-        if (LIBRARY_PLAYLISTS.equals(libraryMode())) {
-            renderLibraryPlaylists();
-            return;
-        }
-        if (!LIBRARY_SONGS.equals(libraryMode())) {
-            renderLibraryGroups();
-            return;
-        }
-        renderComposeTrackList(AppLanguage.text(settingsStore.languageMode(), "songs"), libraryStore.visibleTracks(), true, new ArrayList<String>(), false, new ArrayList<TrackListHeaderMetric>(), new ArrayList<TrackListHeaderAction>(), "", libraryModeActions());
-    }
-
     private void renderComposeTrackList(String title, final List<Track> tracks, boolean showPlaylistAction) {
         ArrayList<String> details = new ArrayList<>();
         for (int i = 0; i < tracks.size(); i++) {
@@ -2439,52 +2404,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackSnapshot(),
                 libraryStore.favoriteIds(),
                 footerAlbums
-        );
-    }
-
-    private ArrayList<TrackListModeAction> libraryModeActions() {
-        String languageMode = settingsStore.languageMode();
-        ArrayList<TrackListModeAction> modes = new ArrayList<>();
-        addLibraryModeAction(modes, AppLanguage.text(languageMode, "songs"), LIBRARY_SONGS);
-        addLibraryModeAction(modes, AppLanguage.text(languageMode, "albums"), LIBRARY_ALBUMS);
-        addLibraryModeAction(modes, AppLanguage.text(languageMode, "artists"), LIBRARY_ARTISTS);
-        addLibraryModeAction(modes, AppLanguage.text(languageMode, "folders"), LIBRARY_FOLDERS);
-        addLibraryModeAction(modes, AppLanguage.text(languageMode, "playlists"), LIBRARY_PLAYLISTS);
-        return modes;
-    }
-
-    private void addLibraryModeAction(ArrayList<TrackListModeAction> modes, String label, final String mode) {
-        modes.add(new TrackListModeAction(label, mode, mode.equals(libraryMode()), new Runnable() {
-            @Override
-            public void run() {
-                libraryViewModel.onEvent(new LibraryEvent.ChangeGroupMode(mode));
-            }
-        }));
-    }
-
-    private void renderLibraryPlaylists() {
-        libraryPlaylistsRenderController.render(
-                settingsStore.languageMode(),
-                libraryStore.playlists(),
-                selectedPlaylistId(),
-                selectedLibraryGroupKey(),
-                selectedPlaylistName(),
-                libraryStore.filteredSelectedPlaylistTracks(searchQuery()),
-                libraryStore.favoriteTracks(),
-                libraryStore.recentRecords(),
-                libraryModeActions()
-        );
-    }
-
-    private void renderLibraryGroups() {
-        libraryGroupsRenderController.render(
-                settingsStore.languageMode(),
-                libraryStore.visibleTracks(),
-                libraryMode(),
-                selectedLibraryGroupKey(),
-                selectedLibraryGroupTitle(),
-                libraryModeActions(),
-                libraryStore.favoriteIds()
         );
     }
 

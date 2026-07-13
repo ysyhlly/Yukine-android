@@ -141,6 +141,20 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void libraryPagesAreFlowDrivenInsteadOfActivityRendered() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String library = read("app/src/main/java/app/yukine/LibraryRenderOwner.kt");
+        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
+        assertFalse(activity.contains("private void renderLibrary()"));
+        assertFalse(activity.contains("private void renderLibraryGroups()"));
+        assertFalse(activity.contains("private void renderLibraryPlaylists()"));
+        assertTrue(library.contains("fun bindStateSources("));
+        assertTrue(library.contains("playback.state.map { it.currentTrack }"));
+        assertFalse(library.contains("positionMs"));
+        assertFalse(dispatcher.contains("renderLibraryAction"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
