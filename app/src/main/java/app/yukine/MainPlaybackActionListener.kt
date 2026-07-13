@@ -19,15 +19,6 @@ internal fun interface PlaybackActionResultSink {
     fun apply(result: PlaybackActionResultUi?)
 }
 
-internal fun interface MainPlaybackActionListenerFactory {
-    fun create(
-        streamingResolver: StreamingQueueResolveHandler,
-        snapshotSource: PlaybackSnapshotSource,
-        fallbackTracksSource: PlaybackFallbackTracksSource,
-        resultSink: PlaybackActionResultSink
-    ): PlaybackActionController.Listener
-}
-
 internal class MainPlaybackActionListener(
     private val streamingResolver: StreamingQueueResolveHandler,
     private val snapshotSource: PlaybackSnapshotSource,

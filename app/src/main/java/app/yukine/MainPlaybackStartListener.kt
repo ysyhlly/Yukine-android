@@ -26,17 +26,6 @@ internal fun interface PlaybackStartQueueOpener {
     fun openQueue()
 }
 
-internal fun interface MainPlaybackStartListenerFactory {
-    fun create(
-        heartbeatStopper: PlaybackStartHeartbeatStopper,
-        serviceStarter: PlaybackStartServiceStarter,
-        serviceAvailability: PlaybackStartServiceAvailability,
-        resolvingStatusProvider: PlaybackStartResolvingStatusProvider,
-        statusSink: PlaybackStartStatusSink,
-        queueOpener: PlaybackStartQueueOpener
-    ): MainPlaybackStartListener
-}
-
 internal class MainPlaybackStartListener(
     private val heartbeatStopper: PlaybackStartHeartbeatStopper,
     private val serviceStarter: PlaybackStartServiceStarter,

@@ -45,11 +45,10 @@ class MainStreamingPlaybackListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingPlaybackControllerListener() {
-        val factory = PlaybackUiModule.provideMainStreamingPlaybackListenerFactory()
+    fun directConstructionCreatesStreamingPlaybackControllerListener() {
         val snapshot = PlaybackStateSnapshot.empty()
         val calls = mutableListOf<String>()
-        val listener = factory.create(
+        val listener = MainStreamingPlaybackListener(
             StreamingPlaybackLanguageProvider { "en" },
             AdaptiveStreamingQualityProvider { StreamingAudioQuality.STANDARD },
             SelectedStreamingQualityProvider { StreamingAudioQuality.HIRES },

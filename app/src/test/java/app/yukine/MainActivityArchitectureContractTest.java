@@ -393,6 +393,21 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void playbackConstructionFactoriesAreDeletedWithoutLosingCommandQueueScope() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String module = read("app/src/main/java/app/yukine/PlaybackUiModule.kt");
+        String adapter = read("app/src/main/java/app/yukine/NowPlayingPlaybackGatewayAdapter.kt");
+        assertFalse(activity.contains("nowPlayingPlaybackGatewayFactory"));
+        assertFalse(activity.contains("playbackServiceHostFactory"));
+        assertFalse(activity.contains("playbackStateEventListenerFactory"));
+        assertTrue(activity.contains("new NowPlayingPlaybackGatewayAdapter("));
+        assertTrue(activity.contains("playbackServiceCommandQueue"));
+        assertFalse(module.contains("Factory"));
+        assertFalse(adapter.contains("class MainNowPlayingPlaybackGatewayFactory"));
+        assertTrue(adapter.contains("@ActivityRetainedScoped"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

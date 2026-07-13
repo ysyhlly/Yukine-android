@@ -50,9 +50,9 @@ class MainPlaybackStateEventListenerTest {
     }
 
     @Test
-    fun factoryCreatesPlaybackStateEventControllerListener() {
+    fun directConstructionCreatesPlaybackStateEventControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = PlaybackUiModule.provideMainPlaybackStateEventListenerFactory().create(
+        val listener = MainPlaybackStateEventListener(
             MainPlaybackStateEventListener.CurrentLyricsTrackIdSource { -1L },
             MainPlaybackStateEventListener.PlaybackSettingsSaver { speed, volume ->
                 calls += "save:$speed:$volume"

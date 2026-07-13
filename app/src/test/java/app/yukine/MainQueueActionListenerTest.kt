@@ -35,11 +35,10 @@ class MainQueueActionListenerTest {
     }
 
     @Test
-    fun factoryCreatesQueueActionControllerListener() {
-        val factory = PlaybackUiModule.provideMainQueueActionListenerFactory()
+    fun directConstructionCreatesQueueActionControllerListener() {
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
         val calls = mutableListOf<String>()
-        val listener = factory.create(
+        val listener = MainQueueActionListener(
             QueuePlaybackActionResultApplier { appliedResults += it },
             QueuePlaybackServiceAvailability { false },
             QueueTrackMoveSink { fromIndex, toIndex -> calls += "move:$fromIndex:$toIndex" },

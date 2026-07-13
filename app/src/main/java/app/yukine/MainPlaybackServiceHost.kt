@@ -1,21 +1,5 @@
 package app.yukine
 
-internal fun interface MainPlaybackServiceHostFactory {
-    fun create(
-        playbackSpeedSource: MainPlaybackServiceHost.PlaybackSpeedSource,
-        appVolumeSource: MainPlaybackServiceHost.AppVolumeSource,
-        concurrentPlaybackSource: MainPlaybackServiceHost.ConcurrentPlaybackSource,
-        statusBarLyricsSource: MainPlaybackServiceHost.StatusBarLyricsSource,
-        systemMediaLyricsTitleSource: MainPlaybackServiceHost.SystemMediaLyricsTitleSource,
-        playbackRestoreSource: MainPlaybackServiceHost.PlaybackRestoreSource,
-        replayGainSource: MainPlaybackServiceHost.ReplayGainSource,
-        playbackServiceAttacher: MainPlaybackServiceHost.PlaybackServiceAttacher,
-        playbackServiceClearer: MainPlaybackServiceHost.PlaybackServiceClearer,
-        playbackStoreResetter: MainPlaybackServiceHost.PlaybackStoreResetter,
-        pendingTracksPlayer: MainPlaybackServiceHost.PendingTracksPlayer
-    ): PlaybackServiceHostController.Host
-}
-
 internal class MainPlaybackServiceHost(
     private val playbackSpeedSource: PlaybackSpeedSource,
     private val appVolumeSource: AppVolumeSource,

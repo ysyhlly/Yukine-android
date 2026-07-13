@@ -35,11 +35,10 @@ class MainPlaybackActionListenerTest {
     }
 
     @Test
-    fun factoryCreatesPlaybackActionControllerListener() {
-        val factory = PlaybackUiModule.provideMainPlaybackActionListenerFactory()
+    fun directConstructionCreatesPlaybackActionControllerListener() {
         val snapshot = PlaybackStateSnapshot.empty()
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
-        val listener = factory.create(
+        val listener = MainPlaybackActionListener(
             StreamingQueueResolveHandler { false },
             PlaybackSnapshotSource { snapshot },
             PlaybackFallbackTracksSource { listOf(track(3L)) },

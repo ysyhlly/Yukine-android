@@ -11,25 +11,12 @@ import dagger.hilt.android.scopes.ActivityRetainedScoped
 import java.util.ArrayDeque
 import javax.inject.Inject
 
-internal class MainNowPlayingPlaybackGatewayFactory(
-    private val serviceStarter: (String?) -> Unit,
-    private val commandQueue: PlaybackServiceCommandQueue
-) {
-    fun create(
-        serviceProvider: () -> PlaybackCommands?,
-        playbackReadModelProvider: () -> PlaybackReadModel?
-    ): NowPlayingPlaybackGateway {
-        return NowPlayingPlaybackGatewayAdapter(
-            serviceProvider,
-            playbackReadModelProvider,
-            serviceStarter,
-            commandQueue
-        )
-    }
-}
-
 internal fun interface PlaybackServiceCommand {
     fun execute(service: PlaybackCommands)
+}
+
+internal fun interface PlaybackServiceStartAction {
+    fun start(action: String?)
 }
 
 /**
@@ -80,7 +67,7 @@ internal class PlaybackServiceCommandQueue @Inject constructor() {
 internal class NowPlayingPlaybackGatewayAdapter(
     private val serviceProvider: () -> PlaybackCommands?,
     private val playbackReadModelProvider: () -> PlaybackReadModel? = { null },
-    private val serviceStarter: (String?) -> Unit,
+    private val serviceStarter: PlaybackServiceStartAction,
     private val commandQueue: PlaybackServiceCommandQueue = PlaybackServiceCommandQueue()
 ) : NowPlayingPlaybackGateway {
     override fun serviceConnected(): Boolean {
@@ -101,7 +88,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
         if (service != null) {
             service.skipToPrevious()
         } else {
-            serviceStarter(PlaybackServiceActions.PREVIOUS)
+            serviceStarter.start(PlaybackServiceActions.PREVIOUS)
         }
     }
 
@@ -110,7 +97,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
         if (service != null) {
             service.skipToNext()
         } else {
-            serviceStarter(PlaybackServiceActions.NEXT)
+            serviceStarter.start(PlaybackServiceActions.NEXT)
         }
     }
 
@@ -175,7 +162,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
     }
 
     override fun playQueue(tracks: List<Track>, index: Int) {
-        serviceStarter(null)
+        serviceStarter.start(null)
         executeOrQueue { it.playQueue(tracks, index) }
     }
 
@@ -184,7 +171,7 @@ internal class NowPlayingPlaybackGatewayAdapter(
     }
 
     override fun play() {
-        serviceStarter(null)
+        serviceStarter.start(null)
         executeOrQueue { it.play() }
     }
 

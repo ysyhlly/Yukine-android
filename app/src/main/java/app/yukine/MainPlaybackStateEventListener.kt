@@ -3,19 +3,6 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 
-internal fun interface MainPlaybackStateEventListenerFactory {
-    fun create(
-        currentLyricsTrackIdSource: MainPlaybackStateEventListener.CurrentLyricsTrackIdSource,
-        playbackSettingsSaver: MainPlaybackStateEventListener.PlaybackSettingsSaver,
-        lyricsLoader: MainPlaybackStateEventListener.LyricsLoader,
-        collectionsLoader: MainPlaybackStateEventListener.CollectionsLoader,
-        nextStreamingTrackPreResolver: MainPlaybackStateEventListener.NextStreamingTrackPreResolver,
-        streamingBufferingRecoveryHandler: MainPlaybackStateEventListener.StreamingBufferingRecoveryHandler,
-        currentStreamingTrackResolver: MainPlaybackStateEventListener.CurrentStreamingTrackResolver,
-        statusSink: MainPlaybackStateEventListener.StatusSink
-    ): PlaybackStateEventController.Listener
-}
-
 internal class MainPlaybackStateEventListener(
     private val currentLyricsTrackIdSource: CurrentLyricsTrackIdSource,
     private val playbackSettingsSaver: PlaybackSettingsSaver,

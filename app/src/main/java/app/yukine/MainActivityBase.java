@@ -94,16 +94,8 @@ public abstract class MainActivityBase extends ComponentActivity {
     private MainNavigationIntentOwner navigationIntentOwner;
     private MainLibraryStore libraryStore;
     @Inject MainSettingsStore settingsStore;
-    @Inject MainNowPlayingGatewayFactory nowPlayingGatewayFactory;
-    @Inject MainNowPlayingPlaybackGatewayFactory nowPlayingPlaybackGatewayFactory;
     @Inject NowPlayingPlaybackServiceStarter nowPlayingPlaybackServiceStarter;
     @Inject PlaybackServiceCommandQueue playbackServiceCommandQueue;
-    @Inject MainPlaybackActionListenerFactory playbackActionListenerFactory;
-    @Inject MainQueueActionListenerFactory queueActionListenerFactory;
-    @Inject MainStreamingPlaybackListenerFactory streamingPlaybackListenerFactory;
-    @Inject MainPlaybackStartListenerFactory playbackStartListenerFactory;
-    @Inject MainPlaybackStateEventListenerFactory playbackStateEventListenerFactory;
-    @Inject MainPlaybackServiceHostFactory playbackServiceHostFactory;
     @Inject MainLibraryStoreFactory libraryStoreFactory;
     @Inject MainPlayHistoryActionControllerFactory playHistoryActionControllerFactory;
     @Inject MainNetworkActionsListenerFactory networkActionsListenerFactory;
@@ -246,7 +238,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeNowPlayingGateways() {
-        nowPlayingViewModel.bindGateway(nowPlayingGatewayFactory.create(
+        nowPlayingViewModel.bindGateway(new MainNowPlayingGateway(
                 () -> playbackActionController,
                 () -> playbackViewModel == null ? null : playbackViewModel.getPlaybackSnapshot().getValue(),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
@@ -256,9 +248,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                         key
                 )
         ));
-        nowPlayingViewModel.bindPlaybackGateway(nowPlayingPlaybackGatewayFactory.create(
+        nowPlayingViewModel.bindPlaybackGateway(new NowPlayingPlaybackGatewayAdapter(
                 () -> playbackServiceConnectionController,
-                () -> playbackServiceConnectionController
+                () -> playbackServiceConnectionController,
+                nowPlayingPlaybackServiceStarter::startPlaybackService,
+                playbackServiceCommandQueue
         ));
         nowPlayingViewModel.bindLuoxueTrackMetadataResolver(luoxueTrackMetadataResolver);
         nowPlayingViewModel.bindSourceCandidatesProvider(
@@ -476,7 +470,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializePlaybackLifecycleControllers() {
         playbackStateEventController = new PlaybackStateEventController(
                 mainHandler,
-                playbackStateEventListenerFactory.create(
+                new MainPlaybackStateEventListener(
                         () -> lyricsViewModel == null ? -1L : lyricsViewModel.trackId(),
                         (playbackSpeed, appVolume) -> {
                             settingsStore.setPlaybackSpeed(playbackSpeed);
@@ -491,7 +485,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 )
         );
         PlaybackServiceHostController playbackServiceHostController = new PlaybackServiceHostController(
-                playbackServiceHostFactory.create(
+                new MainPlaybackServiceHost(
                         () -> settingsStore.playbackSpeed(),
                         () -> settingsStore.appVolume(),
                         () -> settingsStore.concurrentPlaybackEnabled(),
@@ -594,7 +588,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         );
         playbackActionController = new PlaybackActionController(
                 nowPlayingViewModel,
-                playbackActionListenerFactory.create(
+                new MainPlaybackActionListener(
                         this::resolveCurrentStreamingQueueTrackIfNeeded,
                         () -> playbackService == null ? playbackSnapshot() : playbackService.snapshot(),
                         () -> libraryStore == null ? Collections.emptyList() : libraryStore.visibleTracks(),
@@ -619,7 +613,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         streamingPlaybackController = new StreamingPlaybackController(
                 streamingViewModel,
                 nowPlayingViewModel,
-                streamingPlaybackListenerFactory.create(
+                new MainStreamingPlaybackListener(
                         () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
                         streamingPlaybackQualityPolicy::adaptive,
                         streamingPlaybackQualityPolicy::selected,
@@ -645,7 +639,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                         status -> statusMessageController.setStatus(status)
                 )
         );
-        playbackStartListener = playbackStartListenerFactory.create(
+        playbackStartListener = new MainPlaybackStartListener(
                 () -> streamingRecommendationViewModel.stopHeartbeatRecommendationMode(),
                 () -> nowPlayingPlaybackServiceStarter.startPlaybackService(null),
                 () -> playbackService != null,
@@ -665,7 +659,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         nowPlayingViewModel.bindStateObserver(FloatingLyricsPublisher::update);
         queueActionController = new QueueActionController(
                 nowPlayingViewModel,
-                queueActionListenerFactory.create(
+                new MainQueueActionListener(
                         this::applyPlaybackActionResult,
                         () -> playbackService != null,
                         (fromIndex, toIndex) -> playbackService.moveQueueTrack(fromIndex, toIndex),

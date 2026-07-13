@@ -22,16 +22,6 @@ internal fun interface NowPlayingStatusTextProvider {
     fun text(key: String): String
 }
 
-internal fun interface MainNowPlayingGatewayFactory {
-    fun create(
-        playbackActionControllerProvider: PlaybackActionControllerProvider,
-        playbackSnapshotSource: MainPlaybackSnapshotSource,
-        favoriteToggler: NowPlayingFavoriteToggler,
-        seekHandler: NowPlayingSeekHandler,
-        statusTextProvider: NowPlayingStatusTextProvider
-    ): NowPlayingGateway
-}
-
 internal class MainNowPlayingGateway(
     private val playbackActionControllerProvider: PlaybackActionControllerProvider,
     private val playbackSnapshotSource: MainPlaybackSnapshotSource,
