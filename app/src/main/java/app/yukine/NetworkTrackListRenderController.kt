@@ -30,17 +30,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
 
         fun playRemoteSourceTracks(source: RemoteSource)
 
-        fun renderTrackList(
-            title: String,
-            tracks: List<Track>,
-            showPlaylistAction: Boolean,
-            details: List<String>,
-            showStreamActions: Boolean,
-            headerMetrics: List<TrackListHeaderMetric>,
-            headerActions: List<TrackListHeaderAction>,
-            emptyText: String,
-            labels: TrackListLabels
-        )
+        fun publish(request: NetworkTrackListRequest)
     }
 
     fun renderStreamList(
@@ -62,20 +52,22 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
                 "${streams.size} / ${allStreams.size}"
             )
         )
-        listener.renderTrackList(
-            AppLanguage.text(languageMode, "songs"),
-            streams,
-            false,
-            details,
-            true,
-            headerMetrics,
-            headerActions,
-            if (allStreams.isEmpty()) {
-                AppLanguage.text(languageMode, "no.streams")
-            } else {
-                AppLanguage.text(languageMode, "no.matching.streams")
-            },
-            trackListLabels(languageMode)
+        listener.publish(
+            NetworkTrackListRequest(
+                AppLanguage.text(languageMode, "songs"),
+                streams,
+                false,
+                details,
+                true,
+                headerMetrics,
+                headerActions,
+                if (allStreams.isEmpty()) {
+                    AppLanguage.text(languageMode, "no.streams")
+                } else {
+                    AppLanguage.text(languageMode, "no.matching.streams")
+                },
+                trackListLabels(languageMode)
+            )
         )
     }
 
@@ -98,20 +90,22 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
                 "${tracks.size} / ${allWebDavTracks.size}"
             )
         )
-        listener.renderTrackList(
-            AppLanguage.text(languageMode, "songs"),
-            tracks,
-            true,
-            details,
-            false,
-            headerMetrics,
-            headerActions,
-            if (allWebDavTracks.isEmpty()) {
-                AppLanguage.text(languageMode, "no.webdav.tracks")
-            } else {
-                AppLanguage.text(languageMode, "no.matching.webdav.tracks")
-            },
-            trackListLabels(languageMode)
+        listener.publish(
+            NetworkTrackListRequest(
+                AppLanguage.text(languageMode, "songs"),
+                tracks,
+                true,
+                details,
+                false,
+                headerMetrics,
+                headerActions,
+                if (allWebDavTracks.isEmpty()) {
+                    AppLanguage.text(languageMode, "no.webdav.tracks")
+                } else {
+                    AppLanguage.text(languageMode, "no.matching.webdav.tracks")
+                },
+                trackListLabels(languageMode)
+            )
         )
     }
 
@@ -129,16 +123,18 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
             }, icon = EchoIconKind.Back, isBack = true)
         )
         if (source == null) {
-            listener.renderTrackList(
-                AppLanguage.text(languageMode, "songs"),
-                ArrayList(),
-                true,
-                ArrayList(),
-                false,
-                ArrayList(),
-                headerActions,
-                AppLanguage.text(languageMode, "source.not.found"),
-                trackListLabels(languageMode)
+            listener.publish(
+                NetworkTrackListRequest(
+                    AppLanguage.text(languageMode, "songs"),
+                    ArrayList(),
+                    true,
+                    ArrayList(),
+                    false,
+                    ArrayList(),
+                    headerActions,
+                    AppLanguage.text(languageMode, "source.not.found"),
+                    trackListLabels(languageMode)
+                )
             )
             return
         }
@@ -161,20 +157,22 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
                 listener.playRemoteSourceTracks(source)
             }, icon = EchoIconKind.Play)
         )
-        listener.renderTrackList(
-            AppLanguage.text(languageMode, "songs"),
-            tracks,
-            true,
-            details,
-            false,
-            headerMetrics,
-            headerActions,
-            if (allSourceTracks.isEmpty()) {
-                AppLanguage.text(languageMode, "no.tracks.from.source")
-            } else {
-                AppLanguage.text(languageMode, "no.matching.source.tracks")
-            },
-            trackListLabels(languageMode)
+        listener.publish(
+            NetworkTrackListRequest(
+                AppLanguage.text(languageMode, "songs"),
+                tracks,
+                true,
+                details,
+                false,
+                headerMetrics,
+                headerActions,
+                if (allSourceTracks.isEmpty()) {
+                    AppLanguage.text(languageMode, "no.tracks.from.source")
+                } else {
+                    AppLanguage.text(languageMode, "no.matching.source.tracks")
+                },
+                trackListLabels(languageMode)
+            )
         )
     }
 

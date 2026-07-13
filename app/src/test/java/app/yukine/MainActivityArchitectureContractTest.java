@@ -211,6 +211,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void activityHasNoFeatureRenderListenerImplementations() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String playlists = read("app/src/main/java/app/yukine/LibraryPlaylistsIntentOwner.kt");
+        String network = read("app/src/main/java/app/yukine/NetworkTrackListOwner.kt");
+        assertFalse(activity.contains("renderPlaylistTracks"));
+        assertFalse(activity.contains("renderTrackList"));
+        assertTrue(playlists.contains(": LibraryPlaylistsRenderController.Listener"));
+        assertTrue(playlists.contains("LibraryGroupsDestinationState("));
+        assertTrue(network.contains(": NetworkTrackListRenderController.Listener"));
+        assertTrue(network.contains("private val publishRequest: (NetworkTrackListRequest) -> Unit"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

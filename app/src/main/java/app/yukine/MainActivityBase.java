@@ -18,7 +18,6 @@ import app.yukine.data.MusicLibraryRepository;
 import app.yukine.ui.LibraryUiLabels;
 import app.yukine.ui.EchoTheme;
 import app.yukine.model.Playlist;
-import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.playback.PlaybackStateSnapshot;
 import app.yukine.queue.QueueIntent;
@@ -31,9 +30,6 @@ import app.yukine.streaming.StreamingTrack;
 import app.yukine.streaming.cache.StreamingCacheRepository;
 import app.yukine.ui.LibraryGroupActions;
 import app.yukine.ui.LibraryGroupUiState;
-import app.yukine.ui.TrackListHeaderAction;
-import app.yukine.ui.TrackListHeaderMetric;
-import app.yukine.ui.TrackListLabels;
 import app.yukine.ui.TrackRowActions;
 import app.yukine.ui.TrackRowUiState;
 
@@ -898,6 +894,17 @@ public abstract class MainActivityBase extends ComponentActivity {
     }
 
     private void initializeRenderOwners(StreamingSearchRenderController streamingSearchRenderController) {
+        LibraryPlaylistsIntentOwner playlistIntents = new LibraryPlaylistsIntentOwner(
+                libraryViewModel,
+                playlist -> {
+                    playlistDialogController.confirmDeletePlaylist(playlist);
+                    return kotlin.Unit.INSTANCE;
+                },
+                request -> {
+                    trackListStatePublisher.publishLibraryPlaylist(request);
+                    return kotlin.Unit.INSTANCE;
+                }
+        );
         libraryGroupsRenderController = new LibraryGroupsRenderController(
                 libraryViewModel,
                 libraryGroupsRenderListenerFactory.create(
@@ -907,58 +914,16 @@ public abstract class MainActivityBase extends ComponentActivity {
                         () -> settingsStore.languageMode(),
                         (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                         (title, tracks) -> libraryFileDeleteLauncher.request(tracks, -1L),
-                        this::publishLibraryGroupsChromeState,
+                        playlistIntents::publishLibraryGroupsChrome,
                         trackListStatePublisher::publishLibraryGroup
                 ),
                 artistInfoRepository,
                 action -> mainHandler.post(action)
         );
-        libraryPlaylistsRenderController = new LibraryPlaylistsRenderController(libraryViewModel, new LibraryPlaylistsRenderController.Listener() {
-            @Override
-            public void openFavoritePlaylist(String title) {
-                libraryViewModel.onEvent(new LibraryEvent.OpenGroup("virtual:favorites", title));
-            }
-
-            @Override
-            public void openPlayHistory(String title) {
-                libraryViewModel.onEvent(new LibraryEvent.OpenGroup("virtual:play-history", title));
-            }
-
-            @Override
-            public void openPlaylist(long playlistId, String title) {
-                libraryViewModel.onEvent(new LibraryEvent.OpenPlaylist(playlistId, title));
-            }
-
-            @Override
-            public void playPlaylist(long playlistId) {
-                libraryViewModel.onEvent(new LibraryEvent.PlayPlaylist(playlistId));
-            }
-
-            @Override
-            public void confirmDeletePlaylist(Playlist playlist) {
-                playlistDialogController.confirmDeletePlaylist(playlist);
-            }
-
-            @Override
-            public void backFromPlaylist() {
-                libraryViewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE);
-            }
-
-            @Override
-            public void playTrackList(List<Track> tracks, int index) {
-                libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index));
-            }
-
-            @Override
-            public void publishLibraryGroupsChrome(LibraryGroupsChromeState state) {
-                publishLibraryGroupsChromeState(state);
-            }
-
-            @Override
-            public void renderPlaylistTracks(LibraryPlaylistTrackListRequest request) {
-                trackListStatePublisher.publishLibraryPlaylist(request);
-            }
-        });
+        libraryPlaylistsRenderController = new LibraryPlaylistsRenderController(
+                libraryViewModel,
+                playlistIntents
+        );
         collectionsRenderController = new CollectionsRenderController(collectionsViewModel, collectionsRenderListenerFactory.create(
                 () -> playlistDialogController.showCreatePlaylist(),
                 () -> documentPickerController.openPlaylistM3uFilePicker(),
@@ -1183,54 +1148,9 @@ public abstract class MainActivityBase extends ComponentActivity {
                 key -> AppLanguage.text(settingsStore.languageMode(), key),
                 status -> statusMessageController.setStatus(status)
         );
-        NetworkTrackListRenderController trackListRenderer =
-                new NetworkTrackListRenderController(new NetworkTrackListRenderController.Listener() {
-                    @Override
-                    public void navigateNetworkPage(String page) {
-                        MainActivityBase.this.navigateNetworkPage(page);
-                    }
-
-                    @Override
-                    public void clearRemoteSourceAndNavigateNetworkPage(String page) {
-                        routeController.clearSelectedRemoteSource();
-                        MainActivityBase.this.navigateNetworkPage(page);
-                    }
-
-                    @Override
-                    public void syncRemoteSource(long sourceId) {
-                        sourcesEvents.syncRemoteSource(sourceId);
-                    }
-
-                    @Override
-                    public void playRemoteSourceTracks(RemoteSource source) {
-                        sourcesEvents.playRemoteSourceTracks(source);
-                    }
-
-                    @Override
-                    public void renderTrackList(
-                            String title,
-                            List<Track> tracks,
-                            boolean showPlaylistAction,
-                            List<String> details,
-                            boolean showStreamActions,
-                            List<TrackListHeaderMetric> headerMetrics,
-                            List<TrackListHeaderAction> headerActions,
-                            String emptyText,
-                            TrackListLabels labels
-                    ) {
-                        trackListStatePublisher.publishNetwork(new NetworkTrackListRequest(
-                                title,
-                                tracks,
-                                showPlaylistAction,
-                                details,
-                                showStreamActions,
-                                headerMetrics,
-                                headerActions,
-                                emptyText,
-                                labels
-                        ));
-                    }
-                });
+        NetworkTrackListRenderController trackListRenderer = new NetworkTrackListRenderController(
+                new NetworkTrackListOwner(routeController, sourcesEvents, trackListStatePublisher)
+        );
         networkRenderCoordinator = new NetworkRenderCoordinator(
                 libraryStore,
                 new NetworkMenuRenderController(menuEvents),
@@ -1544,18 +1464,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             playbackStartListener.setStatus(playbackStartListener.resolvingStatus());
             return;
         }
-    }
-
-    private void publishLibraryGroupsChromeState(LibraryGroupsChromeState state) {
-        libraryViewModel.updateLibraryGroupsChrome(
-                new LibraryGroupsDestinationState(
-                        "",
-                        Collections.emptyList(),
-                        new ArrayList<>(state.getActions()),
-                        state.getEmptyText(),
-                        new ArrayList<>(state.getModeActions())
-                )
-        );
     }
 
     private void installNavHostShell() {
