@@ -242,7 +242,7 @@ class SettingsViewModel @JvmOverloads constructor(
                     .distinctUntilChanged()
                     .collect { (active, page) ->
                         val current = _state.value
-                        renderCurrentPage(page, current.preferences, current.runtime)
+                        publishCurrentPage(page, current.preferences, current.runtime)
                         if (active) {
                             refreshSettingsContext()
                         }
@@ -263,7 +263,7 @@ class SettingsViewModel @JvmOverloads constructor(
                     val refreshRenderedPage = _state.value.ui != SettingsUiState()
                     updateSettingsContext(snapshot.preferences, snapshot.runtime)
                     if (refreshRenderedPage) {
-                        renderCurrentPage(renderedPage, snapshot.preferences, snapshot.runtime)
+                        publishCurrentPage(renderedPage, snapshot.preferences, snapshot.runtime)
                     }
                 }
             } catch (error: CancellationException) {
@@ -295,7 +295,7 @@ class SettingsViewModel @JvmOverloads constructor(
         syncChromeState(preferences)
     }
 
-    fun renderCurrentPage(
+    fun publishCurrentPage(
         page: SettingsPage,
         preferences: SettingsPreferencesSnapshot,
         runtime: RuntimeSettingsStatus
@@ -314,7 +314,7 @@ class SettingsViewModel @JvmOverloads constructor(
         return content
     }
 
-    fun renderCurrentPage(): SettingsPageStateContent {
+    fun publishCurrentPage(): SettingsPageStateContent {
         val current = _state.value
         val content = buildPageContent(current.page, current.preferences, current.runtime)
         _state.value = current.copy(
@@ -348,7 +348,7 @@ class SettingsViewModel @JvmOverloads constructor(
 
     fun navigateSettingsPage(page: SettingsPage) {
         val current = _state.value
-        renderCurrentPage(page, current.preferences, current.runtime)
+        publishCurrentPage(page, current.preferences, current.runtime)
         mutations.emit(SettingsEffect.NavigatePage(page))
     }
 
@@ -356,7 +356,7 @@ class SettingsViewModel @JvmOverloads constructor(
         val current = _state.value
         val nextPreferences = transform(current.preferences)
         mutations.syncStore(nextPreferences)
-        renderCurrentPage(current.page, nextPreferences, current.runtime)
+        publishCurrentPage(current.page, nextPreferences, current.runtime)
     }
 
     private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
@@ -373,7 +373,7 @@ class SettingsViewModel @JvmOverloads constructor(
 
     private fun updateRuntime(transform: (RuntimeSettingsStatus) -> RuntimeSettingsStatus) {
         val current = _state.value
-        renderCurrentPage(current.page, current.preferences, transform(current.runtime))
+        publishCurrentPage(current.page, current.preferences, transform(current.runtime))
     }
 
     private fun replaceSnapshot(
@@ -381,7 +381,7 @@ class SettingsViewModel @JvmOverloads constructor(
         runtime: RuntimeSettingsStatus
     ) {
         val current = _state.value
-        renderCurrentPage(current.page, preferences, runtime)
+        publishCurrentPage(current.page, preferences, runtime)
     }
 
 }

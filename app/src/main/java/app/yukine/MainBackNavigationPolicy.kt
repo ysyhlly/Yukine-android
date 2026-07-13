@@ -12,7 +12,7 @@ internal object MainBackNavigationPolicy {
             MainRoutes.TAB_LIBRARY == selectedTab &&
             !selectedLibraryGroupKey.isNullOrEmpty()
         ) {
-            return Result.render(
+            return Result.stay(
                 selectedTab,
                 networkPage,
                 settingsPage.route,
@@ -22,22 +22,22 @@ internal object MainBackNavigationPolicy {
             )
         }
         if (MainRoutes.TAB_COLLECTIONS == selectedTab && selectedPlaylistId >= 0L) {
-            return Result.render(selectedTab, networkPage, settingsPage.route, false, false, true)
+            return Result.stay(selectedTab, networkPage, settingsPage.route, false, false, true)
         }
         if (MainRoutes.TAB_SETTINGS == selectedTab && SettingsPage.Home != settingsPage) {
-            return Result.render(selectedTab, networkPage, SettingsBackStack.parent(settingsPage).route, false, false)
+            return Result.stay(selectedTab, networkPage, SettingsBackStack.parent(settingsPage).route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.StreamList == networkPage) {
-            return Result.render(selectedTab, NetworkPage.Streaming, settingsPage.route, false, false)
+            return Result.stay(selectedTab, NetworkPage.Streaming, settingsPage.route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.WebDavTracks == networkPage) {
-            return Result.render(selectedTab, NetworkPage.WebDav, settingsPage.route, false, false)
+            return Result.stay(selectedTab, NetworkPage.WebDav, settingsPage.route, false, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.WebDavSourceTracks == networkPage) {
-            return Result.render(selectedTab, NetworkPage.Sources, settingsPage.route, true, false)
+            return Result.stay(selectedTab, NetworkPage.Sources, settingsPage.route, true, false)
         }
         if (MainRoutes.TAB_NETWORK == selectedTab && NetworkPage.Home != networkPage) {
-            return Result.render(selectedTab, NetworkPage.Home, settingsPage.route, true, false)
+            return Result.stay(selectedTab, NetworkPage.Home, settingsPage.route, true, false)
         }
         if (MainRoutes.TAB_HOME != selectedTab) {
             return Result.navigate(MainRoutes.TAB_HOME, NetworkPage.Home, settingsPage.route, true)
@@ -56,7 +56,7 @@ internal object MainBackNavigationPolicy {
         @JvmField val clearSelectedPlaylist: Boolean
     ) {
         companion object {
-            fun render(
+            fun stay(
                 selectedTab: String,
                 networkPage: NetworkPage,
                 settingsPage: String,

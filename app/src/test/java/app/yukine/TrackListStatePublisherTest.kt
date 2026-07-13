@@ -22,7 +22,7 @@ class TrackListStatePublisherTest {
         )
         val viewModel = LibraryViewModel()
         val publisher = TrackListStatePublisher(
-            TrackListRenderController(viewModel, FakeListener()),
+            TrackListStateReducer(viewModel, FakeListener()),
             library,
             settings,
             MutablePlaybackReadModel()
@@ -43,7 +43,7 @@ class TrackListStatePublisherTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "remove.favorite"), state.labels.removeFavoriteLabel)
     }
 
-    private class FakeListener : TrackListRenderController.Listener {
+    private class FakeListener : TrackListStateReducer.Listener {
         override fun playTrackList(tracks: List<Track>, index: Int) = Unit
         override fun toggleFavorite(track: Track) = Unit
         override fun showAddToPlaylist(track: Track) = Unit

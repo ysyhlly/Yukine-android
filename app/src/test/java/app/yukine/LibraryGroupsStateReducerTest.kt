@@ -12,15 +12,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.ArrayList
 
-class LibraryGroupsRenderControllerTest {
+class LibraryGroupsStateReducerTest {
     @Test
     fun rendersAlbumGroupsWithEnglishLabels() {
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(viewModel, listener)
+        val controller = LibraryGroupsStateReducer(viewModel, listener)
         val tracks = listOf(track(1L, "Track", "Artist", ""))
 
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_ENGLISH,
             tracks,
             LibraryGrouping.ALBUMS,
@@ -40,9 +40,9 @@ class LibraryGroupsRenderControllerTest {
     fun rendersPlaylistFavoritesAndGroupDetailWithLanguageLabels() {
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(viewModel, listener)
+        val controller = LibraryGroupsStateReducer(viewModel, listener)
 
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_ENGLISH,
             emptyList(),
             LibraryGrouping.PLAYLISTS,
@@ -55,7 +55,7 @@ class LibraryGroupsRenderControllerTest {
         assertEquals("Open collected tracks", viewModel.libraryGroups.value.rows.single().subtitle)
 
         val key = "Album\u001fArtist"
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_ENGLISH,
             listOf(track(1L, "Track", "Artist", "Album")),
             LibraryGrouping.ALBUMS,
@@ -87,7 +87,7 @@ class LibraryGroupsRenderControllerTest {
         )
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(
+        val controller = LibraryGroupsStateReducer(
             viewModel,
             listener,
             repository,
@@ -95,7 +95,7 @@ class LibraryGroupsRenderControllerTest {
         )
         val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
 
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_CHINESE,
             tracks,
             LibraryGrouping.ARTISTS,
@@ -106,7 +106,7 @@ class LibraryGroupsRenderControllerTest {
         waitUntil { listener.artistIntro().contains("Aimer 是一名日本女歌手") }
         assertTrue(listener.artistIntro().contains("Aimer 是一名日本女歌手"))
 
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_CHINESE,
             tracks,
             LibraryGrouping.ARTISTS,
@@ -139,7 +139,7 @@ class LibraryGroupsRenderControllerTest {
         )
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(
+        val controller = LibraryGroupsStateReducer(
             viewModel,
             listener,
             repository,
@@ -147,7 +147,7 @@ class LibraryGroupsRenderControllerTest {
         )
         val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
 
-        controller.render(
+        controller.reduce(
             AppLanguage.MODE_CHINESE,
             tracks,
             LibraryGrouping.ARTISTS,
@@ -190,14 +190,14 @@ class LibraryGroupsRenderControllerTest {
             }
         )
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(
+        val controller = LibraryGroupsStateReducer(
             LibraryViewModel(),
             listener,
             repository,
             LibraryGroupsUiDispatcher { it.run() }
         )
 
-        controller.render(AppLanguage.MODE_CHINESE, listOf(track(1L, "花の唄", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
+        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(1L, "花の唄", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
 
         waitUntil { listener.trackListRequest?.footerAlbums?.isNotEmpty() == true }
         assertTrue(listener.artistIntro().contains("Preview bio"))
@@ -228,7 +228,7 @@ class LibraryGroupsRenderControllerTest {
             }
         )
         val listener = FakeListener()
-        val controller = LibraryGroupsRenderController(
+        val controller = LibraryGroupsStateReducer(
             LibraryViewModel(),
             listener,
             repository,
@@ -239,8 +239,8 @@ class LibraryGroupsRenderControllerTest {
             }
         )
 
-        controller.render(AppLanguage.MODE_CHINESE, listOf(track(1L, "A", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
-        controller.render(AppLanguage.MODE_CHINESE, listOf(track(2L, "B", "LiSA", "TWO")), LibraryGrouping.ARTISTS, "LiSA", "LiSA", emptyList())
+        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(1L, "A", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
+        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(2L, "B", "LiSA", "TWO")), LibraryGrouping.ARTISTS, "LiSA", "LiSA", emptyList())
 
         waitUntil {
             val callbacks = synchronized(pending) {
@@ -269,7 +269,7 @@ class LibraryGroupsRenderControllerTest {
         return Track(id, title, artist, album, 1000L, Uri.EMPTY, "file:$id")
     }
 
-    private class FakeListener : LibraryGroupsRenderController.Listener {
+    private class FakeListener : LibraryGroupsStateReducer.Listener {
         var chromeState: LibraryGroupsChromeState? = null
         var trackListRequest: LibraryGroupTrackListRequest? = null
         var playedTracks: List<Track> = emptyList()
@@ -296,7 +296,7 @@ class LibraryGroupsRenderControllerTest {
             chromeState = LibraryGroupsChromeState(actions, emptyText, modeActions)
         }
 
-        override fun renderTrackList(
+        override fun publishTrackList(
             title: String,
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,

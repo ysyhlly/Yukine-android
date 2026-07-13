@@ -12,7 +12,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Test
 import java.util.ArrayList
 
-class MainLibraryGroupsRenderListenerTest {
+class LibraryGroupsActionAdapterTest {
     @Test
     fun delegatesLibraryGroupActionsToInjectedOwners() {
         val calls = mutableListOf<String>()
@@ -71,9 +71,9 @@ class MainLibraryGroupsRenderListenerTest {
                 onClick = Runnable {}
             )
         )
-        val listener = listener(mutableListOf(), trackListRenderer = { request = it })
+        val listener = listener(mutableListOf(), trackListPublisher = { request = it })
 
-        listener.renderTrackList("Album", tracks, metrics, headerActions, footerAlbums)
+        listener.publishTrackList("Album", tracks, metrics, headerActions, footerAlbums)
 
         val rendered = requireNotNull(request)
         assertEquals("Album", rendered.title)
@@ -84,22 +84,22 @@ class MainLibraryGroupsRenderListenerTest {
     }
 
     @Test
-    fun directConstructionCreatesLibraryGroupsRenderControllerListener() {
+    fun directConstructionCreatesLibraryGroupsStateReducerListener() {
         val calls = mutableListOf<String>()
-        val listener = MainLibraryGroupsRenderListener(
-            MainLibraryGroupsRenderListener.GroupOpener { key, title -> calls += "open:$key:$title" },
-            MainLibraryGroupsRenderListener.GroupSelectionClearer { calls += "clear" },
-            MainLibraryGroupsRenderListener.GroupCloser { calls += "close" },
-            MainLibraryGroupsRenderListener.LanguageModeProvider { AppLanguage.MODE_ENGLISH },
-            MainLibraryGroupsRenderListener.TrackListPlayer { tracks, index -> calls += "play:${tracks.size}:$index" },
-            MainLibraryGroupsRenderListener.GroupDeleteConfirmer { title, tracks -> calls += "delete:$title:${tracks.size}" },
-            MainLibraryGroupsRenderListener.ChromePublisher { calls += "chrome:${it.emptyText}" },
-            MainLibraryGroupsRenderListener.TrackListRenderer { calls += "render:${it.title}:${it.tracks.size}" }
+        val listener = LibraryGroupsActionAdapter(
+            LibraryGroupsActionAdapter.GroupOpener { key, title -> calls += "open:$key:$title" },
+            LibraryGroupsActionAdapter.GroupSelectionClearer { calls += "clear" },
+            LibraryGroupsActionAdapter.GroupCloser { calls += "close" },
+            LibraryGroupsActionAdapter.LanguageModeProvider { AppLanguage.MODE_ENGLISH },
+            LibraryGroupsActionAdapter.TrackListPlayer { tracks, index -> calls += "play:${tracks.size}:$index" },
+            LibraryGroupsActionAdapter.GroupDeleteConfirmer { title, tracks -> calls += "delete:$title:${tracks.size}" },
+            LibraryGroupsActionAdapter.ChromePublisher { calls += "chrome:${it.emptyText}" },
+            LibraryGroupsActionAdapter.TrackListPublisher { calls += "publish:${it.title}:${it.tracks.size}" }
         )
 
         listener.openFavoritesCollection()
         listener.publishLibraryGroupsChrome(emptyList(), "Empty", emptyList())
-        listener.renderTrackList(
+        listener.publishTrackList(
             "Tracks",
             ArrayList(listOf(track(3L))),
             ArrayList(),
@@ -111,7 +111,7 @@ class MainLibraryGroupsRenderListenerTest {
             listOf(
                 "open:virtual:favorites:${AppLanguage.text(AppLanguage.MODE_ENGLISH, "favorite.playlist")}",
                 "chrome:Empty",
-                "render:Tracks:1"
+                "publish:Tracks:1"
             ),
             calls
         )
@@ -120,21 +120,21 @@ class MainLibraryGroupsRenderListenerTest {
     private fun listener(
         calls: MutableList<String>,
         chromePublisher: (LibraryGroupsChromeState) -> Unit = { calls += "chrome:${it.emptyText}" },
-        trackListRenderer: (LibraryGroupTrackListRequest) -> Unit = { calls += "render:${it.title}:${it.tracks.size}" }
-    ): MainLibraryGroupsRenderListener =
-        MainLibraryGroupsRenderListener(
-            groupOpener = MainLibraryGroupsRenderListener.GroupOpener { key, title -> calls += "open:$key:$title" },
-            groupSelectionClearer = MainLibraryGroupsRenderListener.GroupSelectionClearer { calls += "clear" },
-            groupCloser = MainLibraryGroupsRenderListener.GroupCloser { calls += "close" },
-            languageModeProvider = MainLibraryGroupsRenderListener.LanguageModeProvider { AppLanguage.MODE_ENGLISH },
-            trackListPlayer = MainLibraryGroupsRenderListener.TrackListPlayer { tracks, index ->
+        trackListPublisher: (LibraryGroupTrackListRequest) -> Unit = { calls += "publish:${it.title}:${it.tracks.size}" }
+    ): LibraryGroupsActionAdapter =
+        LibraryGroupsActionAdapter(
+            groupOpener = LibraryGroupsActionAdapter.GroupOpener { key, title -> calls += "open:$key:$title" },
+            groupSelectionClearer = LibraryGroupsActionAdapter.GroupSelectionClearer { calls += "clear" },
+            groupCloser = LibraryGroupsActionAdapter.GroupCloser { calls += "close" },
+            languageModeProvider = LibraryGroupsActionAdapter.LanguageModeProvider { AppLanguage.MODE_ENGLISH },
+            trackListPlayer = LibraryGroupsActionAdapter.TrackListPlayer { tracks, index ->
                 calls += "play:${tracks.size}:$index"
             },
-            groupDeleteConfirmer = MainLibraryGroupsRenderListener.GroupDeleteConfirmer { title, tracks ->
+            groupDeleteConfirmer = LibraryGroupsActionAdapter.GroupDeleteConfirmer { title, tracks ->
                 calls += "delete:$title:${tracks.size}"
             },
-            chromePublisher = MainLibraryGroupsRenderListener.ChromePublisher(chromePublisher),
-            trackListRenderer = MainLibraryGroupsRenderListener.TrackListRenderer(trackListRenderer)
+            chromePublisher = LibraryGroupsActionAdapter.ChromePublisher(chromePublisher),
+            trackListPublisher = LibraryGroupsActionAdapter.TrackListPublisher(trackListPublisher)
         )
 
     private fun track(id: Long): Track =

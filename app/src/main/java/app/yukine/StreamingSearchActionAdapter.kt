@@ -45,7 +45,7 @@ internal fun interface StreamingSearchChromePublisher {
     fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
 }
 
-internal class MainStreamingSearchRenderListener(
+internal class StreamingSearchActionAdapter(
     private val networkNavigator: StreamingSearchNetworkNavigator,
     private val actionHandler: StreamingSearchActionHandler,
     private val selectedProviderSource: StreamingSearchSelectedProviderSource,
@@ -57,7 +57,7 @@ internal class MainStreamingSearchRenderListener(
     private val luoxueSourceManagerPresenter: LuoxueSourceManagerPresenter,
     private val manualCookiePresenter: StreamingManualCookiePresenter,
     private val chromePublisher: StreamingSearchChromePublisher
-) : StreamingSearchRenderController.Listener {
+) : StreamingSearchStateReducer.Listener {
     override fun backToNetworkHome() {
         networkNavigator.backToNetworkHome()
     }

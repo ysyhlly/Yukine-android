@@ -16,11 +16,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class CollectionsRenderControllerStateTest {
+class CollectionsStateBindingTest {
     @Test
     fun enteringCollectionsLoadsInsightsOffTheRenderPathAndPublishesThem() = runTest {
         val viewModel = CollectionsViewModel()
-        val controller = CollectionsRenderController(
+        val controller = CollectionsStateBinding(
             viewModel,
             NoOpCollectionsListener,
             this,
@@ -58,7 +58,7 @@ class CollectionsRenderControllerStateTest {
         override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
     }
 
-    private object NoOpCollectionsListener : CollectionsRenderController.Listener {
+    private object NoOpCollectionsListener : CollectionsStateBinding.Listener {
         override fun showCreatePlaylist() = Unit
         override fun openPlaylistM3uFilePicker() = Unit
         override fun confirmClearPlayHistory() = Unit

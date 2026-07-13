@@ -2,7 +2,7 @@ package app.yukine
 
 import app.yukine.model.Track
 
-internal object TrackRowKeyPolicy {
+object TrackRowKeyPolicy {
     @JvmStatic
     fun occurrenceKey(tracks: List<Track>?, index: Int): String {
         if (tracks == null || index < 0 || index >= tracks.size) {

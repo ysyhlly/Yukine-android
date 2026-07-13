@@ -179,7 +179,7 @@ internal class PlaybackFeatureBinding(
         settingsViewModel: SettingsViewModel,
         streamingViewModel: StreamingViewModel,
         homeDashboardViewModel: HomeDashboardViewModel,
-        homeIntentHandler: MainHomeDashboardRenderListener
+        homeIntentHandler: HomeDashboardActionAdapter
     ) {
         nowPlayingViewModel.bindStateSources(
             connection,

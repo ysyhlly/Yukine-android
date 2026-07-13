@@ -40,7 +40,7 @@ class LibraryPlaylistsIntentOwnerTest {
         owner.backFromPlaylist()
         owner.playTrackList(listOf(track), 0)
         owner.confirmDeletePlaylist(playlist)
-        owner.renderPlaylistTracks(request)
+        owner.publishPlaylistTracks(request)
         owner.publishLibraryGroupsChrome(
             LibraryGroupsChromeState(
                 actions = emptyList(),

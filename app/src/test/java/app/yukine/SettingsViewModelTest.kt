@@ -21,10 +21,10 @@ class SettingsViewModelTest {
     val mainDispatcherRule = LibraryMainDispatcherRule()
 
     @Test
-    fun renderCurrentPagePublishesTypedPageUi() {
+    fun publishCurrentPagePublishesTypedPageUi() {
         val viewModel = SettingsViewModel()
 
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Home,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()
@@ -184,7 +184,7 @@ class SettingsViewModelTest {
     @Test
     fun librarySettingsBackActionsNavigateThroughExpectedParents() {
         val viewModel = SettingsViewModel()
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Library,
             SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_CHINESE),
             RuntimeSettingsStatus(librarySongCount = 128)
@@ -307,7 +307,7 @@ class SettingsViewModelTest {
             loads += 1
             SettingsContextSnapshot(preferences, runtime)
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Library,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()
@@ -448,7 +448,7 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(dispatcher)
         val preferenceGateway = FakePreferenceGateway().also { it.failWrites = true }
         viewModel.bindPreferenceGateway(preferenceGateway)
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Appearance,
             SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_ENGLISH),
             RuntimeSettingsStatus()
@@ -510,7 +510,7 @@ class SettingsViewModelTest {
                 settingsUri = "content://settings"
             )
         )
-        viewModel.renderCurrentPage(SettingsPage.PageBackground, preferences, RuntimeSettingsStatus())
+        viewModel.publishCurrentPage(SettingsPage.PageBackground, preferences, RuntimeSettingsStatus())
 
         viewModel.appearance.clearPageBackground(PageBackgrounds.PAGE_SETTINGS)
         advanceUntilIdle()
@@ -532,7 +532,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun renderCurrentPageBuildsUiFromSnapshotsAndRoutesActionsThroughViewModel() {
+    fun publishCurrentPageBuildsUiFromSnapshotsAndRoutesActionsThroughViewModel() {
         val viewModel = SettingsViewModel()
         val preferences = SettingsPreferencesSnapshot(
             themeMode = "dark",
@@ -548,7 +548,7 @@ class SettingsViewModelTest {
             streamingGatewayConfigured = true
         )
 
-        val content = viewModel.renderCurrentPage(SettingsPage.StreamingGateway, preferences, runtime)
+        val content = viewModel.publishCurrentPage(SettingsPage.StreamingGateway, preferences, runtime)
 
         assertEquals(SettingsPage.StreamingGateway, viewModel.state.value.page)
         assertEquals(preferences, viewModel.state.value.preferences)
@@ -656,7 +656,7 @@ class SettingsViewModelTest {
             runtimeEffects += effect
             true
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Lyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
             RuntimeSettingsStatus()
@@ -692,7 +692,7 @@ class SettingsViewModelTest {
         viewModel.bindRuntimeEffectListener { effect ->
             effect !is SettingsRuntimeEffect.ApplyFloatingLyrics || !effect.enabled
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.FloatingLyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
             RuntimeSettingsStatus(overlayPermissionGranted = false)
@@ -722,7 +722,7 @@ class SettingsViewModelTest {
             runtimeEffects += effect
             true
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Lyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = false, floatingLyricsEnabled = true),
             RuntimeSettingsStatus()

@@ -10,19 +10,19 @@ import org.junit.Assert.assertNotSame
 import org.junit.Test
 import java.util.ArrayList
 
-class LibraryPlaylistsRenderControllerTest {
+class LibraryPlaylistsStateReducerTest {
     @Test
     fun rendersPlaylistRowsAndActionsThroughListener() {
         val listener = RecordingListener()
         val viewModel = LibraryViewModel()
-        val controller = LibraryPlaylistsRenderController(viewModel, listener)
+        val controller = LibraryPlaylistsStateReducer(viewModel, listener)
         val playlists = listOf(
             Playlist(7L, "Favorites", 3, 0L, 0L),
             Playlist(8L, "Empty", 0, 0L, 0L)
         )
         val modeActions = listOf(TrackListModeAction("Playlists", "playlists", true, Runnable { }))
 
-        controller.render(
+        controller.reduce(
             languageMode = AppLanguage.MODE_ENGLISH,
             playlists = playlists,
             selectedPlaylistId = -1L,
@@ -60,11 +60,11 @@ class LibraryPlaylistsRenderControllerTest {
     @Test
     fun rendersSelectedPlaylistTracksWithHeaderActions() {
         val listener = RecordingListener()
-        val controller = LibraryPlaylistsRenderController(LibraryViewModel(), listener)
+        val controller = LibraryPlaylistsStateReducer(LibraryViewModel(), listener)
         val tracks = listOf(track(1L), track(2L))
         val modeActions = listOf(TrackListModeAction("Playlists", "playlists", true, Runnable { }))
 
-        controller.render(
+        controller.reduce(
             languageMode = AppLanguage.MODE_ENGLISH,
             playlists = emptyList(),
             selectedPlaylistId = 9L,
@@ -91,7 +91,7 @@ class LibraryPlaylistsRenderControllerTest {
         assertEquals(listOf("back", "playTracks:2:0"), listener.calls)
     }
 
-    private class RecordingListener : LibraryPlaylistsRenderController.Listener {
+    private class RecordingListener : LibraryPlaylistsStateReducer.Listener {
         val calls = mutableListOf<String>()
         var chromeState: LibraryGroupsChromeState? = null
         var playlistTrackRequest: LibraryPlaylistTrackListRequest? = null
@@ -128,7 +128,7 @@ class LibraryPlaylistsRenderControllerTest {
             chromeState = state
         }
 
-        override fun renderPlaylistTracks(request: LibraryPlaylistTrackListRequest) {
+        override fun publishPlaylistTracks(request: LibraryPlaylistTrackListRequest) {
             playlistTrackRequest = request
         }
     }

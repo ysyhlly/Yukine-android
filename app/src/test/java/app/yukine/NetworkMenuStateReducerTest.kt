@@ -5,13 +5,13 @@ import app.yukine.ui.SettingsMetric
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class NetworkMenuRenderControllerTest {
+class NetworkMenuStateReducerTest {
     @Test
     fun homeUsesMergedSourcesAndNetworkTitleAndKeepsDestinations() {
         val listener = RecordingListener()
-        val controller = NetworkMenuRenderController(listener)
+        val controller = NetworkMenuStateReducer(listener)
 
-        controller.renderHome(AppLanguage.MODE_CHINESE, 1, 2, 3)
+        controller.reduceHome(AppLanguage.MODE_CHINESE, 1, 2, 3)
         listener.actions.forEach { action -> action.onClick.run() }
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "settings.group.sources"), listener.title)
@@ -24,18 +24,18 @@ class NetworkMenuRenderControllerTest {
     @Test
     fun visibleBackActionsUseRouteBackStack() {
         val listener = RecordingListener()
-        val controller = NetworkMenuRenderController(listener)
+        val controller = NetworkMenuStateReducer(listener)
 
-        controller.renderStreaming(AppLanguage.MODE_ENGLISH, 0)
+        controller.reduceStreaming(AppLanguage.MODE_ENGLISH, 0)
         listener.actions.first().onClick.run()
-        controller.renderWebDav(AppLanguage.MODE_ENGLISH, 0, 0)
+        controller.reduceWebDav(AppLanguage.MODE_ENGLISH, 0, 0)
         listener.actions.first().onClick.run()
 
         assertEquals(2, listener.backCount)
         assertEquals(emptyList<String>(), listener.pages)
     }
 
-    private class RecordingListener : NetworkMenuRenderController.Listener {
+    private class RecordingListener : NetworkMenuStateReducer.Listener {
         var title = ""
         var actions = emptyList<SettingsAction>()
         val pages = mutableListOf<NetworkPage>()

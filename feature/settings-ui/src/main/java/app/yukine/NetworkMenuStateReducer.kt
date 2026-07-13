@@ -6,7 +6,7 @@ import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
-internal class NetworkMenuRenderController(
+class NetworkMenuStateReducer(
     private val listener: Listener
 ) {
     interface Listener {
@@ -33,7 +33,7 @@ internal class NetworkMenuRenderController(
         fun publishNetworkMenu(title: String, metrics: List<SettingsMetric>, actions: List<SettingsAction>)
     }
 
-    fun renderHome(languageMode: String, remoteSourceCount: Int, streamTrackCount: Int, webDavSourceCount: Int) {
+    fun reduceHome(languageMode: String, remoteSourceCount: Int, streamTrackCount: Int, webDavSourceCount: Int) {
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "remote.sources"), remoteSourceCount.toString()))
         metrics.add(SettingsMetric(text(languageMode, "streams"), streamTrackCount.toString()))
@@ -59,7 +59,7 @@ internal class NetworkMenuRenderController(
         listener.publishNetworkMenu(title, metrics, actions)
     }
 
-    fun renderStreaming(languageMode: String, streamTrackCount: Int) {
+    fun reduceStreaming(languageMode: String, streamTrackCount: Int) {
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "streams"), streamTrackCount.toString()))
         metrics.add(SettingsMetric(text(languageMode, "source"), text(languageMode, "direct.url.m3u")))
@@ -106,7 +106,7 @@ internal class NetworkMenuRenderController(
         listener.publishNetworkMenu(title, metrics, actions)
     }
 
-    fun renderWebDav(languageMode: String, webDavSourceCount: Int, webDavTrackCount: Int) {
+    fun reduceWebDav(languageMode: String, webDavSourceCount: Int, webDavTrackCount: Int) {
         val metrics = ArrayList<SettingsMetric>()
         metrics.add(SettingsMetric(text(languageMode, "sources"), webDavSourceCount.toString()))
         metrics.add(SettingsMetric(text(languageMode, "tracks"), webDavTrackCount.toString()))

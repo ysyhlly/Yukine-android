@@ -14,10 +14,10 @@ import kotlinx.coroutines.flow.StateFlow
  * Adapts feature-owned track-list requests to the immutable state consumed by Compose.
  *
  * This keeps language, favorite and playback projections out of the Activity while preserving
- * [TrackListRenderController] as the single row-presentation implementation.
+ * [TrackListStateReducer] as the single row-presentation implementation.
  */
 internal class TrackListStatePublisher(
-    private val controller: TrackListRenderController,
+    private val controller: TrackListStateReducer,
     private val libraryState: StateFlow<LibraryStoreState>,
     private val settingsState: StateFlow<SettingsState>,
     private val playbackReadModel: PlaybackReadModel
@@ -73,7 +73,7 @@ internal class TrackListStatePublisher(
         playbackState: PlaybackStateSnapshot = playbackReadModel.state.value,
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
     ) {
-        controller.render(
+        controller.reduce(
             title = title,
             tracks = tracks,
             showPlaylistAction = showPlaylistAction,

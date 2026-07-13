@@ -12,14 +12,14 @@ import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class TrackListRenderControllerTest {
+class TrackListStateReducerTest {
     @Test
     fun songsRootKeepsPlayActionsButOmitsDownloadCurrentList() {
         val viewModel = LibraryViewModel()
-        val controller = TrackListRenderController(viewModel, FakeListener())
+        val controller = TrackListStateReducer(viewModel, FakeListener())
         val labels = TrackListLabels()
 
-        controller.render(
+        controller.reduce(
             "Songs", listOf(track(1L)), true, listOf(""), false,
             emptyList(), emptyList(), "",
             listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
@@ -36,11 +36,11 @@ class TrackListRenderControllerTest {
     fun playlistDetailDoesNotAddDuplicatePlayAllAction() {
         val viewModel = LibraryViewModel()
         viewModel.presentation.onAction(LibraryAction.ModeChanged(LibraryMode.Playlists))
-        val controller = TrackListRenderController(viewModel, FakeListener())
+        val controller = TrackListStateReducer(viewModel, FakeListener())
         val labels = TrackListLabels()
         val playPlaylist = TrackListHeaderAction("播放歌单", Runnable { })
 
-        controller.render(
+        controller.reduce(
             "Playlist", listOf(track(1L)), true, listOf(""), false,
             emptyList(), listOf(playPlaylist), "",
             listOf(TrackListModeAction("Playlists", "playlists", true, Runnable { })),
@@ -56,7 +56,7 @@ class TrackListRenderControllerTest {
     @Test
     fun headerActionDeduplicationUsesSemanticKindNotLabel() {
         val viewModel = LibraryViewModel()
-        val controller = TrackListRenderController(viewModel, FakeListener())
+        val controller = TrackListStateReducer(viewModel, FakeListener())
         val labels = TrackListLabels()
         val existingPlayAll = TrackListHeaderAction(
             "本地化播放全部",
@@ -65,7 +65,7 @@ class TrackListRenderControllerTest {
             kind = TrackListHeaderActionKind.PlayAll
         )
 
-        controller.render(
+        controller.reduce(
             "Songs", listOf(track(1L)), true, listOf(""), false,
             emptyList(), listOf(existingPlayAll), "",
             listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
@@ -82,9 +82,9 @@ class TrackListRenderControllerTest {
     fun renderRecommendationPublishesLanguageAwareTrackMetric() {
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = TrackListRenderController(viewModel, listener)
+        val controller = TrackListStateReducer(viewModel, listener)
 
-        controller.renderRecommendation(
+        controller.reduceRecommendation(
             "Daily",
             listOf(track(1L)),
             AppLanguage.MODE_ENGLISH
@@ -99,10 +99,10 @@ class TrackListRenderControllerTest {
     fun renderPublishesRowsAndActionsTogetherForSecondTrackClick() {
         val viewModel = LibraryViewModel()
         val listener = FakeListener()
-        val controller = TrackListRenderController(viewModel, listener)
+        val controller = TrackListStateReducer(viewModel, listener)
         val tracks = listOf(track(1L), track(2L), track(3L))
 
-        controller.render(
+        controller.reduce(
             "Playlist",
             tracks,
             true,
@@ -127,7 +127,7 @@ class TrackListRenderControllerTest {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }
 
-    private class FakeListener : TrackListRenderController.Listener {
+    private class FakeListener : TrackListStateReducer.Listener {
         val playCalls = ArrayList<String>()
 
         override fun playTrackList(tracks: List<Track>, index: Int) {

@@ -83,6 +83,47 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void appModuleContainsNoBusinessScreensOrManualRenderControllers() throws Exception {
+        Path appSources = root().resolve("app/src/main/java");
+        try (Stream<Path> paths = Files.walk(appSources)) {
+            List<Path> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".kt") || path.toString().endsWith(".java"))
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        if (name.contains("RenderController") ||
+                                name.contains("RenderOwner") ||
+                                name.contains("RenderCoordinator")) {
+                            return true;
+                        }
+                        try {
+                            String source = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+                            return source.contains("@Composable") ||
+                                    source.contains("fun render(") ||
+                                    source.contains(".render(");
+                        } catch (IOException error) {
+                            throw new IllegalStateException(error);
+                        }
+                    })
+                    .collect(Collectors.toList());
+            assertTrue("Business screens and manual render chains must live in feature modules: " + offenders,
+                    offenders.isEmpty());
+        }
+
+        for (String reducer : new String[]{
+                "feature/library-ui/src/main/java/app/yukine/TrackListStateReducer.kt",
+                "feature/library-ui/src/main/java/app/yukine/LibraryGroupsStateReducer.kt",
+                "feature/library-ui/src/main/java/app/yukine/LibraryPlaylistsStateReducer.kt",
+                "feature/settings-ui/src/main/java/app/yukine/NetworkMenuStateReducer.kt",
+                "feature/settings-ui/src/main/java/app/yukine/NetworkSourcesStateReducer.kt",
+                "feature/settings-ui/src/main/java/app/yukine/NetworkTrackListStateReducer.kt",
+                "feature/streaming-ui/src/main/java/app/yukine/StreamingSearchStateReducer.kt"
+        }) {
+            assertTrue("Missing focused state reducer: " + reducer, Files.isRegularFile(root().resolve(reducer)));
+        }
+    }
+
+    @Test
     public void compositionRootOnlyAssemblesFocusedBindings() throws Exception {
         String composition = read("app/src/main/java/app/yukine/MainActivityComposition.kt");
         for (String binding : new String[]{
@@ -120,9 +161,9 @@ public final class MainActivityArchitectureContractTest {
 
         assertFalse(activity.contains("PlaybackServiceConnectionController"));
         assertFalse(activity.contains("StreamingPlaybackController"));
-        assertFalse(activity.contains("LibraryRenderOwner"));
+        assertFalse(activity.contains("LibraryStateBinding"));
         assertFalse(activity.contains("SettingsEffectOwner"));
-        assertFalse(activity.contains("NetworkRenderCoordinator"));
+        assertFalse(activity.contains("NetworkStateBinding"));
         assertFalse(activity.contains("OnboardingOwner"));
 
         assertTrue(playback.contains("connection = PlaybackServiceConnectionController("));
@@ -132,7 +173,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(streaming.contains("void handleNewIntent(Intent intent)"));
         assertTrue(streaming.contains("void release()"));
         assertTrue(streaming.contains("playbackTaskScheduler.shutdownNow()"));
-        assertTrue(library.contains("new LibraryRenderOwner("));
+        assertTrue(library.contains("new LibraryStateBinding("));
         assertTrue(library.contains("void bindPlatform("));
         assertTrue(library.contains("void release()"));
         assertTrue(settings.contains("new SettingsEffectOwner("));
@@ -140,7 +181,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(settings.contains("void release()"));
         assertTrue(navigation.contains("fun bindRoot("));
         assertTrue(navigation.contains("fun release()"));
-        assertTrue(network.contains("new NetworkRenderCoordinator("));
+        assertTrue(network.contains("new NetworkStateBinding("));
         assertTrue(network.contains("actionsViewModel.bindListener(null)"));
         assertTrue(platform.contains("new MainPermissionController(activity, permissionResultOwner)"));
         assertTrue(platform.contains("new DocumentPickerController(activity"));
@@ -324,9 +365,9 @@ public final class MainActivityArchitectureContractTest {
         String activity = read("app/src/main/java/app/yukine/MainActivity.kt");
         String home = read("feature/library-ui/src/main/java/app/yukine/HomeDashboardViewModel.kt");
         String search = read("feature/library-ui/src/main/java/app/yukine/SearchViewModel.kt");
-        String library = read("app/src/main/java/app/yukine/LibraryRenderOwner.kt");
-        String network = read("app/src/main/java/app/yukine/NetworkRenderCoordinator.kt");
-        String collections = read("app/src/main/java/app/yukine/CollectionsRenderController.kt");
+        String library = read("app/src/main/java/app/yukine/LibraryStateBinding.kt");
+        String network = read("app/src/main/java/app/yukine/NetworkStateBinding.kt");
+        String collections = read("app/src/main/java/app/yukine/CollectionsStateBinding.kt");
 
         assertFalse(activity.contains("renderHome"));
         assertFalse(activity.contains("renderQueue"));

@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.ArrayList
 
-internal class TrackListRenderController(
+class TrackListStateReducer(
     private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
@@ -41,7 +41,7 @@ internal class TrackListRenderController(
         fun confirmDeleteTrack(track: Track)
     }
 
-    fun render(
+    fun reduce(
         title: String,
         tracks: List<Track>,
         showPlaylistAction: Boolean,
@@ -82,11 +82,11 @@ internal class TrackListRenderController(
         }
     }
 
-    fun renderRecommendation(title: String, tracks: List<Track>) {
-        renderRecommendation(title, tracks, AppLanguage.MODE_CHINESE)
+    fun reduceRecommendation(title: String, tracks: List<Track>) {
+        reduceRecommendation(title, tracks, AppLanguage.MODE_CHINESE)
     }
 
-    fun renderRecommendation(title: String, tracks: List<Track>, languageMode: String) {
+    fun reduceRecommendation(title: String, tracks: List<Track>, languageMode: String) {
         val headerMetrics = listOf(TrackListHeaderMetric(AppLanguage.text(languageMode, "tracks"), "${tracks.size}"))
         val headerActions = listOf(
             TrackListHeaderAction(

@@ -8,7 +8,7 @@ import app.yukine.ui.TrackListLabels
 import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
-internal data class NetworkTrackListRequest(
+data class NetworkTrackListRequest(
     val title: String,
     val tracks: List<Track>,
     val showPlaylistAction: Boolean,
@@ -20,7 +20,7 @@ internal data class NetworkTrackListRequest(
     val labels: TrackListLabels
 )
 
-internal class NetworkTrackListRenderController(private val listener: Listener) {
+class NetworkTrackListStateReducer(private val listener: Listener) {
     interface Listener {
         fun navigateNetworkPage(page: NetworkPage)
 
@@ -33,7 +33,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         fun publish(request: NetworkTrackListRequest)
     }
 
-    fun renderStreamList(
+    fun reduceStreamList(
         languageMode: String,
         allStreams: ArrayList<Track>,
         streams: ArrayList<Track>,
@@ -71,7 +71,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         )
     }
 
-    fun renderWebDavTrackList(
+    fun reduceWebDavTrackList(
         languageMode: String,
         allWebDavTracks: ArrayList<Track>,
         tracks: ArrayList<Track>,
@@ -109,7 +109,7 @@ internal class NetworkTrackListRenderController(private val listener: Listener) 
         )
     }
 
-    fun renderWebDavSourceTrackList(
+    fun reduceWebDavSourceTrackList(
         languageMode: String,
         source: RemoteSource?,
         allSourceTracks: ArrayList<Track>,

@@ -5,7 +5,7 @@ import app.yukine.ui.PlaylistTrackUiState
 import app.yukine.ui.QueueTrackUiState
 import app.yukine.ui.TrackRowUiState
 
-internal object TrackRowStateFactory {
+object TrackRowStateFactory {
     @JvmStatic
     fun trackRow(
         track: Track,

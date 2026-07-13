@@ -3,7 +3,7 @@ package app.yukine
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 
-internal class MainCollectionsRenderListener(
+internal class CollectionsActionAdapter(
     private val playlistCreator: PlaylistCreator,
     private val playlistM3uPicker: PlaylistM3uPicker,
     private val playHistoryClearConfirmer: PlayHistoryClearConfirmer,
@@ -27,7 +27,7 @@ internal class MainCollectionsRenderListener(
     private val selectedPlaylistStreamingSyncer: SelectedPlaylistStreamingSyncer,
     private val selectedPlaylistTrackMover: SelectedPlaylistTrackMover,
     private val selectedPlaylistTrackRemover: SelectedPlaylistTrackRemover
-) : CollectionsRenderController.Listener {
+) : CollectionsStateBinding.Listener {
     fun interface PlaylistCreator {
         fun showCreatePlaylist()
     }

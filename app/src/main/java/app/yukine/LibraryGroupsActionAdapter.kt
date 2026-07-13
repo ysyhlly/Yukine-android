@@ -8,7 +8,7 @@ import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import java.util.ArrayList
 
-internal class MainLibraryGroupsRenderListener(
+internal class LibraryGroupsActionAdapter(
     private val groupOpener: GroupOpener,
     private val groupSelectionClearer: GroupSelectionClearer,
     private val groupCloser: GroupCloser,
@@ -16,8 +16,8 @@ internal class MainLibraryGroupsRenderListener(
     private val trackListPlayer: TrackListPlayer,
     private val groupDeleteConfirmer: GroupDeleteConfirmer,
     private val chromePublisher: ChromePublisher,
-    private val trackListRenderer: TrackListRenderer
-) : LibraryGroupsRenderController.Listener {
+    private val trackListPublisher: TrackListPublisher
+) : LibraryGroupsStateReducer.Listener {
     fun interface GroupOpener {
         fun openGroup(key: String, title: String)
     }
@@ -46,8 +46,8 @@ internal class MainLibraryGroupsRenderListener(
         fun publishLibraryGroupsChrome(state: LibraryGroupsChromeState)
     }
 
-    fun interface TrackListRenderer {
-        fun renderLibraryGroupTrackList(request: LibraryGroupTrackListRequest)
+    fun interface TrackListPublisher {
+        fun publishLibraryGroupTrackList(request: LibraryGroupTrackListRequest)
     }
 
     override fun selectLibraryGroup(key: String, title: String) {
@@ -91,14 +91,14 @@ internal class MainLibraryGroupsRenderListener(
         )
     }
 
-    override fun renderTrackList(
+    override fun publishTrackList(
         title: String,
         tracks: ArrayList<Track>,
         headerMetrics: ArrayList<TrackListHeaderMetric>,
         headerActions: ArrayList<TrackListHeaderAction>,
         footerAlbums: ArrayList<TrackListAlbumCardUiState>
     ) {
-        trackListRenderer.renderLibraryGroupTrackList(
+        trackListPublisher.publishLibraryGroupTrackList(
             LibraryGroupTrackListRequest(
                 title,
                 tracks,

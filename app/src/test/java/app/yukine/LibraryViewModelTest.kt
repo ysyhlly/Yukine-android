@@ -141,7 +141,7 @@ class LibraryViewModelTest {
     @Test
     fun openingGroupDetailPublishesCompleteTrackListState() {
         val viewModel = LibraryViewModel()
-        val listener = object : TrackListRenderController.Listener {
+        val listener = object : TrackListStateReducer.Listener {
             override fun playTrackList(tracks: List<Track>, index: Int) = Unit
             override fun toggleFavorite(track: Track) = Unit
             override fun showAddToPlaylist(track: Track) = Unit
@@ -150,9 +150,9 @@ class LibraryViewModelTest {
             override fun showEditStream(track: Track) = Unit
             override fun confirmDeleteTrack(track: Track) = Unit
         }
-        val controller = TrackListRenderController(viewModel, listener)
+        val controller = TrackListStateReducer(viewModel, listener)
 
-        controller.render(
+        controller.reduce(
             "Rock",
             listOf(track(1L), track(2L)),
             true,

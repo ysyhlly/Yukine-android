@@ -7,9 +7,9 @@ import app.yukine.ui.LibrarySourceKind
 import app.yukine.ui.LibraryUiState
 import java.util.Locale
 
-internal data class LibraryPresentedTrack(val track: Track, val detail: String)
+data class LibraryPresentedTrack(val track: Track, val detail: String)
 
-internal object LibraryTrackPresentationPolicy {
+object LibraryTrackPresentationPolicy {
     fun present(
         tracks: List<Track>,
         details: List<String>,

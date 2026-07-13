@@ -7,16 +7,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class NetworkSourcesRenderControllerTest {
+class NetworkSourcesStateReducerTest {
     @Test
     fun renderPublishesRowsThroughNetworkSourcesViewModel() {
         val viewModel = NetworkSourcesViewModel()
         val listener = RecordingListener()
-        val controller = NetworkSourcesRenderController(viewModel, listener)
+        val controller = NetworkSourcesStateReducer(viewModel, listener)
         val source = RemoteSource(4L, RemoteSource.TYPE_WEBDAV, "Archive", "https://example.test", "", "", "/", "", 0L)
         val tracks = listOf(track(10L, source.id))
 
-        controller.render(AppLanguage.MODE_ENGLISH, listOf(source), tracks)
+        controller.reduce(AppLanguage.MODE_ENGLISH, listOf(source), tracks)
 
         assertEquals("Remote music sources", viewModel.uiState.value.title)
         assertEquals(1, viewModel.uiState.value.rows.size)
@@ -28,7 +28,7 @@ class NetworkSourcesRenderControllerTest {
         assertTrue(viewModel.uiState.value.emptyText.isNotBlank())
     }
 
-    private class RecordingListener : NetworkSourcesRenderController.Listener {
+    private class RecordingListener : NetworkSourcesStateReducer.Listener {
         override fun backToNetwork() = Unit
 
         override fun testRemoteSource(sourceId: Long) = Unit

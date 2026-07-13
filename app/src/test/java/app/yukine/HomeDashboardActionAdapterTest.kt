@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class MainHomeDashboardRenderListenerTest {
+class HomeDashboardActionAdapterTest {
     @Test
     fun delegatesHomeDashboardActionsToInjectedOwners() {
         val calls = mutableListOf<String>()
@@ -55,21 +55,21 @@ class MainHomeDashboardRenderListenerTest {
 
     private fun listener(
         calls: MutableList<String>
-    ): MainHomeDashboardRenderListener =
-        MainHomeDashboardRenderListener(
-            libraryModeOpener = MainHomeDashboardRenderListener.LibraryModeOpener { calls += "library:$it" },
-            playbackContinuer = MainHomeDashboardRenderListener.PlaybackContinuer { calls += "continue:${it?.id}" },
-            nowPlayingOpener = MainHomeDashboardRenderListener.NowPlayingOpener { calls += "now" },
-            trackListPlayer = MainHomeDashboardRenderListener.TrackListPlayer { tracks, index ->
+    ): HomeDashboardActionAdapter =
+        HomeDashboardActionAdapter(
+            libraryModeOpener = HomeDashboardActionAdapter.LibraryModeOpener { calls += "library:$it" },
+            playbackContinuer = HomeDashboardActionAdapter.PlaybackContinuer { calls += "continue:${it?.id}" },
+            nowPlayingOpener = HomeDashboardActionAdapter.NowPlayingOpener { calls += "now" },
+            trackListPlayer = HomeDashboardActionAdapter.TrackListPlayer { tracks, index ->
                 calls += "play:${tracks.size}:$index"
             },
-            libraryRefresher = MainHomeDashboardRenderListener.LibraryRefresher { calls += "refresh" },
-            queueOpener = MainHomeDashboardRenderListener.QueueOpener { calls += "queue" },
-            streamingOpener = MainHomeDashboardRenderListener.StreamingOpener { calls += "streaming" },
-            collectionsOpener = MainHomeDashboardRenderListener.CollectionsOpener { calls += "collections" },
-            searchOpener = MainHomeDashboardRenderListener.SearchOpener { calls += "search" },
-            dailyRecommendationsPlayer = MainHomeDashboardRenderListener.DailyRecommendationsPlayer { calls += "daily" },
-            heartbeatRecommendationsPlayer = MainHomeDashboardRenderListener.HeartbeatRecommendationsPlayer { calls += "heartbeat" }
+            libraryRefresher = HomeDashboardActionAdapter.LibraryRefresher { calls += "refresh" },
+            queueOpener = HomeDashboardActionAdapter.QueueOpener { calls += "queue" },
+            streamingOpener = HomeDashboardActionAdapter.StreamingOpener { calls += "streaming" },
+            collectionsOpener = HomeDashboardActionAdapter.CollectionsOpener { calls += "collections" },
+            searchOpener = HomeDashboardActionAdapter.SearchOpener { calls += "search" },
+            dailyRecommendationsPlayer = HomeDashboardActionAdapter.DailyRecommendationsPlayer { calls += "daily" },
+            heartbeatRecommendationsPlayer = HomeDashboardActionAdapter.HeartbeatRecommendationsPlayer { calls += "heartbeat" }
         )
 }
 

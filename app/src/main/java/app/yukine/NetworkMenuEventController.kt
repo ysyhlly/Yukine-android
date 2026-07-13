@@ -27,7 +27,7 @@ internal class NetworkMenuEventController(
     private val labels: Labels,
     private val statusSink: StatusSink,
     private val networkMenuViewModel: NetworkMenuViewModel
-) : NetworkMenuRenderController.Listener {
+) : NetworkMenuStateReducer.Listener {
     fun interface Navigator {
         fun navigateNetworkPage(page: NetworkPage)
     }

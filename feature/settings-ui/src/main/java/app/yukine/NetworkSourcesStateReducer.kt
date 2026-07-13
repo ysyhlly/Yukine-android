@@ -9,7 +9,7 @@ import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
-internal class NetworkSourcesRenderController(
+class NetworkSourcesStateReducer(
     private val viewModel: NetworkSourcesViewModel,
     private val listener: Listener
 ) {
@@ -29,7 +29,7 @@ internal class NetworkSourcesRenderController(
         fun confirmDeleteRemoteSource(source: RemoteSource)
     }
 
-    fun render(languageMode: String, remoteSources: List<RemoteSource>, allTracks: List<Track>) {
+    fun reduce(languageMode: String, remoteSources: List<RemoteSource>, allTracks: List<Track>) {
         val headerActions = ArrayList<TrackListHeaderAction>()
         headerActions.add(
             TrackListHeaderAction(
@@ -43,7 +43,7 @@ internal class NetworkSourcesRenderController(
         val rows = ArrayList<NetworkSourceUiState>()
         val actions = ArrayList<NetworkSourceActions>()
         for (source in remoteSources) {
-            rows.add(CollectionRowStateFactory.networkSourceRow(source, allTracks, languageMode))
+            rows.add(NetworkSourceRowStateFactory.create(source, allTracks, languageMode))
             actions.add(
                 NetworkSourceActions(
                     Runnable { listener.testRemoteSource(source.id) },

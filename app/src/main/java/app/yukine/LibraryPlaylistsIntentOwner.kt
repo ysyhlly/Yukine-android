@@ -10,7 +10,7 @@ internal class LibraryPlaylistsIntentOwner(
     private val libraryViewModel: LibraryViewModel,
     private val confirmDelete: (Playlist) -> Unit,
     private val publishPlaylist: (LibraryPlaylistTrackListRequest) -> Unit
-) : LibraryPlaylistsRenderController.Listener {
+) : LibraryPlaylistsStateReducer.Listener {
     override fun openFavoritePlaylist(title: String) {
         libraryViewModel.onEvent(LibraryEvent.OpenGroup("virtual:favorites", title))
     }
@@ -51,7 +51,7 @@ internal class LibraryPlaylistsIntentOwner(
         )
     }
 
-    override fun renderPlaylistTracks(request: LibraryPlaylistTrackListRequest) {
+    override fun publishPlaylistTracks(request: LibraryPlaylistTrackListRequest) {
         publishPlaylist(request)
     }
 }

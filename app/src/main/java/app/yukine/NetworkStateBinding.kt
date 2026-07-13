@@ -13,36 +13,36 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-internal class NetworkRenderCoordinator @JvmOverloads constructor(
+internal class NetworkStateBinding @JvmOverloads constructor(
     private val libraryStore: LibraryDataStateOwner,
-    private val menuRenderer: NetworkMenuRenderController,
-    private val trackListRenderer: NetworkTrackListRenderController,
-    private val sourcesRenderer: NetworkSourcesRenderController,
-    private val streamingRenderer: StreamingSearchRenderController,
+    private val menuReducer: NetworkMenuStateReducer,
+    private val trackListReducer: NetworkTrackListStateReducer,
+    private val sourcesReducer: NetworkSourcesStateReducer,
+    private val streamingReducer: StreamingSearchStateReducer,
     private val scope: CoroutineScope = MainScope()
 ) {
-    private var renderJob: Job? = null
+    private var bindingJob: Job? = null
 
     fun bindStateSources(
         routeState: StateFlow<NavigationRouteState>?,
         libraryState: StateFlow<LibraryStoreState>?,
         settingsState: StateFlow<SettingsState>?
     ) {
-        renderJob?.cancel()
-        renderJob = null
+        bindingJob?.cancel()
+        bindingJob = null
         if (routeState == null || libraryState == null || settingsState == null) {
             return
         }
-        renderJob = scope.launch {
+        bindingJob = scope.launch {
             combine(
-                routeState.map(::networkRenderRoute).distinctUntilChanged(),
+                routeState.map(::networkBindingRoute).distinctUntilChanged(),
                 libraryState,
                 settingsState.map { it.preferences.languageMode }.distinctUntilChanged()
             ) { route, _, languageMode ->
                 route.copy(languageMode = languageMode)
             }.collect { inputs ->
                 if (inputs.active) {
-                    render(
+                    publish(
                         inputs.languageMode,
                         inputs.networkPage,
                         inputs.selectedRemoteSourceId,
@@ -54,35 +54,35 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
     }
 
     fun release() {
-        renderJob?.cancel()
-        renderJob = null
+        bindingJob?.cancel()
+        bindingJob = null
         scope.cancel()
     }
 
-    fun render(
+    fun publish(
         languageMode: String,
         networkPage: NetworkPage,
         selectedRemoteSourceId: Long,
         searchQuery: String
     ) {
         when (networkPage) {
-            NetworkPage.Streaming -> renderStreamingNetwork()
-            NetworkPage.StreamingHub -> renderStreamingNetwork()
-            NetworkPage.StreamList -> renderStreamList(languageMode, searchQuery)
-            NetworkPage.WebDav -> renderWebDavNetwork(languageMode)
-            NetworkPage.WebDavTracks -> renderWebDavTrackList(languageMode, searchQuery)
+            NetworkPage.Streaming -> publishStreamingNetwork()
+            NetworkPage.StreamingHub -> publishStreamingNetwork()
+            NetworkPage.StreamList -> publishStreamList(languageMode, searchQuery)
+            NetworkPage.WebDav -> publishWebDavNetwork(languageMode)
+            NetworkPage.WebDavTracks -> publishWebDavTrackList(languageMode, searchQuery)
             NetworkPage.WebDavSourceTracks -> {
-                renderWebDavSourceTrackList(languageMode, selectedRemoteSourceId, searchQuery)
+                publishWebDavSourceTrackList(languageMode, selectedRemoteSourceId, searchQuery)
             }
             NetworkPage.Sources -> {
-                sourcesRenderer.render(languageMode, libraryStore.remoteSources(), libraryStore.allTracks())
+                sourcesReducer.reduce(languageMode, libraryStore.remoteSources(), libraryStore.allTracks())
             }
-            NetworkPage.Home -> renderNetworkHome(languageMode)
+            NetworkPage.Home -> publishNetworkHome(languageMode)
         }
     }
 
-    private fun renderNetworkHome(languageMode: String) {
-        menuRenderer.renderHome(
+    private fun publishNetworkHome(languageMode: String) {
+        menuReducer.reduceHome(
             languageMode,
             libraryStore.remoteSources().size,
             libraryStore.streamTrackCount(),
@@ -90,14 +90,14 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
         )
     }
 
-    private fun renderStreamingNetwork() {
-        streamingRenderer.render()
+    private fun publishStreamingNetwork() {
+        streamingReducer.reduce()
     }
 
-    private fun renderStreamList(languageMode: String, searchQuery: String) {
+    private fun publishStreamList(languageMode: String, searchQuery: String) {
         val allStreams = libraryStore.streamTracks()
         val streams = libraryStore.filteredTracks(allStreams, searchQuery)
-        trackListRenderer.renderStreamList(
+        trackListReducer.reduceStreamList(
             languageMode,
             allStreams,
             streams,
@@ -105,14 +105,14 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
         )
     }
 
-    private fun renderWebDavNetwork(languageMode: String) {
-        menuRenderer.renderWebDav(languageMode, libraryStore.webDavSourceCount(), libraryStore.webDavTracks().size)
+    private fun publishWebDavNetwork(languageMode: String) {
+        menuReducer.reduceWebDav(languageMode, libraryStore.webDavSourceCount(), libraryStore.webDavTracks().size)
     }
 
-    private fun renderWebDavTrackList(languageMode: String, searchQuery: String) {
+    private fun publishWebDavTrackList(languageMode: String, searchQuery: String) {
         val allWebDavTracks = libraryStore.webDavTracks()
         val tracks = libraryStore.filteredTracks(allWebDavTracks, searchQuery)
-        trackListRenderer.renderWebDavTrackList(
+        trackListReducer.reduceWebDavTrackList(
             languageMode,
             allWebDavTracks,
             tracks,
@@ -120,14 +120,14 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
         )
     }
 
-    private fun renderWebDavSourceTrackList(
+    private fun publishWebDavSourceTrackList(
         languageMode: String,
         selectedRemoteSourceId: Long,
         searchQuery: String
     ) {
         val source = libraryStore.selectedRemoteSource(selectedRemoteSourceId)
         if (source == null) {
-            trackListRenderer.renderWebDavSourceTrackList(
+            trackListReducer.reduceWebDavSourceTrackList(
                 languageMode,
                 null,
                 ArrayList<Track>(),
@@ -138,7 +138,7 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
         }
         val allSourceTracks = libraryStore.webDavTracksForSource(source.id)
         val tracks = libraryStore.filteredTracks(allSourceTracks, searchQuery)
-        trackListRenderer.renderWebDavSourceTrackList(
+        trackListReducer.reduceWebDavSourceTrackList(
             languageMode,
             source,
             allSourceTracks,
@@ -148,7 +148,7 @@ internal class NetworkRenderCoordinator @JvmOverloads constructor(
     }
 }
 
-private data class NetworkRenderInputs(
+private data class NetworkBindingInputs(
     val active: Boolean,
     val networkPage: NetworkPage,
     val selectedRemoteSourceId: Long,
@@ -156,8 +156,8 @@ private data class NetworkRenderInputs(
     val languageMode: String = AppLanguage.MODE_SYSTEM
 )
 
-private fun networkRenderRoute(state: NavigationRouteState): NetworkRenderInputs =
-    NetworkRenderInputs(
+private fun networkBindingRoute(state: NavigationRouteState): NetworkBindingInputs =
+    NetworkBindingInputs(
         active = state.selectedTab == NetworkTab,
         networkPage = state.networkPage,
         selectedRemoteSourceId = state.selectedRemoteSourceId,

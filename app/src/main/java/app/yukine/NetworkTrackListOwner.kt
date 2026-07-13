@@ -9,7 +9,7 @@ internal class NetworkTrackListOwner(
     private val syncSource: (Long) -> Unit,
     private val playSource: (RemoteSource) -> Unit,
     private val publishRequest: (NetworkTrackListRequest) -> Unit
-) : NetworkTrackListRenderController.Listener {
+) : NetworkTrackListStateReducer.Listener {
     constructor(
         routeController: MainRouteController,
         sourceEvents: NetworkSourcesEventController,

@@ -47,14 +47,14 @@ internal fun interface CollectionsInsightsLoader {
     fun load(): CollectionsInsightSnapshot
 }
 
-internal class CollectionsRenderController @JvmOverloads constructor(
+internal class CollectionsStateBinding @JvmOverloads constructor(
     private val viewModel: CollectionsViewModel,
     private val listener: Listener,
     private val scope: CoroutineScope = MainScope(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val insights = MutableStateFlow(CollectionsInsightSnapshot())
-    private var renderJob: Job? = null
+    private var bindingJob: Job? = null
     private var insightsJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
 
@@ -105,9 +105,9 @@ internal class CollectionsRenderController @JvmOverloads constructor(
         playback: PlaybackReadModel?,
         insightsLoader: CollectionsInsightsLoader?
     ) {
-        renderJob?.cancel()
+        bindingJob?.cancel()
         insightsJob?.cancel()
-        renderJob = null
+        bindingJob = null
         insightsJob = null
         playbackReadModel = playback
         if (
@@ -116,8 +116,8 @@ internal class CollectionsRenderController @JvmOverloads constructor(
         ) {
             return
         }
-        val route = routeState.map(::collectionsRenderRoute).distinctUntilChanged()
-        renderJob = scope.launch {
+        val route = routeState.map(::collectionsBindingRoute).distinctUntilChanged()
+        bindingJob = scope.launch {
             combine(
                 route,
                 libraryState,
@@ -125,10 +125,10 @@ internal class CollectionsRenderController @JvmOverloads constructor(
                 playback.state.map { it.currentTrack }.distinctUntilChanged(),
                 insights
             ) { routeInput, library, languageMode, _, insightSnapshot ->
-                CollectionsRenderInputs(routeInput, library, languageMode, insightSnapshot)
+                CollectionsBindingInputs(routeInput, library, languageMode, insightSnapshot)
             }.collect { input ->
                 if (input.route.active) {
-                    renderFromState(input)
+                    publishFromState(input)
                 }
             }
         }
@@ -146,16 +146,16 @@ internal class CollectionsRenderController @JvmOverloads constructor(
     }
 
     fun release() {
-        renderJob?.cancel()
+        bindingJob?.cancel()
         insightsJob?.cancel()
-        renderJob = null
+        bindingJob = null
         insightsJob = null
         playbackReadModel = null
         scope.cancel()
     }
 
-    private fun renderFromState(input: CollectionsRenderInputs) {
-        render(
+    private fun publishFromState(input: CollectionsBindingInputs) {
+        reduceAndPublish(
             input.languageMode,
             input.library.favoriteTracks,
             input.library.recentRecords,
@@ -170,7 +170,7 @@ internal class CollectionsRenderController @JvmOverloads constructor(
         )
     }
 
-    fun render(
+    fun reduceAndPublish(
         languageMode: String,
         favoriteTracks: List<Track>,
         recentRecords: List<TrackPlayRecord>,
@@ -519,20 +519,20 @@ internal class CollectionsRenderController @JvmOverloads constructor(
     private fun text(languageMode: String, key: String): String = AppLanguage.text(languageMode, key)
 }
 
-private data class CollectionsRenderRoute(
+private data class CollectionsBindingRoute(
     val active: Boolean,
     val selectedPlaylistId: Long
 )
 
-private data class CollectionsRenderInputs(
-    val route: CollectionsRenderRoute,
+private data class CollectionsBindingInputs(
+    val route: CollectionsBindingRoute,
     val library: LibraryStoreState,
     val languageMode: String,
     val insights: CollectionsInsightSnapshot
 )
 
-private fun collectionsRenderRoute(state: NavigationRouteState): CollectionsRenderRoute =
-    CollectionsRenderRoute(
+private fun collectionsBindingRoute(state: NavigationRouteState): CollectionsBindingRoute =
+    CollectionsBindingRoute(
         active = state.selectedTab == CollectionsTab,
         selectedPlaylistId = state.selectedPlaylistId
     )

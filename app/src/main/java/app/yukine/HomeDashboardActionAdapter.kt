@@ -3,7 +3,7 @@ package app.yukine
 import app.yukine.model.Track
 import java.util.Collections
 
-internal class MainHomeDashboardRenderListener(
+internal class HomeDashboardActionAdapter(
     private val libraryModeOpener: LibraryModeOpener,
     private val playbackContinuer: PlaybackContinuer,
     private val nowPlayingOpener: NowPlayingOpener,

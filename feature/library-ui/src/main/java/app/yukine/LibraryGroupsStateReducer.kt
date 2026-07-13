@@ -14,17 +14,17 @@ import java.util.ArrayList
 import java.util.LinkedHashMap
 import java.util.Locale
 
-internal fun interface LibraryGroupsUiDispatcher {
+fun interface LibraryGroupsUiDispatcher {
     fun dispatch(action: Runnable)
 }
 
-internal data class LibraryGroupsChromeState(
+data class LibraryGroupsChromeState(
     val actions: List<LibraryGroupActions>,
     val emptyText: String,
     val modeActions: List<TrackListModeAction>
 )
 
-internal data class LibraryGroupTrackListRequest(
+data class LibraryGroupTrackListRequest(
     val title: String,
     val tracks: ArrayList<Track>,
     val headerMetrics: ArrayList<TrackListHeaderMetric>,
@@ -32,7 +32,7 @@ internal data class LibraryGroupTrackListRequest(
     val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
 )
 
-internal class LibraryGroupsRenderController(
+class LibraryGroupsStateReducer(
     private val viewModel: LibraryViewModel,
     private val listener: Listener,
     private val artistInfoRepository: ArtistInfoRepository = ArtistInfoRepository(),
@@ -65,7 +65,7 @@ internal class LibraryGroupsRenderController(
             modeActions: List<TrackListModeAction>
         )
 
-        fun renderTrackList(
+        fun publishTrackList(
             title: String,
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,
@@ -74,7 +74,7 @@ internal class LibraryGroupsRenderController(
         )
     }
 
-    fun render(
+    fun reduce(
         visibleTracks: List<Track>,
         libraryMode: String,
         selectedLibraryGroupKey: String,
@@ -82,7 +82,7 @@ internal class LibraryGroupsRenderController(
         modeActions: List<TrackListModeAction>,
         favoriteIds: Set<Long> = emptySet()
     ) {
-        render(
+        reduce(
             AppLanguage.MODE_CHINESE,
             visibleTracks,
             libraryMode,
@@ -93,7 +93,7 @@ internal class LibraryGroupsRenderController(
         )
     }
 
-    fun render(
+    fun reduce(
         languageMode: String,
         visibleTracks: List<Track>,
         libraryMode: String,
@@ -112,7 +112,7 @@ internal class LibraryGroupsRenderController(
         if (selectedLibraryGroupKey.isNotEmpty()) {
             val selectedTracks = groups[selectedLibraryGroupKey]
             if (selectedTracks != null) {
-                renderGroupDetail(languageMode, selectedLibraryGroupTitle, selectedTracks, libraryMode)
+                reduceGroupDetail(languageMode, selectedLibraryGroupTitle, selectedTracks, libraryMode)
                 return
             }
         }
@@ -172,7 +172,7 @@ internal class LibraryGroupsRenderController(
         listener.publishLibraryGroupsChrome(groupActions, emptyText, modeActions)
     }
 
-    private fun renderGroupDetail(
+    private fun reduceGroupDetail(
         languageMode: String,
         selectedLibraryGroupTitle: String,
         tracks: ArrayList<Track>,
@@ -213,7 +213,7 @@ internal class LibraryGroupsRenderController(
                 listener.playTrackList(tracks, 0)
             }, icon = EchoIconKind.Play)
         )
-        listener.renderTrackList(
+        listener.publishTrackList(
             selectedLibraryGroupTitle,
             tracks,
             headerMetrics,
@@ -265,7 +265,7 @@ internal class LibraryGroupsRenderController(
                 if (activeArtistInfoKey != lookupKey || requestSerial != artistInfoRequestSerial) {
                     return@Runnable
                 }
-                renderArtistTrackList(languageMode, artist, tracks, headerActions, info)
+                publishArtistTrackList(languageMode, artist, tracks, headerActions, info)
             })
         }.apply {
             name = "ArtistInfo-$artist"
@@ -298,7 +298,7 @@ internal class LibraryGroupsRenderController(
                     }
                     return@Runnable
                 }
-                renderArtistTrackList(languageMode, artist, tracks, headerActions, info)
+                publishArtistTrackList(languageMode, artist, tracks, headerActions, info)
                 loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
             })
         }.apply {
@@ -308,7 +308,7 @@ internal class LibraryGroupsRenderController(
         }
     }
 
-    private fun renderArtistTrackList(
+    private fun publishArtistTrackList(
         languageMode: String,
         artist: String,
         tracks: ArrayList<Track>,
@@ -320,7 +320,7 @@ internal class LibraryGroupsRenderController(
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "online.info.not.found")))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
-        listener.renderTrackList(artist, tracks, headerMetrics, headerActions, artistAlbumCards(languageMode, info))
+        listener.publishTrackList(artist, tracks, headerMetrics, headerActions, artistAlbumCards(languageMode, info))
     }
 
     private fun artistInfoLookupKey(artist: String): String =

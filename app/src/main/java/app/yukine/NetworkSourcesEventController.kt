@@ -14,7 +14,7 @@ internal class NetworkSourcesEventController(
     private val player: TrackListPlaybackAction,
     private val labels: Labels,
     private val statusSink: StatusSink
-) : NetworkSourcesRenderController.Listener {
+) : NetworkSourcesStateReducer.Listener {
     fun interface RemoteSourceNameProvider {
         fun remoteSourceName(sourceId: Long): String
     }

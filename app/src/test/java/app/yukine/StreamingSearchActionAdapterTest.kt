@@ -10,7 +10,7 @@ import app.yukine.ui.StreamingSearchLabels
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class MainStreamingSearchRenderListenerTest {
+class StreamingSearchActionAdapterTest {
     @Test
     fun delegatesStreamingSearchRenderCallbacksToInjectedOwners() {
         val calls = mutableListOf<String>()
@@ -64,9 +64,9 @@ class MainStreamingSearchRenderListenerTest {
     }
 
     @Test
-    fun directConstructionCreatesStreamingSearchRenderControllerListener() {
+    fun directConstructionCreatesStreamingSearchStateReducerListener() {
         val calls = mutableListOf<String>()
-        val listener = MainStreamingSearchRenderListener(
+        val listener = StreamingSearchActionAdapter(
             StreamingSearchNetworkNavigator { calls += "back" },
             FakeStreamingSearchActionHandler(calls),
             StreamingSearchSelectedProviderSource { StreamingProviderName.NETEASE },
@@ -96,8 +96,8 @@ class MainStreamingSearchRenderListenerTest {
         )
     }
 
-    private fun listener(calls: MutableList<String>): StreamingSearchRenderController.Listener =
-        MainStreamingSearchRenderListener(
+    private fun listener(calls: MutableList<String>): StreamingSearchStateReducer.Listener =
+        StreamingSearchActionAdapter(
             networkNavigator = StreamingSearchNetworkNavigator { calls += "back" },
             actionHandler = FakeStreamingSearchActionHandler(calls),
             selectedProviderSource = StreamingSearchSelectedProviderSource { StreamingProviderName.QQ_MUSIC },

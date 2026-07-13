@@ -309,14 +309,14 @@ final class StreamingFeatureBinding {
         );
     }
 
-    StreamingSearchRenderController bindSearch(
+    StreamingSearchStateReducer bindSearch(
             NavigationFeatureBinding navigation,
             LuoxueSourceImportDialogController luoxueSourceImportDialogController
     ) {
         searchActionHandler = new DefaultStreamingSearchActionHandler(viewModel, actionGateway);
-        return new StreamingSearchRenderController(
+        return new StreamingSearchStateReducer(
                 this::languageMode,
-                new MainStreamingSearchRenderListener(
+                new StreamingSearchActionAdapter(
                         navigation::handleBack,
                         searchActionHandler,
                         () -> viewModel.getStreaming().getValue().getSelectedProvider(),

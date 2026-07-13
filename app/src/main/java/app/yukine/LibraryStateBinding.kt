@@ -26,17 +26,17 @@ internal fun interface LibraryStatusSink {
     fun showStatus(message: String)
 }
 
-internal class LibraryRenderOwner @JvmOverloads constructor(
+internal class LibraryStateBinding @JvmOverloads constructor(
     private val libraryStore: LibraryDataStateOwner,
     private val viewModel: LibraryViewModel,
-    private val trackListRenderer: TrackListRenderController,
-    private val groupsRenderer: LibraryGroupsRenderController,
-    private val playlistsRenderer: LibraryPlaylistsRenderController,
+    private val trackListReducer: TrackListStateReducer,
+    private val groupsReducer: LibraryGroupsStateReducer,
+    private val playlistsReducer: LibraryPlaylistsStateReducer,
     private val audioPermissionReader: LibraryAudioPermissionReader,
     private val statusSink: LibraryStatusSink,
     private val scope: CoroutineScope = MainScope()
 ) {
-    private var renderJob: Job? = null
+    private var bindingJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
 
     fun bindStateSources(
@@ -45,36 +45,36 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
         settingsState: StateFlow<SettingsState>?,
         playback: PlaybackReadModel?
     ) {
-        renderJob?.cancel()
-        renderJob = null
+        bindingJob?.cancel()
+        bindingJob = null
         playbackReadModel = playback
         if (routeState == null || libraryState == null || settingsState == null || playback == null) {
             return
         }
-        renderJob = scope.launch {
+        bindingJob = scope.launch {
             combine(
-                routeState.map(::libraryRenderRoute).distinctUntilChanged(),
+                routeState.map(::libraryBindingRoute).distinctUntilChanged(),
                 libraryState,
                 settingsState.map { it.preferences.languageMode }.distinctUntilChanged(),
                 playback.state.map { it.currentTrack }.distinctUntilChanged()
             ) { route, library, languageMode, _ ->
-                LibraryRenderInputs(route, library, languageMode)
+                LibraryBindingInputs(route, library, languageMode)
             }.collect { inputs ->
                 if (inputs.route.active) {
-                    render(inputs)
+                    publish(inputs)
                 }
             }
         }
     }
 
     fun release() {
-        renderJob?.cancel()
-        renderJob = null
+        bindingJob?.cancel()
+        bindingJob = null
         playbackReadModel = null
         scope.cancel()
     }
 
-    private fun render(inputs: LibraryRenderInputs) {
+    private fun publish(inputs: LibraryBindingInputs) {
         val route = inputs.route
         val languageMode = inputs.languageMode
         viewModel.presentation.updateLibraryLabels(libraryUiLabels(languageMode))
@@ -96,9 +96,9 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
         }
         val modeActions = libraryModeActions(languageMode, route.libraryMode)
         when (route.libraryMode) {
-            LibraryGrouping.PLAYLISTS -> renderPlaylists(inputs, modeActions)
-            LibraryGrouping.SONGS -> renderSongs(inputs, modeActions)
-            else -> groupsRenderer.render(
+            LibraryGrouping.PLAYLISTS -> publishPlaylists(inputs, modeActions)
+            LibraryGrouping.SONGS -> publishSongs(inputs, modeActions)
+            else -> groupsReducer.reduce(
                 languageMode,
                 inputs.library.visibleTracks,
                 route.libraryMode,
@@ -110,8 +110,8 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
         }
     }
 
-    private fun renderSongs(inputs: LibraryRenderInputs, modeActions: List<TrackListModeAction>) {
-        trackListRenderer.render(
+    private fun publishSongs(inputs: LibraryBindingInputs, modeActions: List<TrackListModeAction>) {
+        trackListReducer.reduce(
             AppLanguage.text(inputs.languageMode, "songs"),
             inputs.library.visibleTracks,
             true,
@@ -127,9 +127,9 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
         )
     }
 
-    private fun renderPlaylists(inputs: LibraryRenderInputs, modeActions: List<TrackListModeAction>) {
+    private fun publishPlaylists(inputs: LibraryBindingInputs, modeActions: List<TrackListModeAction>) {
         val route = inputs.route
-        playlistsRenderer.render(
+        playlistsReducer.reduce(
             inputs.languageMode,
             inputs.library.playlists,
             route.selectedPlaylistId,
@@ -168,7 +168,7 @@ internal class LibraryRenderOwner @JvmOverloads constructor(
     }
 }
 
-private data class LibraryRenderRoute(
+private data class LibraryBindingRoute(
     val active: Boolean,
     val libraryMode: String,
     val selectedLibraryGroupKey: String,
@@ -177,14 +177,14 @@ private data class LibraryRenderRoute(
     val searchQuery: String
 )
 
-private data class LibraryRenderInputs(
-    val route: LibraryRenderRoute,
+private data class LibraryBindingInputs(
+    val route: LibraryBindingRoute,
     val library: LibraryStoreState,
     val languageMode: String
 )
 
-private fun libraryRenderRoute(state: NavigationRouteState): LibraryRenderRoute =
-    LibraryRenderRoute(
+private fun libraryBindingRoute(state: NavigationRouteState): LibraryBindingRoute =
+    LibraryBindingRoute(
         active = state.selectedTab == LibraryTab,
         libraryMode = state.libraryMode,
         selectedLibraryGroupKey = state.selectedLibraryGroupKey,

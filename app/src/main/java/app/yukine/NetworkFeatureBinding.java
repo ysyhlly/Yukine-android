@@ -21,7 +21,7 @@ final class NetworkFeatureBinding {
     private NetworkRequestController requestController;
     private NetworkDialogController dialogController;
     private ConfirmationDialogController confirmationDialogController;
-    private NetworkRenderCoordinator renderCoordinator;
+    private NetworkStateBinding networkStateBinding;
 
     NetworkFeatureBinding(
             ComponentActivity activity,
@@ -47,7 +47,7 @@ final class NetworkFeatureBinding {
     }
 
     void bindUi(
-            StreamingSearchRenderController streamingSearchRenderController,
+            StreamingSearchStateReducer streamingSearchStateReducer,
             DocumentPickerController documentPickerController,
             SettingsFeatureBinding settings
     ) {
@@ -107,21 +107,21 @@ final class NetworkFeatureBinding {
                 key -> AppLanguage.text(languageMode(), key),
                 statusMessages::setStatus
         );
-        NetworkTrackListRenderController trackListRenderer = new NetworkTrackListRenderController(
+        NetworkTrackListStateReducer trackListReducer = new NetworkTrackListStateReducer(
                 new NetworkTrackListOwner(
                         navigation.getRouteController(),
                         sourcesEvents,
                         library.trackListStatePublisher()
                 )
         );
-        renderCoordinator = new NetworkRenderCoordinator(
+        networkStateBinding = new NetworkStateBinding(
                 library.store(),
-                new NetworkMenuRenderController(menuEvents),
-                trackListRenderer,
-                new NetworkSourcesRenderController(sourcesViewModel, sourcesEvents),
-                streamingSearchRenderController
+                new NetworkMenuStateReducer(menuEvents),
+                trackListReducer,
+                new NetworkSourcesStateReducer(sourcesViewModel, sourcesEvents),
+                streamingSearchStateReducer
         );
-        renderCoordinator.bindStateSources(
+        networkStateBinding.bindStateSources(
                 navigationViewModel.getState(),
                 library.viewModel().getLibrary(),
                 settings.viewModel().getState()
@@ -149,8 +149,8 @@ final class NetworkFeatureBinding {
     void release() {
         actionsViewModel.bindListener(null);
         actionsViewModel.bindUseCases(null);
-        if (renderCoordinator != null) {
-            renderCoordinator.release();
+        if (networkStateBinding != null) {
+            networkStateBinding.release();
         }
     }
 

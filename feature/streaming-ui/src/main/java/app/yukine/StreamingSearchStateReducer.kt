@@ -8,7 +8,7 @@ import app.yukine.ui.StreamingSearchActions
 import app.yukine.ui.StreamingSearchLabels
 import app.yukine.ui.StreamingUsageNoticeLabels
 
-internal class StreamingSearchRenderController(
+class StreamingSearchStateReducer(
     private val languageProvider: LanguageProvider,
     private val listener: Listener
 ) {
@@ -54,7 +54,7 @@ internal class StreamingSearchRenderController(
         fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
     }
 
-    fun render() {
+    fun reduce() {
         val labels = labels()
         val actions = StreamingSearchActions(
             onBack = Runnable { listener.backToNetworkHome() },

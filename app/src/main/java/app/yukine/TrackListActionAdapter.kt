@@ -2,7 +2,7 @@ package app.yukine
 
 import app.yukine.model.Track
 
-internal class MainTrackListRenderListener(
+internal class TrackListActionAdapter(
     private val trackListPlayer: TrackListPlayer,
     private val favoriteToggler: FavoriteToggler,
     private val playlistAdder: PlaylistAdder,
@@ -10,7 +10,7 @@ internal class MainTrackListRenderListener(
     private val tracksDownloader: TracksDownloader,
     private val streamEditor: StreamEditor,
     private val trackDeleteConfirmer: TrackDeleteConfirmer
-) : TrackListRenderController.Listener {
+) : TrackListStateReducer.Listener {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
     }

@@ -39,17 +39,17 @@ final class LibraryFeatureBinding {
     private LibraryImportOwner importOwner;
     private LibraryDeletionCompletionOwner deletionCompletionOwner;
     private HiddenLibraryRestoreOwner hiddenLibraryRestoreOwner;
-    private TrackListRenderController trackListRenderController;
+    private TrackListStateReducer trackListStateReducer;
     private TrackListStatePublisher trackListStatePublisher;
-    private LibraryGroupsRenderController groupsRenderController;
-    private LibraryPlaylistsRenderController playlistsRenderController;
-    private LibraryRenderOwner renderOwner;
-    private CollectionsRenderController collectionsRenderController;
+    private LibraryGroupsStateReducer groupsStateReducer;
+    private LibraryPlaylistsStateReducer playlistsStateReducer;
+    private LibraryStateBinding libraryStateBinding;
+    private CollectionsStateBinding collectionsStateBinding;
     private PlayHistoryActionController playHistoryActionController;
     private UnifiedSearchOwner unifiedSearchOwner;
     private PlaylistMutationOwner playlistMutationOwner;
     private PlaylistDialogController playlistDialogController;
-    private MainHomeDashboardRenderListener homeDashboardIntentHandler;
+    private HomeDashboardActionAdapter homeDashboardIntentHandler;
 
     LibraryFeatureBinding(
             ComponentActivity activity,
@@ -122,7 +122,7 @@ final class LibraryFeatureBinding {
         return playlistDialogController;
     }
 
-    MainHomeDashboardRenderListener homeDashboardIntentHandler() {
+    HomeDashboardActionAdapter homeDashboardIntentHandler() {
         return homeDashboardIntentHandler;
     }
 
@@ -171,7 +171,7 @@ final class LibraryFeatureBinding {
         );
     }
 
-    StreamingSearchRenderController bindUi(
+    StreamingSearchStateReducer bindUi(
             PlaybackFeatureBinding playback,
             StreamingFeatureBinding streaming,
             DocumentPickerController documentPickerController,
@@ -180,7 +180,7 @@ final class LibraryFeatureBinding {
             MainPermissionController permissionController,
             LuoxueSourceImportDialogController luoxueSourceImportDialogController,
             Consumer<Track> editStream,
-            MainCollectionsRenderListener.PlayHistoryClearConfirmer confirmClearPlayHistory
+            CollectionsActionAdapter.PlayHistoryClearConfirmer confirmClearPlayHistory
     ) {
         playlistMutationOwner = new PlaylistMutationOwner(
                 viewModel,
@@ -195,9 +195,9 @@ final class LibraryFeatureBinding {
                 store::playlists,
                 playlistMutationOwner
         );
-        trackListRenderController = new TrackListRenderController(
+        trackListStateReducer = new TrackListStateReducer(
                 viewModel,
-                new MainTrackListRenderListener(
+                new TrackListActionAdapter(
                         (tracks, index) -> viewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                         track -> viewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
                         track -> viewModel.onEvent(new LibraryEvent.AddToPlaylist(track)),
@@ -211,7 +211,7 @@ final class LibraryFeatureBinding {
                 )
         );
         trackListStatePublisher = new TrackListStatePublisher(
-                trackListRenderController,
+                trackListStateReducer,
                 viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel()
@@ -232,7 +232,7 @@ final class LibraryFeatureBinding {
                 },
                 collectionsOwner::load
         );
-        StreamingSearchRenderController streamingSearchRenderController = streaming.bindSearch(
+        StreamingSearchStateReducer streamingSearchStateReducer = streaming.bindSearch(
                 navigation,
                 luoxueSourceImportDialogController
         );
@@ -257,7 +257,7 @@ final class LibraryFeatureBinding {
         );
         searchViewModel.updateActions(unifiedSearchOwner.actions());
         bindGateway(playback, documentPickerController, fileDeleteLauncher, downloadRequestController);
-        bindRenderOwners(
+        bindStateOwners(
                 playback,
                 streaming,
                 documentPickerController,
@@ -271,7 +271,7 @@ final class LibraryFeatureBinding {
                 () -> importOwner.loadLibrary(true),
                 settingsViewModel::refreshSettingsContext
         );
-        homeDashboardIntentHandler = new MainHomeDashboardRenderListener(
+        homeDashboardIntentHandler = new HomeDashboardActionAdapter(
                 mode -> {
                     navigation.getRouteController().setLibraryMode(mode);
                     navigation.navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true);
@@ -291,7 +291,7 @@ final class LibraryFeatureBinding {
                         new RecommendationAction.PlayHeartbeat(app.yukine.streaming.StreamingProviderName.NETEASE)
                 )
         );
-        return streamingSearchRenderController;
+        return streamingSearchStateReducer;
     }
 
     private void bindGateway(
@@ -317,14 +317,14 @@ final class LibraryFeatureBinding {
         ));
     }
 
-    private void bindRenderOwners(
+    private void bindStateOwners(
             PlaybackFeatureBinding playback,
             StreamingFeatureBinding streaming,
             DocumentPickerController documentPickerController,
             LibraryFileDeleteLauncher fileDeleteLauncher,
             DownloadRequestController downloadRequestController,
             MainPermissionController permissionController,
-            MainCollectionsRenderListener.PlayHistoryClearConfirmer confirmClearPlayHistory
+            CollectionsActionAdapter.PlayHistoryClearConfirmer confirmClearPlayHistory
     ) {
         LibraryPlaylistsIntentOwner playlistIntents = new LibraryPlaylistsIntentOwner(
                 viewModel,
@@ -337,9 +337,9 @@ final class LibraryFeatureBinding {
                     return kotlin.Unit.INSTANCE;
                 }
         );
-        groupsRenderController = new LibraryGroupsRenderController(
+        groupsStateReducer = new LibraryGroupsStateReducer(
                 viewModel,
-                new MainLibraryGroupsRenderListener(
+                new LibraryGroupsActionAdapter(
                         (key, title) -> viewModel.onEvent(new LibraryEvent.OpenGroup(key, title)),
                         () -> navigation.getRouteController().clearLibraryGroup(),
                         () -> viewModel.onEvent(LibraryEvent.BackFromGroup.INSTANCE),
@@ -352,10 +352,10 @@ final class LibraryFeatureBinding {
                 artistInfoRepository,
                 action -> mainHandler.post(action)
         );
-        playlistsRenderController = new LibraryPlaylistsRenderController(viewModel, playlistIntents);
-        collectionsRenderController = new CollectionsRenderController(
+        playlistsStateReducer = new LibraryPlaylistsStateReducer(viewModel, playlistIntents);
+        collectionsStateBinding = new CollectionsStateBinding(
                 collectionsViewModel,
-                new MainCollectionsRenderListener(
+                new CollectionsActionAdapter(
                         playlistDialogController::showCreatePlaylist,
                         documentPickerController::openPlaylistM3uFilePicker,
                         confirmClearPlayHistory,
@@ -391,7 +391,7 @@ final class LibraryFeatureBinding {
                         )
                 )
         );
-        collectionsRenderController.bindStateSources(
+        collectionsStateBinding.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
                 settingsViewModel.getState(),
@@ -417,16 +417,16 @@ final class LibraryFeatureBinding {
                 return repository.restoreAllLibraryExclusions();
             }
         });
-        renderOwner = new LibraryRenderOwner(
+        libraryStateBinding = new LibraryStateBinding(
                 store,
                 viewModel,
-                trackListRenderController,
-                groupsRenderController,
-                playlistsRenderController,
+                trackListStateReducer,
+                groupsStateReducer,
+                playlistsStateReducer,
                 permissionController::hasAudioPermission,
                 statusMessages::setStatus
         );
-        renderOwner.bindStateSources(
+        libraryStateBinding.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
                 settingsViewModel.getState(),
@@ -500,8 +500,8 @@ final class LibraryFeatureBinding {
         viewModel.bindImportGateway(null);
         viewModel.bindDocumentGateway(null);
         viewModel.bindPlaylistActionGateway(null);
-        renderOwner.release();
-        collectionsRenderController.release();
+        libraryStateBinding.release();
+        collectionsStateBinding.release();
     }
 
     private String languageMode() {

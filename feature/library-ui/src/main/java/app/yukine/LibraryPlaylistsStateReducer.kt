@@ -11,7 +11,7 @@ import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.EchoIconKind
 import java.util.ArrayList
 
-internal class LibraryPlaylistsRenderController(
+class LibraryPlaylistsStateReducer(
     private val viewModel: LibraryViewModel,
     private val listener: Listener
 ) {
@@ -35,10 +35,10 @@ internal class LibraryPlaylistsRenderController(
 
         fun publishLibraryGroupsChrome(state: LibraryGroupsChromeState)
 
-        fun renderPlaylistTracks(request: LibraryPlaylistTrackListRequest)
+        fun publishPlaylistTracks(request: LibraryPlaylistTrackListRequest)
     }
 
-    fun render(
+    fun reduce(
         languageMode: String,
         playlists: List<Playlist>,
         selectedPlaylistId: Long,
@@ -50,21 +50,21 @@ internal class LibraryPlaylistsRenderController(
         modeActions: List<TrackListModeAction>
     ) {
         if (selectedLibraryGroupKey == favoritesKey) {
-            renderFavoriteTracks(languageMode, favoriteTracks, modeActions)
+            reduceFavoriteTracks(languageMode, favoriteTracks, modeActions)
             return
         }
         if (selectedLibraryGroupKey == historyKey) {
-            renderPlayHistory(languageMode, recentRecords, modeActions)
+            reducePlayHistory(languageMode, recentRecords, modeActions)
             return
         }
         if (selectedPlaylistId >= 0L && selectedLibraryGroupKey.startsWith("playlist:")) {
-            renderPlaylistTracks(languageMode, selectedPlaylistName, selectedPlaylistTracks, modeActions)
+            publishPlaylistTracks(languageMode, selectedPlaylistName, selectedPlaylistTracks, modeActions)
             return
         }
-        renderPlaylists(languageMode, playlists, favoriteTracks, recentRecords, modeActions)
+        reducePlaylists(languageMode, playlists, favoriteTracks, recentRecords, modeActions)
     }
 
-    private fun renderPlaylists(
+    private fun reducePlaylists(
         languageMode: String,
         playlists: List<Playlist>,
         favoriteTracks: List<Track>,
@@ -136,7 +136,7 @@ internal class LibraryPlaylistsRenderController(
         )
     }
 
-    private fun renderPlayHistory(
+    private fun reducePlayHistory(
         languageMode: String,
         records: List<TrackPlayRecord>,
         modeActions: List<TrackListModeAction>
@@ -159,7 +159,7 @@ internal class LibraryPlaylistsRenderController(
                 }, icon = EchoIconKind.Play)
             )
         }
-        listener.renderPlaylistTracks(
+            listener.publishPlaylistTracks(
             LibraryPlaylistTrackListRequest(
                 title = title,
                 tracks = tracks,
@@ -171,7 +171,7 @@ internal class LibraryPlaylistsRenderController(
         )
     }
 
-    private fun renderFavoriteTracks(
+    private fun reduceFavoriteTracks(
         languageMode: String,
         tracks: List<Track>,
         modeActions: List<TrackListModeAction>
@@ -193,7 +193,7 @@ internal class LibraryPlaylistsRenderController(
                 }, icon = EchoIconKind.Play)
             )
         }
-        listener.renderPlaylistTracks(
+        listener.publishPlaylistTracks(
             LibraryPlaylistTrackListRequest(
                 title = title,
                 tracks = ArrayList(tracks),
@@ -205,7 +205,7 @@ internal class LibraryPlaylistsRenderController(
         )
     }
 
-    private fun renderPlaylistTracks(
+    private fun publishPlaylistTracks(
         languageMode: String,
         selectedPlaylistName: String,
         tracks: List<Track>,
@@ -227,7 +227,7 @@ internal class LibraryPlaylistsRenderController(
                 }, icon = EchoIconKind.Play)
             )
         }
-        listener.renderPlaylistTracks(
+        listener.publishPlaylistTracks(
             LibraryPlaylistTrackListRequest(
                 title = selectedPlaylistName,
                 tracks = ArrayList(tracks),
@@ -248,7 +248,7 @@ internal class LibraryPlaylistsRenderController(
     }
 }
 
-internal data class LibraryPlaylistTrackListRequest(
+data class LibraryPlaylistTrackListRequest(
     val title: String,
     val tracks: ArrayList<Track>,
     val headerMetrics: ArrayList<TrackListHeaderMetric>,
