@@ -209,12 +209,15 @@ class EchoScaffoldTest {
                     onTabSelected = {},
                     nowBar = {
                         NowBar(
-                            state = nowBarEmptyState().copy(
-                                title = "Scroll cloud track",
-                                canExpand = true,
-                                playLabel = "Play",
-                                pauseLabel = "Pause"
-                            ),
+                            state = nowBarEmptyState().let { state ->
+                                state.copy(
+                                    track = state.track.copy(
+                                        title = "Scroll cloud track",
+                                        canExpand = true
+                                    ),
+                                    labels = state.labels.copy(play = "Play", pause = "Pause")
+                                )
+                            },
                             waveformExpanded = false,
                             onExpandWaveform = {},
                             onCollapseWaveform = {},
@@ -276,20 +279,28 @@ class EchoScaffoldTest {
                     onTabSelected = {},
                     nowBar = {
                         NowBar(
-                            state = nowBarEmptyState().copy(
-                                title = "Dock track",
-                                subtitle = "Artist",
-                                canExpand = true,
-                                positionMs = 25_000L,
-                                durationMs = 100_000L,
-                                playLabel = "Play",
-                                pauseLabel = "Pause",
-                                playbackProgressLabel = "Playback progress",
-                                expandWaveformLabel = "Expand waveform",
-                                expandNowBarLabel = "Expand Now Bar",
-                                expandTopCloudLabel = "Expand cloud",
-                                compactTopCloudLabel = "Compact cloud"
-                            ),
+                            state = nowBarEmptyState().let { state ->
+                                state.copy(
+                                    track = state.track.copy(
+                                        title = "Dock track",
+                                        subtitle = "Artist",
+                                        canExpand = true
+                                    ),
+                                    progress = state.progress.copy(
+                                        positionMs = 25_000L,
+                                        durationMs = 100_000L
+                                    ),
+                                    labels = state.labels.copy(
+                                        play = "Play",
+                                        pause = "Pause",
+                                        playbackProgress = "Playback progress",
+                                        expandWaveform = "Expand waveform",
+                                        expandNowBar = "Expand Now Bar",
+                                        expandTopCloud = "Expand cloud",
+                                        compactTopCloud = "Compact cloud"
+                                    )
+                                )
+                            },
                             waveformExpanded = false,
                             onExpandWaveform = {},
                             onCollapseWaveform = {},
@@ -508,7 +519,9 @@ class EchoScaffoldTest {
                     onTabSelected = {},
                     nowBar = {
                         NowBar(
-                            state = nowBarEmptyState().copy(title = "Touch shield"),
+                            state = nowBarEmptyState().let { state ->
+                                state.copy(track = state.track.copy(title = "Touch shield"))
+                            },
                             waveformExpanded = false,
                             onExpandWaveform = {},
                             onCollapseWaveform = {},

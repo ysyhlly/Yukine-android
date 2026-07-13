@@ -3,7 +3,16 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.LyricUiLine
+import app.yukine.ui.NowBarArtworkState
+import app.yukine.ui.NowBarErrorState
+import app.yukine.ui.NowBarLabels
+import app.yukine.ui.NowBarLyricsState
+import app.yukine.ui.NowBarModesState
+import app.yukine.ui.NowBarProgressState
 import app.yukine.ui.NowBarState
+import app.yukine.ui.NowBarTrackState
+import app.yukine.ui.NowBarWaveformState
+import app.yukine.ui.WaveformSamples
 
 internal object NowBarStateFactory {
     @JvmStatic
@@ -49,124 +58,102 @@ internal object NowBarStateFactory {
         lyricsOffsetMs: Long
     ): NowBarState {
         val track = playbackState.currentTrack
+        val labels = labels(languageMode)
+        val error = NowBarErrorState(
+            PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode)
+        )
         if (track == null) {
             return NowBarState(
-                title = AppLanguage.text(languageMode, "no.track.selected"),
-                subtitle = "",
-                elapsed = Track.formatDuration(0),
-                duration = Track.formatDuration(0),
-                positionMs = 0L,
-                durationMs = 0L,
-                playing = false,
-                favorite = false,
-                favoriteEnabled = false,
-                canExpand = false,
-                shuffleEnabled = playbackState.shuffleEnabled,
-                favoriteLabel = AppLanguage.text(languageMode, "favorite"),
-                favoritedLabel = AppLanguage.text(languageMode, "favorited"),
-                shuffleLabel = AppLanguage.text(languageMode, "shuffle"),
-                inOrderLabel = AppLanguage.text(languageMode, "in.order"),
-                repeatOneLabel = AppLanguage.text(languageMode, "repeat.one"),
-                repeatAllLabel = AppLanguage.text(languageMode, "repeat.all"),
-                repeatOffLabel = AppLanguage.text(languageMode, "repeat.off"),
-                nowPlayingLabel = AppLanguage.text(languageMode, "now.playing"),
-                repeatMode = playbackState.repeatMode,
-                albumArtUri = null,
-                trackId = -1L,
-                contentUri = null,
-                dataPath = "",
-                waveformBars = FloatArray(0),
-                waveformGeneratedBars = 0,
-                waveformCachedProgress = 0f,
-                lyricsTitle = AppLanguage.text(languageMode, "lyrics"),
-                lyricsStatus = lyricsStatus,
-                closeLabel = AppLanguage.text(languageMode, "close"),
-                showLyricsLabel = AppLanguage.text(languageMode, "show.lyrics"),
-                showArtworkLabel = AppLanguage.text(languageMode, "show.artwork"),
-                noLyricsFoundLabel = AppLanguage.text(languageMode, "no.lyrics.found"),
-                previousLabel = AppLanguage.text(languageMode, "previous"),
-                playLabel = AppLanguage.text(languageMode, "play"),
-                pauseLabel = AppLanguage.text(languageMode, "pause"),
-                nextLabel = AppLanguage.text(languageMode, "next"),
-                queueLabel = AppLanguage.text(languageMode, "tab.queue"),
-                moreLabel = AppLanguage.text(languageMode, "more"),
-                addToPlaylistLabel = AppLanguage.text(languageMode, "add.to.playlist"),
-                playbackProgressLabel = AppLanguage.text(languageMode, "playback.progress"),
-                expandWaveformLabel = AppLanguage.text(languageMode, "expand.playback.waveform"),
-                playbackErrorTitle = AppLanguage.text(languageMode, "playback.error.title"),
-                playbackErrorMessage = PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode),
-                retryLabel = AppLanguage.text(languageMode, "retry.playback"),
-                dockLeftLabel = AppLanguage.text(languageMode, "now.bar.dock.left"),
-                dockRightLabel = AppLanguage.text(languageMode, "now.bar.dock.right"),
-                expandNowBarLabel = AppLanguage.text(languageMode, "now.bar.expand"),
-                dockTopLabel = AppLanguage.text(languageMode, "now.bar.dock.top"),
-                restoreBottomLabel = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
-                collapseTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
-                showTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.show"),
-                expandTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
-                compactTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.compact"),
-                lyrics = emptyList()
+                track = NowBarTrackState(
+                    title = AppLanguage.text(languageMode, "no.track.selected")
+                ),
+                progress = NowBarProgressState(),
+                modes = NowBarModesState(
+                    shuffleEnabled = playbackState.shuffleEnabled,
+                    repeatMode = playbackState.repeatMode
+                ),
+                lyrics = NowBarLyricsState(
+                    title = AppLanguage.text(languageMode, "lyrics"),
+                    status = lyricsStatus
+                ),
+                labels = labels,
+                artwork = NowBarArtworkState(),
+                error = error
             )
         }
         val lyricRows = lyricRows(lyrics, playbackState.positionMs + lyricsOffsetMs)
         return NowBarState(
-            title = track.title,
-            subtitle = subtitleWithSpec(track),
-            elapsed = Track.formatDuration(playbackState.positionMs),
-            duration = Track.formatDuration(playbackState.durationMs),
-            positionMs = playbackState.positionMs,
-            durationMs = playbackState.durationMs,
-            playing = playbackState.playing,
-            favorite = favoriteIds.contains(track.id),
-            favoriteEnabled = true,
-            canExpand = true,
-            shuffleEnabled = playbackState.shuffleEnabled,
-            favoriteLabel = AppLanguage.text(languageMode, "favorite"),
-            favoritedLabel = AppLanguage.text(languageMode, "favorited"),
-            shuffleLabel = AppLanguage.text(languageMode, "shuffle"),
-            inOrderLabel = AppLanguage.text(languageMode, "in.order"),
-            repeatOneLabel = AppLanguage.text(languageMode, "repeat.one"),
-            repeatAllLabel = AppLanguage.text(languageMode, "repeat.all"),
-            repeatOffLabel = AppLanguage.text(languageMode, "repeat.off"),
-            nowPlayingLabel = AppLanguage.text(languageMode, "now.playing"),
-            repeatMode = playbackState.repeatMode,
-            albumArtUri = track.albumArtUri,
-            trackId = track.id,
-            contentUri = track.contentUri,
-            dataPath = track.dataPath,
-            waveformBars = playbackState.waveform.bars,
-            waveformGeneratedBars = playbackState.waveform.generatedBars,
-            waveformCachedProgress = playbackState.waveform.cachedProgress,
-            lyricsTitle = AppLanguage.text(languageMode, "lyrics"),
-            lyricsStatus = lyricsStatus,
-            closeLabel = AppLanguage.text(languageMode, "close"),
-            showLyricsLabel = AppLanguage.text(languageMode, "show.lyrics"),
-            showArtworkLabel = AppLanguage.text(languageMode, "show.artwork"),
-            noLyricsFoundLabel = AppLanguage.text(languageMode, "no.lyrics.found"),
-            previousLabel = AppLanguage.text(languageMode, "previous"),
-            playLabel = AppLanguage.text(languageMode, "play"),
-            pauseLabel = AppLanguage.text(languageMode, "pause"),
-            nextLabel = AppLanguage.text(languageMode, "next"),
-            queueLabel = AppLanguage.text(languageMode, "tab.queue"),
-            moreLabel = AppLanguage.text(languageMode, "more"),
-            addToPlaylistLabel = AppLanguage.text(languageMode, "add.to.playlist"),
-            playbackProgressLabel = AppLanguage.text(languageMode, "playback.progress"),
-            expandWaveformLabel = AppLanguage.text(languageMode, "expand.playback.waveform"),
-            playbackErrorTitle = AppLanguage.text(languageMode, "playback.error.title"),
-            playbackErrorMessage = PlaybackErrorMessageLocalizer.localize(playbackState.errorMessage, languageMode),
-            retryLabel = AppLanguage.text(languageMode, "retry.playback"),
-            dockLeftLabel = AppLanguage.text(languageMode, "now.bar.dock.left"),
-            dockRightLabel = AppLanguage.text(languageMode, "now.bar.dock.right"),
-            expandNowBarLabel = AppLanguage.text(languageMode, "now.bar.expand"),
-            dockTopLabel = AppLanguage.text(languageMode, "now.bar.dock.top"),
-            restoreBottomLabel = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
-            collapseTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
-            showTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.show"),
-            expandTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
-            compactTopCloudLabel = AppLanguage.text(languageMode, "now.bar.cloud.compact"),
-            lyrics = lyricRows
+            track = NowBarTrackState(
+                title = track.title,
+                subtitle = subtitleWithSpec(track),
+                trackId = track.id,
+                contentUri = track.contentUri,
+                dataPath = track.dataPath,
+                canExpand = true
+            ),
+            progress = NowBarProgressState(
+                elapsed = Track.formatDuration(playbackState.positionMs),
+                duration = Track.formatDuration(playbackState.durationMs),
+                positionMs = playbackState.positionMs,
+                durationMs = playbackState.durationMs,
+                playing = playbackState.playing,
+                waveform = NowBarWaveformState(
+                    samples = WaveformSamples.of(playbackState.waveform.bars),
+                    generatedBars = playbackState.waveform.generatedBars,
+                    cachedProgress = playbackState.waveform.cachedProgress
+                )
+            ),
+            modes = NowBarModesState(
+                favorite = favoriteIds.contains(track.id),
+                favoriteEnabled = true,
+                shuffleEnabled = playbackState.shuffleEnabled,
+                repeatMode = playbackState.repeatMode
+            ),
+            lyrics = NowBarLyricsState(
+                title = AppLanguage.text(languageMode, "lyrics"),
+                status = lyricsStatus,
+                lines = lyricRows
+            ),
+            labels = labels,
+            artwork = NowBarArtworkState(track.albumArtUri),
+            error = error
         )
     }
+
+    private fun labels(languageMode: String): NowBarLabels = NowBarLabels(
+        favorite = AppLanguage.text(languageMode, "favorite"),
+        favorited = AppLanguage.text(languageMode, "favorited"),
+        shuffle = AppLanguage.text(languageMode, "shuffle"),
+        inOrder = AppLanguage.text(languageMode, "in.order"),
+        repeatOne = AppLanguage.text(languageMode, "repeat.one"),
+        repeatAll = AppLanguage.text(languageMode, "repeat.all"),
+        repeatOff = AppLanguage.text(languageMode, "repeat.off"),
+        nowPlaying = AppLanguage.text(languageMode, "now.playing"),
+        close = AppLanguage.text(languageMode, "close"),
+        showLyrics = AppLanguage.text(languageMode, "show.lyrics"),
+        showArtwork = AppLanguage.text(languageMode, "show.artwork"),
+        noLyricsFound = AppLanguage.text(languageMode, "no.lyrics.found"),
+        previous = AppLanguage.text(languageMode, "previous"),
+        play = AppLanguage.text(languageMode, "play"),
+        pause = AppLanguage.text(languageMode, "pause"),
+        next = AppLanguage.text(languageMode, "next"),
+        queue = AppLanguage.text(languageMode, "tab.queue"),
+        more = AppLanguage.text(languageMode, "more"),
+        addToPlaylist = AppLanguage.text(languageMode, "add.to.playlist"),
+        playbackProgress = AppLanguage.text(languageMode, "playback.progress"),
+        expandWaveform = AppLanguage.text(languageMode, "expand.playback.waveform"),
+        playbackErrorTitle = AppLanguage.text(languageMode, "playback.error.title"),
+        retry = AppLanguage.text(languageMode, "retry.playback"),
+        dockLeft = AppLanguage.text(languageMode, "now.bar.dock.left"),
+        dockRight = AppLanguage.text(languageMode, "now.bar.dock.right"),
+        expandNowBar = AppLanguage.text(languageMode, "now.bar.expand"),
+        dockTop = AppLanguage.text(languageMode, "now.bar.dock.top"),
+        restoreBottom = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
+        collapseTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
+        showTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.show"),
+        expandTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
+        compactTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.compact")
+    )
 
     private fun lyricRows(
         lyrics: List<app.yukine.model.LyricsLine>,

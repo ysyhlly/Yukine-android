@@ -100,7 +100,9 @@ class NowBarProgressTest {
             EchoTheme.EchoTheme {
                 CompositionLocalProvider(LocalEchoNowBarCompactProgress provides 1f) {
                     NowBar(
-                        state = progressState().copy(playLabel = "Play"),
+                        state = progressState().let { state ->
+                            state.copy(labels = state.labels.copy(play = "Play"))
+                        },
                         waveformExpanded = false,
                         onExpandWaveform = { },
                         onCollapseWaveform = { },
@@ -139,12 +141,15 @@ class NowBarProgressTest {
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 NowBar(
-                    state = progressState().copy(
-                        playing = true,
-                        playLabel = "Play",
-                        pauseLabel = "Pause",
-                        lyrics = listOf(LyricUiLine("Capsule lyric", active = true))
-                    ),
+                    state = progressState().let { state ->
+                        state.copy(
+                            progress = state.progress.copy(playing = true),
+                            lyrics = state.lyrics.copy(
+                                lines = listOf(LyricUiLine("Capsule lyric", active = true))
+                            ),
+                            labels = state.labels.copy(play = "Play", pause = "Pause")
+                        )
+                    },
                     waveformExpanded = false,
                     onExpandWaveform = { },
                     onCollapseWaveform = { },
@@ -187,18 +192,26 @@ class NowBarProgressTest {
         composeRule.runOnIdle { assertTrue(playClicks == 2) }
     }
 
-    private fun progressState(): NowBarState = nowBarEmptyState().copy(
-        title = "Track",
-        subtitle = "Artist",
-        elapsed = "0:25",
-        duration = "1:40",
-        positionMs = 25_000L,
-        durationMs = 100_000L,
-        canExpand = true,
-        playbackProgressLabel = "Playback progress",
-        expandWaveformLabel = "Expand waveform",
-        dockLeftLabel = "Dock Now Bar left",
-        dockRightLabel = "Dock Now Bar right",
-        expandNowBarLabel = "Expand Now Bar"
-    )
+    private fun progressState(): NowBarState = nowBarEmptyState().let { state ->
+        state.copy(
+            track = state.track.copy(
+                title = "Track",
+                subtitle = "Artist",
+                canExpand = true
+            ),
+            progress = state.progress.copy(
+                elapsed = "0:25",
+                duration = "1:40",
+                positionMs = 25_000L,
+                durationMs = 100_000L
+            ),
+            labels = state.labels.copy(
+                playbackProgress = "Playback progress",
+                expandWaveform = "Expand waveform",
+                dockLeft = "Dock Now Bar left",
+                dockRight = "Dock Now Bar right",
+                expandNowBar = "Expand Now Bar"
+            )
+        )
+    }
 }

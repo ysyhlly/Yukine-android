@@ -195,29 +195,37 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             languageMode
         )
         val track = snapshot.currentTrack
-        val sameTrack = previous.trackId == overlay.trackId
+        val sameTrack = previous.track.trackId == overlay.track.trackId
         _uiState.value = NowPlayingUiState(
-            trackTitle = track?.title ?: overlay.title,
-            artist = track?.artist.orEmpty(),
-            album = track?.album,
-            coverUri = track?.albumArtUri?.toString(),
-            isPlaying = snapshot.playing,
-            positionMs = snapshot.positionMs,
-            durationMs = snapshot.durationMs,
-            isFavorite = overlay.favorite,
-            lyricsVisible = if (sameTrack) previous.lyricsVisible else false,
-            lyrics = LyricsUiState(
-                title = overlay.lyricsTitle,
-                status = overlay.lyricsStatus,
-                lines = overlay.lyrics
+            track = NowPlayingTrackState(
+                title = track?.title ?: overlay.track.title,
+                artist = track?.artist.orEmpty(),
+                album = track?.album,
+                trackId = overlay.track.trackId,
+                currentTrack = track
             ),
-            shuffleEnabled = snapshot.shuffleEnabled,
-            repeatMode = repeatModeUi(snapshot.repeatMode),
-            errorMessage = overlay.playbackErrorMessage.takeIf { it.isNotBlank() },
-            trackId = overlay.trackId,
-            currentTrack = track,
-            overlayState = overlay,
-            appVolume = snapshot.appVolume
+            progress = NowPlayingProgressState(
+                playing = snapshot.playing,
+                positionMs = snapshot.positionMs,
+                durationMs = snapshot.durationMs,
+                appVolume = snapshot.appVolume
+            ),
+            modes = NowPlayingModesState(
+                favorite = overlay.modes.favorite,
+                lyricsVisible = if (sameTrack) previous.modes.lyricsVisible else false,
+                shuffleEnabled = snapshot.shuffleEnabled,
+                repeatMode = repeatModeUi(snapshot.repeatMode)
+            ),
+            lyrics = LyricsUiState(
+                title = overlay.lyrics.title,
+                status = overlay.lyrics.status,
+                lines = overlay.lyrics.lines
+            ),
+            labels = NowPlayingLabelsState(
+                errorMessage = overlay.error.message.takeIf { it.isNotBlank() }
+            ),
+            artwork = NowPlayingArtworkState(track?.albumArtUri?.toString()),
+            overlayState = overlay
         )
         stateObserver?.onStateChanged(_uiState.value, lyricsState ?: LyricsState())
         resolveMissingLuoxueArtwork(track)
@@ -252,14 +260,14 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             NowPlayingEvent.ToggleLyrics -> toggleLyrics()
             NowPlayingEvent.OpenQueue -> emitEffect(NowPlayingEffect.OpenQueue)
             NowPlayingEvent.ToggleFavorite -> {
-                if (TrackIdentity.isUsable(_uiState.value.trackId)) {
+                if (TrackIdentity.isUsable(_uiState.value.track.trackId)) {
                     gateway?.toggleFavorite()
                 } else {
                     emitNoTrackMessage()
                 }
             }
             NowPlayingEvent.AddToPlaylist -> {
-                val track = _uiState.value.currentTrack
+                val track = _uiState.value.track.currentTrack
                 if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.OpenAddToPlaylist(track))
                 } else {
@@ -267,7 +275,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 }
             }
             NowPlayingEvent.ShareCurrentTrack -> {
-                val track = _uiState.value.currentTrack
+                val track = _uiState.value.track.currentTrack
                 if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.ShareTrack(track))
                 } else {
@@ -275,7 +283,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 }
             }
             NowPlayingEvent.DownloadCurrentTrack -> {
-                val track = _uiState.value.currentTrack
+                val track = _uiState.value.track.currentTrack
                 if (track != null && TrackIdentity.isUsable(track.id)) {
                     emitEffect(NowPlayingEffect.DownloadTrack(track))
                 } else {
@@ -561,7 +569,9 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     private fun toggleLyrics() {
         val current = _uiState.value
-        _uiState.value = current.copy(lyricsVisible = !current.lyricsVisible)
+        _uiState.value = current.copy(
+            modes = current.modes.copy(lyricsVisible = !current.modes.lyricsVisible)
+        )
     }
 
     private fun emitNoTrackMessage() {

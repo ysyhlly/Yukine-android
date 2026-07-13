@@ -108,62 +108,118 @@ private enum class NowBarDockPosition {
     TopCloudCollapsed
 }
 
-data class NowBarState @JvmOverloads constructor(
-    val title: String,
-    val subtitle: String,
-    val elapsed: String,
-    val duration: String,
-    val positionMs: Long,
-    val durationMs: Long,
-    val playing: Boolean,
-    val favorite: Boolean,
-    val favoriteEnabled: Boolean,
-    val canExpand: Boolean,
-    val shuffleEnabled: Boolean,
-    val favoriteLabel: String,
-    val favoritedLabel: String,
-    val shuffleLabel: String,
-    val inOrderLabel: String,
-    val repeatOneLabel: String,
-    val repeatAllLabel: String,
-    val repeatOffLabel: String,
-    val nowPlayingLabel: String = "",
-    val repeatMode: Int = PlaybackRepeatMode.REPEAT_ALL,
-    val albumArtUri: Uri? = null,
+@Immutable
+data class NowBarTrackState(
+    val title: String = "",
+    val subtitle: String = "",
     val trackId: Long = -1L,
     val contentUri: Uri? = null,
     val dataPath: String = "",
-    val waveformBars: FloatArray = FloatArray(0),
-    val waveformGeneratedBars: Int = 0,
-    val waveformCachedProgress: Float = 0f,
-    val lyricsTitle: String = "",
-    val lyricsStatus: String = "",
-    val closeLabel: String = "",
-    val showLyricsLabel: String = "",
-    val showArtworkLabel: String = "",
-    val noLyricsFoundLabel: String = "",
-    val previousLabel: String = "",
-    val playLabel: String = "",
-    val pauseLabel: String = "",
-    val nextLabel: String = "",
-    val queueLabel: String = "",
-    val moreLabel: String = "",
-    val addToPlaylistLabel: String = "",
-    val playbackProgressLabel: String = "",
-    val expandWaveformLabel: String = "",
+    val canExpand: Boolean = false
+)
+
+@Immutable
+class WaveformSamples private constructor(private val values: FloatArray) {
+    val size: Int get() = values.size
+
+    internal fun valuesForRendering(): FloatArray = values
+
+    override fun equals(other: Any?): Boolean =
+        other is WaveformSamples && values.contentEquals(other.values)
+
+    override fun hashCode(): Int = values.contentHashCode()
+
+    companion object {
+        val Empty = WaveformSamples(FloatArray(0))
+
+        fun of(values: FloatArray?): WaveformSamples =
+            if (values == null || values.isEmpty()) Empty else WaveformSamples(values.copyOf())
+    }
+}
+
+@Immutable
+data class NowBarWaveformState(
+    val samples: WaveformSamples = WaveformSamples.Empty,
+    val generatedBars: Int = 0,
+    val cachedProgress: Float = 0f
+)
+
+@Immutable
+data class NowBarProgressState(
+    val elapsed: String = Track.formatDuration(0),
+    val duration: String = Track.formatDuration(0),
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val playing: Boolean = false,
+    val waveform: NowBarWaveformState = NowBarWaveformState()
+)
+
+@Immutable
+data class NowBarModesState(
+    val favorite: Boolean = false,
+    val favoriteEnabled: Boolean = false,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = PlaybackRepeatMode.REPEAT_ALL
+)
+
+@Immutable
+data class NowBarLyricsState(
+    val title: String = "",
+    val status: String = "",
+    val lines: List<LyricUiLine> = emptyList()
+)
+
+@Immutable
+data class NowBarLabels(
+    val favorite: String = "",
+    val favorited: String = "",
+    val shuffle: String = "",
+    val inOrder: String = "",
+    val repeatOne: String = "",
+    val repeatAll: String = "",
+    val repeatOff: String = "",
+    val nowPlaying: String = "",
+    val close: String = "",
+    val showLyrics: String = "",
+    val showArtwork: String = "",
+    val noLyricsFound: String = "",
+    val previous: String = "",
+    val play: String = "",
+    val pause: String = "",
+    val next: String = "",
+    val queue: String = "",
+    val more: String = "",
+    val addToPlaylist: String = "",
+    val playbackProgress: String = "",
+    val expandWaveform: String = "",
     val playbackErrorTitle: String = "",
-    val playbackErrorMessage: String = "",
-    val retryLabel: String = "",
-    val dockLeftLabel: String = "",
-    val dockRightLabel: String = "",
-    val expandNowBarLabel: String = "",
-    val dockTopLabel: String = "",
-    val restoreBottomLabel: String = "",
-    val collapseTopCloudLabel: String = "",
-    val showTopCloudLabel: String = "",
-    val expandTopCloudLabel: String = "",
-    val compactTopCloudLabel: String = "",
-    val lyrics: List<LyricUiLine> = emptyList()
+    val retry: String = "",
+    val dockLeft: String = "",
+    val dockRight: String = "",
+    val expandNowBar: String = "",
+    val dockTop: String = "",
+    val restoreBottom: String = "",
+    val collapseTopCloud: String = "",
+    val showTopCloud: String = "",
+    val expandTopCloud: String = "",
+    val compactTopCloud: String = ""
+)
+
+@Immutable
+data class NowBarArtworkState(val albumArtUri: Uri? = null)
+
+@Immutable
+data class NowBarErrorState(val message: String = "")
+
+@Immutable
+data class NowBarState(
+    val track: NowBarTrackState = NowBarTrackState(),
+    val progress: NowBarProgressState = NowBarProgressState(),
+    val modes: NowBarModesState = NowBarModesState(),
+    val lyrics: NowBarLyricsState = NowBarLyricsState(),
+    val labels: NowBarLabels = NowBarLabels(),
+    val artwork: NowBarArtworkState = NowBarArtworkState(),
+    val error: NowBarErrorState = NowBarErrorState()
 )
 
 @Immutable
@@ -217,25 +273,16 @@ private data class NowBarModeSlice(
 )
 
 fun nowBarEmptyState() = NowBarState(
-    title = "\u672a\u9009\u4e2d\u6b4c\u66f2",
-    subtitle = "",
-    elapsed = Track.formatDuration(0),
-    duration = Track.formatDuration(0),
-    positionMs = 0,
-    durationMs = 0,
-    playing = false,
-    favorite = false,
-    favoriteEnabled = false,
-    canExpand = false,
-    shuffleEnabled = false,
-    favoriteLabel = "\u6536\u85cf",
-    favoritedLabel = "\u5df2\u6536\u85cf",
-    shuffleLabel = "\u968f\u673a",
-    inOrderLabel = "\u987a\u5e8f",
-    repeatOneLabel = "\u5355\u66f2\u5faa\u73af",
-    repeatAllLabel = "\u5217\u8868\u5faa\u73af",
-    repeatOffLabel = "\u5173\u95ed\u5faa\u73af",
-    repeatMode = PlaybackRepeatMode.REPEAT_ALL
+    track = NowBarTrackState(title = "\u672a\u9009\u4e2d\u6b4c\u66f2"),
+    labels = NowBarLabels(
+        favorite = "\u6536\u85cf",
+        favorited = "\u5df2\u6536\u85cf",
+        shuffle = "\u968f\u673a",
+        inOrder = "\u987a\u5e8f",
+        repeatOne = "\u5355\u66f2\u5faa\u73af",
+        repeatAll = "\u5217\u8868\u5faa\u73af",
+        repeatOff = "\u5173\u95ed\u5faa\u73af"
+    )
 )
 
 fun interface SeekAction {
@@ -365,19 +412,19 @@ fun NowBar(
     )
     val barHeight = if (waveformExpanded) EchoMobileLayoutMetrics.nowBarExpandedHeight else EchoMobileLayoutMetrics.nowBarHeight
     val progressSlice = NowBarProgressSlice(
-        positionMs = state.positionMs,
-        durationMs = state.durationMs,
-        playing = state.playing,
-        elapsed = state.elapsed,
-        duration = state.duration,
-        trackId = state.trackId,
-        contentUriString = state.contentUri?.toString(),
-        dataPath = state.dataPath,
-        waveformBars = state.waveformBars,
-        waveformGeneratedBars = state.waveformGeneratedBars,
-        waveformCachedProgress = state.waveformCachedProgress,
-        playbackProgressLabel = state.playbackProgressLabel,
-        expandWaveformLabel = state.expandWaveformLabel
+        positionMs = state.progress.positionMs,
+        durationMs = state.progress.durationMs,
+        playing = state.progress.playing,
+        elapsed = state.progress.elapsed,
+        duration = state.progress.duration,
+        trackId = state.track.trackId,
+        contentUriString = state.track.contentUri?.toString(),
+        dataPath = state.track.dataPath,
+        waveformBars = state.progress.waveform.samples.valuesForRendering(),
+        waveformGeneratedBars = state.progress.waveform.generatedBars,
+        waveformCachedProgress = state.progress.waveform.cachedProgress,
+        playbackProgressLabel = state.labels.playbackProgress,
+        expandWaveformLabel = state.labels.expandWaveform
     )
     val playbackScrub = rememberScrubbablePlaybackPosition(
         positionMs = progressSlice.positionMs,
@@ -385,24 +432,24 @@ fun NowBar(
         playing = progressSlice.playing
     )
     val trackSlice = NowBarTrackSlice(
-        artUriString = state.albumArtUri?.toString(),
-        title = state.title,
-        subtitle = state.subtitle,
-        canExpand = state.canExpand
+        artUriString = state.artwork.albumArtUri?.toString(),
+        title = state.track.title,
+        subtitle = state.track.subtitle,
+        canExpand = state.track.canExpand
     )
     val modeSlice = NowBarModeSlice(
-        favoriteEnabled = state.favoriteEnabled,
-        favorite = state.favorite,
-        favoriteLabel = state.favoriteLabel,
-        favoritedLabel = state.favoritedLabel,
-        shuffleEnabled = state.shuffleEnabled,
-        shuffleLabel = state.shuffleLabel,
-        inOrderLabel = state.inOrderLabel,
-        repeatOneLabel = state.repeatOneLabel,
-        repeatAllLabel = state.repeatAllLabel,
-        repeatOffLabel = state.repeatOffLabel,
-        queueLabel = state.queueLabel,
-        repeatMode = state.repeatMode
+        favoriteEnabled = state.modes.favoriteEnabled,
+        favorite = state.modes.favorite,
+        favoriteLabel = state.labels.favorite,
+        favoritedLabel = state.labels.favorited,
+        shuffleEnabled = state.modes.shuffleEnabled,
+        shuffleLabel = state.labels.shuffle,
+        inOrderLabel = state.labels.inOrder,
+        repeatOneLabel = state.labels.repeatOne,
+        repeatAllLabel = state.labels.repeatAll,
+        repeatOffLabel = state.labels.repeatOff,
+        queueLabel = state.labels.queue,
+        repeatMode = state.modes.repeatMode
     )
     BoxWithConstraints(
         modifier = Modifier
@@ -511,13 +558,13 @@ fun NowBar(
                     customActions = if (topCloudCollapsed) {
                         listOf(
                             CustomAccessibilityAction(
-                                state.showTopCloudLabel.ifBlank { "显示流体云" }
+                                state.labels.showTopCloud.ifBlank { "显示流体云" }
                             ) {
                                 showTopCloud()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                                state.labels.restoreBottom.ifBlank { "恢复到底部" }
                             ) {
                                 restoreBottom()
                                 true
@@ -527,40 +574,40 @@ fun NowBar(
                         listOf(
                             CustomAccessibilityAction(
                                 if (topCloudExpanded) {
-                                    state.compactTopCloudLabel.ifBlank { "收起流体云内容" }
+                                    state.labels.compactTopCloud.ifBlank { "收起流体云内容" }
                                 } else {
-                                    state.expandTopCloudLabel.ifBlank { "展开流体云内容" }
+                                    state.labels.expandTopCloud.ifBlank { "展开流体云内容" }
                                 }
                             ) {
                                 toggleTopCloudExpansion()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+                                state.labels.expandNowBar.ifBlank { "展开 Now Bar" }
                             ) {
                                 dockName = NowBarDockPosition.Expanded.name
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                                state.labels.restoreBottom.ifBlank { "恢复到底部" }
                             ) {
                                 restoreBottom()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.collapseTopCloudLabel.ifBlank { "折叠流体云" }
+                                state.labels.collapseTopCloud.ifBlank { "折叠流体云" }
                             ) {
                                 collapseTopCloud()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.dockLeftLabel.ifBlank { "停靠左侧" }
+                                state.labels.dockLeft.ifBlank { "停靠左侧" }
                             ) {
                                 dockBottomLeft()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.dockRightLabel.ifBlank { "停靠右侧" }
+                                state.labels.dockRight.ifBlank { "停靠右侧" }
                             ) {
                                 dockBottomRight()
                                 true
@@ -569,22 +616,22 @@ fun NowBar(
                     } else if (docked) {
                         listOf(
                             CustomAccessibilityAction(
-                                state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+                                state.labels.expandNowBar.ifBlank { "展开 Now Bar" }
                             ) {
                                 dockName = NowBarDockPosition.Expanded.name
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.dockTopLabel.ifBlank { "停靠顶部" }
+                                state.labels.dockTop.ifBlank { "停靠顶部" }
                             ) {
                                 dockTop()
                                 true
                             },
                             CustomAccessibilityAction(
                                 if (dockPosition == NowBarDockPosition.BottomRight) {
-                                    state.dockLeftLabel.ifBlank { "停靠左侧" }
+                                    state.labels.dockLeft.ifBlank { "停靠左侧" }
                                 } else {
-                                    state.dockRightLabel.ifBlank { "停靠右侧" }
+                                    state.labels.dockRight.ifBlank { "停靠右侧" }
                                 }
                             ) {
                                 if (dockPosition == NowBarDockPosition.BottomRight) {
@@ -598,14 +645,14 @@ fun NowBar(
                     } else {
                         listOf(
                             CustomAccessibilityAction(
-                                state.dockLeftLabel.ifBlank { "停靠左侧" }
+                                state.labels.dockLeft.ifBlank { "停靠左侧" }
                             ) {
                                 onCollapseWaveform()
                                 dockBottomLeft()
                                 true
                             },
                             CustomAccessibilityAction(
-                                state.dockRightLabel.ifBlank { "停靠右侧" }
+                                state.labels.dockRight.ifBlank { "停靠右侧" }
                             ) {
                                 onCollapseWaveform()
                                 dockBottomRight()
@@ -672,11 +719,11 @@ fun NowBar(
                             )
                             NowBarTransportControls(
                                 slice = NowBarTransportSlice(
-                                    playing = state.playing,
-                                    previousLabel = state.previousLabel,
-                                    playLabel = state.playLabel,
-                                    pauseLabel = state.pauseLabel,
-                                    nextLabel = state.nextLabel
+                                    playing = state.progress.playing,
+                                    previousLabel = state.labels.previous,
+                                    playLabel = state.labels.play,
+                                    pauseLabel = state.labels.pause,
+                                    nextLabel = state.labels.next
                                 ),
                                 onPrevious = onPrevious,
                                 onPlayPause = onPlayPause,
@@ -776,21 +823,21 @@ private fun DockedNowBarCapsule(
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
-    val progress = if (state.durationMs > 0L) {
-        (state.positionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
+    val progress = if (state.progress.durationMs > 0L) {
+        (state.progress.positionMs.toFloat() / state.progress.durationMs.toFloat()).coerceIn(0f, 1f)
     } else {
         0f
     }
-    val capsuleLyrics = state.lyrics.firstOrNull { it.active }?.text
-        ?: state.lyrics.firstOrNull()?.text
-        ?: state.lyricsStatus.takeIf { it.isNotBlank() }
-        ?: state.title
+    val capsuleLyrics = state.lyrics.lines.firstOrNull { it.active }?.text
+        ?: state.lyrics.lines.firstOrNull()?.text
+        ?: state.lyrics.status.takeIf { it.isNotBlank() }
+        ?: state.track.title
     val interactionLabel = when (dockPosition) {
         NowBarDockPosition.TopCloud ->
-            state.expandTopCloudLabel.ifBlank { "展开流体云内容" }
+            state.labels.expandTopCloud.ifBlank { "展开流体云内容" }
         NowBarDockPosition.TopCloudExpanded ->
-            state.compactTopCloudLabel.ifBlank { "收起流体云内容" }
-        else -> state.expandNowBarLabel.ifBlank { "展开 Now Bar" }
+            state.labels.compactTopCloud.ifBlank { "收起流体云内容" }
+        else -> state.labels.expandNowBar.ifBlank { "展开 Now Bar" }
     }
     val expandInteraction = if (interactive) {
         Modifier
@@ -849,9 +896,9 @@ private fun DockedNowBarCapsule(
                 if (expandedTopCloud) {
                     val artworkSize = EchoMobileLayoutMetrics.nowBarTopCloudExpandedArtworkSize
                     AsyncArtwork(
-                        uri = state.albumArtUri,
-                        title = state.title,
-                        subtitle = state.subtitle,
+                        uri = state.artwork.albumArtUri,
+                        title = state.track.title,
+                        subtitle = state.track.subtitle,
                         modifier = Modifier
                             .size(artworkSize)
                             .testTag("top-cloud-artwork"),
@@ -877,7 +924,7 @@ private fun DockedNowBarCapsule(
                     )
                     if (expandedTopCloud) {
                         Text(
-                            text = listOf(state.title, state.subtitle)
+                            text = listOf(state.track.title, state.track.subtitle)
                                 .filter { it.isNotBlank() }
                                 .joinToString(" · "),
                             style = EchoTypography.small,
@@ -888,11 +935,11 @@ private fun DockedNowBarCapsule(
                     }
                 }
             }
-            val playbackIcon = if (state.playing) EchoIconKind.Pause else EchoIconKind.Play
+            val playbackIcon = if (state.progress.playing) EchoIconKind.Pause else EchoIconKind.Play
             if (interactive) {
                 IconButton(
                     icon = playbackIcon,
-                    desc = if (state.playing) state.pauseLabel else state.playLabel,
+                    desc = if (state.progress.playing) state.labels.pause else state.labels.play,
                     accent = true
                 ) {
                     onPlayPause.run()
@@ -927,14 +974,14 @@ private fun CollapsedTopCloudHandle(
                 onTap = onShowTopCloud
             )
             .semantics {
-                contentDescription = state.showTopCloudLabel.ifBlank { "显示流体云" }
-                onClick(state.showTopCloudLabel.ifBlank { "显示流体云" }) {
+                contentDescription = state.labels.showTopCloud.ifBlank { "显示流体云" }
+                onClick(state.labels.showTopCloud.ifBlank { "显示流体云" }) {
                     onShowTopCloud()
                     true
                 }
                 customActions = listOf(
                     CustomAccessibilityAction(
-                        state.restoreBottomLabel.ifBlank { "恢复到底部" }
+                        state.labels.restoreBottom.ifBlank { "恢复到底部" }
                     ) {
                         onRestoreBottom()
                         true
@@ -972,10 +1019,10 @@ private fun DockedPlaybackIndicator(icon: EchoIconKind) {
 
 @Composable
 private fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
-    val activeLine = state.lyrics.firstOrNull { it.active }?.text
-        ?: state.lyrics.firstOrNull()?.text
-        ?: state.lyricsStatus
-    if (activeLine.isBlank() || !state.canExpand) {
+    val activeLine = state.lyrics.lines.firstOrNull { it.active }?.text
+        ?: state.lyrics.lines.firstOrNull()?.text
+        ?: state.lyrics.status
+    if (activeLine.isBlank() || !state.track.canExpand) {
         Spacer(Modifier.height(0.dp))
         return
     }
@@ -993,7 +1040,7 @@ private fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
                 clipboard.setText(AnnotatedString(activeLine))
                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
             }
-            .semantics { contentDescription = state.lyricsTitle.ifBlank { "歌词" } },
+            .semantics { contentDescription = state.lyrics.title.ifBlank { "歌词" } },
         shape = EchoShapes.small,
         color = p.accentSoft.copy(alpha = 0.32f)
     ) {

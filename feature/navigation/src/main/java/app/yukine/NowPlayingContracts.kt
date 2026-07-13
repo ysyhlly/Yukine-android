@@ -46,24 +46,40 @@ data class LyricsUiState(
     val lines: List<LyricUiLine> = emptyList()
 )
 
-data class NowPlayingUiState @JvmOverloads constructor(
-    val trackTitle: String = "",
+data class NowPlayingTrackState(
+    val title: String = "",
     val artist: String = "",
     val album: String? = null,
-    val coverUri: String? = null,
-    val isPlaying: Boolean = false,
+    val trackId: Long = -1L,
+    val currentTrack: Track? = null
+)
+
+data class NowPlayingProgressState(
+    val playing: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
-    val isFavorite: Boolean = false,
-    val lyricsVisible: Boolean = false,
-    val lyrics: LyricsUiState = LyricsUiState(),
-    val shuffleEnabled: Boolean = false,
-    val repeatMode: RepeatModeUi = RepeatModeUi.All,
-    val errorMessage: String? = null,
-    val trackId: Long = -1L,
-    val currentTrack: Track? = null,
-    val overlayState: NowBarState = nowBarEmptyState(),
     val appVolume: Float = 1.0f
+)
+
+data class NowPlayingModesState(
+    val favorite: Boolean = false,
+    val lyricsVisible: Boolean = false,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: RepeatModeUi = RepeatModeUi.All
+)
+
+data class NowPlayingLabelsState(val errorMessage: String? = null)
+
+data class NowPlayingArtworkState(val coverUri: String? = null)
+
+data class NowPlayingUiState(
+    val track: NowPlayingTrackState = NowPlayingTrackState(),
+    val progress: NowPlayingProgressState = NowPlayingProgressState(),
+    val modes: NowPlayingModesState = NowPlayingModesState(),
+    val lyrics: LyricsUiState = LyricsUiState(),
+    val labels: NowPlayingLabelsState = NowPlayingLabelsState(),
+    val artwork: NowPlayingArtworkState = NowPlayingArtworkState(),
+    val overlayState: NowBarState = nowBarEmptyState(),
 )
 
 interface NowPlayingScreenStateProvider : NowBarStateProvider {

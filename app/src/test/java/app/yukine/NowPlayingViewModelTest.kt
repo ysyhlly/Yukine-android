@@ -41,10 +41,10 @@ class NowPlayingViewModelTest {
         viewModel.bindGateway(gateway)
         viewModel.updateState(snapshotWithTrack(), setOf(7L), null)
 
-        assertFalse(viewModel.uiState.value.lyricsVisible)
+        assertFalse(viewModel.uiState.value.modes.lyricsVisible)
         viewModel.onEvent(NowPlayingEvent.ToggleLyrics)
 
-        assertTrue(viewModel.uiState.value.lyricsVisible)
+        assertTrue(viewModel.uiState.value.modes.lyricsVisible)
         assertTrue(gateway.calls.isEmpty())
     }
 
@@ -159,10 +159,10 @@ class NowPlayingViewModelTest {
             preferences = SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_CHINESE)
         )
 
-        assertEquals(7L, viewModel.uiState.value.trackId)
-        assertTrue(viewModel.uiState.value.isFavorite)
+        assertEquals(7L, viewModel.uiState.value.track.trackId)
+        assertTrue(viewModel.uiState.value.modes.favorite)
         assertTrue(viewModel.uiState.value.lyrics.status.isNotBlank())
-        assertEquals("Song", viewModel.uiState.value.trackTitle)
+        assertEquals("Song", viewModel.uiState.value.track.title)
     }
 
     @Test
@@ -223,14 +223,14 @@ class NowPlayingViewModelTest {
         viewModel.updateState(snapshotWithTrack(playing = true, positionMs = 5_000L), setOf(7L), null)
 
         val state = viewModel.uiState.value
-        assertEquals("Song", state.trackTitle)
-        assertEquals("Artist", state.artist)
-        assertEquals("Album", state.album)
-        assertTrue(state.isPlaying)
-        assertEquals(5_000L, state.positionMs)
-        assertEquals(180_000L, state.durationMs)
-        assertTrue(state.isFavorite)
-        assertEquals(RepeatModeUi.All, state.repeatMode)
+        assertEquals("Song", state.track.title)
+        assertEquals("Artist", state.track.artist)
+        assertEquals("Album", state.track.album)
+        assertTrue(state.progress.playing)
+        assertEquals(5_000L, state.progress.positionMs)
+        assertEquals(180_000L, state.progress.durationMs)
+        assertTrue(state.modes.favorite)
+        assertEquals(RepeatModeUi.All, state.modes.repeatMode)
     }
 
     @Test

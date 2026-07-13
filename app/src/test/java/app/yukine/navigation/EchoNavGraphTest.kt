@@ -406,14 +406,19 @@ class EchoNavGraphTest {
             0L
         )
 
-    private fun waveformNowBarState(trackId: Long) = nowBarEmptyState().copy(
-        title = "Song",
-        canExpand = true,
-        duration = "3:00",
-        durationMs = 180_000L,
-        trackId = trackId,
-        dataPath = "file:waveform-$trackId.mp3",
-        playbackProgressLabel = "waveform-progress",
-        expandWaveformLabel = "expand-waveform"
-    )
+    private fun waveformNowBarState(trackId: Long) = nowBarEmptyState().let { state ->
+        state.copy(
+            track = state.track.copy(
+                title = "Song",
+                canExpand = true,
+                trackId = trackId,
+                dataPath = "file:waveform-$trackId.mp3"
+            ),
+            progress = state.progress.copy(duration = "3:00", durationMs = 180_000L),
+            labels = state.labels.copy(
+                playbackProgress = "waveform-progress",
+                expandWaveform = "expand-waveform"
+            )
+        )
+    }
 }

@@ -521,6 +521,43 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(activity.contains("streamingViewModel.bindStreamingPlaybackCoordinator(null, null)"));
     }
 
+    @Test
+    public void nowPlayingPresentationStateUsesFocusedImmutableSubstates() throws Exception {
+        String nowBar = read("feature/ui-common/src/main/java/app/yukine/ui/NowBar.kt");
+        String nowPlaying = read("feature/navigation/src/main/java/app/yukine/NowPlayingContracts.kt");
+        String factory = read("app/src/main/java/app/yukine/NowBarStateFactory.kt");
+        String echoNowBar = read("feature/navigation/src/main/java/app/yukine/navigation/EchoNowBar.kt");
+
+        String nowBarState = nowBar.substring(
+                nowBar.indexOf("data class NowBarState("),
+                nowBar.indexOf("private data class NowBarProgressSlice")
+        );
+        assertTrue(nowBarState.contains("val track: NowBarTrackState"));
+        assertTrue(nowBarState.contains("val progress: NowBarProgressState"));
+        assertTrue(nowBarState.contains("val modes: NowBarModesState"));
+        assertTrue(nowBarState.contains("val lyrics: NowBarLyricsState"));
+        assertTrue(nowBarState.contains("val labels: NowBarLabels"));
+        assertTrue(nowBarState.contains("val artwork: NowBarArtworkState"));
+        assertFalse(nowBarState.contains("val waveformBars: FloatArray"));
+        assertTrue(nowBar.contains("class WaveformSamples private constructor"));
+        assertTrue(nowBar.contains("WaveformSamples(values.copyOf())"));
+        assertTrue(factory.contains("WaveformSamples.of(playbackState.waveform.bars)"));
+        assertTrue(echoNowBar.contains("LaunchedEffect(state.track.trackId"));
+
+        String nowPlayingState = nowPlaying.substring(
+                nowPlaying.indexOf("data class NowPlayingUiState("),
+                nowPlaying.indexOf("interface NowPlayingScreenStateProvider")
+        );
+        assertTrue(nowPlayingState.contains("val track: NowPlayingTrackState"));
+        assertTrue(nowPlayingState.contains("val progress: NowPlayingProgressState"));
+        assertTrue(nowPlayingState.contains("val modes: NowPlayingModesState"));
+        assertTrue(nowPlayingState.contains("val lyrics: LyricsUiState"));
+        assertTrue(nowPlayingState.contains("val labels: NowPlayingLabelsState"));
+        assertTrue(nowPlayingState.contains("val artwork: NowPlayingArtworkState"));
+        assertFalse(nowPlayingState.contains("val trackTitle: String"));
+        assertFalse(nowPlayingState.contains("val positionMs: Long"));
+    }
+
     private static List<Path> sourceFiles(String relativeDirectory) throws IOException {
         try (Stream<Path> stream = Files.walk(root().resolve(relativeDirectory))) {
             return stream.filter(Files::isRegularFile)

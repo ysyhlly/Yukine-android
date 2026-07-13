@@ -38,8 +38,8 @@ fun NowPlayingDestination(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val uiState by state.collectAsState()
-    val track = uiState.currentTrack
-    if (track == null || !TrackIdentity.isUsable(uiState.trackId)) {
+    val track = uiState.track.currentTrack
+    if (track == null || !TrackIdentity.isUsable(uiState.track.trackId)) {
         EchoStateCard(
             title = "还没有正在播放",
             description = "播放一首歌后，这里会显示封面、歌词和队列信息。"
@@ -49,22 +49,25 @@ fun NowPlayingDestination(
     NowPlayingScreen(
         state = NowPlayingUiState(
             pageTitle = "正在播放",
-            title = uiState.trackTitle,
-            subtitle = listOfNotNull(uiState.artist.takeIf { it.isNotBlank() }, uiState.album).joinToString(" / "),
+            title = uiState.track.title,
+            subtitle = listOfNotNull(
+                uiState.track.artist.takeIf { it.isNotBlank() },
+                uiState.track.album
+            ).joinToString(" / "),
             queueMetricLabel = "已播放",
-            queueLabel = uiState.overlayState.elapsed,
+            queueLabel = uiState.overlayState.progress.elapsed,
             durationMetricLabel = "总时长",
-            durationLabel = Track.formatDuration(uiState.durationMs),
-            statusLabel = uiState.errorMessage.orEmpty(),
+            durationLabel = Track.formatDuration(uiState.progress.durationMs),
+            statusLabel = uiState.labels.errorMessage.orEmpty(),
             albumArtUri = track.albumArtUri,
             lyricsTitle = uiState.lyrics.title,
             lyricsStatus = uiState.lyrics.status,
             lyrics = uiState.lyrics.lines,
-            artistName = uiState.artist,
-            albumName = uiState.album.orEmpty(),
+            artistName = uiState.track.artist,
+            albumName = uiState.track.album.orEmpty(),
             audioSpec = track.audioSpecSummary(),
             songInfo = listOfNotNull(
-                uiState.album?.takeIf { it.isNotBlank() }?.let { "专辑：$it" },
+                uiState.track.album?.takeIf { it.isNotBlank() }?.let { "专辑：$it" },
                 track.audioSpecSummary().takeIf { it.isNotBlank() }?.let { "规格：$it" }
             ).joinToString("\n"),
             sourceInfo = sourceInfo(track),
@@ -77,7 +80,7 @@ fun NowPlayingDestination(
             activeDownload = activeDownload,
             playbackQuality = playbackQuality,
             audioMotion = audioMotion,
-            appVolume = uiState.appVolume,
+            appVolume = uiState.progress.appVolume,
             onShare = Runnable { onEvent(NowPlayingEvent.ShareCurrentTrack) },
             onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) }
         ),

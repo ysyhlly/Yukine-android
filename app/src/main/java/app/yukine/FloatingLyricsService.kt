@@ -64,16 +64,16 @@ object FloatingLyricsPublisher {
 
     @JvmStatic
     fun update(state: NowPlayingUiState, lyricsState: LyricsState?) {
-        val matchingTimeline = lyricsState?.takeIf { it.trackId == state.trackId }
+        val matchingTimeline = lyricsState?.takeIf { it.trackId == state.track.trackId }
         val activeLine = state.lyrics.lines.firstOrNull { it.active }?.text
             ?: state.lyrics.lines.firstOrNull()?.text
             ?: ""
         update(
-            state.trackId,
-            state.trackTitle,
-            state.artist,
-            state.coverUri,
-            state.isPlaying,
+            state.track.trackId,
+            state.track.title,
+            state.track.artist,
+            state.artwork.coverUri,
+            state.progress.playing,
             activeLine,
             matchingTimeline?.lines.orEmpty(),
             matchingTimeline?.offsetMs ?: 0L
