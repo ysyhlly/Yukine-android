@@ -2,8 +2,7 @@ package app.yukine
 
 internal class MainTabRenderDispatcher(
     private val renderLibraryAction: Runnable,
-    private val renderCollectionsAction: Runnable,
-    private val renderNetworkAction: Runnable
+    private val renderCollectionsAction: Runnable
 ) {
     fun render(selectedTab: String) {
         when (selectedTab) {
@@ -11,7 +10,6 @@ internal class MainTabRenderDispatcher(
             MainRoutes.TAB_LIBRARY -> renderLibraryAction.run()
             MainRoutes.TAB_COLLECTIONS -> renderCollectionsAction.run()
             MainRoutes.TAB_QUEUE -> Unit
-            MainRoutes.TAB_NETWORK -> renderNetworkAction.run()
             else -> Unit
         }
     }

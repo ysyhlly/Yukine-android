@@ -529,8 +529,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private void initializeNavigationRendering() {
         tabRenderDispatcher = new MainTabRenderDispatcher(
                 this::renderLibrary,
-                this::renderCollections,
-                this::renderNetwork
+                this::renderCollections
         );
         searchViewModel.updateActions(new app.yukine.ui.UnifiedSearchActions(
                 this::updateUnifiedSearchQuery,
@@ -1187,6 +1186,11 @@ public abstract class MainActivityBase extends ComponentActivity {
                 new NetworkSourcesRenderController(networkSourcesViewModel, sourcesEvents),
                 streamingSearchRenderController
         );
+        networkRenderCoordinator.bindStateSources(
+                navigationViewModel.getState(),
+                viewModel.getLibrary(),
+                settingsViewModel.getState()
+        );
     }
 
     private void initializeOnboardingAndStartup() {
@@ -1303,6 +1307,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         releaseViewModelHostBindings();
         if (onboardingController != null) {
             onboardingController.release();
+        }
+        if (networkRenderCoordinator != null) {
+            networkRenderCoordinator.release();
         }
         if (playbackServiceConnectionController != null) {
             playbackServiceConnectionController.release();
@@ -2597,10 +2604,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                 libraryViewModel.trackAddedToPlaylistPresentation(added, settingsStore.languageMode()).getStatus()
         );
         loadCollections();
-    }
-
-    private void renderNetwork() {
-        networkRenderCoordinator.render(settingsStore.languageMode(), networkPage(), selectedRemoteSourceId(), searchQuery());
     }
 
     private void refreshAfterHiddenLibraryRestore(boolean changed) {

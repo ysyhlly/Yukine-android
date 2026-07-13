@@ -1,15 +1,64 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.navigation.NetworkTab
 import java.util.ArrayList
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
-internal class NetworkRenderCoordinator(
+internal class NetworkRenderCoordinator @JvmOverloads constructor(
     private val libraryStore: MainLibraryStore,
     private val menuRenderer: NetworkMenuRenderController,
     private val trackListRenderer: NetworkTrackListRenderController,
     private val sourcesRenderer: NetworkSourcesRenderController,
-    private val streamingRenderer: StreamingSearchRenderController
+    private val streamingRenderer: StreamingSearchRenderController,
+    private val scope: CoroutineScope = MainScope()
 ) {
+    private var renderJob: Job? = null
+
+    fun bindStateSources(
+        routeState: StateFlow<NavigationRouteState>?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        settingsState: StateFlow<SettingsState>?
+    ) {
+        renderJob?.cancel()
+        renderJob = null
+        if (routeState == null || libraryState == null || settingsState == null) {
+            return
+        }
+        renderJob = scope.launch {
+            combine(
+                routeState.map(::networkRenderRoute).distinctUntilChanged(),
+                libraryState,
+                settingsState.map { it.preferences.languageMode }.distinctUntilChanged()
+            ) { route, _, languageMode ->
+                route.copy(languageMode = languageMode)
+            }.collect { inputs ->
+                if (inputs.active) {
+                    render(
+                        inputs.languageMode,
+                        inputs.networkPage,
+                        inputs.selectedRemoteSourceId,
+                        inputs.searchQuery
+                    )
+                }
+            }
+        }
+    }
+
+    fun release() {
+        renderJob?.cancel()
+        renderJob = null
+        scope.cancel()
+    }
+
     fun render(
         languageMode: String,
         networkPage: String,
@@ -98,3 +147,19 @@ internal class NetworkRenderCoordinator(
         )
     }
 }
+
+private data class NetworkRenderInputs(
+    val active: Boolean,
+    val networkPage: String,
+    val selectedRemoteSourceId: Long,
+    val searchQuery: String,
+    val languageMode: String = AppLanguage.MODE_SYSTEM
+)
+
+private fun networkRenderRoute(state: NavigationRouteState): NetworkRenderInputs =
+    NetworkRenderInputs(
+        active = state.selectedTab == NetworkTab,
+        networkPage = state.networkPage,
+        selectedRemoteSourceId = state.selectedRemoteSourceId,
+        searchQuery = state.searchQuery
+    )
