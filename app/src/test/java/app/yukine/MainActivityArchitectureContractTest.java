@@ -294,6 +294,16 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void customDownloadDirectoryPolicyIsOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/DownloadDirectoryOwner.kt");
+        assertFalse(activity.contains("setCustomDownloadFolder"));
+        assertTrue(activity.contains("downloadDirectoryOwner::setCustomDirectory"));
+        assertTrue(owner.contains("manager.setCustomDownloadDirectory(treeUri)"));
+        assertTrue(owner.contains("downloadsViewModel.refreshDirectory(manager)"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

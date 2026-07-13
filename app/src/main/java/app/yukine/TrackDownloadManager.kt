@@ -41,6 +41,7 @@ data class TrackDownloadResult(
 interface TrackDownloadDirectoryController : TrackDownloadController {
     fun downloadDirectoryLabel(): String
     fun setDownloadDirectory(directory: String)
+    fun setCustomDownloadDirectory(treeUri: Uri)
 }
 
 interface TrackDownloadRequestQueue : TrackDownloadDirectoryController {
@@ -105,7 +106,7 @@ class TrackDownloadManager internal constructor(
         preferences.edit().putString(KEY_DIRECTORY, normalizeDirectory(directory)).apply()
     }
 
-    fun setCustomDownloadDirectory(treeUri: Uri) {
+    override fun setCustomDownloadDirectory(treeUri: Uri) {
         preferences.edit()
             .putString(KEY_DIRECTORY, DOWNLOAD_DIRECTORY_CUSTOM)
             .putString(KEY_CUSTOM_TREE_URI, treeUri.toString())

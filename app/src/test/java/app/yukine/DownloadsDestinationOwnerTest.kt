@@ -58,6 +58,11 @@ class DownloadsDestinationOwnerTest {
             calls += "set:$directory"
         }
 
+        override fun setCustomDownloadDirectory(treeUri: android.net.Uri) {
+            directory = "custom"
+            calls += "custom:$treeUri"
+        }
+
         override fun snapshot(): List<TrackDownloadItem> {
             calls += "snapshot"
             return emptyList()

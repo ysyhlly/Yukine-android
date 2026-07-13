@@ -209,6 +209,11 @@ class DownloadsViewModelTest {
             calls += "set:$directory"
         }
 
+        override fun setCustomDownloadDirectory(treeUri: android.net.Uri) {
+            directory = TrackDownloadManager.DOWNLOAD_DIRECTORY_CUSTOM
+            calls += "custom:$treeUri"
+        }
+
         override fun snapshot(): List<TrackDownloadItem> = emptyList()
 
         override fun pause(downloadId: Long): TrackDownloadActionResult =

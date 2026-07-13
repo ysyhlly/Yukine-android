@@ -26,6 +26,22 @@ class DownloadsViewModel : ViewModel() {
         val directoryLabel = (downloadManager as? TrackDownloadDirectoryController)
             ?.downloadDirectoryLabel()
             .orEmpty()
+        publish(items, directoryLabel, message)
+    }
+
+    @JvmOverloads
+    fun refreshDirectory(
+        downloadManager: TrackDownloadDirectoryController?,
+        message: String = mutableUiState.value.message
+    ) {
+        publish(
+            downloadManager?.snapshot().orEmpty(),
+            downloadManager?.downloadDirectoryLabel().orEmpty(),
+            message
+        )
+    }
+
+    private fun publish(items: List<TrackDownloadItem>, directoryLabel: String, message: String) {
         mutableUiState.value = DownloadsUiState(
             active = items.filter { it.status != TrackDownloadStatus.Finished },
             finished = items.filter { it.status == TrackDownloadStatus.Finished },
@@ -90,7 +106,7 @@ class DownloadsViewModel : ViewModel() {
             return
         }
         downloadManager.setDownloadDirectory(directory)
-        refresh(downloadManager, "已设置下载目录：${downloadManager.downloadDirectoryLabel()}")
+        refreshDirectory(downloadManager, "已设置下载目录：${downloadManager.downloadDirectoryLabel()}")
     }
 
     private fun applyAction(

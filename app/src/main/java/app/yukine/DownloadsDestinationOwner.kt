@@ -7,7 +7,7 @@ internal class DownloadsDestinationOwner(
     private val openDirectoryPicker: () -> Unit
 ) {
     fun actions(): DownloadsDestinationActions = DownloadsDestinationActions(
-        refresh = { viewModel.refresh(downloadController) },
+        refresh = { viewModel.refreshDirectory(downloadController) },
         useMusicDirectory = { viewModel.useMusicDirectory(downloadController) },
         useDownloadsDirectory = { viewModel.useDownloadsDirectory(downloadController) },
         chooseDirectory = { viewModel.chooseDirectory(downloadController) },

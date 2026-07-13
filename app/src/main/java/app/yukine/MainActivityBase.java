@@ -2,7 +2,6 @@ package app.yukine;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -136,6 +135,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private BackgroundImagePickerController backgroundImagePickerController;
     private BackupRestoreLauncher backupRestoreLauncher;
     private DownloadRequestController downloadRequestController;
+    private DownloadDirectoryOwner downloadDirectoryOwner;
     private LuoxueSourceImportController luoxueSourceImportController;
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
     private PlaybackServiceConnectionController playbackServiceConnectionController;
@@ -399,10 +399,15 @@ public abstract class MainActivityBase extends ComponentActivity {
                 },
                 () -> navigateToNetworkTabPage(NETWORK_STREAMING)
         );
+        downloadDirectoryOwner = new DownloadDirectoryOwner(
+                trackDownloadManager,
+                downloadsViewModel,
+                statusMessageController::showFeedback
+        );
         documentPickerController = new DocumentPickerController(this, documentPickerListenerFactory.create(
                 libraryImportOwner::importAudioUris,
                 libraryImportOwner::importAudioFolder,
-                this::setCustomDownloadFolder,
+                downloadDirectoryOwner::setCustomDirectory,
                 libraryImportOwner::importStreamM3u,
                 (exportUri, playlistId, playlistName) -> libraryViewModel.exportPlaylistJava(exportUri, playlistId, playlistName),
                 libraryImportOwner::importPlaylistM3u,
@@ -1549,18 +1554,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             }
         };
         getOnBackPressedDispatcher().addCallback(this, backCallback);
-    }
-
-    private void setCustomDownloadFolder(final Uri treeUri) {
-        if (trackDownloadManager == null || treeUri == null) {
-            statusMessageController.showFeedback("\u65e0\u6cd5\u4fdd\u5b58\u4e0b\u8f7d\u76ee\u5f55");
-            return;
-        }
-        trackDownloadManager.setCustomDownloadDirectory(treeUri);
-        if (downloadsViewModel != null) {
-            downloadsViewModel.refresh(trackDownloadManager);
-        }
-        statusMessageController.showFeedback("\u5df2\u8bbe\u7f6e\u4e0b\u8f7d\u76ee\u5f55\uff1a" + trackDownloadManager.downloadDirectoryLabel());
     }
 
     private void loadCollections() {
