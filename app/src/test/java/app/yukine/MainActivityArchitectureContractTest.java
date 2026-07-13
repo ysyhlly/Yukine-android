@@ -116,6 +116,19 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void unifiedSearchResultsAreFlowDrivenInsteadOfTabRendered() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String search = read("app/src/main/java/app/yukine/SearchViewModel.kt");
+        String dispatcher = read("app/src/main/java/app/yukine/MainTabRenderDispatcher.kt");
+        assertFalse(activity.contains("private void renderSearch()"));
+        assertFalse(activity.contains("refreshUnifiedSearch("));
+        assertTrue(search.contains("fun bindStateSources("));
+        assertTrue(search.contains("routeState.map { it.searchQuery }"));
+        assertTrue(search.contains("libraryState.map { it.allTracks }"));
+        assertFalse(dispatcher.contains("renderSearchAction"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");

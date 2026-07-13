@@ -530,9 +530,20 @@ public abstract class MainActivityBase extends ComponentActivity {
         tabRenderDispatcher = new MainTabRenderDispatcher(
                 this::renderLibrary,
                 this::renderCollections,
-                this::renderNetwork,
-                this::renderSearch
+                this::renderNetwork
         );
+        searchViewModel.updateActions(new app.yukine.ui.UnifiedSearchActions(
+                this::updateUnifiedSearchQuery,
+                this::performUnifiedSearch,
+                this::playUnifiedSearchTrack,
+                this::playUnifiedStreamingTrack,
+                () -> {
+                    if (streamingSearchActionHandler != null) {
+                        streamingSearchActionHandler.loadNextPage();
+                    }
+                },
+                this::clearUnifiedSearchOnExit
+        ));
         trackListRenderController = new TrackListRenderController(libraryViewModel, trackListRenderListenerFactory.create(
                 (tracks, index) -> libraryViewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                 track -> libraryViewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
@@ -583,7 +594,6 @@ public abstract class MainActivityBase extends ComponentActivity {
                     renderSelectedTab();
                 },
                 () -> {
-                    refreshUnifiedSearch(false);
                     navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true, true);
                     syncNavHostState();
                 },
@@ -834,6 +844,11 @@ public abstract class MainActivityBase extends ComponentActivity {
             MainActivityStreamingActionGateway streamingActionGateway
     ) {
         libraryStore = libraryStoreFactory.create(viewModel);
+        searchViewModel.bindStateSources(
+                navigationViewModel.getState(),
+                viewModel.getLibrary(),
+                repository::search
+        );
         settingsStore.load(loadSettingsPreferencesUseCase.execute());
         if (EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
             customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
@@ -1319,6 +1334,9 @@ public abstract class MainActivityBase extends ComponentActivity {
         }
         if (homeDashboardViewModel != null) {
             homeDashboardViewModel.bindStateSources(null, null, null, null, null);
+        }
+        if (searchViewModel != null) {
+            searchViewModel.bindStateSources(null, null, null);
         }
         if (playbackViewModel != null) {
             playbackViewModel.bind(null);
@@ -1922,24 +1940,12 @@ public abstract class MainActivityBase extends ComponentActivity {
         });
     }
 
-    private void refreshUnifiedSearch(boolean searchOnline) {
-        if (searchViewModel == null || libraryStore == null) {
-            return;
-        }
-        String query = searchQuery();
-        List<Track> localMatches = repository == null
-                ? Collections.emptyList()
-                : repository.search(libraryStore.allTracks(), query);
-        searchViewModel.updateResults(query, localMatches);
-        if (searchOnline && streamingSearchActionHandler != null && query != null && !query.trim().isEmpty()) {
-            streamingSearchActionHandler.search(query);
-        }
-    }
-
     private void performUnifiedSearch(String query) {
         String safeQuery = query == null ? "" : query.trim();
         routeController.setSearchQuery(safeQuery);
-        refreshUnifiedSearch(true);
+        if (streamingSearchActionHandler != null && !safeQuery.isEmpty()) {
+            streamingSearchActionHandler.search(safeQuery);
+        }
         syncNavHostState();
     }
 
@@ -2126,7 +2132,9 @@ public abstract class MainActivityBase extends ComponentActivity {
             renderSelectedTabAfterStateChange();
         });
         if (TAB_SEARCH.equals(selectedTab())) {
-            refreshUnifiedSearch(true);
+            if (streamingSearchActionHandler != null && searchQuery() != null && !searchQuery().trim().isEmpty()) {
+                streamingSearchActionHandler.search(searchQuery());
+            }
         }
         if (TAB_NETWORK.equals(selectedTab())
                 && (NETWORK_STREAMING.equals(networkPage())
@@ -2593,23 +2601,6 @@ public abstract class MainActivityBase extends ComponentActivity {
 
     private void renderNetwork() {
         networkRenderCoordinator.render(settingsStore.languageMode(), networkPage(), selectedRemoteSourceId(), searchQuery());
-    }
-
-    private void renderSearch() {
-        app.yukine.ui.UnifiedSearchActions searchActions = new app.yukine.ui.UnifiedSearchActions(
-                this::updateUnifiedSearchQuery,
-                this::performUnifiedSearch,
-                this::playUnifiedSearchTrack,
-                this::playUnifiedStreamingTrack,
-                () -> {
-                    if (streamingSearchActionHandler != null) {
-                        streamingSearchActionHandler.loadNextPage();
-                    }
-                },
-                this::clearUnifiedSearchOnExit
-        );
-        searchViewModel.updateActions(searchActions);
-        refreshUnifiedSearch(false);
     }
 
     private void refreshAfterHiddenLibraryRestore(boolean changed) {

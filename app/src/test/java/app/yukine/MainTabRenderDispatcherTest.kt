@@ -10,8 +10,7 @@ class MainTabRenderDispatcherTest {
         val dispatcher = MainTabRenderDispatcher(
             renderLibraryAction = Runnable { calls += "library" },
             renderCollectionsAction = Runnable { calls += "collections" },
-            renderNetworkAction = Runnable { calls += "network" },
-            renderSearchAction = Runnable { calls += "search" }
+            renderNetworkAction = Runnable { calls += "network" }
         )
 
         dispatcher.render(MainRoutes.TAB_HOME)
@@ -24,7 +23,7 @@ class MainTabRenderDispatcherTest {
         dispatcher.render("missing")
 
         assertEquals(
-            listOf("library", "collections", "network", "search"),
+            listOf("library", "collections", "network"),
             calls
         )
     }
