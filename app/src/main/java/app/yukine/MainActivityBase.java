@@ -141,6 +141,7 @@ public abstract class MainActivityBase extends ComponentActivity {
     private PlaybackServiceConnectionController playbackServiceConnectionController;
     private StreamingPlaybackQualityPolicy streamingPlaybackQualityPolicy;
     private NowPlayingSourceSwitchOwner nowPlayingSourceSwitchOwner;
+    private NowPlayingEffectOwner nowPlayingEffectOwner;
     private PlaybackStateEventController playbackStateEventController;
     private NetworkRenderCoordinator networkRenderCoordinator;
     private SettingsContextProvider settingsContextProvider;
@@ -200,6 +201,7 @@ public abstract class MainActivityBase extends ComponentActivity {
         StreamingSearchRenderController streamingSearchRenderController =
                 initializeStoresAndDataGateways(streamingActionGateway);
         initializeNetworkOwners(streamingSearchRenderController);
+        initializeNowPlayingEffectOwner();
         initializeOnboardingAndStartup();
     }
 
@@ -527,6 +529,19 @@ public abstract class MainActivityBase extends ComponentActivity {
                 playbackServiceConnectionController,
                 streamingPlaybackQualityPolicy,
                 statusMessageController
+        );
+    }
+
+    private void initializeNowPlayingEffectOwner() {
+        nowPlayingEffectOwner = new NowPlayingEffectOwner(
+                nowPlayingViewModel,
+                () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
+                playlistDialogController::showAddToPlaylist,
+                trackShareLauncher::share,
+                downloadRequestController::downloadTrack,
+                nowPlayingSourceSwitchOwner::handle,
+                nowPlayingSourceSwitchOwner::handle,
+                statusMessageController::setStatus
         );
     }
 
@@ -1502,7 +1517,7 @@ public abstract class MainActivityBase extends ComponentActivity {
                 ),
                 () -> navigationIntentOwner.navigateToTab(app.yukine.navigation.HomeTab.INSTANCE, true),
                 event -> {
-                    handleNowPlayingEvent(event);
+                    nowPlayingEffectOwner.handle(event);
                     return kotlin.Unit.INSTANCE;
                 },
                 tab -> {
@@ -1629,41 +1644,6 @@ public abstract class MainActivityBase extends ComponentActivity {
             return;
         }
         Log.w(TAG, request.getSeedMissingMessage());
-    }
-
-    private void handleNowPlayingEvent(NowPlayingEvent event) {
-        if (nowPlayingViewModel == null || event == null) {
-            return;
-        }
-        nowPlayingViewModel.onEvent(event);
-        handleNowPlayingEffects();
-    }
-
-    private void handleNowPlayingEffects() {
-        if (nowPlayingViewModel == null) {
-            return;
-        }
-        List<NowPlayingEffect> effects = nowPlayingViewModel.drainEffects();
-        if (effects == null || effects.isEmpty()) {
-            return;
-        }
-        for (NowPlayingEffect effect : effects) {
-            if (effect == NowPlayingEffect.OpenQueue.INSTANCE) {
-                navigationIntentOwner.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true);
-            } else if (effect instanceof NowPlayingEffect.OpenAddToPlaylist openAddToPlaylist) {
-                playlistDialogController.showAddToPlaylist(openAddToPlaylist.getTrack());
-            } else if (effect instanceof NowPlayingEffect.ShareTrack shareTrack) {
-                trackShareLauncher.share(shareTrack.getTrack());
-            } else if (effect instanceof NowPlayingEffect.DownloadTrack downloadTrack) {
-                downloadRequestController.downloadTrack(downloadTrack.getTrack());
-            } else if (effect instanceof NowPlayingEffect.SwitchSource switchSource) {
-                nowPlayingSourceSwitchOwner.handle(switchSource);
-            } else if (effect instanceof NowPlayingEffect.SwitchLibrarySource switchLibrarySource) {
-                nowPlayingSourceSwitchOwner.handle(switchLibrarySource);
-            } else if (effect instanceof NowPlayingEffect.ShowMessage showMessage) {
-                statusMessageController.setStatus(showMessage.getMessage());
-            }
-        }
     }
 
     private boolean resolveCurrentStreamingQueueTrackIfNeeded() {

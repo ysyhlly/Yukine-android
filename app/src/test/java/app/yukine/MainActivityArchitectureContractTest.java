@@ -265,6 +265,18 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void nowPlayingEffectsAreDispatchedOutsideActivity() throws Exception {
+        String activity = read("app/src/main/java/app/yukine/MainActivityBase.java");
+        String owner = read("app/src/main/java/app/yukine/NowPlayingEffectOwner.kt");
+        assertFalse(activity.contains("handleNowPlayingEffects"));
+        assertFalse(activity.contains("instanceof NowPlayingEffect"));
+        assertTrue(activity.contains("nowPlayingEffectOwner.handle(event)"));
+        assertTrue(owner.contains("viewModel.drainEffects().forEach(::dispatch)"));
+        assertTrue(owner.contains("is NowPlayingEffect.SwitchSource ->"));
+        assertTrue(owner.contains("is NowPlayingEffect.SwitchLibrarySource ->"));
+    }
+
+    @Test
     public void settingsAndStreamingHaveFocusedDataOwners() throws Exception {
         String settings = read("app/src/main/java/app/yukine/SettingsViewModel.kt");
         String settingsGateway = read("feature/data/src/main/java/app/yukine/data/EchoSettingsStore.java");
