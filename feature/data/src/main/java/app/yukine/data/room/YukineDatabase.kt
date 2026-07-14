@@ -67,11 +67,9 @@ abstract class YukineDatabase : RoomDatabase() {
             databaseName: String
         ): RoomDatabase.Builder<YukineDatabase> =
             Room.databaseBuilder(context, YukineDatabase::class.java, databaseName)
-                // Existing playback lifecycle ports are synchronous (MediaSession callbacks,
-                // boot restore and position checkpoints). Keeping their established threading
-                // contract avoids a startup regression while Room becomes the sole data owner;
-                // scans, metadata parsing and network imports remain dispatched by feature owners.
-                .allowMainThreadQueries()
+                // BackupManager copies a single live database snapshot. Keep rollback journaling
+                // explicit until export is moved to a database-owned online-backup API.
+                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                 .addMigrations(*YukineMigrations.all)
                 .addCallback(
                     object : Callback() {

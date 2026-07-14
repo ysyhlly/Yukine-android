@@ -265,6 +265,10 @@ public final class MusicLibraryRepository {
         return remoteSourceRepository.loadSource(sourceId);
     }
 
+    public RemoteSource cachedRemoteSource(long sourceId) {
+        return remoteSourceRepository.cachedSource(sourceId);
+    }
+
     public long saveWebDavSource(String name, String baseUrl, String username, String password, String rootPath) {
         return saveWebDavSource(-1L, name, baseUrl, username, password, rootPath);
     }

@@ -88,6 +88,10 @@ internal class OnboardingOwner(
         controller.initialize(completionStore.shouldShow())
     }
 
+    fun initialize(shouldShow: Boolean) {
+        controller.initialize(shouldShow)
+    }
+
     fun showOnboarding(): Boolean = controller.showOnboarding()
 
     fun onPermissionsChanged() = controller.onPermissionsChanged()

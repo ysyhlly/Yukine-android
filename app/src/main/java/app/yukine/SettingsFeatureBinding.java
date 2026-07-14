@@ -12,12 +12,19 @@ import app.yukine.ui.EchoTheme;
 final class SettingsFeatureBinding {
     private final SettingsViewModel viewModel;
     private final MainSettingsStore settingsStore;
+    private final LoadSettingsPreferencesUseCase loadPreferencesUseCase;
     private final LoadLyricsSettingsUseCase loadLyricsSettingsUseCase;
 
     private SettingsContextProvider contextProvider;
     private SettingsEffectOwner effectOwner;
     private BackgroundImageSelectionOwner backgroundImageSelectionOwner;
     private BackgroundImagePickerController backgroundImagePickerController;
+    private Handler mainHandler;
+    private MainExecutors executors;
+    private LyricsViewModel lyricsViewModel;
+    private LyricsLoader lyricsLoader;
+    private CustomBackgroundAccentController customBackgroundAccentController;
+    private boolean released;
 
     SettingsFeatureBinding(
             MainActivityViewModels viewModels,
@@ -28,8 +35,8 @@ final class SettingsFeatureBinding {
     ) {
         this.viewModel = viewModels.getSettingsViewModel();
         this.settingsStore = settingsStore;
+        this.loadPreferencesUseCase = loadPreferencesUseCase;
         this.loadLyricsSettingsUseCase = loadLyricsSettingsUseCase;
-        settingsStore.load(loadPreferencesUseCase.execute());
         viewModel.bindPreferenceGateway(applyPreferenceUseCase::execute);
         viewModel.bindStoreMirror(settingsStore::sync);
     }
@@ -60,6 +67,11 @@ final class SettingsFeatureBinding {
             LuoxueSourceStore luoxueSourceStore,
             MusicLibraryRepository repository
     ) {
+        this.mainHandler = mainHandler;
+        this.executors = executors;
+        this.lyricsViewModel = lyricsViewModel;
+        this.lyricsLoader = lyricsLoader;
+        this.customBackgroundAccentController = customBackgroundAccentController;
         backgroundImageSelectionOwner = new BackgroundImageSelectionOwner(
                 viewModel,
                 settingsStore::pageBackgrounds,
@@ -131,19 +143,38 @@ final class SettingsFeatureBinding {
         );
         viewModel.bindContextLoader(contextProvider);
         viewModel.bindRouteState(navigationViewModel.getSettingsRouteState());
-        viewModel.refreshSettingsContext();
-        LoadedLyricsSettings loadedLyricsSettings = loadLyricsSettingsUseCase.execute();
-        lyricsViewModel.configure(
-                lyricsLoader,
-                loadedLyricsSettings.onlineLyricsEnabled,
-                loadedLyricsSettings.lyricsOffsetMs
-        );
-        if (EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
-            customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
+    }
+
+    void initialize(Runnable completion) {
+        if (executors == null || mainHandler == null) {
+            if (completion != null) completion.run();
+            return;
         }
+        executors.io(() -> {
+            LoadedSettingsPreferences preferences = loadPreferencesUseCase.execute();
+            LoadedLyricsSettings lyricsSettings = loadLyricsSettingsUseCase.execute();
+            mainHandler.post(() -> {
+                if (released) return;
+                settingsStore.load(preferences);
+                if (lyricsViewModel != null) {
+                    lyricsViewModel.configure(
+                            lyricsLoader,
+                            lyricsSettings.onlineLyricsEnabled,
+                            lyricsSettings.lyricsOffsetMs
+                    );
+                }
+                viewModel.refreshSettingsContext();
+                if (customBackgroundAccentController != null
+                        && EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
+                    customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
+                }
+                if (completion != null) completion.run();
+            });
+        });
     }
 
     void release() {
+        released = true;
         viewModel.bindRouteState(null);
         viewModel.bindContextLoader(null);
         viewModel.bindEffectListener(null);

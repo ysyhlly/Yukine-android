@@ -34,6 +34,7 @@ internal class PlaybackServiceConnectionController(
 
     private var service: PlaybackServiceHostPort? = null
     private var bound: Boolean = false
+    private var appVisible: Boolean = false
 
     private val readModel = MutablePlaybackReadModel()
     override val state: StateFlow<PlaybackStateSnapshot> = readModel.state
@@ -63,6 +64,7 @@ internal class PlaybackServiceConnectionController(
             nextService.registerListener(readModelListener)
             nextService.snapshot()?.let(::publishReadModel)
             commandQueue.flush(nextService)
+            nextService.setAppVisible(appVisible)
             listener.onPlaybackServiceConnected(nextService)
         }
 
@@ -124,6 +126,7 @@ internal class PlaybackServiceConnectionController(
     fun realtimeBands(): FloatArray = service?.realtimeBands() ?: FloatArray(0)
 
     fun setAppVisible(visible: Boolean) {
+        appVisible = visible
         service?.setAppVisible(visible)
     }
 

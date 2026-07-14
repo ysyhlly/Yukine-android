@@ -3,6 +3,7 @@ package app.yukine.data;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentHashMap;
 
 import app.yukine.data.room.RemoteSourceDao;
 import app.yukine.data.room.RemoteSourceEntity;
@@ -16,6 +17,7 @@ public final class RemoteSourceRepository {
     private final YukineDatabase database;
     private final RemoteSourceDao dao;
     private final LibraryRepository libraryRepository;
+    private final ConcurrentHashMap<Long, RemoteSource> sourceCache = new ConcurrentHashMap<>();
 
     public RemoteSourceRepository(YukineDatabase database, LibraryRepository libraryRepository) {
         this.database = database;
@@ -26,9 +28,15 @@ public final class RemoteSourceRepository {
     public List<RemoteSource> loadSources() {
         ArrayList<RemoteSource> sources = new ArrayList<>();
         for (RemoteSourceEntity row : dao.loadSources()) {
-            sources.add(source(row));
+            RemoteSource source = source(row);
+            sources.add(source);
+            sourceCache.put(source.id, source);
         }
         return sources;
+    }
+
+    public RemoteSource cachedSource(long sourceId) {
+        return sourceCache.get(sourceId);
     }
 
     public RemoteSource loadSource(long sourceId) {
@@ -53,6 +61,13 @@ public final class RemoteSourceRepository {
             }
             savedId.set(dao.upsert(entity(source, null, now)));
         });
+        if (savedId.get() > 0L) {
+            RemoteSource saved = new RemoteSource(
+                    savedId.get(), source.type, source.name, source.baseUrl, source.username,
+                    source.password, source.rootPath, source.lastStatus, System.currentTimeMillis()
+            );
+            sourceCache.put(saved.id, saved);
+        }
         return savedId.get();
     }
 
@@ -77,6 +92,7 @@ public final class RemoteSourceRepository {
             libraryRepository.deleteTracksByDataPathPattern(pattern(sourceId));
             dao.delete(sourceId);
         });
+        sourceCache.remove(sourceId);
     }
 
     private static String pattern(long sourceId) {

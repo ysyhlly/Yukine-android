@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,6 +17,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SettingsRepositoryTest {
+    @get:Rule
+    val backgroundDatabase = BackgroundDatabaseTestRule()
+
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val name = "settings-room-test.db"
     private lateinit var database: YukineDatabase

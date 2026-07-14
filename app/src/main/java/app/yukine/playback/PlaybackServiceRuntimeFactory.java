@@ -3,7 +3,6 @@ package app.yukine.playback;
 import javax.inject.Inject;
 
 import app.yukine.StreamingRepositorySource;
-import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 
@@ -11,19 +10,19 @@ final class PlaybackServiceRuntimeFactory {
     private final MusicLibraryRepository repository;
     private final StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     private final StreamingRepositorySource streamingRepositorySource;
-    private final ToggleFavoriteUseCase toggleFavoriteUseCase;
+    private final PlaybackPersistenceOwner persistenceOwner;
 
     @Inject
     PlaybackServiceRuntimeFactory(
             MusicLibraryRepository repository,
             StreamingPlaybackHeaderStore streamingPlaybackHeaderStore,
             StreamingRepositorySource streamingRepositorySource,
-            ToggleFavoriteUseCase toggleFavoriteUseCase
+            PlaybackPersistenceOwner persistenceOwner
     ) {
         this.repository = repository;
         this.streamingPlaybackHeaderStore = streamingPlaybackHeaderStore;
         this.streamingRepositorySource = streamingRepositorySource;
-        this.toggleFavoriteUseCase = toggleFavoriteUseCase;
+        this.persistenceOwner = persistenceOwner;
     }
 
     PlaybackServiceRuntime create(EchoPlaybackService service) {
@@ -32,7 +31,7 @@ final class PlaybackServiceRuntimeFactory {
                 repository,
                 streamingPlaybackHeaderStore,
                 streamingRepositorySource,
-                toggleFavoriteUseCase
+                persistenceOwner
         );
     }
 }

@@ -3,6 +3,7 @@ package app.yukine
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.Lifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -17,22 +18,29 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         features = composition.create(this)
-        features.onboarding.initialize()
-        features.navigation.bindRoot(
-            features.viewModels,
-            features.onboarding.owner(),
-            features.platform.permissionController(),
-            features.playback.nowPlayingEffectOwner,
-            features.library.playlistDialogController(),
-            features.playback.queueActionController,
-            features.platform.documentPickerController(),
-            features.platform.trackDownloadManager(),
-            features.playback.connection
-        )
-        features.playback.bindService()
-        features.onboarding.startLibrary()
-        features.streaming.handleInitialIntent(intent)
-        features.platform.applyThemeSurface()
+        features.settings.initialize {
+            features.onboarding.initialize {
+                if (isFinishing || isDestroyed) return@initialize
+                features.navigation.bindRoot(
+                    features.viewModels,
+                    features.onboarding.owner(),
+                    features.platform.permissionController(),
+                    features.playback.nowPlayingEffectOwner,
+                    features.library.playlistDialogController(),
+                    features.playback.queueActionController,
+                    features.platform.documentPickerController(),
+                    features.platform.trackDownloadManager(),
+                    features.playback.connection
+                )
+                features.playback.bindService()
+                features.playback.setAppVisible(
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                )
+                features.onboarding.startLibrary()
+                features.streaming.handleInitialIntent(intent)
+                features.platform.applyThemeSurface()
+            }
+        }
     }
 
     override fun onResume() {

@@ -33,7 +33,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
+            listOf("state", "position", "queue", "flush", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -45,7 +45,7 @@ class PlaybackShutdownCoordinatorTest {
 
         coordinator.handleTaskRemoved()
 
-        assertEquals(listOf("position", "queue", "resume:true"), calls)
+        assertEquals(listOf("position", "queue", "resume:true", "flush"), calls)
     }
 
     @Test
@@ -55,7 +55,7 @@ class PlaybackShutdownCoordinatorTest {
 
         coordinator.handleTaskRemoved()
 
-        assertEquals(listOf("position", "queue", "resume:false"), calls)
+        assertEquals(listOf("position", "queue", "resume:false", "flush"), calls)
     }
 
     @Test
@@ -65,7 +65,7 @@ class PlaybackShutdownCoordinatorTest {
 
         coordinator.handleTaskRemoved()
 
-        assertEquals(listOf("position", "queue", "resume:true", "notification"), calls)
+        assertEquals(listOf("position", "queue", "resume:true", "flush", "notification"), calls)
     }
 
     @Test
@@ -76,7 +76,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
+            listOf("state", "position", "queue", "flush", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -90,7 +90,7 @@ class PlaybackShutdownCoordinatorTest {
         coordinator.handleServiceDestroyed()
 
         assertEquals(
-            listOf("state", "position", "queue", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
+            listOf("state", "position", "queue", "flush", "notification-clear", "lyrics", "noisy", "warmup", "analyzer", "recovery-scheduler", "precache", "recovery", "progress", "sleep", "crossfade", "callbacks", "visualization", "artwork", "wifi", "session", "player", "schedulers"),
             calls
         )
     }
@@ -187,6 +187,10 @@ class PlaybackShutdownCoordinatorTest {
 
                 override fun savePlaybackResumeRequested(requested: Boolean) {
                     calls.add("resume:$requested")
+                }
+
+                override fun flushPendingPersistence() {
+                    calls.add("flush")
                 }
 
                 override fun isPlaying(): Boolean {

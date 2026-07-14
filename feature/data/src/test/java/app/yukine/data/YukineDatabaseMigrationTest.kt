@@ -7,8 +7,8 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.YukineDatabase
-import app.yukine.data.room.YukineSchema
 import java.io.File
+import java.nio.charset.StandardCharsets
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -27,6 +27,16 @@ class YukineDatabaseMigrationTest {
     @After
     fun tearDown() {
         databaseNames.forEach(context::deleteDatabase)
+    }
+
+    @Test
+    fun roomDoesNotEnableWalForFileCopyBackupCompatibility() {
+        val name = databaseName("journal")
+        val database = YukineDatabase.open(context, name)
+        val sqlite = database.openHelper.writableDatabase
+
+        assertTrue(!stringValue(sqlite, "PRAGMA journal_mode").equals("wal", ignoreCase = true))
+        database.close()
     }
 
     @Test
@@ -76,6 +86,31 @@ class YukineDatabaseMigrationTest {
                     "WHERE local_key = 'local-key' AND provider = 'netease'"
             )
         )
+        database.close()
+    }
+
+    @Test
+    fun partialVersionEightFixturePreservesPlaylistOrderSettingsAndHistory() {
+        val name = databaseName("v8-partial")
+        createSqlFixture(name, 8, "/db-fixtures/echo-partial-v8.sql")
+
+        val database = YukineDatabase.open(context, name)
+        val sqlite = database.openHelper.writableDatabase
+
+        assertEquals(15, sqlite.version)
+        assertEquals("Second", stringValue(sqlite, "SELECT title FROM tracks WHERE id = 802"))
+        assertEquals(1L, longValue(sqlite, "SELECT COUNT(*) FROM favorites WHERE track_id = 801"))
+        assertEquals(4L, longValue(sqlite, "SELECT play_count FROM play_history WHERE track_id = 801"))
+        assertEquals(
+            802L,
+            longValue(
+                sqlite,
+                "SELECT track_id FROM playlist_tracks WHERE playlist_id = 88 ORDER BY position LIMIT 1"
+            )
+        )
+        assertEquals("zh-CN", stringValue(sqlite, "SELECT value FROM settings WHERE `key` = 'language_mode'"))
+        assertTrue(columnExists(sqlite, "tracks", "replay_gain_album_db"))
+        assertTrue(columnExists(sqlite, "playback_queue", "codec"))
         database.close()
     }
 
@@ -134,24 +169,7 @@ class YukineDatabaseMigrationTest {
         playlistId: Long,
         includeNullSetting: Boolean = false
     ) {
-        val helper = FrameworkSQLiteOpenHelperFactory().create(
-            SupportSQLiteOpenHelper.Configuration.builder(context)
-                .name(name)
-                .callback(
-                    object : SupportSQLiteOpenHelper.Callback(14) {
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            YukineSchema.normalizeV14(db)
-                        }
-
-                        override fun onUpgrade(
-                            db: SupportSQLiteDatabase,
-                            oldVersion: Int,
-                            newVersion: Int
-                        ) = Unit
-                    }
-                )
-                .build()
-        )
+        val helper = createSqlFixtureHelper(name, 14, "/db-fixtures/echo-v14.sql")
         val db = helper.writableDatabase
         db.execSQL(
             "INSERT INTO tracks(id,title,artist,album,duration_ms,content_uri,data_path," +
@@ -208,6 +226,44 @@ class YukineDatabaseMigrationTest {
             db.execSQL("INSERT INTO settings(`key`, value) VALUES (NULL, 'keep-me')")
         }
         helper.close()
+    }
+
+    private fun createSqlFixture(name: String, version: Int, resourcePath: String) {
+        createSqlFixtureHelper(name, version, resourcePath).close()
+    }
+
+    private fun createSqlFixtureHelper(
+        name: String,
+        version: Int,
+        resourcePath: String
+    ): SupportSQLiteOpenHelper {
+        val schema = checkNotNull(javaClass.getResourceAsStream(resourcePath)) {
+            "Missing independent migration fixture: $resourcePath"
+        }.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+        return FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(version) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            schema.lineSequence()
+                                .filterNot { it.trimStart().startsWith("--") }
+                                .joinToString("\n")
+                                .split(';')
+                                .map(String::trim)
+                                .filter(String::isNotEmpty)
+                                .forEach(db::execSQL)
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        ).also { it.writableDatabase }
     }
 
     private fun databaseName(suffix: String): String =

@@ -15,7 +15,6 @@ import app.yukine.R;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.PlaybackServiceHostPort;
 import app.yukine.StreamingRepositorySource;
-import app.yukine.ToggleFavoriteUseCase;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
@@ -32,7 +31,6 @@ import app.yukine.playback.manager.PlaybackProgressUpdateManager;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import app.yukine.playback.manager.PlaybackQueueRuntimeStateManager;
 import app.yukine.playback.manager.PlaybackQueueStore;
-import app.yukine.playback.manager.PlaybackQueueStoreImpl;
 import app.yukine.playback.manager.PlaybackRecoveryScheduler;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 import app.yukine.playback.manager.PlaybackSessionManager;
@@ -41,6 +39,7 @@ import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import app.yukine.playback.manager.PlaybackWifiLockManager;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
 import app.yukine.playback.state.PlaybackStateListener;
+import app.yukine.playback.service.PlaybackServiceActions;
 import app.yukine.model.Track;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
 import androidx.annotation.OptIn;
@@ -209,7 +208,7 @@ final class PlaybackServiceRuntime
     private final MusicLibraryRepository repository;
     private final StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     private final StreamingRepositorySource streamingRepositorySource;
-    private final ToggleFavoriteUseCase toggleFavoriteUseCase;
+    private final PlaybackPersistenceOwner persistenceOwner;
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
     private PlaybackPlayerFactory playerFactory;
@@ -217,19 +216,22 @@ final class PlaybackServiceRuntime
     private PlaybackStreamingUrlRecovery playbackStreamingUrlRecovery;
     private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
     private volatile boolean appVisible;
+    private volatile boolean destroyed;
+    private Boolean pendingRestorePlayWhenReady;
+    private final PlaybackServiceActionBuffer serviceActionBuffer = new PlaybackServiceActionBuffer();
 
     PlaybackServiceRuntime(
             EchoPlaybackService service,
             MusicLibraryRepository repository,
             StreamingPlaybackHeaderStore streamingPlaybackHeaderStore,
             StreamingRepositorySource streamingRepositorySource,
-            ToggleFavoriteUseCase toggleFavoriteUseCase
+            PlaybackPersistenceOwner persistenceOwner
     ) {
         this.service = service;
         this.repository = repository;
         this.streamingPlaybackHeaderStore = streamingPlaybackHeaderStore;
         this.streamingRepositorySource = streamingRepositorySource;
-        this.toggleFavoriteUseCase = toggleFavoriteUseCase;
+        this.persistenceOwner = persistenceOwner;
     }
 
     private final Player.Listener playerListener = new Player.Listener() {
@@ -314,7 +316,14 @@ final class PlaybackServiceRuntime
 
     @UnstableApi
     void create() {
-        mediaSourceProvider = new PlaybackMediaSourceProvider(service, repository, streamingPlaybackHeaderStore);
+        destroyed = false;
+        serviceActionBuffer.reset();
+        persistenceOwner.initialize(mainHandler, this::restorePersistenceSnapshot);
+        mediaSourceProvider = new PlaybackMediaSourceProvider(
+                service,
+                repository::cachedRemoteSource,
+                streamingPlaybackHeaderStore
+        );
         playbackCurrentTrackPreparationQueueOwner =
                 PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
                         () -> playbackQueueManager,
@@ -324,17 +333,16 @@ final class PlaybackServiceRuntime
                                 : playbackNotificationManager.mediaMetadataForTrack(track)
                 );
         playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor);
-        playbackAudioEffectSettingsStore = PlaybackAudioEffectSettingsStore.fromRepository(repository);
-        playbackAudioEffectSettingsStore.restore();
+        playbackAudioEffectSettingsStore = new PlaybackAudioEffectSettingsStore(
+                persistenceOwner.audioEffectSettings()
+        );
         new PlaybackNotificationChannelOwner(service).createNotificationChannel();
         playbackMainHandlerSchedulerOwner = new PlaybackMainHandlerSchedulerOwner(mainHandler);
-        PlaybackQueueStore queueStore = new PlaybackQueueStoreImpl(repository);
-        playbackModeSettingsStore = PlaybackModeSettingsStore.fromRepository(repository);
-        playbackModeSettingsStore.restoreInto(playbackRuntimeStateManager);
-        playbackRuntimeSettingsStore = PlaybackRuntimeSettingsStore.fromRepository(repository);
-        playbackRuntimeSettingsStore.restoreInto(playbackRuntimeStateManager);
-        playbackPlayHistoryRecorder = PlaybackPlayHistoryRecorder.fromRepository(
-                repository,
+        PlaybackQueueStore queueStore = persistenceOwner.queueStore();
+        playbackModeSettingsStore = new PlaybackModeSettingsStore(persistenceOwner.modeSettings());
+        playbackRuntimeSettingsStore = new PlaybackRuntimeSettingsStore(persistenceOwner.runtimeSettings());
+        playbackPlayHistoryRecorder = new PlaybackPlayHistoryRecorder(
+                persistenceOwner::markPlayed,
                 playbackTransitionStateManager
         );
         playbackPositionManager = new PlaybackPositionManager(
@@ -472,7 +480,7 @@ final class PlaybackServiceRuntime
                         playbackPlayerStateOwner::isPlaying,
                         playbackCurrentTrackPreparationRuntimeOwner::preparing
                 ),
-                track -> toggleFavoriteUseCase != null && toggleFavoriteUseCase.isFavorite(track),
+                persistenceOwner::isFavorite,
                 () -> {
                     MediaLibrarySession session = playbackSessionManager == null ? null : playbackSessionManager.session();
                     return session == null ? null : session.getPlatformToken();
@@ -505,7 +513,6 @@ final class PlaybackServiceRuntime
                 playbackLyricsStateOwner,
                 playbackNotificationManager.lyricsNotificationBridge(playbackSessionRefresher)
         );
-        PlaybackLyricsSettingsStore.fromRepository(repository).restoreInto(playbackLyricsManager);
         playbackQueueCommandOwner = new PlaybackQueueCommandOwner(
                 PlaybackServiceRuntime.this::prepareCurrent,
                 PlaybackServiceRuntime.this::publishState,
@@ -567,7 +574,8 @@ final class PlaybackServiceRuntime
                         repository,
                         mediaSourceProvider,
                         playbackNotificationManager::mediaMetadataForTrack
-                )
+                ),
+                persistenceOwner.databaseExecutor()
         );
         playbackSessionManager = new PlaybackSessionManager(
                 service,
@@ -689,7 +697,8 @@ final class PlaybackServiceRuntime
                 ),
                 playbackNotificationCommandOwner::hasNotificationWorthyState,
                 () -> playbackNotificationCommandOwner.publishPlaybackNotification(true),
-                service::clearPlaybackNotification
+                service::clearPlaybackNotification,
+                persistenceOwner::flushPendingWrites
         );
         playbackShutdownPlaybackResourcesOwner = new PlaybackShutdownPlaybackResourcesOwner(
                 PlaybackShutdownPlaybackResourcesOwner.releaseFrom(
@@ -747,9 +756,6 @@ final class PlaybackServiceRuntime
                 mediaSourceProvider,
                 playbackMainHandlerSchedulerOwner
         );
-        if (playbackQueueManager != null) {
-            playbackQueueManager.restorePlaybackQueue();
-        }
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
         playbackNoisyReceiverManager = new PlaybackNoisyReceiverManager(
@@ -827,6 +833,19 @@ final class PlaybackServiceRuntime
     }
 
     void handleServiceAction(String action) {
+        if (PlaybackServiceActions.STOP.equals(action)) {
+            pendingRestorePlayWhenReady = null;
+        }
+        for (String dispatchableAction : serviceActionBuffer.accept(action)) {
+            dispatchServiceAction(dispatchableAction);
+        }
+    }
+
+    boolean requiresBootstrapForeground(String action) {
+        return serviceActionBuffer.requiresBootstrapForeground(action);
+    }
+
+    private void dispatchServiceAction(String action) {
         if (playbackNotificationManager != null) {
             playbackNotificationManager.handleServiceAction(action);
         }
@@ -848,6 +867,7 @@ final class PlaybackServiceRuntime
     }
 
     void destroy() {
+        destroyed = true;
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
@@ -1064,12 +1084,48 @@ final class PlaybackServiceRuntime
 
     public void toggleCurrentFavorite() {
         Track track = playbackQueueStateOwner.currentTrack();
-        if (toggleFavoriteUseCase != null && toggleFavoriteUseCase.toggle(track)) {
+        if (persistenceOwner.toggleFavorite(track)) {
             publishState();
         }
     }
 
+    private void restorePersistenceSnapshot() {
+        if (destroyed || playbackShutdownCoordinator == null) {
+            return;
+        }
+        playbackAudioEffectSettingsStore.restore();
+        playbackModeSettingsStore.restoreInto(playbackRuntimeStateManager);
+        playbackRuntimeSettingsStore.restoreInto(playbackRuntimeStateManager);
+        PlaybackLyricsSettingsStore lyricsSettingsStore =
+                new PlaybackLyricsSettingsStore(persistenceOwner.lyricsSettings());
+        lyricsSettingsStore.restoreInto(playbackLyricsManager);
+        applyPlaybackModeAndParametersToPlayer();
+        audioEffectManager.bind(player, playbackAudioEffectSettingsStore.current());
+        Boolean pendingRestore = pendingRestorePlayWhenReady;
+        pendingRestorePlayWhenReady = null;
+        List<String> serviceActions = serviceActionBuffer.markReadyAndDrain();
+        if (pendingRestore != null) {
+            restoreLastPlayback(pendingRestore);
+        } else if (playbackQueueManager != null && playbackQueueManager.queueSnapshot().isEmpty()) {
+            playbackQueueManager.restorePlaybackQueue();
+        }
+        publishState();
+        playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
+        for (String serviceAction : serviceActions) {
+            if (destroyed) {
+                break;
+            }
+            dispatchServiceAction(serviceAction);
+        }
+    }
+
     public void restoreLastPlayback(boolean playWhenRestored) {
+        if (!serviceActionBuffer.isReady()) {
+            pendingRestorePlayWhenReady = pendingRestorePlayWhenReady == null
+                    ? playWhenRestored
+                    : pendingRestorePlayWhenReady || playWhenRestored;
+            return;
+        }
         PlaybackQueueManager.RestorePlaybackResult restoreResult = playbackQueueManager == null
                 ? PlaybackQueueManager.RestorePlaybackResult.empty()
                 : playbackQueueManager.restoreLastPlayback(playWhenRestored);
@@ -1144,6 +1200,7 @@ final class PlaybackServiceRuntime
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.setPlaybackSpeed(playbackRuntimeStateManager, speed);
         }
+        persistenceOwner.updatePlaybackSpeed(speed);
         publishState();
     }
 
@@ -1157,6 +1214,7 @@ final class PlaybackServiceRuntime
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.setAppVolume(playbackRuntimeStateManager, volume);
         }
+        persistenceOwner.updateAppVolume(volume);
         publishState();
     }
 
@@ -1170,6 +1228,7 @@ final class PlaybackServiceRuntime
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.setConcurrentPlaybackEnabled(playbackRuntimeStateManager, enabled);
         }
+        persistenceOwner.updateConcurrentPlaybackEnabled(enabled);
     }
 
     public boolean concurrentPlaybackEnabled() {
@@ -1179,10 +1238,12 @@ final class PlaybackServiceRuntime
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
         statusBarLyricsEnabledAction.accept(enabled);
+        persistenceOwner.updateStatusBarLyricsEnabled(enabled);
     }
 
     public void setSystemMediaLyricsTitleEnabled(boolean enabled) {
         systemMediaLyricsTitleEnabledAction.accept(enabled);
+        persistenceOwner.updateSystemMediaLyricsTitleEnabled(enabled);
     }
 
     public void setPlaybackRestoreEnabled(boolean enabled) {
@@ -1195,6 +1256,7 @@ final class PlaybackServiceRuntime
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.setReplayGainEnabled(playbackRuntimeStateManager, enabled);
         }
+        persistenceOwner.updateReplayGainEnabled(enabled);
         publishState();
     }
 

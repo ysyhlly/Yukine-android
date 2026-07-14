@@ -2,6 +2,9 @@ package app.yukine;
 
 import android.os.Handler;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import app.yukine.data.MusicLibraryRepository;
 
 /** Owns onboarding state and first-run library startup policy. */
@@ -9,6 +12,10 @@ final class OnboardingFeatureBinding {
     private final OnboardingOwner owner;
     private final MainPermissionController permissionController;
     private final LibraryFeatureBinding library;
+    private final MusicLibraryRepository repository;
+    private final ExecutorService persistenceExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler;
+    private boolean released;
 
     OnboardingFeatureBinding(
             MainPermissionController permissionController,
@@ -22,6 +29,8 @@ final class OnboardingFeatureBinding {
     ) {
         this.permissionController = permissionController;
         this.library = library;
+        this.repository = repository;
+        this.mainHandler = mainHandler;
         this.owner = new OnboardingOwner(
                 new OnboardingPermissionAccess(
                         permissionController::hasAudioPermission,
@@ -32,11 +41,13 @@ final class OnboardingFeatureBinding {
                 navigation::navigateToNetworkTabPage,
                 documentPickerController::openPlaylistM3uFilePicker,
                 new OnboardingCompletionStore(
-                        () -> repository == null || !repository.loadOnboardingCompleted(),
                         () -> {
-                            if (repository != null) {
-                                repository.saveOnboardingCompleted(true);
-                            }
+                            throw new IllegalStateException("Onboarding visibility must be loaded asynchronously");
+                        },
+                        () -> {
+                            if (repository != null) persistenceExecutor.execute(
+                                    () -> repository.saveOnboardingCompleted(true)
+                            );
                         }
                 ),
                 () -> settingsStore == null ? AppLanguage.MODE_SYSTEM : settingsStore.languageMode(),
@@ -49,8 +60,15 @@ final class OnboardingFeatureBinding {
         return owner;
     }
 
-    void initialize() {
-        owner.initialize();
+    void initialize(Runnable completion) {
+        persistenceExecutor.execute(() -> {
+            boolean shouldShow = repository == null || !repository.loadOnboardingCompleted();
+            mainHandler.post(() -> {
+                if (released) return;
+                owner.initialize(shouldShow);
+                if (completion != null) completion.run();
+            });
+        });
     }
 
     void startLibrary() {
@@ -64,6 +82,8 @@ final class OnboardingFeatureBinding {
     }
 
     void release() {
+        released = true;
         owner.release();
+        persistenceExecutor.shutdown();
     }
 }

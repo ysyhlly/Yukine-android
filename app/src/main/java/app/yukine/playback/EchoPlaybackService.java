@@ -17,7 +17,9 @@ import androidx.media3.session.MediaSession;
 
 import javax.inject.Inject;
 
+import app.yukine.R;
 import app.yukine.PlaybackServiceHostPort;
+import app.yukine.playback.manager.PlaybackNotificationChannelOwner;
 import app.yukine.playback.service.PlaybackServiceActions;
 import dagger.hilt.android.AndroidEntryPoint;
 
@@ -78,7 +80,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         if (runtime != null) {
-            runtime.handleServiceAction(intent == null ? "" : intent.getAction());
+            String action = intent == null ? "" : intent.getAction();
+            if (runtime.requiresBootstrapForeground(action)) {
+                startPlaybackForeground(restoringPlaybackNotification());
+            }
+            runtime.handleServiceAction(action);
         }
         return START_STICKY;
     }
@@ -119,6 +125,26 @@ public final class EchoPlaybackService extends MediaLibraryService {
             Log.w(TAG, "Unable to start playback foreground notification", error);
             return false;
         }
+    }
+
+    private Notification restoringPlaybackNotification() {
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, PlaybackNotificationChannelOwner.CHANNEL_ID);
+        } else {
+            builder = new Notification.Builder(this);
+        }
+        return builder
+                .setSmallIcon(R.drawable.ic_stat_echo)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText(getString(R.string.app_name))
+                .setContentIntent(activityPendingIntent())
+                .setCategory(Notification.CATEGORY_TRANSPORT)
+                .setShowWhen(false)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setPriority(Notification.PRIORITY_LOW)
+                .build();
     }
 
     void clearPlaybackNotification() {

@@ -33,6 +33,7 @@ internal class PlaybackShutdownCoordinator(
         fun persistPlaybackPosition()
         fun persistPlaybackQueue()
         fun savePlaybackResumeRequested(requested: Boolean)
+        fun flushPendingPersistence()
         fun isPlaying(): Boolean
         fun isPreparing(): Boolean
         fun hasNotificationWorthyState(): Boolean
@@ -73,6 +74,7 @@ internal class PlaybackShutdownCoordinator(
         lifecycleResources.savePlaybackResumeRequested(
             lifecycleResources.isPlaying() || lifecycleResources.isPreparing()
         )
+        lifecycleResources.flushPendingPersistence()
         if (lifecycleResources.hasNotificationWorthyState()) {
             lifecycleResources.publishPlaybackNotification()
         }
@@ -86,6 +88,7 @@ internal class PlaybackShutdownCoordinator(
         serviceResources.releaseStatePublisher()
         lifecycleResources.persistPlaybackPosition()
         lifecycleResources.persistPlaybackQueue()
+        lifecycleResources.flushPendingPersistence()
         lifecycleResources.clearPlaybackNotification()
         releaseServiceResources()
     }
