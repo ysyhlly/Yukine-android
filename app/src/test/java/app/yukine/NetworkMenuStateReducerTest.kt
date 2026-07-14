@@ -1,0 +1,64 @@
+package app.yukine
+
+import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsMetric
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class NetworkMenuStateReducerTest {
+    @Test
+    fun homeUsesMergedSourcesAndNetworkTitleAndKeepsDestinations() {
+        val listener = RecordingListener()
+        val controller = NetworkMenuStateReducer(listener)
+
+        controller.reduceHome(AppLanguage.MODE_CHINESE, 1, 2, 3)
+        listener.actions.forEach { action -> action.onClick.run() }
+
+        assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "settings.group.sources"), listener.title)
+        assertEquals(
+            listOf(NetworkPage.Streaming, NetworkPage.WebDav, NetworkPage.Sources),
+            listener.pages
+        )
+    }
+
+    @Test
+    fun visibleBackActionsUseRouteBackStack() {
+        val listener = RecordingListener()
+        val controller = NetworkMenuStateReducer(listener)
+
+        controller.reduceStreaming(AppLanguage.MODE_ENGLISH, 0)
+        listener.actions.first().onClick.run()
+        controller.reduceWebDav(AppLanguage.MODE_ENGLISH, 0, 0)
+        listener.actions.first().onClick.run()
+
+        assertEquals(2, listener.backCount)
+        assertEquals(emptyList<String>(), listener.pages)
+    }
+
+    private class RecordingListener : NetworkMenuStateReducer.Listener {
+        var title = ""
+        var actions = emptyList<SettingsAction>()
+        val pages = mutableListOf<NetworkPage>()
+        var backCount = 0
+
+        override fun navigateNetworkPage(page: NetworkPage) { pages += page }
+        override fun backFromNetworkPage() { backCount += 1 }
+        override fun showAddStream() = Unit
+        override fun showImportM3u() = Unit
+        override fun openM3uFilePicker() = Unit
+        override fun playAllStreams() = Unit
+        override fun confirmDeleteAllStreams() = Unit
+        override fun showAddWebDav() = Unit
+        override fun syncAllWebDavSources() = Unit
+        override fun playAllWebDavTracks() = Unit
+
+        override fun publishNetworkMenu(
+            title: String,
+            metrics: List<SettingsMetric>,
+            actions: List<SettingsAction>
+        ) {
+            this.title = title
+            this.actions = actions
+        }
+    }
+}

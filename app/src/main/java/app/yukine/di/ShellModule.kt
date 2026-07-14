@@ -1,8 +1,6 @@
 package app.yukine.di
 
 import app.yukine.MainExecutors
-import app.yukine.MainHomeDashboardRenderListener
-import app.yukine.MainHomeDashboardRenderListenerFactory
 import app.yukine.NativeMusicShareManager
 import app.yukine.TrackShareManager
 import app.yukine.TrackShareManagerOperations
@@ -27,38 +25,4 @@ internal object ShellModule {
         nativeMusicShareManager: NativeMusicShareManager
     ): TrackShareOperations =
         TrackShareManagerOperations(trackShareManager, nativeMusicShareManager)
-
-    @Provides
-    @ActivityScoped
-    fun provideMainHomeDashboardRenderListenerFactory(): MainHomeDashboardRenderListenerFactory =
-        MainHomeDashboardRenderListenerFactory {
-                libraryModeOpener,
-                playbackContinuer,
-                nowPlayingOpener,
-                trackListPlayer,
-                libraryRefresher,
-                queueOpener,
-                allTracksSource,
-                streamingOpener,
-                collectionsOpener,
-                searchOpener,
-                dailyRecommendationsPlayer,
-                heartbeatRecommendationsPlayer,
-                actionsPublisher ->
-            MainHomeDashboardRenderListener(
-                libraryModeOpener,
-                playbackContinuer,
-                nowPlayingOpener,
-                trackListPlayer,
-                libraryRefresher,
-                queueOpener,
-                allTracksSource,
-                streamingOpener,
-                collectionsOpener,
-                searchOpener,
-                dailyRecommendationsPlayer,
-                heartbeatRecommendationsPlayer,
-                actionsPublisher
-            )
-        }
 }

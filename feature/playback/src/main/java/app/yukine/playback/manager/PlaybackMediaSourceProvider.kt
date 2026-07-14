@@ -19,16 +19,24 @@ import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
+import app.yukine.model.RemoteSource
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.function.LongFunction
 
 @UnstableApi
 internal class PlaybackMediaSourceProvider(
     private val context: Context,
-    private val repository: MusicLibraryRepository,
+    private val remoteSourceLookup: LongFunction<RemoteSource?>,
     private val streamingPlaybackHeaderStore: StreamingPlaybackHeaderStore
 ) : PlaybackQueueManager.StreamingRestoreProvider {
+    constructor(
+        context: Context,
+        repository: MusicLibraryRepository,
+        streamingPlaybackHeaderStore: StreamingPlaybackHeaderStore
+    ) : this(context, LongFunction(repository::loadRemoteSource), streamingPlaybackHeaderStore)
+
     private var audioCache: SimpleCache? = null
 
     fun mediaSourceFactory(track: Track): DefaultMediaSourceFactory {
@@ -186,7 +194,7 @@ internal class PlaybackMediaSourceProvider(
         }
         val sourceId = webDavSourceId(track.dataPath)
         if (sourceId <= 0L) return headers
-        val source = repository.loadRemoteSource(sourceId) ?: return headers
+        val source = remoteSourceLookup.apply(sourceId) ?: return headers
         if (!source.hasAuth()) return headers
         val auth = "${source.username}:${source.password}"
         val encoded = Base64.encodeToString(

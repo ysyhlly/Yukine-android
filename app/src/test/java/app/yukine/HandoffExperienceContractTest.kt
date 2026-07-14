@@ -10,8 +10,8 @@ import java.nio.file.Path
 class HandoffExperienceContractTest {
     @Test
     fun nowPlayingSwipeDownClosesWithoutVolumeGesture() {
-        val screen = read("app/src/main/java/app/yukine/ui/NowPlayingScreen.kt")
-        val language = read("app/src/main/java/app/yukine/AppLanguage.java")
+        val screen = read("feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt")
+        val language = read("core/designsystem/src/main/java/app/yukine/AppLanguage.java")
 
         assertTrue(screen.contains("actions.onClose.run()"))
         assertTrue(screen.contains("totalY > 0f"))
@@ -24,29 +24,29 @@ class HandoffExperienceContractTest {
 
     @Test
     fun progressBarSeeksFromAnyPointOnTapOrDrag() {
-        val nowBar = read("app/src/main/java/app/yukine/ui/NowBar.kt")
+        val gestures = read("feature/player-ui/src/main/java/app/yukine/ui/NowBarGestures.kt")
 
-        assertTrue(nowBar.contains("awaitFirstDown()"))
-        assertTrue(nowBar.contains("onSeek.seekTo(targetPosition)"))
-        assertTrue(nowBar.contains("drag(down.id)"))
-        assertFalse(nowBar.contains("thumbHit"))
+        assertTrue(gestures.contains("awaitFirstDown()"))
+        assertTrue(gestures.contains("onSeek.seekTo(targetPosition)"))
+        assertTrue(gestures.contains("drag(down.id)"))
+        assertFalse(gestures.contains("thumbHit"))
     }
 
     @Test
     fun defaultPlayerActionsUseChineseFallbacks() {
-        val nowBar = read("app/src/main/java/app/yukine/ui/NowBar.kt")
-        val trackList = read("app/src/main/java/app/yukine/ui/TrackListScreen.kt")
-        val queue = read("app/src/main/java/app/yukine/ui/QueueScreen.kt")
+        val nowBarState = read("feature/player-ui/src/main/java/app/yukine/ui/NowBarState.kt")
+        val trackList = read("feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt")
+        val queue = read("feature/player-ui/src/main/java/app/yukine/ui/QueueScreen.kt")
 
-        assertTrue(nowBar.contains("favoriteLabel = \"\\u6536\\u85cf\""))
-        assertTrue(nowBar.contains("repeatOffLabel = \"\\u5173\\u95ed\\u5faa\\u73af\""))
+        assertTrue(nowBarState.contains("favorite = \"\\u6536\\u85cf\""))
+        assertTrue(nowBarState.contains("repeatOff = \"\\u5173\\u95ed\\u5faa\\u73af\""))
         assertTrue(trackList.contains("addToPlaylistLabel: String = \"\\u52a0\\u5165\\u6b4c\\u5355\""))
         assertTrue(queue.contains("val title: String = \"\\u64ad\\u653e\\u961f\\u5217\""))
     }
 
     @Test
     fun trackLongPressOpensBeginnerActionSheet() {
-        val trackList = read("app/src/main/java/app/yukine/ui/TrackListScreen.kt")
+        val trackList = read("feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt")
 
         assertTrue(trackList.contains("ModalBottomSheet"))
         assertTrue(trackList.contains("TrackActionSheet("))
@@ -56,14 +56,14 @@ class HandoffExperienceContractTest {
 
     @Test
     fun streamingSearchFiltersOutNonSongResults() {
-        val viewModel = read("app/src/main/java/app/yukine/StreamingViewModel.kt")
-        val screen = read("feature/ui-common/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
+        val searchOwner = read("feature/streaming-ui/src/main/java/app/yukine/StreamingSearchStateOwner.kt")
+        val screen = read("feature/streaming-ui/src/main/java/app/yukine/ui/StreamingSearchScreen.kt")
 
-        assertTrue(viewModel.contains("trackOnlySearchResult()"))
-        assertTrue(viewModel.contains("albums = emptyList()"))
-        assertTrue(viewModel.contains("artists = emptyList()"))
-        assertTrue(viewModel.contains("playlists = emptyList()"))
-        assertTrue(viewModel.contains("mvs = emptyList()"))
+        assertTrue(searchOwner.contains("trackOnlySearchResult()"))
+        assertTrue(searchOwner.contains("albums = emptyList()"))
+        assertTrue(searchOwner.contains("artists = emptyList()"))
+        assertTrue(searchOwner.contains("playlists = emptyList()"))
+        assertTrue(searchOwner.contains("mvs = emptyList()"))
         assertTrue(screen.contains("val tracks = result?.tracks.orEmpty()"))
         assertFalse(screen.contains("val albums = result?.albums.orEmpty()"))
         assertFalse(screen.contains("val artists = result?.artists.orEmpty()"))
@@ -102,12 +102,6 @@ class HandoffExperienceContractTest {
 
     private fun candidatePaths(path: String): List<String> {
         val candidates = mutableListOf(path)
-        if (path.startsWith("app/src/main/java/app/yukine/ui/")) {
-            candidates += path.replace(
-                "app/src/main/java/app/yukine/ui/",
-                "feature/ui-common/src/main/java/app/yukine/ui/"
-            )
-        }
         if (path == "app/src/main/java/app/yukine/TrackDownloadFileNamePolicy.kt") {
             candidates += "core/common/src/main/java/app/yukine/TrackDownloadFileNamePolicy.kt"
         }

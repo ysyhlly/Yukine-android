@@ -27,9 +27,9 @@ internal class NetworkMenuEventController(
     private val labels: Labels,
     private val statusSink: StatusSink,
     private val networkMenuViewModel: NetworkMenuViewModel
-) : NetworkMenuRenderController.Listener {
+) : NetworkMenuStateReducer.Listener {
     fun interface Navigator {
-        fun navigateNetworkPage(page: String)
+        fun navigateNetworkPage(page: NetworkPage)
     }
 
     fun interface DocumentPicker {
@@ -68,7 +68,7 @@ internal class NetworkMenuEventController(
         fun setStatus(status: String)
     }
 
-    override fun navigateNetworkPage(page: String) {
+    override fun navigateNetworkPage(page: NetworkPage) {
         navigator.navigateNetworkPage(page)
     }
 

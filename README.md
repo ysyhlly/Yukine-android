@@ -24,8 +24,8 @@ YUKINE 面向重度听歌和本地曲库用户，优先保证这些体验：
 | 平台 | Android, minSdk 23, targetSdk 35, compileSdk 35 |
 | UI | Jetpack Compose, Material3, 单 Activity + Compose NavHost |
 | 播放 | AndroidX Media3 ExoPlayer, MediaSession, MediaLibraryService |
-| 数据 | SQLite helper + repository, 本地 tracks/playlists/play_events/settings 等表 |
-| 架构 | Java MainActivity 迁移期宿主 + Kotlin ViewModel/Controller/Bindings |
+| 数据 | Room `YukineDatabase` v15 + 聚焦 DAO/Repository，显式迁移 v1-v14 |
+| 架构 | 精简 Kotlin Activity + 聚焦 feature 模块 + 单向 StateFlow |
 | 依赖注入 | Hilt |
 | 网络与账号 | StreamingGateway, provider descriptor, WebView/cookie/local auth store |
 | 构建 | Gradle, Kotlin, Java 17 |
@@ -34,42 +34,33 @@ YUKINE 面向重度听歌和本地曲库用户，优先保证这些体验：
 
 ```mermaid
 flowchart TD
-    Activity["MainActivity\nJava migration host"] --> Nav["EchoAppHost / EchoNavGraph\nCompose NavHost"]
-    Nav --> Screens["Compose screens\nHome / Library / Now / Queue / Network / Settings"]
-    Activity --> VM["ViewModels\nLibrary / Streaming / Settings / Lyrics / NowPlaying"]
-    VM --> Controllers["Render + Event Controllers\nBindings keep UI actions small"]
-    Controllers --> Repo["Repositories / Use cases"]
-    Repo --> DB["EchoDatabaseHelper\ntracks, playlists, play_events, settings"]
-    Activity --> Service["EchoPlaybackService\nMedia3 MediaLibraryService"]
-    Service --> Exo["ExoPlayer\nMediaSession, notification, widget refresh"]
-    Service --> Lyrics["Lyrics publisher\nstatus bar, floating lyrics, OPPO fluid cloud via notification"]
-    Repo --> Streaming["StreamingGateway\nNetEase, gateway providers, stream lists"]
-    Streaming --> Network["HTTP / WebView auth / provider adapters"]
+    Activity["MainActivity\n生命周期、Compose 根节点、Service/launcher 委托"] --> Nav[":feature:navigation\n类型化 route 与 destination 装配"]
+    Nav --> Features[":feature:*‑ui\nLibrary / Player / Settings / Streaming"]
+    Features --> ReadModel["PlaybackReadModel + PlaybackCommands"]
+    ReadModel --> Service["EchoPlaybackService\nMedia3、MediaSession、通知、资源生命周期"]
+    Service --> Queue["PlaybackQueueManager\n队列与当前索引唯一可变 owner"]
+    Features --> Repositories["聚焦 Repository / Use case"]
+    Repositories --> Room["YukineDatabase v15\nDAO + 显式零损迁移"]
+    Repositories --> Streaming[":feature:streaming\nprovider、认证、解析与缓存"]
 ```
 
 ### 主要模块
 
-- `app.yukine.MainActivity`
-  - 迁移期 Activity 宿主，负责服务绑定、页面导航、对话框、权限、文档选择器和部分平台 API。
-- `app.yukine.navigation`
-  - Compose NavHost、Scaffold、底部导航、NowBar 挂载和 legacy route 映射。
-- `app.yukine.playback`
-  - Media3 播放服务、队列恢复、播放通知、小部件、音效、ReplayGain、后台控制。
-- `app.yukine.streaming`
-  - 流媒体 provider、账号状态、搜索、歌单导入、播放源解析和网关能力协商。
-- `app.yukine.data`
-  - 本地曲库、歌单、设置、播放事件、ReplayGain 和音频规格解析。
-- `app.yukine.ui`
-  - Compose 页面、主题、图标、NowBar、播放页、歌词、波形和 Onboarding。
+- `:app`：精简入口、DI 汇合、Android 平台能力、播放 Service 与跨 feature 状态绑定；不拥有业务 screen 或 ViewModel。
+- `:core:model` / `:core:common` / `:core:designsystem`：稳定模型、通用能力、主题 token 与纯 UI primitive。
+- `:feature:player-ui`：Now Bar、Now Playing、Queue、Lyrics 及其 ViewModel/state owner。
+- `:feature:library-ui` / `:feature:settings-ui` / `:feature:streaming-ui`：各自 screen、状态、typed intent 与 reducer。
+- `:feature:navigation`：类型化 route、SavedState 和 destination 装配。
+- `:feature:playback` / `:feature:data` / `:feature:streaming`：播放契约、Room 数据层和流媒体底层能力。
+
+详细边界、状态所有权和迁移策略见 [当前架构](docs/ARCHITECTURE.md)、[数据库迁移](docs/DATABASE_MIGRATIONS.md) 与 [设备回归矩阵](docs/DEVICE_REGRESSION_MATRIX.md)。
 
 ## 功能矩阵
 
 ## 最新更新
 
+- **架构债集中消除（2026-07-14）**：删除 `MainActivityBase`、`MainPlaybackStore`、手动页面 render 链、`EchoDatabaseHelper` 和旧 `ui-common` 业务集合；播放状态、业务 ViewModel、screen/reducer 已进入聚焦 feature，数据库切换为 Room v15 且 v1-v14 只允许显式零损迁移。
 - **曲库交互重写（2026-07-11）**：曲库增加页内搜索、排序、来源筛选、播放全部/随机播放、歌曲与分组多选；单曲左滑会停靠显示“更多/删除”，不会全滑误删。删除会区分歌单移除、曲库隐藏、网络记录删除和经系统授权的本地文件永久删除；隐藏歌曲写入排除表，重新扫描不会恢复，并可在“设置 → 曲库”逐项或全部恢复。
-- **播放边界统一（2026-06-25）**: 新增 `PlaybackController` 接口隔离 EchoPlaybackService 实现细节，提供 `PlaybackServiceController` 适配器和 `FakePlaybackController` 测试实现，便于 ViewModel 测试和未来播放引擎替换。
-- **曲库状态收敛（2026-06-25）**: `MainLibraryStore` 写接口已移除（setFavorite, toggleFavorite, clearPlayHistory），退化为只读兼容facade，收藏状态由 `MainActivityViewModel` 统一管理，通过单向同步保证一致性。
-- **测试稳定性修复（2026-06-25）**: `LyricsViewModel` 与 `StreamingViewModel` 改为注入 `ioDispatcher`（默认仍 `Dispatchers.IO`），替换硬编码后台调度，消除完整单测套件并行运行时的偶发失败；完整套件连续清运行已稳定全绿。
 - 启动体验优化：实时音频频谱轮询只在实际播放时运行，服务未连接或未播放时复用空频谱，避免打开动画期间每帧触发 Compose 重组。
 - 播放缓存提速：当前歌曲首段缓存改为立即高优先级执行，旧预缓存会主动取消；下一首 URL 预解析不再阻塞用户刚点击的当前歌曲解析，减少点播放时的卡顿。
 - 大曲库刷新提速：Android 11+ 的 MediaStore generation 未变化时跳过全量扫描，无法读取 generation 或旧系统会安全回退全扫；刷新会依次提示检查、扫描、原子更新和重载阶段，超过 45 秒会给出可重新扫描的提示；整库去重与搜索在后台运行且旧任务不能覆盖新结果，列表每次刷新只发布一次状态、父层只订阅分支布尔值，音频规格解析仅处理当前批量候选。
@@ -257,8 +248,8 @@ YUKINE is designed for local-library and long-session music listeners:
 | Platform | Android, minSdk 23, targetSdk 35, compileSdk 35 |
 | UI | Jetpack Compose, Material3, single Activity + Compose NavHost |
 | Playback | AndroidX Media3 ExoPlayer, MediaSession, MediaLibraryService |
-| Data | SQLite helper + repositories for tracks, playlists, play events, settings |
-| Architecture | Java MainActivity migration host + Kotlin ViewModels, Controllers, Bindings |
+| Data | Room `YukineDatabase` v15 with focused DAOs/repositories and explicit v1-v14 migrations |
+| Architecture | Thin Kotlin Activity, focused feature modules, unidirectional StateFlow |
 | DI | Hilt |
 | Streaming | StreamingGateway, provider descriptors, WebView/cookie/local auth store |
 | Build | Gradle, Kotlin, Java 17 |
@@ -267,27 +258,22 @@ YUKINE is designed for local-library and long-session music listeners:
 
 ```mermaid
 flowchart TD
-    Activity["MainActivity\nJava migration host"] --> Nav["EchoAppHost / EchoNavGraph\nCompose NavHost"]
-    Nav --> Screens["Compose screens\nHome / Library / Now / Queue / Network / Settings"]
-    Activity --> VM["ViewModels\nLibrary / Streaming / Settings / Lyrics / NowPlaying"]
-    VM --> Controllers["Render + Event Controllers\nBindings keep UI actions small"]
-    Controllers --> Repo["Repositories / Use cases"]
-    Repo --> DB["EchoDatabaseHelper\ntracks, playlists, play_events, settings"]
-    Activity --> Service["EchoPlaybackService\nMedia3 MediaLibraryService"]
-    Service --> Exo["ExoPlayer\nMediaSession, notification, widget refresh"]
-    Service --> Lyrics["Lyrics publisher\nstatus bar, floating lyrics, OPPO fluid cloud via notification"]
-    Repo --> Streaming["StreamingGateway\nNetEase, gateway providers, stream lists"]
-    Streaming --> Network["HTTP / WebView auth / provider adapters"]
+    Activity["MainActivity\nlifecycle, Compose root, service/launcher delegates"] --> Nav[":feature:navigation\ntyped routes and destinations"]
+    Nav --> Features[":feature:*‑ui\nLibrary / Player / Settings / Streaming"]
+    Features --> ReadModel["PlaybackReadModel + PlaybackCommands"]
+    ReadModel --> Service["EchoPlaybackService\nMedia3, MediaSession, notification, lifecycle"]
+    Service --> Queue["PlaybackQueueManager\nsingle mutable queue/index owner"]
+    Features --> Repositories["Focused repositories and use cases"]
+    Repositories --> Room["YukineDatabase v15\nDAOs and explicit zero-loss migrations"]
+    Repositories --> Streaming[":feature:streaming\nproviders, auth, resolution, cache"]
 ```
 
 ## Features
 
 ## Latest Updates
 
+- **Architecture debt elimination (2026-07-14):** removed `MainActivityBase`, `MainPlaybackStore`, manual page-render fan-out, `EchoDatabaseHelper`, and the business-heavy `ui-common` module. Playback state, business ViewModels, screens, and reducers now live in focused features; Room v15 accepts existing v1-v14 databases only through explicit zero-loss migrations. See [Architecture](docs/ARCHITECTURE.md), [Database migrations](docs/DATABASE_MIGRATIONS.md), and [Device regression matrix](docs/DEVICE_REGRESSION_MATRIX.md).
 - **Library interaction rewrite (2026-07-11):** The Library now supports inline search, sorting, source filters, play-all/shuffle, and track/group multi-select. Swiping a track reveals docked More/Delete actions without full-swipe deletion. Removal distinguishes playlist-only removal, persistent library hiding, network-record deletion, and system-authorized local file deletion; hidden tracks stay excluded from rescans and can be restored individually or together from Settings → Library.
-- **Playback boundary unified (2026-06-25)**: a new `PlaybackController` interface isolates EchoPlaybackService internals, with a `PlaybackServiceController` adapter and a `FakePlaybackController` test double, making ViewModels testable and the playback engine replaceable.
-- **Library state convergence (2026-06-25)**: `MainLibraryStore` write methods (setFavorite, toggleFavorite, clearPlayHistory) were removed; it is now a read-only compatibility facade, and favorite state is owned by `MainActivityViewModel` with one-way synchronization.
-- **Test stability fix (2026-06-25)**: `LyricsViewModel` and `StreamingViewModel` now inject an `ioDispatcher` (still defaulting to `Dispatchers.IO`) instead of hardcoding the background dispatcher, removing intermittent failures when the full unit-test suite runs in parallel; repeated clean runs of the suite are now consistently green.
 - Startup smoothness: realtime audio-spectrum polling now runs only while playback is active, and disconnected/stopped playback reuses an empty band array so app-open transitions do not trigger frame-by-frame Compose recomposition.
 - Playback cache startup is faster: the current track's leading cache range now starts immediately with high priority, stale precache writers are cancelled, and next-track URL pre-resolve no longer blocks the track the user just tapped.
 - Large-library refresh is faster: on Android 11+, an unchanged MediaStore generation skips the full scan; unavailable generation data and older Android versions safely fall back to a full scan. Refresh status now identifies checking, scanning, atomic replacement, and reloading, then offers a retryable scan message after 45 seconds. Whole-library deduplication and search run in the background, stale jobs cannot publish over newer results, each refresh publishes list state once while the parent observes only branch booleans, and audio-spec parsing handles only the current batch candidates.

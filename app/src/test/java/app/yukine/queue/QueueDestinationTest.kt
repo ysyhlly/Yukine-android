@@ -6,11 +6,18 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import app.yukine.LibraryStoreState
+import app.yukine.SettingsPreferencesSnapshot
+import app.yukine.SettingsState
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackConnectionState
+import app.yukine.playback.PlaybackQueueSnapshot
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.EchoTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
@@ -44,7 +51,7 @@ class QueueDestinationTest {
     @Test
     fun rendersBoundTracksFromViewModel() {
         val vm = QueueViewModel()
-        vm.bind(listOf(track(1L), track(2L)), snapshot(track(1L)), setOf(1L), "zh")
+        bind(vm, listOf(track(1L), track(2L)), snapshot(track(1L)), setOf(1L), "zh")
 
         composeRule.setContent {
             EchoTheme.EchoTheme { QueueDestination(vm) }
@@ -57,7 +64,7 @@ class QueueDestinationTest {
     @Test
     fun emptyQueue_showsEmptyState() {
         val vm = QueueViewModel()
-        vm.bind(emptyList(), snapshot(null), emptySet(), "zh")
+        bind(vm, emptyList(), snapshot(null), emptySet(), "zh")
 
         composeRule.setContent {
             EchoTheme.EchoTheme { QueueDestination(vm) }
@@ -70,7 +77,7 @@ class QueueDestinationTest {
     @Test
     fun clearQueueClick_forwardsIntentToViewModel() {
         val vm = QueueViewModel()
-        vm.bind(listOf(track(1L)), snapshot(track(1L)), emptySet(), "zh")
+        bind(vm, listOf(track(1L)), snapshot(track(1L)), emptySet(), "zh")
 
         val received = mutableListOf<QueueIntent>()
         val scope = CoroutineScope(Dispatchers.Unconfined)
@@ -85,5 +92,30 @@ class QueueDestinationTest {
         assertEquals(1, received.size)
         assertTrue(received.first() is QueueIntent.ClearQueue)
         scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+    }
+
+    private fun bind(
+        viewModel: QueueViewModel,
+        tracks: List<Track>,
+        playbackState: PlaybackStateSnapshot,
+        favoriteIds: Set<Long>,
+        languageMode: String
+    ) {
+        val readModel = FakePlaybackReadModel().apply {
+            state.value = playbackState
+            queue.value = PlaybackQueueSnapshot(tracks = tracks, revision = 1L)
+            connection.value = PlaybackConnectionState.Connected
+        }
+        viewModel.bindStateSources(
+            readModel,
+            MutableStateFlow(favoriteIds),
+            MutableStateFlow(languageMode)
+        )
+    }
+
+    private class FakePlaybackReadModel : PlaybackReadModel {
+        override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
+        override val queue = MutableStateFlow(PlaybackQueueSnapshot())
+        override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
     }
 }

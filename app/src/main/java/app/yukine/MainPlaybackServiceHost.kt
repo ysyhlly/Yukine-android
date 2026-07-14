@@ -1,23 +1,5 @@
 package app.yukine
 
-internal fun interface MainPlaybackServiceHostFactory {
-    fun create(
-        playbackSpeedSource: MainPlaybackServiceHost.PlaybackSpeedSource,
-        appVolumeSource: MainPlaybackServiceHost.AppVolumeSource,
-        concurrentPlaybackSource: MainPlaybackServiceHost.ConcurrentPlaybackSource,
-        statusBarLyricsSource: MainPlaybackServiceHost.StatusBarLyricsSource,
-        systemMediaLyricsTitleSource: MainPlaybackServiceHost.SystemMediaLyricsTitleSource,
-        playbackRestoreSource: MainPlaybackServiceHost.PlaybackRestoreSource,
-        replayGainSource: MainPlaybackServiceHost.ReplayGainSource,
-        playbackServiceAttacher: MainPlaybackServiceHost.PlaybackServiceAttacher,
-        playbackServiceClearer: MainPlaybackServiceHost.PlaybackServiceClearer,
-        playbackStoreResetter: MainPlaybackServiceHost.PlaybackStoreResetter,
-        pendingTracksPlayer: MainPlaybackServiceHost.PendingTracksPlayer,
-        selectedTabRenderer: MainPlaybackServiceHost.SelectedTabRenderer,
-        nowBarRenderer: MainPlaybackServiceHost.NowBarRenderer
-    ): PlaybackServiceHostController.Host
-}
-
 internal class MainPlaybackServiceHost(
     private val playbackSpeedSource: PlaybackSpeedSource,
     private val appVolumeSource: AppVolumeSource,
@@ -26,12 +8,8 @@ internal class MainPlaybackServiceHost(
     private val systemMediaLyricsTitleSource: SystemMediaLyricsTitleSource,
     private val playbackRestoreSource: PlaybackRestoreSource,
     private val replayGainSource: ReplayGainSource,
-    private val playbackServiceAttacher: PlaybackServiceAttacher,
-    private val playbackServiceClearer: PlaybackServiceClearer,
     private val playbackStoreResetter: PlaybackStoreResetter,
-    private val pendingTracksPlayer: PendingTracksPlayer,
-    private val selectedTabRenderer: SelectedTabRenderer,
-    private val nowBarRenderer: NowBarRenderer
+    private val pendingTracksPlayer: PendingTracksPlayer
 ) : PlaybackServiceHostController.Host {
     fun interface PlaybackSpeedSource {
         fun playbackSpeed(): Float
@@ -61,28 +39,12 @@ internal class MainPlaybackServiceHost(
         fun replayGainEnabled(): Boolean
     }
 
-    fun interface PlaybackServiceAttacher {
-        fun attachPlaybackService(service: PlaybackServiceHostPort)
-    }
-
-    fun interface PlaybackServiceClearer {
-        fun clearPlaybackService()
-    }
-
     fun interface PlaybackStoreResetter {
         fun resetPlaybackStore()
     }
 
     fun interface PendingTracksPlayer {
         fun playPendingTracksIfNeeded()
-    }
-
-    fun interface SelectedTabRenderer {
-        fun renderSelectedTab()
-    }
-
-    fun interface NowBarRenderer {
-        fun renderNowBar()
     }
 
     override fun playbackSpeed(): Float = playbackSpeedSource.playbackSpeed()
@@ -100,15 +62,6 @@ internal class MainPlaybackServiceHost(
 
     override fun replayGainEnabled(): Boolean = replayGainSource.replayGainEnabled()
 
-    override fun attachPlaybackService(service: PlaybackServiceHostPort) {
-        playbackServiceAttacher.attachPlaybackService(service)
-        service.setAppVisible(true)
-    }
-
-    override fun clearPlaybackService() {
-        playbackServiceClearer.clearPlaybackService()
-    }
-
     override fun resetPlaybackStore() {
         playbackStoreResetter.resetPlaybackStore()
     }
@@ -117,11 +70,4 @@ internal class MainPlaybackServiceHost(
         pendingTracksPlayer.playPendingTracksIfNeeded()
     }
 
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
-    }
-
-    override fun renderNowBar() {
-        nowBarRenderer.renderNowBar()
-    }
 }

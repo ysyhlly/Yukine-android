@@ -24,18 +24,6 @@ internal fun interface HeartbeatStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface MainHeartbeatRecommendationListenerFactory {
-    fun create(
-        serviceAvailability: HeartbeatPlaybackServiceAvailability,
-        seedRequestProvider: HeartbeatSeedRequestProvider,
-        modeStopper: HeartbeatModeStopper,
-        queueAppender: HeartbeatRecommendationQueueAppender,
-        playerSink: HeartbeatRecommendationPlayerSink,
-        seedMissLogger: HeartbeatSeedMissLogger,
-        statusSink: HeartbeatStatusSink
-    ): HeartbeatRecommendationController.Listener
-}
-
 internal class MainHeartbeatRecommendationListener(
     private val serviceAvailability: HeartbeatPlaybackServiceAvailability,
     private val seedRequestProvider: HeartbeatSeedRequestProvider,

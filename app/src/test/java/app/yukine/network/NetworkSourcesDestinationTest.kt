@@ -28,7 +28,7 @@ class NetworkSourcesDestinationTest {
             NetworkSourcesUiState(
                 title = "闊虫簮",
                 rows = listOf(
-                    NetworkSourceUiState(1L, "瀹跺涵 WebDAV", "https://nas.local", "宸茶繛鎺?"),
+                    NetworkSourceUiState(1L, "家庭 WebDAV", "https://nas.local", "已连接"),
                     NetworkSourceUiState(2L, "浜戠洏", "https://cloud.example", "鏈悓姝?")
                 ),
                 actions = listOf(
@@ -46,7 +46,7 @@ class NetworkSourcesDestinationTest {
         }
 
         composeRule.onNodeWithText("闊虫簮").assertIsDisplayed()
-        composeRule.onNodeWithText("瀹跺涵 WebDAV").assertIsDisplayed()
+        composeRule.onNodeWithText("家庭 WebDAV").assertIsDisplayed()
         composeRule.onNodeWithText("浜戠洏").assertIsDisplayed()
     }
 }

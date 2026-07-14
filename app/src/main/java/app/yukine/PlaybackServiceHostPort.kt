@@ -1,9 +1,15 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackCommands
+import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.state.PlaybackStateListener
 
-interface PlaybackServiceHostPort : NowPlayingPlaybackServicePort, SettingsPlaybackServicePort {
+interface PlaybackServiceHostPort : PlaybackCommands, SettingsPlaybackServicePort {
+    fun snapshot(): PlaybackStateSnapshot?
+
+    fun queueSnapshot(): List<Track>
+
     fun registerListener(listener: PlaybackStateListener?)
 
     fun unregisterListener(listener: PlaybackStateListener?)

@@ -4,6 +4,17 @@ name: Release Mapping Archive
 # 在 GitHub Actions 页面点击 "Run workflow" 即可触发。
 on:
   workflow_dispatch:
+    inputs:
+      version_name:
+        description: Version name embedded in the APK (for example 0.2.0-rc.1)
+        required: true
+        default: 0.2.0-rc.1
+        type: string
+      version_code:
+        description: Monotonically increasing Android version code
+        required: true
+        default: '7'
+        type: string
 
 jobs:
   release-mapping:
@@ -30,7 +41,9 @@ jobs:
       # 若签名密钥已配置为 Repository Secrets，可在 env 块取消注释以启用正式签名。
       - name: Assemble release APK (generate mapping.txt)
         run: ./gradlew --no-daemon :app:assembleRelease --console=plain
-        # env:
+        env:
+          ECHO_VERSION_NAME: ${{ inputs.version_name }}
+          ECHO_VERSION_CODE: ${{ inputs.version_code }}
         #   ECHO_RELEASE_STORE_FILE:     ${{ secrets.ECHO_RELEASE_STORE_FILE }}
         #   ECHO_RELEASE_STORE_PASSWORD: ${{ secrets.ECHO_RELEASE_STORE_PASSWORD }}
         #   ECHO_RELEASE_KEY_ALIAS:      ${{ secrets.ECHO_RELEASE_KEY_ALIAS }}

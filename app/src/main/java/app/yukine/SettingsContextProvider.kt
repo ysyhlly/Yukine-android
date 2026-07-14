@@ -1,11 +1,12 @@
 package app.yukine
 
+
 internal class SettingsContextProvider(
     private val settingsStore: MainSettingsStore,
-    private val libraryStore: MainLibraryStore,
+    private val libraryStore: LibraryDataStateOwner,
     private val permissionController: MainPermissionController,
     private val playbackConnectionController: PlaybackServiceConnectionController,
-    private val playbackStore: MainPlaybackStore,
+    private val playbackSnapshotProvider: PlaybackSnapshotProvider,
     private val lyricsViewModel: LyricsViewModel?,
     private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
     private val luoxueSourceStore: app.yukine.streaming.LuoxueSourceStoreManager,
@@ -22,11 +23,12 @@ internal class SettingsContextProvider(
         val allTracks = libraryStore.allTracks()
         val luoxueSources = luoxueSourceStore.load()
         return RuntimeSettingsStatus(
+            appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
             notificationPermissionGranted = permissionController.hasNotificationPermission(),
             overlayPermissionGranted = permissionController.hasOverlayPermission(),
             playbackServiceConnected = playbackConnectionController.isBound(),
-            sleepTimerRemainingMs = playbackStore.snapshot().sleepTimerRemainingMs,
+            sleepTimerRemainingMs = playbackSnapshotProvider.playbackSnapshot.value.sleepTimerRemainingMs,
             lyricsOffsetMs = lyricsViewModel?.offsetMs() ?: 0L,
             onlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true,
             librarySongCount = allTracks.size,

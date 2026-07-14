@@ -38,10 +38,9 @@ class MainPlaybackStartListenerTest {
     }
 
     @Test
-    fun factoryCreatesPlaybackStartControllerListener() {
-        val factory = PlaybackUiModule.provideMainPlaybackStartListenerFactory()
+    fun directConstructionCreatesPlaybackStartControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = factory.create(
+        val listener = MainPlaybackStartListener(
             PlaybackStartHeartbeatStopper { calls += "stopHeartbeat" },
             PlaybackStartServiceStarter { calls += "startService" },
             PlaybackStartServiceAvailability { false },

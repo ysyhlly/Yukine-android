@@ -48,10 +48,9 @@ class MainHeartbeatRecommendationListenerTest {
     }
 
     @Test
-    fun factoryCreatesHeartbeatRecommendationControllerListener() {
-        val factory = StreamingModule.provideMainHeartbeatRecommendationListenerFactory()
+    fun directConstructionCreatesHeartbeatRecommendationControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = factory.create(
+        val listener = MainHeartbeatRecommendationListener(
             HeartbeatPlaybackServiceAvailability { false },
             HeartbeatSeedRequestProvider { HeartbeatRecommendationSeedRequest(seedTrackId = "seed") },
             HeartbeatModeStopper { calls += "stop" },

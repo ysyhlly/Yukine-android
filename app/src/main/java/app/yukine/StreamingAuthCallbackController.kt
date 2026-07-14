@@ -30,13 +30,13 @@ internal class StreamingAuthCallbackController(
         val provider = parsedProvider ?: streamingViewModel.state.selectedProvider
         if (queryParameter(uri.rawQuery, "manualCookie") == "1") {
             actionGateway.openManualCookieImport(provider)
-            streamingViewModel.clearStreamingAuthLaunch()
+            streamingViewModel.auth.clearAuthLaunch()
             return true
         }
-        streamingViewModel.completeStreamingAuth(provider, uri.toString(), cookieHeader) { loggedInProvider ->
+        streamingViewModel.auth.completeAuth(provider, uri.toString(), cookieHeader) { loggedInProvider ->
             actionGateway.onStreamingLoginSuccess(loggedInProvider)
         }
-        streamingViewModel.clearStreamingAuthLaunch()
+        streamingViewModel.auth.clearAuthLaunch()
         return true
     }
 

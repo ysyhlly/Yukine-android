@@ -24,7 +24,7 @@ fun EchoNowBar(
     onSeek: SeekAction
 ) {
     var waveformExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(state.trackId, state.contentUri, state.dataPath) {
+    LaunchedEffect(state.track.trackId, state.track.contentUri, state.track.dataPath) {
         waveformExpanded = false
     }
     NowBar(

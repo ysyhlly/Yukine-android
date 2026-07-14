@@ -1,15 +1,5 @@
 package app.yukine
 
-internal fun interface MainPlayHistoryActionControllerFactory {
-    fun create(
-        viewModel: LibraryViewModel,
-        languageModeProvider: () -> String,
-        libraryStateStore: PlayHistoryStateStore,
-        statusSink: (String) -> Unit,
-        collectionsReloadAction: Runnable
-    ): PlayHistoryActionController
-}
-
 internal class PlayHistoryActionController(
     private val viewModel: LibraryViewModel,
     private val languageModeProvider: () -> String,
@@ -19,7 +9,7 @@ internal class PlayHistoryActionController(
 ) {
     fun clearPlayHistory() {
         statusSink(text("clearing.play.history"))
-        viewModel.clearPlayHistory { removed ->
+        viewModel.playlists.clearPlayHistory { removed ->
             libraryStateStore.clearPlayHistory()
             statusSink(text("cleared.play.history.prefix") + removed)
             collectionsReloadAction.run()

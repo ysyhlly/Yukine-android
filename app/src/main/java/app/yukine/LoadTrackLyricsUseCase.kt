@@ -69,3 +69,13 @@ internal class LoadTrackLyricsUseCase(
         return operations.loadForTrack(track, onlineEnabled, neteaseProviderTrackId.orEmpty())
     }
 }
+
+internal class LoadTrackLyricsUseCaseLyricsLoader(
+    private val useCase: LoadTrackLyricsUseCase
+) : LyricsLoader {
+    override suspend fun load(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): List<LyricsLine> = useCase.execute(track, onlineEnabled, neteaseProviderTrackId)
+}

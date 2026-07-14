@@ -200,13 +200,18 @@ class DownloadsViewModelTest {
 
     private class FakeDownloadDirectoryController : TrackDownloadDirectoryController {
         val calls = mutableListOf<String>()
-        private var directory = TrackDownloadManager.DOWNLOAD_DIRECTORY_MUSIC
+        private var directory = DOWNLOAD_DIRECTORY_MUSIC
 
         override fun downloadDirectoryLabel(): String = "$directory/Yukine"
 
         override fun setDownloadDirectory(directory: String) {
             this.directory = directory
             calls += "set:$directory"
+        }
+
+        override fun setCustomDownloadDirectory(treeUri: android.net.Uri) {
+            directory = TrackDownloadManager.DOWNLOAD_DIRECTORY_CUSTOM
+            calls += "custom:$treeUri"
         }
 
         override fun snapshot(): List<TrackDownloadItem> = emptyList()

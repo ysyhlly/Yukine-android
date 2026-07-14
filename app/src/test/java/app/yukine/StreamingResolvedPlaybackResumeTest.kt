@@ -41,7 +41,7 @@ class StreamingResolvedPlaybackResumeTest {
 
         assertFalse(StreamingPlaybackAdapter.isUnresolvedStreamingTrack(resolved))
         assertNull(
-            StreamingViewModel().prepareCurrentStreamingQueueResolveTarget(
+            StreamingViewModel().playbackResolution.prepareCurrentStreamingQueueResolveTarget(
                 snapshot = snapshot,
                 queue = listOf(resolved)
             )

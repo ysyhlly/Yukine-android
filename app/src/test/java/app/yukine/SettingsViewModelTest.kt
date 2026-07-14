@@ -4,7 +4,9 @@ import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.SettingsMetric
 import app.yukine.streaming.StreamingQualityPreference
+import app.yukine.navigation.SettingsTab
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -16,13 +18,13 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
     @get:Rule
-    val mainDispatcherRule = LibraryMainDispatcherRule()
+    val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun renderPageFromHostPublishesTypedPageUi() {
+    fun publishCurrentPagePublishesTypedPageUi() {
         val viewModel = SettingsViewModel()
 
-        viewModel.renderPageFromHost(
+        viewModel.publishCurrentPage(
             SettingsPage.Home,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()
@@ -35,33 +37,33 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun onEventEmitsLibraryAndExternalActionEffects() {
+    fun focusedPageOwnersEmitLibraryAndExternalActionEffects() {
         val viewModel = SettingsViewModel()
 
-        viewModel.onEvent(SettingsEvent.OpenNetworkPage(MainRoutes.NETWORK_SOURCES))
-        viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
-        viewModel.onEvent(SettingsEvent.LoadLibrary)
-        viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
-        viewModel.onEvent(SettingsEvent.OpenAudioFolderPicker)
-        viewModel.onEvent(SettingsEvent.SetOnlineLyricsEnabled(true))
-        viewModel.onEvent(SettingsEvent.ReloadCurrentLyrics)
-        viewModel.onEvent(SettingsEvent.ApplyLyricsOffset(500L))
-        viewModel.onEvent(SettingsEvent.StartSleepTimer(30))
-        viewModel.onEvent(SettingsEvent.CancelSleepTimer)
-        viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
-        viewModel.onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
-        viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
-        viewModel.onEvent(SettingsEvent.ChoosePageBackground(PageBackgrounds.PAGE_HOME))
-        viewModel.onEvent(SettingsEvent.ClearPageBackground(PageBackgrounds.PAGE_SETTINGS))
-        viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint("http://127.0.0.1:3000"))
-        viewModel.onEvent(SettingsEvent.ExportBackup)
-        viewModel.onEvent(SettingsEvent.ImportBackup)
+        viewModel.network.openPage(NetworkPage.Sources)
+        viewModel.platform.requestNeededPermissions()
+        viewModel.library.loadLibrary()
+        viewModel.library.openAudioFilePicker()
+        viewModel.library.openAudioFolderPicker()
+        viewModel.lyrics.setOnlineLyricsEnabled(true)
+        viewModel.lyrics.reloadCurrentLyrics()
+        viewModel.lyrics.applyLyricsOffset(500L)
+        viewModel.playback.startSleepTimer(30)
+        viewModel.playback.cancelSleepTimer()
+        viewModel.lyrics.setStatusBarLyricsEnabled(false)
+        viewModel.lyrics.setSystemMediaLyricsTitleEnabled(true)
+        viewModel.lyrics.setFloatingLyricsEnabled(true)
+        viewModel.platform.openFloatingLyricsPermission()
+        viewModel.appearance.choosePageBackground(PageBackgrounds.PAGE_HOME)
+        viewModel.appearance.clearPageBackground(PageBackgrounds.PAGE_SETTINGS)
+        viewModel.network.applyStreamingGatewayEndpoint("http://127.0.0.1:3000")
+        viewModel.platform.exportBackup()
+        viewModel.platform.importBackup()
 
         val effects = viewModel.drainEffects()
         assertEquals(
             listOf(
-                SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_SOURCES),
+                SettingsEffect.OpenNetworkPage(NetworkPage.Sources),
                 SettingsEffect.RequestNeededPermissions,
                 SettingsEffect.LoadLibrary,
                 SettingsEffect.OpenAudioFilePicker,
@@ -97,7 +99,7 @@ class SettingsViewModelTest {
     fun onEventWithoutGatewayDoesNotCrash() {
         val viewModel = SettingsViewModel()
 
-        viewModel.onEvent(SettingsEvent.LoadLibrary)
+        viewModel.library.loadLibrary()
 
         assertEquals(SettingsUiState(), viewModel.uiState.value)
         assertEquals(SettingsState(), viewModel.state.value)
@@ -110,23 +112,23 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel()
         viewModel.bindEffectListener { effect -> effects += effect }
 
-        viewModel.onEvent(SettingsEvent.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV))
-        viewModel.onEvent(SettingsEvent.OpenDownloads)
-        viewModel.onEvent(SettingsEvent.RequestNeededPermissions)
-        viewModel.onEvent(SettingsEvent.LoadLibrary)
-        viewModel.onEvent(SettingsEvent.OpenAudioFilePicker)
-        viewModel.onEvent(SettingsEvent.OpenAudioFolderPicker)
-        viewModel.onEvent(SettingsEvent.ReloadCurrentLyrics)
-        viewModel.onEvent(SettingsEvent.StartSleepTimer(15))
-        viewModel.onEvent(SettingsEvent.CancelSleepTimer)
-        viewModel.onEvent(SettingsEvent.OpenFloatingLyricsPermission)
-        viewModel.onEvent(SettingsEvent.ChoosePageBackground(PageBackgrounds.PAGE_SETTINGS))
-        viewModel.onEvent(SettingsEvent.ExportBackup)
-        viewModel.onEvent(SettingsEvent.ImportBackup)
-        viewModel.onEvent(SettingsEvent.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990"))
+        viewModel.network.openPage(NetworkPage.WebDav)
+        viewModel.platform.openDownloads()
+        viewModel.platform.requestNeededPermissions()
+        viewModel.library.loadLibrary()
+        viewModel.library.openAudioFilePicker()
+        viewModel.library.openAudioFolderPicker()
+        viewModel.lyrics.reloadCurrentLyrics()
+        viewModel.playback.startSleepTimer(15)
+        viewModel.playback.cancelSleepTimer()
+        viewModel.platform.openFloatingLyricsPermission()
+        viewModel.appearance.choosePageBackground(PageBackgrounds.PAGE_SETTINGS)
+        viewModel.platform.exportBackup()
+        viewModel.platform.importBackup()
+        viewModel.network.applyStreamingGatewayEndpoint("http://127.0.0.1:43990")
 
         val expected = listOf(
-            SettingsEffect.OpenNetworkPage(MainRoutes.NETWORK_WEBDAV),
+            SettingsEffect.OpenNetworkPage(NetworkPage.WebDav),
             SettingsEffect.OpenDownloads,
             SettingsEffect.RequestNeededPermissions,
             SettingsEffect.LoadLibrary,
@@ -149,7 +151,7 @@ class SettingsViewModelTest {
     fun navigatePageUpdatesStateWithoutGateway() {
         val viewModel = SettingsViewModel()
 
-        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(SettingsPage.PageBackground))
+        viewModel.navigateSettingsPage(SettingsPage.PageBackground)
 
         assertEquals(SettingsPage.PageBackground, viewModel.state.value.page)
         assertEquals(
@@ -165,8 +167,8 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel()
         viewModel.bindEffectListener { effect -> effects += effect }
 
-        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(SettingsPage.LibraryGroup))
-        viewModel.onEvent(SettingsEvent.NavigateSettingsPage(SettingsPage.Library))
+        viewModel.navigateSettingsPage(SettingsPage.LibraryGroup)
+        viewModel.navigateSettingsPage(SettingsPage.Library)
 
         assertEquals(SettingsPage.Library, viewModel.state.value.page)
         assertEquals(
@@ -182,7 +184,7 @@ class SettingsViewModelTest {
     @Test
     fun librarySettingsBackActionsNavigateThroughExpectedParents() {
         val viewModel = SettingsViewModel()
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Library,
             SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_CHINESE),
             RuntimeSettingsStatus(librarySongCount = 128)
@@ -206,17 +208,49 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun renderPageFromHostUpdatesCurrentPage() {
+    fun routeStateDrivesCurrentPageWithoutHostRendering() = runTest {
         val viewModel = SettingsViewModel()
-
-        viewModel.renderPageFromHost(
-            SettingsPage.PlaybackGroup,
-            SettingsPreferencesSnapshot(),
-            RuntimeSettingsStatus()
+        val routes = MutableStateFlow(
+            SettingsRouteState(active = true, page = SettingsPage.PlaybackGroup)
         )
+
+        viewModel.bindRouteState(routes)
+        advanceUntilIdle()
 
         assertEquals(SettingsPage.PlaybackGroup, viewModel.state.value.page)
         assertEquals(viewModel.state.value.ui, viewModel.uiState.value)
+
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Lyrics)
+        advanceUntilIdle()
+
+        assertEquals(SettingsPage.Lyrics, viewModel.state.value.page)
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_SYSTEM, "lyrics"),
+            viewModel.uiState.value.title
+        )
+    }
+
+    @Test
+    fun enteringSettingsRefreshesRuntimeContextEvenWhenPageIsUnchanged() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val viewModel = SettingsViewModel(dispatcher)
+        val routes = MutableStateFlow(SettingsRouteState(page = SettingsPage.Home))
+        var loads = 0
+        viewModel.bindContextLoader {
+            loads += 1
+            SettingsContextSnapshot(SettingsPreferencesSnapshot(), RuntimeSettingsStatus())
+        }
+        viewModel.bindRouteState(routes)
+        advanceUntilIdle()
+
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Home)
+        advanceUntilIdle()
+        routes.value = SettingsRouteState(page = SettingsPage.Home)
+        advanceUntilIdle()
+        routes.value = SettingsRouteState(active = true, page = SettingsPage.Home)
+        advanceUntilIdle()
+
+        assertEquals(2, loads)
     }
 
     @Test
@@ -273,7 +307,7 @@ class SettingsViewModelTest {
             loads += 1
             SettingsContextSnapshot(preferences, runtime)
         }
-        viewModel.renderPageFromHost(
+        viewModel.publishCurrentPage(
             SettingsPage.Library,
             SettingsPreferencesSnapshot(),
             RuntimeSettingsStatus()
@@ -302,26 +336,26 @@ class SettingsViewModelTest {
             true
         }
 
-        viewModel.onEvent(SettingsEvent.ApplyThemeMode("dark"))
-        viewModel.onEvent(SettingsEvent.ApplyAccentMode("teal"))
-        viewModel.onEvent(SettingsEvent.ApplyLanguageMode(AppLanguage.MODE_ENGLISH))
-        viewModel.onEvent(SettingsEvent.ApplyPlaybackSpeed(2.5f))
-        viewModel.onEvent(SettingsEvent.ApplyAppVolume(-0.4f))
-        viewModel.onEvent(SettingsEvent.ApplyStreamingAudioQuality("lossless"))
-        viewModel.onEvent(SettingsEvent.ApplyShareStyle(TrackShareStyle.CARD))
-        viewModel.onEvent(SettingsEvent.SetConcurrentPlaybackEnabled(false))
-        viewModel.onEvent(SettingsEvent.SetOnlineLyricsEnabled(true))
-        viewModel.onEvent(SettingsEvent.ApplyLyricsOffset(5555L))
-        viewModel.onEvent(SettingsEvent.ApplyAudioEffectSettings(app.yukine.playback.AudioEffectSettings.DEFAULT.withEnabled(true)))
-        viewModel.onEvent(SettingsEvent.SetStatusBarLyricsEnabled(false))
-        viewModel.onEvent(SettingsEvent.SetSystemMediaLyricsTitleEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetFloatingLyricsEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetNowPlayingGesturesEnabled(false))
-        viewModel.onEvent(SettingsEvent.SetPlaybackRestoreEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetReplayGainEnabled(false))
-        viewModel.onEvent(SettingsEvent.SetDebugPromptsEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetCustomBackgroundBlurEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetCustomBackgroundBlurRadiusDp(80f))
+        viewModel.appearance.applyThemeMode("dark")
+        viewModel.appearance.applyAccentMode("teal")
+        viewModel.appearance.applyLanguageMode(AppLanguage.MODE_ENGLISH)
+        viewModel.playback.applyPlaybackSpeed(2.5f)
+        viewModel.playback.applyAppVolume(-0.4f)
+        viewModel.playback.applyStreamingAudioQuality("lossless")
+        viewModel.appearance.applyShareStyle(TrackShareStyle.CARD)
+        viewModel.playback.setConcurrentPlaybackEnabled(false)
+        viewModel.lyrics.setOnlineLyricsEnabled(true)
+        viewModel.lyrics.applyLyricsOffset(5555L)
+        viewModel.playback.applyAudioEffectSettings(app.yukine.playback.AudioEffectSettings.DEFAULT.withEnabled(true))
+        viewModel.lyrics.setStatusBarLyricsEnabled(false)
+        viewModel.lyrics.setSystemMediaLyricsTitleEnabled(true)
+        viewModel.lyrics.setFloatingLyricsEnabled(true)
+        viewModel.playback.setNowPlayingGesturesEnabled(false)
+        viewModel.playback.setPlaybackRestoreEnabled(true)
+        viewModel.playback.setReplayGainEnabled(false)
+        viewModel.appearance.setDebugPromptsEnabled(true)
+        viewModel.appearance.setCustomBackgroundBlurEnabled(true)
+        viewModel.appearance.setCustomBackgroundBlurRadiusDp(80f)
         advanceUntilIdle()
 
         assertEquals(
@@ -414,13 +448,13 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(dispatcher)
         val preferenceGateway = FakePreferenceGateway().also { it.failWrites = true }
         viewModel.bindPreferenceGateway(preferenceGateway)
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Appearance,
             SettingsPreferencesSnapshot(languageMode = AppLanguage.MODE_ENGLISH),
             RuntimeSettingsStatus()
         )
 
-        viewModel.onEvent(SettingsEvent.ApplyThemeMode(EchoTheme.MODE_DARK))
+        viewModel.appearance.applyThemeMode(EchoTheme.MODE_DARK)
         advanceUntilIdle()
 
         assertEquals(EchoTheme.MODE_SYSTEM, viewModel.state.value.preferences.themeMode)
@@ -442,8 +476,8 @@ class SettingsViewModelTest {
             true
         }
 
-        viewModel.onEvent(SettingsEvent.SetAudioExclusiveEnabled(true))
-        viewModel.onEvent(SettingsEvent.SetAudioExclusiveEnabled(false))
+        viewModel.playback.setAudioExclusiveEnabled(true)
+        viewModel.playback.setAudioExclusiveEnabled(false)
         advanceUntilIdle()
 
         assertEquals(
@@ -476,9 +510,9 @@ class SettingsViewModelTest {
                 settingsUri = "content://settings"
             )
         )
-        viewModel.renderCurrentPage(SettingsPage.PageBackground, preferences, RuntimeSettingsStatus())
+        viewModel.publishCurrentPage(SettingsPage.PageBackground, preferences, RuntimeSettingsStatus())
 
-        viewModel.onEvent(SettingsEvent.ClearPageBackground(PageBackgrounds.PAGE_SETTINGS))
+        viewModel.appearance.clearPageBackground(PageBackgrounds.PAGE_SETTINGS)
         advanceUntilIdle()
 
         val backgrounds = viewModel.state.value.preferences.pageBackgrounds
@@ -498,7 +532,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun renderCurrentPageBuildsUiFromSnapshotsAndRoutesActionsThroughViewModel() {
+    fun publishCurrentPageBuildsUiFromSnapshotsAndRoutesActionsThroughViewModel() {
         val viewModel = SettingsViewModel()
         val preferences = SettingsPreferencesSnapshot(
             themeMode = "dark",
@@ -514,7 +548,7 @@ class SettingsViewModelTest {
             streamingGatewayConfigured = true
         )
 
-        val content = viewModel.renderCurrentPage(SettingsPage.StreamingGateway, preferences, runtime)
+        val content = viewModel.publishCurrentPage(SettingsPage.StreamingGateway, preferences, runtime)
 
         assertEquals(SettingsPage.StreamingGateway, viewModel.state.value.page)
         assertEquals(preferences, viewModel.state.value.preferences)
@@ -542,8 +576,8 @@ class SettingsViewModelTest {
     fun luoxueSettingsActionsEmitDirectManagerAndImportEffects() {
         val viewModel = SettingsViewModel()
 
-        viewModel.onEvent(SettingsEvent.OpenLuoxueSourceManager)
-        viewModel.onEvent(SettingsEvent.ImportLuoxueSource)
+        viewModel.network.openLuoxueSourceManager()
+        viewModel.network.importLuoxueSource()
 
         assertEquals(
             listOf(
@@ -564,21 +598,21 @@ class SettingsViewModelTest {
         viewModel.bindStoreMirror(mirror)
         viewModel.bindRuntimeEffectListener { true }
 
-        viewModel.applyThemeMode("dark")
-        viewModel.applyAccentMode("teal")
-        viewModel.applyLanguageMode(AppLanguage.MODE_ENGLISH)
-        viewModel.applyPlaybackSpeed(2.5f)
-        viewModel.applyAppVolume(-0.4f)
-        viewModel.applyStreamingAudioQuality("lossless")
-        viewModel.applyShareStyle(TrackShareStyle.CARD)
-        viewModel.setOnlineLyricsEnabled(true)
-        viewModel.setConcurrentPlaybackEnabled(false)
-        viewModel.setStatusBarLyricsEnabled(false)
-        viewModel.setFloatingLyricsEnabled(true)
-        viewModel.setNowPlayingGesturesEnabled(false)
-        viewModel.setPlaybackRestoreEnabled(true)
-        viewModel.applyPageBackgrounds(PageBackgrounds(sharedUri = "content://bg"), PageBackgrounds.PAGE_ALL, false)
-        viewModel.applyLyricsOffset(5555L)
+        viewModel.appearance.applyThemeMode("dark")
+        viewModel.appearance.applyAccentMode("teal")
+        viewModel.appearance.applyLanguageMode(AppLanguage.MODE_ENGLISH)
+        viewModel.playback.applyPlaybackSpeed(2.5f)
+        viewModel.playback.applyAppVolume(-0.4f)
+        viewModel.playback.applyStreamingAudioQuality("lossless")
+        viewModel.appearance.applyShareStyle(TrackShareStyle.CARD)
+        viewModel.lyrics.setOnlineLyricsEnabled(true)
+        viewModel.playback.setConcurrentPlaybackEnabled(false)
+        viewModel.lyrics.setStatusBarLyricsEnabled(false)
+        viewModel.lyrics.setFloatingLyricsEnabled(true)
+        viewModel.playback.setNowPlayingGesturesEnabled(false)
+        viewModel.playback.setPlaybackRestoreEnabled(true)
+        viewModel.appearance.applyPageBackgrounds(PageBackgrounds(sharedUri = "content://bg"), PageBackgrounds.PAGE_ALL, false)
+        viewModel.lyrics.applyLyricsOffset(5555L)
         advanceUntilIdle()
 
         val emittedEffects = viewModel.drainEffects()
@@ -622,13 +656,13 @@ class SettingsViewModelTest {
             runtimeEffects += effect
             true
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Lyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
             RuntimeSettingsStatus()
         )
 
-        viewModel.setFloatingLyricsEnabled(true)
+        viewModel.lyrics.setFloatingLyricsEnabled(true)
         advanceUntilIdle()
 
         assertEquals(false, viewModel.state.value.preferences.statusBarLyricsEnabled)
@@ -658,13 +692,13 @@ class SettingsViewModelTest {
         viewModel.bindRuntimeEffectListener { effect ->
             effect !is SettingsRuntimeEffect.ApplyFloatingLyrics || !effect.enabled
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.FloatingLyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = true, floatingLyricsEnabled = false),
             RuntimeSettingsStatus(overlayPermissionGranted = false)
         )
 
-        viewModel.setFloatingLyricsEnabled(true)
+        viewModel.lyrics.setFloatingLyricsEnabled(true)
         advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.preferences.statusBarLyricsEnabled)
@@ -688,13 +722,13 @@ class SettingsViewModelTest {
             runtimeEffects += effect
             true
         }
-        viewModel.renderCurrentPage(
+        viewModel.publishCurrentPage(
             SettingsPage.Lyrics,
             SettingsPreferencesSnapshot(statusBarLyricsEnabled = false, floatingLyricsEnabled = true),
             RuntimeSettingsStatus()
         )
 
-        viewModel.setStatusBarLyricsEnabled(true)
+        viewModel.lyrics.setStatusBarLyricsEnabled(true)
         advanceUntilIdle()
 
         assertEquals(true, viewModel.state.value.preferences.statusBarLyricsEnabled)
@@ -719,7 +753,7 @@ class SettingsViewModelTest {
     fun prepareAppliedStatusTextBuildsLocalizedSettingsMessages() {
         val viewModel = SettingsViewModel()
 
-        val status = viewModel.prepareAppliedStatusText(
+        val status = SettingsStatusTextFactory.applied(
             languageMode = AppLanguage.MODE_ENGLISH,
             themeMode = "dark",
             accentMode = "teal",

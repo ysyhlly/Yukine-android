@@ -163,6 +163,9 @@ class DownloadRequestControllerTest {
         override fun setDownloadDirectory(directory: String) {
         }
 
+        override fun setCustomDownloadDirectory(treeUri: Uri) {
+        }
+
         override fun pause(downloadId: Long): TrackDownloadActionResult = TrackDownloadActionResult(false, "")
 
         override fun resume(downloadId: Long): TrackDownloadActionResult = TrackDownloadActionResult(false, "")

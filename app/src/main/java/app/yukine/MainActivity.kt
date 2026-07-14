@@ -1,54 +1,78 @@
 package app.yukine
 
-import androidx.activity.viewModels
-import app.yukine.queue.QueueViewModel
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.lifecycle.Lifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
-/**
- * Android manifest entry point. The legacy Java host remains behind
- * MainActivityBase while shell ownership moves to Kotlin.
- */
+/** Android entry point: lifecycle, Compose root, playback service and platform launcher delegation. */
 @AndroidEntryPoint
-class MainActivity : MainActivityBase() {
-    private val mainActivityViewModel: MainActivityViewModel by viewModels()
-    private val navigationViewModel: NavigationViewModel by viewModels()
-    private val playbackViewModel: PlaybackViewModel by viewModels()
-    private val streamingViewModel: StreamingViewModel by viewModels()
-    private val streamingRecommendationViewModel: StreamingRecommendationViewModel by viewModels()
-    private val homeDashboardViewModel: HomeDashboardViewModel by viewModels()
-    private val nowPlayingViewModel: NowPlayingViewModel by viewModels()
-    private val queueViewModel: QueueViewModel by viewModels()
-    private val downloadsViewModel: DownloadsViewModel by viewModels()
-    private val searchViewModel: SearchViewModel by viewModels()
-    private val lyricsViewModel: LyricsViewModel by viewModels()
-    private val libraryViewModel: LibraryViewModel by viewModels()
-    private val collectionsViewModel: CollectionsViewModel by viewModels()
-    private val settingsViewModel: SettingsViewModel by viewModels()
-    private val networkMenuViewModel: NetworkMenuViewModel by viewModels()
-    private val networkActionsViewModel: NetworkActionsViewModel by viewModels()
-    private val statusMessageViewModel: StatusMessageViewModel by viewModels()
-    private val networkSourcesViewModel: NetworkSourcesViewModel by viewModels()
+class MainActivity : ComponentActivity() {
+    @Inject
+    internal lateinit var composition: MainActivityComposition
 
-    override fun createActivityViewModels(): MainActivityViewModels =
-        MainActivityViewModels(
-            mainActivityViewModel = mainActivityViewModel,
-            navigationViewModel = navigationViewModel,
-            playbackViewModel = playbackViewModel,
-            streamingViewModel = streamingViewModel,
-            streamingRecommendationViewModel = streamingRecommendationViewModel,
-            homeDashboardViewModel = homeDashboardViewModel,
-            nowPlayingViewModel = nowPlayingViewModel,
-            queueViewModel = queueViewModel,
-            downloadsViewModel = downloadsViewModel,
-            searchViewModel = searchViewModel,
-            lyricsViewModel = lyricsViewModel,
-            libraryViewModel = libraryViewModel,
-            collectionsViewModel = collectionsViewModel,
-            settingsViewModel = settingsViewModel,
-            networkMenuViewModel = networkMenuViewModel,
-            networkActionsViewModel = networkActionsViewModel,
-            statusMessageViewModel = statusMessageViewModel,
-            networkSourcesViewModel = networkSourcesViewModel
-        )
+    private lateinit var features: MainActivityFeatureBindings
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        features = composition.create(this)
+        features.settings.initialize {
+            features.onboarding.initialize {
+                if (isFinishing || isDestroyed) return@initialize
+                features.navigation.bindRoot(
+                    features.viewModels,
+                    features.onboarding.owner(),
+                    features.platform.permissionController(),
+                    features.playback.nowPlayingEffectOwner,
+                    features.library.playlistDialogController(),
+                    features.playback.queueActionController,
+                    features.platform.documentPickerController(),
+                    features.platform.trackDownloadManager(),
+                    features.playback.connection
+                )
+                features.playback.bindService()
+                features.playback.setAppVisible(
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                )
+                features.onboarding.startLibrary()
+                features.streaming.handleInitialIntent(intent)
+                features.platform.applyThemeSurface()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::features.isInitialized) {
+            features.playback.setAppVisible(true)
+            features.streaming.onResume()
+        }
+    }
+
+    override fun onPause() {
+        if (::features.isInitialized) features.playback.setAppVisible(false)
+        super.onPause()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::features.isInitialized) features.streaming.handleNewIntent(intent)
+    }
+
+    override fun onDestroy() {
+        if (::features.isInitialized) {
+            features.settings.release()
+            features.navigation.release()
+            features.onboarding.release()
+            features.network.release()
+            features.library.release()
+            features.playback.release()
+            features.streaming.release()
+            features.platform.shutdown()
+        }
+        super.onDestroy()
+    }
 }

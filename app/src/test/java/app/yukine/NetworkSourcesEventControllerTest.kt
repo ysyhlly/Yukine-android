@@ -4,27 +4,27 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import app.yukine.navigation.NetworkTab
+import app.yukine.navigation.SettingsTab
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import java.util.ArrayList
 
 class NetworkSourcesEventControllerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
-    fun navigationUpdatesRouteAndRequestsRender() {
+    fun navigationUpdatesReactiveRouteState() {
         val fakes = Fakes()
         val controller = fakes.controller()
 
         controller.openRemoteSourceTracks(42L)
         controller.backToNetwork()
 
-        assertEquals(
-            listOf(
-                "render",
-                "render"
-            ),
-            fakes.events
-        )
-        assertEquals(MainRoutes.NETWORK_SOURCES, fakes.navigationViewModel.state.value.networkPage)
+        assertEquals(emptyList<String>(), fakes.events)
+        assertEquals(NetworkPage.Sources, fakes.navigationViewModel.state.value.networkPage)
         assertEquals(-1L, fakes.navigationViewModel.state.value.selectedRemoteSourceId)
     }
 
@@ -36,8 +36,8 @@ class NetworkSourcesEventControllerTest {
 
         controller.backToNetwork()
 
-        assertEquals(MainRoutes.TAB_SETTINGS, fakes.navigationViewModel.state.value.selectedTab)
-        assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, fakes.navigationViewModel.state.value.settingsPage)
+        assertEquals(SettingsTab, fakes.navigationViewModel.state.value.selectedTab)
+        assertEquals(SettingsPage.SourcesGroup, fakes.navigationViewModel.state.value.settingsPage)
     }
 
     @Test
@@ -99,8 +99,8 @@ class NetworkSourcesEventControllerTest {
         init {
             routeController.persist(
                 NavigationRouteState(
-                    selectedTab = MainRoutes.TAB_NETWORK,
-                    networkPage = MainRoutes.NETWORK_SOURCES
+                    selectedTab = NetworkTab,
+                    networkPage = NetworkPage.Sources
                 )
             )
         }
@@ -115,21 +115,17 @@ class NetworkSourcesEventControllerTest {
                 { source -> events.add("confirm:delete:${source.id}") },
                 { tracks, index -> events.add("play:${tracks.first().id}@$index") },
                 { key -> "label:$key" },
-                { status -> events.add("status:$status") },
-                {
-                    routeController.persist()
-                    events.add("render")
-                }
+                { status -> events.add("status:$status") }
             )
 
         fun openSourcesFromSettings() {
             routeController.persist(
                 NavigationRouteState(
-                    selectedTab = MainRoutes.TAB_SETTINGS,
-                    settingsPage = MainRoutes.SETTINGS_SOURCES_GROUP
+                    selectedTab = SettingsTab,
+                    settingsPage = SettingsPage.SourcesGroup
                 )
             )
-            routeController.navigateToNetworkPageFromCurrent(MainRoutes.NETWORK_SOURCES)
+            routeController.navigateToNetworkPageFromCurrent(NetworkPage.Sources)
             routeController.persist()
         }
     }

@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
 }
 
 android {
@@ -15,6 +17,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -34,8 +37,13 @@ kotlin {
 }
 
 dependencies {
-    api project(":feature:ui-common")
+    coreLibraryDesugaring libs.desugar.jdk.libs
     api project(":core:model")
+    api project(":core:designsystem")
+    api project(":feature:player-ui")
+    api project(":feature:library-ui")
+    api project(":feature:settings-ui")
+    api project(":feature:streaming-ui")
     implementation project(":core:common")
 
     implementation platform(libs.androidx.compose.bom)
@@ -43,4 +51,8 @@ dependencies {
     implementation libs.androidx.compose.material3
     implementation libs.androidx.compose.ui
     implementation libs.androidx.activity.compose
+    implementation libs.androidx.lifecycle.viewmodel.ktx
+    implementation libs.androidx.lifecycle.viewmodel.savedstate
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
 }

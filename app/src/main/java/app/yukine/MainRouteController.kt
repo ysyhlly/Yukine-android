@@ -1,5 +1,9 @@
 package app.yukine
 
+import app.yukine.navigation.HomeTab
+import app.yukine.navigation.NowTab
+import app.yukine.navigation.TabRoute
+
 internal class MainRouteController(
     private val viewModel: NavigationViewModel
 ) : LibraryRouteActions {
@@ -28,19 +32,19 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ): NavigationRouteState {
         return NavigationRouteState(
-            selectedTab,
+            TabRoute.fromKey(selectedTab)?.let(::normalizeTab) ?: HomeTab,
             libraryMode,
             selectedLibraryGroupKey,
             selectedLibraryGroupTitle,
             selectedPlaylistId,
             searchQuery,
             networkPage,
-            settingsPage,
+            SettingsPage.fromRoute(settingsPage),
             selectedRemoteSourceId
         )
     }
@@ -60,7 +64,7 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ) {
@@ -80,7 +84,7 @@ internal class MainRouteController(
     }
 
     fun selectedTab(): String {
-        return state.selectedTab
+        return state.selectedTab.route
     }
 
     fun libraryMode(): String {
@@ -103,16 +107,16 @@ internal class MainRouteController(
         return state.searchQuery
     }
 
-    fun networkPage(): String {
+    fun networkPage(): NetworkPage {
         return state.networkPage
     }
 
     fun settingsPage(): String {
-        return state.settingsPage
+        return state.settingsPage.route
     }
 
     /** Typed settings boundary; the route string is kept only for saved-state compatibility. */
-    fun settingsPageModel(): SettingsPage = SettingsPage.fromRoute(state.settingsPage)
+    fun settingsPageModel(): SettingsPage = state.settingsPage
 
     fun selectedRemoteSourceId(): Long {
         return state.selectedRemoteSourceId
@@ -132,8 +136,8 @@ internal class MainRouteController(
         )
     }
 
-    fun navigateToTab(tabKey: String, userInitiated: Boolean): Boolean {
-        val normalizedTab = normalizeTab(tabKey)
+    fun navigateToTab(tab: TabRoute, userInitiated: Boolean): Boolean {
+        val normalizedTab = normalizeTab(tab).route
         val sameTab = normalizedTab == selectedTab()
         if (userInitiated || (selectedTab() == MainRoutes.TAB_NETWORK && normalizedTab != MainRoutes.TAB_NETWORK)) {
             networkEntry = null
@@ -143,7 +147,7 @@ internal class MainRouteController(
         var nextRemoteSourceId = selectedRemoteSourceId()
         var nextLibraryMode = libraryMode()
         if (userInitiated && MainRoutes.TAB_NETWORK == normalizedTab) {
-            nextNetworkPage = MainRoutes.NETWORK_HOME
+            nextNetworkPage = NetworkPage.Home
             nextRemoteSourceId = -1L
         } else if (userInitiated && MainRoutes.TAB_SETTINGS == normalizedTab) {
             nextSettingsPage = MainRoutes.SETTINGS_HOME
@@ -164,7 +168,7 @@ internal class MainRouteController(
         return sameTab
     }
 
-    fun navigateToNetworkPageFromCurrent(networkPage: String) {
+    fun navigateToNetworkPageFromCurrent(networkPage: NetworkPage) {
         if (selectedTab() != MainRoutes.TAB_NETWORK) {
             networkEntry = NetworkEntry(state, networkPage)
         }
@@ -241,7 +245,7 @@ internal class MainRouteController(
         )
     }
 
-    fun setNetworkPage(networkPage: String) {
+    fun setNetworkPage(networkPage: NetworkPage) {
         update(
             selectedTab(),
             libraryMode(),
@@ -301,9 +305,9 @@ internal class MainRouteController(
             viewModel.updateRoute(entry.origin)
             networkEntry = null
             return MainBackNavigationPolicy.Result.navigate(
-                entry.origin.selectedTab,
+                entry.origin.selectedTab.route,
                 entry.origin.networkPage,
-                entry.origin.settingsPage,
+                entry.origin.settingsPage.route,
                 true
             )
         }
@@ -338,7 +342,7 @@ internal class MainRouteController(
 
     private data class NetworkEntry(
         val origin: NavigationRouteState,
-        val entryPage: String
+        val entryPage: NetworkPage
     )
 
     private fun update(
@@ -348,12 +352,12 @@ internal class MainRouteController(
         selectedLibraryGroupTitle: String,
         selectedPlaylistId: Long,
         searchQuery: String,
-        networkPage: String,
+        networkPage: NetworkPage,
         settingsPage: String,
         selectedRemoteSourceId: Long
     ) {
         viewModel.updateRoute(snapshot(
-            normalizeTab(selectedTab),
+            normalizeTabKey(selectedTab),
             normalizeLibraryMode(libraryMode),
             selectedLibraryGroupKey,
             selectedLibraryGroupTitle,
@@ -365,11 +369,12 @@ internal class MainRouteController(
         ))
     }
 
-    private fun normalizeTab(tabKey: String): String {
-        return when (tabKey) {
-            MainRoutes.TAB_NOW -> MainRoutes.TAB_HOME
-            else -> tabKey
-        }
+    private fun normalizeTab(tab: TabRoute): TabRoute {
+        return if (tab == NowTab) HomeTab else tab
+    }
+
+    private fun normalizeTabKey(tabKey: String): String {
+        return TabRoute.fromKey(tabKey)?.let(::normalizeTab)?.route ?: HomeTab.route
     }
 
     private fun normalizeLibraryMode(mode: String): String {

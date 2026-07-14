@@ -11,15 +11,6 @@ public final class MainRoutes {
     public static final String TAB_DOWNLOADS = "downloads";
     public static final String TAB_SEARCH = "search";
 
-    public static final String NETWORK_HOME = "network_home";
-    public static final String NETWORK_STREAMING = "network_streaming";
-    public static final String NETWORK_STREAMING_HUB = "network_streaming_hub";
-    public static final String NETWORK_STREAM_LIST = "network_stream_list";
-    public static final String NETWORK_WEBDAV = "network_webdav";
-    public static final String NETWORK_WEBDAV_TRACKS = "network_webdav_tracks";
-    public static final String NETWORK_WEBDAV_SOURCE_TRACKS = "network_webdav_source_tracks";
-    public static final String NETWORK_SOURCES = "network_sources";
-
     public static final String SETTINGS_HOME = "settings_home";
     public static final String SETTINGS_APPEARANCE_GROUP = "settings_appearance_group";
     public static final String SETTINGS_PLAYBACK_GROUP = "settings_playback_group";

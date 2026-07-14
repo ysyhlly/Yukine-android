@@ -1,9 +1,10 @@
 package app.yukine
 
 import android.net.Uri
-import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -20,16 +21,8 @@ class NetworkLibraryStoreDirectAccessTest {
         assertEquals(listOf(2L), store.webDavTracksForSource(7L).map { it.id })
     }
 
-    private fun populatedStore(): MainLibraryStore {
-        val viewModel = MainActivityViewModel(SavedStateHandle())
-        val store = MainLibraryStore(
-            LibrarySearchUseCase(
-                object : LibrarySearchOperations {
-                    override fun search(source: List<Track>, query: String?): List<Track> = source
-                }
-            ),
-            viewModel
-        )
+    private fun populatedStore(): LibraryDataStateOwner {
+        val store = LibraryDataStateOwner(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined)
         store.replaceLibrary(
             listOf(
                 track(1L, "stream:https://example.test/stream.mp3"),

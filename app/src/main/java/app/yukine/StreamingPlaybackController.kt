@@ -41,7 +41,7 @@ internal class StreamingPlaybackController(
 
     fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean {
         val generation = nextForegroundResolveGeneration()
-        val scheduled = streamingViewModel.resolveStreamingTrackListForPlayback(
+        val scheduled = streamingViewModel.playbackResolution.resolveStreamingTrackListForPlayback(
             tracks,
             index,
             listener.adaptiveStreamingQuality()
@@ -71,7 +71,7 @@ internal class StreamingPlaybackController(
         positionMs: Long
     ): Boolean {
         val generation = nextForegroundResolveGeneration()
-        val scheduled = streamingViewModel.resolveStreamingTrackListForPlayback(
+        val scheduled = streamingViewModel.playbackResolution.resolveStreamingTrackListForPlayback(
             tracks,
             index,
             listener.adaptiveStreamingQuality()
@@ -103,7 +103,7 @@ internal class StreamingPlaybackController(
     private fun publishResolveFailure() {
         val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
         listener.setStatus(
-            error ?: streamingViewModel.prepareStreamingPlaybackStatusText(
+            error ?: StreamingStatusTextFactory.playback(
                 listener.languageMode(),
                 null
             ).resolveFailed
@@ -112,7 +112,7 @@ internal class StreamingPlaybackController(
 
     private fun publishResolving() {
         listener.setStatus(
-            streamingViewModel.prepareStreamingPlaybackStatusText(listener.languageMode(), null).resolving
+            StreamingStatusTextFactory.playback(listener.languageMode(), null).resolving
         )
     }
 
@@ -124,7 +124,7 @@ internal class StreamingPlaybackController(
         val queue = boundedPreResolveQueue(snapshot) ?: return
         val preResolveSnapshot = preResolveSnapshot(snapshot, queue)
         val quality = listener.adaptiveStreamingQuality()
-        streamingViewModel.preResolveNextStreamingTrack(
+        streamingViewModel.playbackResolution.preResolveNextStreamingTrack(
             preResolveSnapshot,
             queue,
             quality
@@ -135,7 +135,7 @@ internal class StreamingPlaybackController(
             nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
             nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
-        streamingViewModel.preResolveStreamingQueueWindowBatch(
+        streamingViewModel.playbackResolution.preResolveStreamingQueueWindowBatch(
             preResolveSnapshot,
             queue,
             quality
@@ -202,7 +202,7 @@ internal class StreamingPlaybackController(
             return
         }
         val refuseAutomaticQualityDowngrade = listener.refuseAutomaticQualityDowngrade()
-        val recoveryQuality = streamingViewModel.recoverStreamingBuffering(
+        val recoveryQuality = streamingViewModel.playbackResolution.recoverStreamingBuffering(
             snapshot,
             listener.selectedStreamingQuality(),
             listener.adaptiveStreamingQuality(),
@@ -216,7 +216,7 @@ internal class StreamingPlaybackController(
                 resolved.track,
                 resolved.positionMs
             )
-            val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+            val status = StreamingStatusTextFactory.playback(
                 listener.languageMode(),
                 resolved.quality
             )
@@ -224,7 +224,7 @@ internal class StreamingPlaybackController(
                 if (refuseAutomaticQualityDowngrade) status.qualityRefreshed else status.qualityDowngraded
             )
         } ?: return
-        val status = streamingViewModel.prepareStreamingPlaybackStatusText(
+        val status = StreamingStatusTextFactory.playback(
             listener.languageMode(),
             recoveryQuality
         )

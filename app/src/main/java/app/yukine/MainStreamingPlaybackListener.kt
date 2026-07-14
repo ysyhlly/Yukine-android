@@ -36,19 +36,6 @@ internal fun interface StreamingPlaybackStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface MainStreamingPlaybackListenerFactory {
-    fun create(
-        languageProvider: StreamingPlaybackLanguageProvider,
-        adaptiveQualityProvider: AdaptiveStreamingQualityProvider,
-        selectedQualityProvider: SelectedStreamingQualityProvider,
-        automaticQualityDowngradePreference: AutomaticQualityDowngradePreference,
-        queueSource: StreamingQueueReadSource,
-        heartbeatAppendHandler: HeartbeatRecommendationAppendHandler,
-        resultSink: PlaybackActionResultSink,
-        statusSink: StreamingPlaybackStatusSink
-    ): StreamingPlaybackController.Listener
-}
-
 internal class MainStreamingPlaybackListener(
     private val languageProvider: StreamingPlaybackLanguageProvider,
     private val adaptiveQualityProvider: AdaptiveStreamingQualityProvider,

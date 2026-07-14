@@ -4,6 +4,9 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.PlaybackConnectionState
+import app.yukine.playback.PlaybackQueueSnapshot
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import org.junit.Assert.assertEquals
@@ -11,6 +14,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class NowPlayingViewModelTest {
     @get:Rule
@@ -37,10 +41,10 @@ class NowPlayingViewModelTest {
         viewModel.bindGateway(gateway)
         viewModel.updateState(snapshotWithTrack(), setOf(7L), null)
 
-        assertFalse(viewModel.uiState.value.lyricsVisible)
+        assertFalse(viewModel.uiState.value.modes.lyricsVisible)
         viewModel.onEvent(NowPlayingEvent.ToggleLyrics)
 
-        assertTrue(viewModel.uiState.value.lyricsVisible)
+        assertTrue(viewModel.uiState.value.modes.lyricsVisible)
         assertTrue(gateway.calls.isEmpty())
     }
 
@@ -139,6 +143,27 @@ class NowPlayingViewModelTest {
     }
 
     @Test
+    fun boundStateSourcesReactToPlaybackFavoritesLyricsAndLanguage() {
+        val viewModel = NowPlayingViewModel()
+        val readModel = FakePlaybackReadModel()
+        val favoriteIds = MutableStateFlow<Set<Long>>(emptySet())
+        val lyrics = MutableStateFlow(LyricsState())
+        val languageMode = MutableStateFlow(AppLanguage.MODE_SYSTEM)
+        val track = Track(7L, "Song", "Artist", "Album", 180_000L, Uri.EMPTY, "file:7")
+
+        viewModel.bindStateSources(readModel, favoriteIds, lyrics, languageMode)
+        readModel.state.value = snapshotWithTrack(track = track)
+        favoriteIds.value = setOf(7L)
+        lyrics.value = LyricsState(trackId = 7L, loadedLineCount = 1, statusKind = LyricsStatusKind.LOADED)
+        languageMode.value = AppLanguage.MODE_CHINESE
+
+        assertEquals(7L, viewModel.uiState.value.track.trackId)
+        assertTrue(viewModel.uiState.value.modes.favorite)
+        assertTrue(viewModel.uiState.value.lyrics.status.isNotBlank())
+        assertEquals("Song", viewModel.uiState.value.track.title)
+    }
+
+    @Test
     fun stableNegativeTrackCanBeFavoritedAndAddedToPlaylist() {
         val gateway = FakeGateway()
         val track = Track(-42L, "Imported", "Artist", "Album", 180_000L, Uri.EMPTY, "document:content://song")
@@ -196,14 +221,14 @@ class NowPlayingViewModelTest {
         viewModel.updateState(snapshotWithTrack(playing = true, positionMs = 5_000L), setOf(7L), null)
 
         val state = viewModel.uiState.value
-        assertEquals("Song", state.trackTitle)
-        assertEquals("Artist", state.artist)
-        assertEquals("Album", state.album)
-        assertTrue(state.isPlaying)
-        assertEquals(5_000L, state.positionMs)
-        assertEquals(180_000L, state.durationMs)
-        assertTrue(state.isFavorite)
-        assertEquals(RepeatModeUi.All, state.repeatMode)
+        assertEquals("Song", state.track.title)
+        assertEquals("Artist", state.track.artist)
+        assertEquals("Album", state.track.album)
+        assertTrue(state.progress.playing)
+        assertEquals(5_000L, state.progress.positionMs)
+        assertEquals(180_000L, state.progress.durationMs)
+        assertTrue(state.modes.favorite)
+        assertEquals(RepeatModeUi.All, state.modes.repeatMode)
     }
 
     @Test
@@ -220,7 +245,7 @@ class NowPlayingViewModelTest {
         val clearResult = viewModel.clearQueue()
         val sleepResult = viewModel.startSleepTimer(20)
         val cancelResult = viewModel.cancelSleepTimer()
-        val playResult = viewModel.playTrackList(listOf(track), 0)
+        viewModel.playTrackList(listOf(track), 0)
         viewModel.seekTo(4_000L)
         viewModel.skipToPrevious()
         viewModel.skipToNext()
@@ -251,11 +276,9 @@ class NowPlayingViewModelTest {
             player.calls
         )
         assertEquals("Status: Queued", removeResult.status)
-        assertTrue(removeResult.publishPlaybackState)
         assertEquals("Status", clearResult.status)
         assertEquals("Sleep timer set: 20 minutes", sleepResult.status)
         assertEquals("Sleep timer cancelled", cancelResult.status)
-        assertTrue(playResult.renderNowBar)
     }
 
     @Test
@@ -512,4 +535,9 @@ class NowPlayingViewModelTest {
         }
     }
 
+    private class FakePlaybackReadModel : PlaybackReadModel {
+        override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
+        override val queue = MutableStateFlow(PlaybackQueueSnapshot())
+        override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
+    }
 }

@@ -23,6 +23,7 @@ import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackPlayRecord;
 import app.yukine.common.StreamingDataPathParser;
+import app.yukine.data.room.YukineDatabase;
 
 @RunWith(AndroidJUnit4.class)
 public final class MusicLibraryRepositoryInstrumentedTest {
@@ -34,6 +35,7 @@ public final class MusicLibraryRepositoryInstrumentedTest {
     @Before
     public void setUp() {
         context = ApplicationProvider.getApplicationContext();
+        YukineDatabase.resetInstanceForTest();
         context.deleteDatabase(DATABASE_NAME);
         repository = new MusicLibraryRepository(context, new FakeStreamingDataPathParser());
     }
@@ -41,6 +43,7 @@ public final class MusicLibraryRepositoryInstrumentedTest {
     @After
     public void tearDown() {
         if (context != null) {
+            YukineDatabase.resetInstanceForTest();
             context.deleteDatabase(DATABASE_NAME);
         }
     }
@@ -200,7 +203,6 @@ public final class MusicLibraryRepositoryInstrumentedTest {
 
     @Test
     public void importM3uTextAsPlaylistMergesLocalAndStreamTracks() {
-        EchoDatabaseHelper database = new EchoDatabaseHelper(context);
         ArrayList<Track> localTracks = new ArrayList<>();
         localTracks.add(new Track(
                 9001L,
@@ -213,8 +215,7 @@ public final class MusicLibraryRepositoryInstrumentedTest {
                 0L,
                 null
         ));
-        database.upsertTracks(localTracks);
-        database.close();
+        new LibraryRepository(YukineDatabase.getInstance(context)).upsertTracks(localTracks);
 
         String playlist = "#EXTM3U\n"
                 + "#PLAYLIST:导入歌单\n"

@@ -39,7 +39,7 @@ class StreamingPlaybackControllerTest {
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
         viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
-        viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
+        viewModel.playbackResolution.bindPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
             NowPlayingViewModel(),
@@ -91,7 +91,7 @@ class StreamingPlaybackControllerTest {
         val planner = RecordingPlanner()
         val viewModel = StreamingViewModel()
         viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
-        viewModel.bindStreamingPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
+        viewModel.playbackResolution.bindPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
         val controller = StreamingPlaybackController(
             viewModel,
             NowPlayingViewModel(),

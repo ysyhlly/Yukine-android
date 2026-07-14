@@ -15,7 +15,7 @@ class NetworkMenuEventControllerTest {
         val fakes = Fakes()
         val controller = fakes.controller()
 
-        controller.navigateNetworkPage(MainRoutes.NETWORK_STREAMING)
+        controller.navigateNetworkPage(NetworkPage.Streaming)
         controller.backFromNetworkPage()
         controller.showAddStream()
         controller.showImportM3u()
@@ -24,7 +24,7 @@ class NetworkMenuEventControllerTest {
 
         assertEquals(
             listOf(
-                "navigate:${MainRoutes.NETWORK_STREAMING}",
+                "navigate:${NetworkPage.Streaming}",
                 "back",
                 "dialog:addStream",
                 "dialog:importM3u",

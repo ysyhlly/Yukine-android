@@ -13,9 +13,8 @@ internal class NetworkSourcesEventController(
     private val deleteConfirmation: DeleteConfirmation,
     private val player: TrackListPlaybackAction,
     private val labels: Labels,
-    private val statusSink: StatusSink,
-    private val renderer: Renderer
-) : NetworkSourcesRenderController.Listener {
+    private val statusSink: StatusSink
+) : NetworkSourcesStateReducer.Listener {
     fun interface RemoteSourceNameProvider {
         fun remoteSourceName(sourceId: Long): String
     }
@@ -40,17 +39,12 @@ internal class NetworkSourcesEventController(
         fun setStatus(status: String)
     }
 
-    fun interface Renderer {
-        fun renderSelectedTabAfterStateChange()
-    }
-
     override fun backToNetwork() {
         val result = routeController.applyBackNavigation()
         if (!result.handled) {
             routeController.clearSelectedRemoteSource()
-            routeController.setNetworkPage(MainRoutes.NETWORK_HOME)
+            routeController.setNetworkPage(NetworkPage.Home)
         }
-        renderer.renderSelectedTabAfterStateChange()
     }
 
     override fun testRemoteSource(sourceId: Long) {
@@ -72,8 +66,7 @@ internal class NetworkSourcesEventController(
 
     override fun openRemoteSourceTracks(sourceId: Long) {
         routeController.setSelectedRemoteSourceId(sourceId)
-        routeController.setNetworkPage(MainRoutes.NETWORK_WEBDAV_SOURCE_TRACKS)
-        renderer.renderSelectedTabAfterStateChange()
+        routeController.setNetworkPage(NetworkPage.WebDavSourceTracks)
     }
 
     override fun showEditWebDav(source: RemoteSource) {

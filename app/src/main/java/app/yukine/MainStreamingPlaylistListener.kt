@@ -56,29 +56,6 @@ internal fun interface StreamingPlaylistStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface StreamingSelectedTabRenderer {
-    fun renderSelectedTab()
-}
-
-internal fun interface MainStreamingPlaylistListenerFactory {
-    fun create(
-        playlistIdSource: StreamingPlaylistIdSource,
-        playlistIdSink: StreamingPlaylistIdSink,
-        collectionsLoader: StreamingCollectionsLoader,
-        libraryRefreshSink: StreamingLibraryRefreshSink,
-        playlistNameSource: StreamingSelectedPlaylistNameSource,
-        playlistTracksSource: StreamingSelectedPlaylistTracksSource,
-        favoriteTracksSource: StreamingFavoriteTracksSource,
-        selectedProviderSource: StreamingSelectedProviderSource,
-        providerPickerPresenter: StreamingProviderPickerPresenter,
-        navigationSink: StreamingNavigationSink,
-        loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
-        accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
-        statusSink: StreamingPlaylistStatusSink,
-        selectedTabRenderer: StreamingSelectedTabRenderer
-    ): StreamingPlaylistController.Listener
-}
-
 internal class MainStreamingPlaylistListener(
     private val playlistIdSource: StreamingPlaylistIdSource,
     private val playlistIdSink: StreamingPlaylistIdSink,
@@ -92,8 +69,7 @@ internal class MainStreamingPlaylistListener(
     private val navigationSink: StreamingNavigationSink,
     private val loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
     private val accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
-    private val statusSink: StreamingPlaylistStatusSink,
-    private val selectedTabRenderer: StreamingSelectedTabRenderer
+    private val statusSink: StreamingPlaylistStatusSink
 ) : StreamingPlaylistController.Listener {
     override fun selectedPlaylistId(): Long =
         playlistIdSource.selectedPlaylistId()
@@ -142,7 +118,4 @@ internal class MainStreamingPlaylistListener(
         statusSink.setStatus(status)
     }
 
-    override fun renderSelectedTab() {
-        selectedTabRenderer.renderSelectedTab()
-    }
 }

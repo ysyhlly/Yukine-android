@@ -13,7 +13,7 @@ class MainStreamingPlaybackListenerTest {
     fun delegatesStreamingPlaybackCallbacksToInjectedOwners() {
         val queue = listOf(streamingPlaybackTrack(1L), streamingPlaybackTrack(2L))
         val snapshot = PlaybackStateSnapshot.empty()
-        val result = PlaybackActionResultUi(snapshot, "played", true, true, true, false)
+        val result = PlaybackActionResultUi("played")
         val appendedSnapshots = mutableListOf<PlaybackStateSnapshot>()
         val appliedResults = mutableListOf<PlaybackActionResultUi?>()
         val statuses = mutableListOf<String>()
@@ -45,11 +45,10 @@ class MainStreamingPlaybackListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingPlaybackControllerListener() {
-        val factory = PlaybackUiModule.provideMainStreamingPlaybackListenerFactory()
+    fun directConstructionCreatesStreamingPlaybackControllerListener() {
         val snapshot = PlaybackStateSnapshot.empty()
         val calls = mutableListOf<String>()
-        val listener = factory.create(
+        val listener = MainStreamingPlaybackListener(
             StreamingPlaybackLanguageProvider { "en" },
             AdaptiveStreamingQualityProvider { StreamingAudioQuality.STANDARD },
             SelectedStreamingQualityProvider { StreamingAudioQuality.HIRES },
@@ -59,7 +58,7 @@ class MainStreamingPlaybackListenerTest {
             PlaybackActionResultSink { calls += "result:${it?.status}" },
             StreamingPlaybackStatusSink { calls += "status:$it" }
         )
-        val result = PlaybackActionResultUi(null, "queued", false, false, false, false)
+        val result = PlaybackActionResultUi("queued")
 
         assertEquals("en", listener.languageMode())
         assertEquals(StreamingAudioQuality.STANDARD, listener.adaptiveStreamingQuality())

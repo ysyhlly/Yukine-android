@@ -1,5 +1,7 @@
 package app.yukine.navigation
 
+import app.yukine.PlaybackSnapshotProvider
+
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -103,7 +105,7 @@ class EchoNavGraphTest {
         val networkSources = NetworkSourcesViewModel()
         val streaming = StreamingViewModel()
         val settings = SettingsViewModel().also {
-            it.renderPageFromHost(
+            it.publishCurrentPage(
                 app.yukine.SettingsPage.Home,
                 app.yukine.SettingsPreferencesSnapshot(),
                 app.yukine.RuntimeSettingsStatus()
@@ -111,21 +113,27 @@ class EchoNavGraphTest {
         }
         return EchoNavHostState(
             routeState = navigationViewModel.state,
-            homeDashboardState = homeDashboard.uiState,
-            nowPlayingStateProvider = nowPlayingStateProvider,
-            libraryGroupsState = library.libraryGroups,
-            libraryTrackListState = library.trackList,
-            collectionsStateProvider = collections,
-            settingsState = settings.state,
-            settingsChromeState = settings.chromeState,
-            settingsScrollState = settings.scrollState,
-            networkMenuState = networkMenu.uiState,
-            networkSourcesState = networkSources.uiState,
-            streamingState = streaming.streaming,
-            playbackSnapshotProvider = playbackSnapshotProvider,
-            realtimeBeatProvider = realtimeBeatProvider,
-            realtimeBandsProvider = realtimeBandsProvider,
-            visualMotionEnabled = visualMotionEnabled,
+            player = PlayerNavBinding(
+                nowPlayingStateProvider = nowPlayingStateProvider,
+                playbackSnapshotProvider = playbackSnapshotProvider,
+                realtimeBeatProvider = realtimeBeatProvider,
+                realtimeBandsProvider = realtimeBandsProvider,
+                visualMotionEnabled = visualMotionEnabled
+            ),
+            library = LibraryNavBinding(
+                homeDashboardState = homeDashboard.uiState,
+                libraryGroupsState = library.libraryGroups,
+                libraryTrackListState = library.trackList,
+                collectionsStateProvider = collections
+            ),
+            settings = SettingsNavBinding(
+                settingsState = settings.state,
+                settingsChromeState = settings.chromeState,
+                settingsScrollState = settings.scrollState,
+                networkMenuState = networkMenu.uiState,
+                networkSourcesState = networkSources.uiState
+            ),
+            streaming = StreamingNavBinding(streaming.streaming),
             queueSheetVisibilityListener = queueSheetVisibilityListener
         )
     }
@@ -228,7 +236,7 @@ class EchoNavGraphTest {
                     hostState = state,
                     onTabChanged = { tab ->
                         navigationViewModel.updateRoute(
-                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                            navigationViewModel.state.value.copy(selectedTab = tab)
                         )
                     }
                 )
@@ -238,7 +246,7 @@ class EchoNavGraphTest {
         composeRule.onNode(hasContentDescription("Playing") and hasClickAction()).performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
+        assertEquals(QueueTab, navigationViewModel.state.value.selectedTab)
     }
 
     @Test
@@ -257,7 +265,7 @@ class EchoNavGraphTest {
                     hostState = state,
                     onTabChanged = { tab ->
                         navigationViewModel.updateRoute(
-                            navigationViewModel.state.value.copy(selectedTab = tab.route)
+                            navigationViewModel.state.value.copy(selectedTab = tab)
                         )
                     }
                 )
@@ -267,7 +275,7 @@ class EchoNavGraphTest {
         composeRule.onNodeWithText("Song").performClick()
         composeRule.waitForIdle()
 
-        assertEquals(QueueTab.route, navigationViewModel.state.value.selectedTab)
+        assertEquals(QueueTab, navigationViewModel.state.value.selectedTab)
         composeRule.onAllNodesWithText("Elapsed").assertCountEquals(0)
     }
 
@@ -406,14 +414,19 @@ class EchoNavGraphTest {
             0L
         )
 
-    private fun waveformNowBarState(trackId: Long) = nowBarEmptyState().copy(
-        title = "Song",
-        canExpand = true,
-        duration = "3:00",
-        durationMs = 180_000L,
-        trackId = trackId,
-        dataPath = "file:waveform-$trackId.mp3",
-        playbackProgressLabel = "waveform-progress",
-        expandWaveformLabel = "expand-waveform"
-    )
+    private fun waveformNowBarState(trackId: Long) = nowBarEmptyState().let { state ->
+        state.copy(
+            track = state.track.copy(
+                title = "Song",
+                canExpand = true,
+                trackId = trackId,
+                dataPath = "file:waveform-$trackId.mp3"
+            ),
+            progress = state.progress.copy(duration = "3:00", durationMs = 180_000L),
+            labels = state.labels.copy(
+                playbackProgress = "waveform-progress",
+                expandWaveform = "expand-waveform"
+            )
+        )
+    }
 }

@@ -24,7 +24,7 @@ class DocumentPickerControllerTest {
         val listener = RecordingListener()
         val controller = DocumentPickerController(
             activity = activity(),
-            listener = listener,
+            actions = listener.actions(),
             activityResultLauncher = launcher
         )
         val first = Uri.parse("content://audio/first")
@@ -64,7 +64,7 @@ class DocumentPickerControllerTest {
         val listener = RecordingListener()
         val controller = DocumentPickerController(
             activity = activity(),
-            listener = listener,
+            actions = listener.actions(),
             activityResultLauncher = launcher
         )
         val treeUri = Uri.parse("content://tree/downloads")
@@ -93,7 +93,7 @@ class DocumentPickerControllerTest {
         val listener = RecordingListener()
         val controller = DocumentPickerController(
             activity = activity(),
-            listener = listener,
+            actions = listener.actions(),
             activityResultLauncher = launcher
         )
         val exportUri = Uri.parse("content://playlist/export")
@@ -116,7 +116,7 @@ class DocumentPickerControllerTest {
         val listener = RecordingListener()
         val controller = DocumentPickerController(
             activity = activity(),
-            listener = listener,
+            actions = listener.actions(),
             activityResultLauncher = launcher
         )
 
@@ -143,7 +143,7 @@ class DocumentPickerControllerTest {
         }
     }
 
-    private class RecordingListener : DocumentPickerController.Listener {
+    private class RecordingListener {
         val audioImports = mutableListOf<List<Uri>>()
         val audioFolders = mutableListOf<Uri>()
         val downloadFolders = mutableListOf<Uri>()
@@ -152,31 +152,31 @@ class DocumentPickerControllerTest {
         val playlistM3uImports = mutableListOf<Uri>()
         val luoxueSourceImports = mutableListOf<List<Uri>>()
 
-        override fun importAudioUris(uris: ArrayList<Uri>) {
+        fun importAudioUris(uris: ArrayList<Uri>) {
             audioImports += uris.toList()
         }
 
-        override fun importAudioFolder(treeUri: Uri) {
+        fun importAudioFolder(treeUri: Uri) {
             audioFolders += treeUri
         }
 
-        override fun chooseDownloadFolder(treeUri: Uri) {
+        fun chooseDownloadFolder(treeUri: Uri) {
             downloadFolders += treeUri
         }
 
-        override fun importStreamM3u(playlistUri: Uri) {
+        fun importStreamM3u(playlistUri: Uri) {
             streamM3uImports += playlistUri
         }
 
-        override fun exportPlaylist(exportUri: Uri, playlistId: Long, playlistName: String) {
+        fun exportPlaylist(exportUri: Uri, playlistId: Long, playlistName: String) {
             playlistExports += PlaylistExport(exportUri, playlistId, playlistName)
         }
 
-        override fun importPlaylistM3u(playlistUri: Uri) {
+        fun importPlaylistM3u(playlistUri: Uri) {
             playlistM3uImports += playlistUri
         }
 
-        override fun importLuoxueSourceUris(uris: ArrayList<Uri>) {
+        fun importLuoxueSourceUris(uris: ArrayList<Uri>) {
             luoxueSourceImports += uris.toList()
         }
 
@@ -188,6 +188,16 @@ class DocumentPickerControllerTest {
                 playlistExports +
                 playlistM3uImports +
                 luoxueSourceImports
+
+        fun actions(): DocumentPickerActions = DocumentPickerActions(
+            audioUrisImporter = ::importAudioUris,
+            audioFolderImporter = ::importAudioFolder,
+            downloadFolderChooser = ::chooseDownloadFolder,
+            streamM3uImporter = ::importStreamM3u,
+            playlistExporter = ::exportPlaylist,
+            playlistM3uImporter = ::importPlaylistM3u,
+            luoxueSourceUrisImporter = ::importLuoxueSourceUris
+        )
     }
 
     private data class PlaylistExport(

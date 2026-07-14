@@ -17,11 +17,14 @@ import app.yukine.model.TrackPlayRecord
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import java.util.ArrayList
+import java.util.concurrent.Executor
 
 @OptIn(UnstableApi::class)
 internal class PlaybackMediaLibraryCallback(
-    private val dataSource: DataSource
+    private val dataSource: DataSource,
+    private val queryExecutor: Executor = Executor { command -> command.run() }
 ) : MediaLibrarySession.Callback {
     data class ControllerQueue(
         val tracks: List<Track>,
@@ -56,11 +59,13 @@ internal class PlaybackMediaLibraryCallback(
         browser: MediaSession.ControllerInfo,
         mediaId: String
     ): ListenableFuture<LibraryResult<MediaItem>> {
-        val item = itemForAutoMediaId(mediaId)
-        return if (item == null) {
-            Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE))
-        } else {
-            Futures.immediateFuture(LibraryResult.ofItem(item, null))
+        return asyncQuery {
+            val item = itemForAutoMediaId(mediaId)
+            if (item == null) {
+                LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+            } else {
+                LibraryResult.ofItem(item, null)
+            }
         }
     }
 
@@ -72,11 +77,13 @@ internal class PlaybackMediaLibraryCallback(
         pageSize: Int,
         params: LibraryParams?
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-        val children = childrenForAutoParent(parentId, page, pageSize)
-        return if (children == null) {
-            Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE, params))
-        } else {
-            Futures.immediateFuture(LibraryResult.ofItemList(children, params))
+        return asyncQuery {
+            val children = childrenForAutoParent(parentId, page, pageSize)
+            if (children == null) {
+                LibraryResult.ofError(SessionError.ERROR_BAD_VALUE, params)
+            } else {
+                LibraryResult.ofItemList(children, params)
+            }
         }
     }
 
@@ -85,11 +92,13 @@ internal class PlaybackMediaLibraryCallback(
         controller: MediaSession.ControllerInfo,
         mediaItems: List<MediaItem>
     ): ListenableFuture<List<MediaItem>> {
-        val resolved = ArrayList<MediaItem>()
-        for (track in tracksForMediaItems(mediaItems)) {
-            resolved.add(mediaItemForTrack(track))
+        return asyncQuery {
+            val resolved = ArrayList<MediaItem>()
+            for (track in tracksForMediaItems(mediaItems)) {
+                resolved.add(mediaItemForTrack(track))
+            }
+            resolved
         }
-        return Futures.immediateFuture(resolved)
     }
 
     override fun onSetMediaItems(
@@ -99,24 +108,24 @@ internal class PlaybackMediaLibraryCallback(
         startIndex: Int,
         startPositionMs: Long
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-        val resolvedTracks = resolvedTracksForMediaItems(mediaItems)
-        val resolved = ArrayList<MediaItem>()
-        for (resolvedTrack in resolvedTracks) {
-            resolved.add(mediaItemForTrack(resolvedTrack.track))
-        }
-        val resolvedStartIndex = if (resolved.isEmpty()) {
-            resolved.addAll(mediaItems)
-            maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0)))
-        } else {
-            remappedControllerStartIndex(resolvedTracks, startIndex)
-        }
-        return Futures.immediateFuture(
+        return asyncQuery {
+            val resolvedTracks = resolvedTracksForMediaItems(mediaItems)
+            val resolved = ArrayList<MediaItem>()
+            for (resolvedTrack in resolvedTracks) {
+                resolved.add(mediaItemForTrack(resolvedTrack.track))
+            }
+            val resolvedStartIndex = if (resolved.isEmpty()) {
+                resolved.addAll(mediaItems)
+                maxOf(0, minOf(startIndex, maxOf(resolved.size - 1, 0)))
+            } else {
+                remappedControllerStartIndex(resolvedTracks, startIndex)
+            }
             MediaSession.MediaItemsWithStartPosition(
                 resolved,
                 resolvedStartIndex,
                 startPositionMs
             )
-        )
+        }
     }
 
     private fun itemForAutoMediaId(mediaId: String?): MediaItem? {
@@ -420,6 +429,18 @@ internal class PlaybackMediaLibraryCallback(
 
     private fun mediaItemForTrack(track: Track): MediaItem {
         return dataSource.mediaItemForTrack(track)
+    }
+
+    private fun <T> asyncQuery(query: () -> T): ListenableFuture<T> {
+        val future = SettableFuture.create<T>()
+        queryExecutor.execute {
+            try {
+                future.set(query())
+            } catch (error: Exception) {
+                future.setException(error)
+            }
+        }
+        return future
     }
 
     companion object {

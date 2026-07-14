@@ -2,7 +2,12 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.playback.PlaybackCommands
+import app.yukine.playback.PlaybackConnectionState
+import app.yukine.playback.PlaybackQueueSnapshot
+import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackStateSnapshot
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,7 +15,7 @@ import org.junit.Test
 class NowPlayingPlaybackGatewayAdapterTest {
     @Test
     fun forwardsNowPlayingCommandsThroughServicePort() {
-        val service = FakeNowPlayingPlaybackServicePort()
+        val service = FakePlaybackCommands()
         val startedActions = mutableListOf<String?>()
         val gateway = NowPlayingPlaybackGatewayAdapter(
             serviceProvider = { service },
@@ -60,7 +65,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
 
     @Test
     fun disconnectedCommandsFlushInOrderWhenServiceConnects() {
-        var service: FakeNowPlayingPlaybackServicePort? = null
+        var service: FakePlaybackCommands? = null
         val startedActions = mutableListOf<String?>()
         val commandQueue = PlaybackServiceCommandQueue()
         val gateway = NowPlayingPlaybackGatewayAdapter(
@@ -78,7 +83,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
         assertEquals(emptyList<String?>(), startedActions)
         assertEquals(3, commandQueue.pendingCount())
 
-        service = FakeNowPlayingPlaybackServicePort()
+        service = FakePlaybackCommands()
         commandQueue.flush(service)
 
         assertEquals(
@@ -90,7 +95,7 @@ class NowPlayingPlaybackGatewayAdapterTest {
 
     @Test
     fun nextConnectedCommandFlushesEarlierPendingCommandsFirst() {
-        var service: FakeNowPlayingPlaybackServicePort? = null
+        var service: FakePlaybackCommands? = null
         val commandQueue = PlaybackServiceCommandQueue()
         val gateway = NowPlayingPlaybackGatewayAdapter(
             serviceProvider = { service },
@@ -99,18 +104,34 @@ class NowPlayingPlaybackGatewayAdapterTest {
         )
 
         gateway.seekTo(900L)
-        service = FakeNowPlayingPlaybackServicePort()
+        service = FakePlaybackCommands()
         gateway.pause()
 
         assertEquals(listOf("seek:900", "pause"), service.calls)
         assertEquals(0, commandQueue.pendingCount())
     }
 
-    private class FakeNowPlayingPlaybackServicePort : NowPlayingPlaybackServicePort {
+    @Test
+    fun snapshotsComeOnlyFromReadModel() {
+        val service = FakePlaybackCommands()
+        val readModel = FakePlaybackReadModel().apply {
+            val queued = track(12L)
+            state.value = PlaybackStateSnapshot.empty()
+            queue.value = PlaybackQueueSnapshot(revision = 4L, tracks = listOf(queued))
+        }
+        val gateway = NowPlayingPlaybackGatewayAdapter(
+            serviceProvider = { service },
+            playbackReadModelProvider = { readModel },
+            serviceStarter = {}
+        )
+
+        assertEquals(readModel.state.value, gateway.snapshot())
+        assertEquals(readModel.queue.value.tracks, gateway.queueSnapshot())
+    }
+
+    private class FakePlaybackCommands : PlaybackCommands {
         val calls = mutableListOf<String>()
 
-        override fun snapshot(): PlaybackStateSnapshot? = null
-        override fun queueSnapshot(): List<Track> = emptyList()
         override fun skipToPrevious() {
             calls += "previous"
         }
@@ -194,6 +215,12 @@ class NowPlayingPlaybackGatewayAdapterTest {
         override fun setRepeatMode(repeatMode: Int) {
             calls += "repeat:$repeatMode"
         }
+    }
+
+    private class FakePlaybackReadModel : PlaybackReadModel {
+        override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
+        override val queue = MutableStateFlow(PlaybackQueueSnapshot())
+        override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
     }
 }
 

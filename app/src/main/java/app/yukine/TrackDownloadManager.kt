@@ -38,11 +38,6 @@ data class TrackDownloadResult(
     val message: String
 )
 
-interface TrackDownloadDirectoryController : TrackDownloadController {
-    fun downloadDirectoryLabel(): String
-    fun setDownloadDirectory(directory: String)
-}
-
 interface TrackDownloadRequestQueue : TrackDownloadDirectoryController {
     fun enqueue(track: Track, quality: StreamingAudioQuality = StreamingAudioQuality.HIGH): TrackDownloadResult
 }
@@ -105,7 +100,7 @@ class TrackDownloadManager internal constructor(
         preferences.edit().putString(KEY_DIRECTORY, normalizeDirectory(directory)).apply()
     }
 
-    fun setCustomDownloadDirectory(treeUri: Uri) {
+    override fun setCustomDownloadDirectory(treeUri: Uri) {
         preferences.edit()
             .putString(KEY_DIRECTORY, DOWNLOAD_DIRECTORY_CUSTOM)
             .putString(KEY_CUSTOM_TREE_URI, treeUri.toString())
@@ -1180,8 +1175,6 @@ class TrackDownloadManager internal constructor(
         private const val SINGLE_PART_FILE_NAME = "track.part"
         private const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Yukine/1.0"
-        const val DOWNLOAD_DIRECTORY_MUSIC = "music"
-        const val DOWNLOAD_DIRECTORY_DOWNLOADS = "downloads"
         const val DOWNLOAD_DIRECTORY_CUSTOM = "custom"
     }
 }

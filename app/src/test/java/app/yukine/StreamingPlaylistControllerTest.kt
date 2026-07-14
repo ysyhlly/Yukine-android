@@ -47,7 +47,7 @@ class StreamingPlaylistControllerTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         val controller = StreamingPlaylistController(
             viewModel,
@@ -62,7 +62,6 @@ class StreamingPlaylistControllerTest {
         assertEquals(listOf(StreamingProviderName.NETEASE), gateway.userPlaylistProviders)
         assertEquals(listOf("picker:netease:100"), listener.events.filter { it.startsWith("picker:") })
         assertTrue(listener.events.contains("refreshLibrary"))
-        assertTrue(listener.events.contains("renderSelectedTab"))
         assertEquals(9L, listener.selectedPlaylistIdValue)
     }
 
@@ -86,7 +85,7 @@ class StreamingPlaylistControllerTest {
         )
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         listener.selectedPlaylistIdValue = 42L
         val controller = StreamingPlaylistController(
@@ -116,7 +115,7 @@ class StreamingPlaylistControllerTest {
         val operations = FakeStreamingLocalPlaylistOperations()
         val viewModel = StreamingViewModel()
         viewModel.bindStreamingRepository(StreamingRepository(gateway))
-        viewModel.bindStreamingLocalPlaylistOperations(operations)
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
         val listener = FakeStreamingPlaylistListener()
         val controller = StreamingPlaylistController(
             viewModel,
@@ -132,7 +131,6 @@ class StreamingPlaylistControllerTest {
 
         assertEquals(listOf("100"), operations.importProviderPlaylistIds)
         assertTrue(listener.events.contains("refreshLibrary"))
-        assertTrue(listener.events.contains("renderSelectedTab"))
     }
 
     private class FakeStreamingPlaylistListener : StreamingPlaylistController.Listener {
@@ -190,9 +188,6 @@ class StreamingPlaylistControllerTest {
             events += "status:$status"
         }
 
-        override fun renderSelectedTab() {
-            events += "renderSelectedTab"
-        }
     }
 
     private class FakeStreamingLocalPlaylistOperations : StreamingLocalPlaylistOperations {

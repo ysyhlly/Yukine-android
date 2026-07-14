@@ -14,8 +14,6 @@ class PlaybackStateUpdateControllerTest {
         val next = snapshot(track = track(42L), playing = true)
 
         val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_QUEUE,
-            PlaybackStateSnapshot.empty(),
             next,
             currentLyricsTrackId = 7L,
             lastHistoryRefreshTrackId = 7L
@@ -23,19 +21,15 @@ class PlaybackStateUpdateControllerTest {
 
         assertTrue(result.loadLyrics)
         assertTrue(result.refreshCollections)
-        assertTrue(result.renderSelectedTab)
-        assertFalse(result.updateNowPlaying)
         assertFalse(result.showError)
         assertEquals(42L, result.lastHistoryRefreshTrackId)
     }
 
     @Test
-    fun resolveRendersLibraryWhenPlaybackSnapshotIntroducesTrackWithoutRefreshingCollections() {
+    fun resolveDoesNotRefreshLyricsOrCollectionsForAlreadyHandledTrack() {
         val next = snapshot(track = track(42L), playing = true)
 
         val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_LIBRARY,
-            PlaybackStateSnapshot.empty(),
             next,
             currentLyricsTrackId = 42L,
             lastHistoryRefreshTrackId = 42L
@@ -43,65 +37,12 @@ class PlaybackStateUpdateControllerTest {
 
         assertFalse(result.loadLyrics)
         assertFalse(result.refreshCollections)
-        assertTrue(result.renderSelectedTab)
-        assertFalse(result.updateNowPlaying)
         assertEquals(42L, result.lastHistoryRefreshTrackId)
-    }
-
-    @Test
-    fun resolveRendersLibraryWhenCurrentTrackChanges() {
-        val previous = snapshot(track = track(41L), playing = true)
-        val next = snapshot(track = track(42L), playing = true)
-
-        val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_LIBRARY,
-            previous,
-            next,
-            currentLyricsTrackId = 42L,
-            lastHistoryRefreshTrackId = 42L
-        )
-
-        assertTrue(result.renderSelectedTab)
-    }
-
-    @Test
-    fun resolveDoesNotRenderLibraryForProgressOnlyChange() {
-        val previous = snapshot(track = track(42L), playing = true, positionMs = 100L)
-        val next = snapshot(track = track(42L), playing = true, positionMs = 200L)
-
-        val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_LIBRARY,
-            previous,
-            next,
-            currentLyricsTrackId = 42L,
-            lastHistoryRefreshTrackId = 42L
-        )
-
-        assertFalse(result.renderSelectedTab)
-    }
-
-    @Test
-    fun resolveUpdatesNowPlayingContentWhenNowTabStateDidNotNeedFullRender() {
-        val previous = snapshot(track = track(42L), playing = true)
-        val next = snapshot(track = track(42L), playing = true)
-
-        val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_NOW,
-            previous,
-            next,
-            currentLyricsTrackId = 42L,
-            lastHistoryRefreshTrackId = 42L
-        )
-
-        assertFalse(result.renderSelectedTab)
-        assertTrue(result.updateNowPlaying)
     }
 
     @Test
     fun resolveShowsErrorWhenSnapshotHasErrorMessage() {
         val result = PlaybackStateUpdateController.resolve(
-            MainRoutes.TAB_LIBRARY,
-            PlaybackStateSnapshot.empty(),
             snapshot(errorMessage = "Playback failed"),
             currentLyricsTrackId = -1L,
             lastHistoryRefreshTrackId = -1L

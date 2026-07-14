@@ -20,17 +20,6 @@ internal fun interface QueueStatusSink {
     fun setStatus(status: String)
 }
 
-internal fun interface MainQueueActionListenerFactory {
-    fun create(
-        resultApplier: QueuePlaybackActionResultApplier,
-        serviceAvailability: QueuePlaybackServiceAvailability,
-        trackMoveSink: QueueTrackMoveSink,
-        clearQueueConfirmer: QueueClearQueueConfirmer,
-        emptyStatusProvider: QueueEmptyStatusProvider,
-        statusSink: QueueStatusSink
-    ): QueueActionController.Listener
-}
-
 internal class MainQueueActionListener(
     private val resultApplier: QueuePlaybackActionResultApplier,
     private val serviceAvailability: QueuePlaybackServiceAvailability,

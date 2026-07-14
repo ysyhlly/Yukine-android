@@ -16,11 +16,11 @@ class MainNetworkActionsListenerTest {
         val nowPlayingViewModel = NowPlayingViewModel()
         val playbackGateway = FakePlaybackGateway()
         val replacements = mutableListOf<String>()
-        val navigation = mutableListOf<String>()
+        val navigation = mutableListOf<NetworkPage>()
         val statuses = mutableListOf<String>()
         var reloads = 0
         nowPlayingViewModel.bindPlaybackGateway(playbackGateway)
-        val listener = LibraryModule.provideMainNetworkActionsListenerFactory().create(
+        val listener = MainNetworkActionsListener(
             nowPlayingViewModel,
             { cached, favorites, status -> replacements += "replace:${cached.ids()}:${favorites.sorted()}:$status" },
             { page -> navigation += page },
@@ -70,15 +70,15 @@ class MainNetworkActionsListenerTest {
         )
         assertEquals(
             listOf(
-                MainRoutes.NETWORK_STREAM_LIST,
-                MainRoutes.NETWORK_STREAMING,
-                MainRoutes.NETWORK_STREAMING,
-                MainRoutes.NETWORK_STREAM_LIST,
-                MainRoutes.NETWORK_SOURCES,
-                MainRoutes.NETWORK_SOURCES,
-                MainRoutes.NETWORK_WEBDAV,
-                MainRoutes.NETWORK_SOURCES,
-                MainRoutes.NETWORK_WEBDAV
+                NetworkPage.StreamList,
+                NetworkPage.Streaming,
+                NetworkPage.Streaming,
+                NetworkPage.StreamList,
+                NetworkPage.Sources,
+                NetworkPage.Sources,
+                NetworkPage.WebDav,
+                NetworkPage.Sources,
+                NetworkPage.WebDav
             ),
             navigation
         )

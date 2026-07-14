@@ -32,9 +32,9 @@ class MainStreamingPlaylistDialogListenerTest {
     }
 
     @Test
-    fun factoryCreatesStreamingPlaylistDialogControllerListener() {
+    fun directConstructionCreatesStreamingPlaylistDialogControllerListener() {
         val calls = mutableListOf<String>()
-        val listener = StreamingModule.provideMainStreamingPlaylistDialogListenerFactory().create(
+        val listener = MainStreamingPlaylistDialogListener(
             StreamingPlaylistDialogStatusSink { calls += "status:$it" },
             StreamingPlaylistImportRunner { provider, playlistName, tracks ->
                 calls += "playlist:${provider.wireName}:$playlistName:${tracks.size}"

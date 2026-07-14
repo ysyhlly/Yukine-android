@@ -12,6 +12,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import app.yukine.NowPlayingUiState
+import app.yukine.NowPlayingProgressState
+import app.yukine.NowPlayingTrackState
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
@@ -48,12 +50,14 @@ class NowPlayingDestinationTest {
         var switchedTo: Track? = null
         val state = MutableStateFlow(
             NowPlayingUiState(
-                trackTitle = current.title,
-                artist = current.artist,
-                album = current.album,
-                trackId = current.id,
-                currentTrack = current,
-                durationMs = current.durationMs
+                track = NowPlayingTrackState(
+                    title = current.title,
+                    artist = current.artist,
+                    album = current.album,
+                    trackId = current.id,
+                    currentTrack = current
+                ),
+                progress = NowPlayingProgressState(durationMs = current.durationMs)
             )
         )
 
@@ -87,12 +91,14 @@ class NowPlayingDestinationTest {
         var switchRequest: StreamingSwitchRequest? = null
         val state = MutableStateFlow(
             NowPlayingUiState(
-                trackTitle = current.title,
-                artist = current.artist,
-                album = current.album,
-                trackId = current.id,
-                currentTrack = current,
-                durationMs = current.durationMs
+                track = NowPlayingTrackState(
+                    title = current.title,
+                    artist = current.artist,
+                    album = current.album,
+                    trackId = current.id,
+                    currentTrack = current
+                ),
+                progress = NowPlayingProgressState(durationMs = current.durationMs)
             )
         )
 
@@ -135,12 +141,14 @@ class NowPlayingDestinationTest {
         )
         val state = MutableStateFlow(
             NowPlayingUiState(
-                trackTitle = current.title,
-                artist = current.artist,
-                album = current.album,
-                trackId = current.id,
-                currentTrack = current,
-                durationMs = current.durationMs
+                track = NowPlayingTrackState(
+                    title = current.title,
+                    artist = current.artist,
+                    album = current.album,
+                    trackId = current.id,
+                    currentTrack = current
+                ),
+                progress = NowPlayingProgressState(durationMs = current.durationMs)
             )
         )
 
