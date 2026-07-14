@@ -229,6 +229,23 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
+    public void focusedFeatureUiModulesDoNotReExportSiblingFeatureUiModules() throws Exception {
+        String libraryUi = read("feature/library-ui/build.gradle");
+        String settingsUi = read("feature/settings-ui/build.gradle");
+        for (String sibling : new String[]{
+                "feature:player-ui",
+                "feature:streaming-ui"
+        }) {
+            assertFalse("library-ui must not re-export :" + sibling,
+                    libraryUi.contains("api project(\":" + sibling + "\")"));
+            assertFalse("settings-ui must not re-export :" + sibling,
+                    settingsUi.contains("api project(\":" + sibling + "\")"));
+        }
+        assertFalse("settings-ui must not re-export library-ui",
+                settingsUi.contains("api project(\":feature:library-ui\")"));
+    }
+
+    @Test
     public void businessUiLivesInFocusedModulesAndUiCommonIsGone() throws Exception {
         String settings = read("settings.gradle");
         assertTrue(settings.contains("include \":core:designsystem\""));

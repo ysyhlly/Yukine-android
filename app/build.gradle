@@ -13,6 +13,8 @@ def echoReleaseKeyPassword   = findProperty("ECHO_RELEASE_KEY_PASSWORD")   ?: Sy
 def echoHasReleaseSigning    = echoReleaseStoreFile && echoReleaseStorePassword && echoReleaseKeyAlias && echoReleaseKeyPassword
 def yukineQqAppId            = findProperty("YUKINE_QQ_APP_ID")            ?: System.getenv("YUKINE_QQ_APP_ID") ?: ""
 def yukineWechatAppId        = findProperty("YUKINE_WECHAT_APP_ID")        ?: System.getenv("YUKINE_WECHAT_APP_ID") ?: ""
+def echoVersionCode          = findProperty("ECHO_VERSION_CODE")           ?: System.getenv("ECHO_VERSION_CODE")
+def echoVersionName          = findProperty("ECHO_VERSION_NAME")           ?: System.getenv("ECHO_VERSION_NAME") ?: "0.2.0-rc.1"
 
 android {
     namespace "app.yukine"
@@ -24,10 +26,13 @@ android {
         targetSdk 35
         buildConfigField "String", "YUKINE_QQ_APP_ID", "\"${yukineQqAppId}\""
         buildConfigField "String", "YUKINE_WECHAT_APP_ID", "\"${yukineWechatAppId}\""
-        // versionCode comes from CI when available; local builds use the current release baseline.
+        // Explicit release values win. CI run numbers may be workflow-local, so never let them
+        // lower the monotonic release baseline used by stores and upgrade tests.
         def echoRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-        versionCode echoRunNumber ? echoRunNumber.toInteger() : 6
-        versionName "0.1.21"
+        def generatedVersionCode = echoRunNumber ? echoRunNumber.toInteger() : 7
+        def requestedVersionCode = echoVersionCode ? echoVersionCode.toInteger() : generatedVersionCode
+        versionCode Math.max(requestedVersionCode, 7)
+        versionName echoVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
