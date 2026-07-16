@@ -368,48 +368,30 @@ class LiveLyricsNotificationService : Service() {
             artworkBitmap = null
             return null
         }
-        if (key == artworkKey && artworkBitmap != null) {
+        if (key == artworkKey) {
             return artworkBitmap
         }
-        val uri = Uri.parse(key)
-        val scheme = uri.scheme.orEmpty()
-        if (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) {
-            artworkKey = key
-            artworkBitmap = null
-            fetchHttpArtworkAsync(key)
-            return null
-        }
-        val bitmap = decodeArtwork(uri)
         artworkKey = key
-        artworkBitmap = bitmap
-        return bitmap
+        artworkBitmap = null
+        fetchArtworkAsync(key)
+        return null
     }
 
-    private fun fetchHttpArtworkAsync(url: String) {
+    private fun fetchArtworkAsync(key: String) {
         scope.launch(Dispatchers.IO) {
-            val bitmap = try {
-                val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 4000
-                connection.readTimeout = 4000
-                connection.inputStream.use { stream ->
-                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    val bytes = stream.readBytes()
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
-                    else {
-                        val options = BitmapFactory.Options().apply {
-                            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
-                            inPreferredConfig = Bitmap.Config.RGB_565
-                        }
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-                    }
-                }
-            } catch (_: Exception) {
-                null
+            val uri = Uri.parse(key)
+            val scheme = uri.scheme.orEmpty()
+            val bitmap = if (
+                scheme.equals("http", ignoreCase = true) ||
+                scheme.equals("https", ignoreCase = true)
+            ) {
+                decodeHttpArtwork(key)
+            } else {
+                decodeArtwork(uri)
             }
-            if (bitmap != null && artworkKey == url) {
-                artworkBitmap = bitmap
-                withContext(Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
+                if (bitmap != null && artworkKey == key) {
+                    artworkBitmap = bitmap
                     try {
                         getSystemService(NotificationManager::class.java)
                             ?.notify(NOTIFICATION_ID, buildNotification(lastState))
@@ -417,6 +399,28 @@ class LiveLyricsNotificationService : Service() {
                 }
             }
         }
+    }
+
+    private fun decodeHttpArtwork(url: String): Bitmap? = try {
+        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        connection.connectTimeout = 4000
+        connection.readTimeout = 4000
+        connection.inputStream.use { stream ->
+            val bytes = stream.readBytes()
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                null
+            } else {
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            }
+        }
+    } catch (_: Exception) {
+        null
     }
 
     private fun decodeArtwork(uri: Uri): Bitmap? {

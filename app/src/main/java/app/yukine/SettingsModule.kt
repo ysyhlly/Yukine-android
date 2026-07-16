@@ -26,9 +26,16 @@ internal object SettingsModule {
     @Provides
     @ActivityScoped
     fun provideLyricsLoader(
-        luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver
+        luoxueTrackMetadataResolver: LuoxueTrackMetadataResolver,
+        musicLibraryRepository: MusicLibraryRepository
     ): LyricsLoader {
-        val repository = LyricsRepository()
+        val repository = LyricsRepository(object : LyricsRepository.BindingStore {
+            override fun load(trackId: Long) = musicLibraryRepository.loadLyricBindings(trackId)
+
+            override fun save(trackId: Long, binding: app.yukine.identity.LyricSourceBinding) {
+                musicLibraryRepository.saveLyricBinding(trackId, binding)
+            }
+        })
         return LoadTrackLyricsUseCaseLyricsLoader(
             LoadTrackLyricsUseCase(
                 LuoxueFirstTrackLyricsOperations(

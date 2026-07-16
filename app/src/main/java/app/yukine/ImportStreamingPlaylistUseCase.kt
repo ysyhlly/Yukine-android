@@ -8,6 +8,19 @@ import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
+internal fun StreamingTrack.playableLibraryTrackOrNull(): StreamingTrack? {
+    if (playable && providerTrackId.isNotBlank()) return this
+    val fallback = playbackCandidates.firstOrNull {
+        it.available && !it.providerTrackId.isNullOrBlank()
+    } ?: return null
+    return copy(
+        provider = fallback.provider,
+        providerTrackId = fallback.providerTrackId!!.trim(),
+        playable = true,
+        unavailableReason = null
+    )
+}
+
 internal interface StreamingPlaylistImportOperations {
     fun importStreamingPlaylist(playlistName: String?, tracks: List<Track>): PlaylistImportResult
 
@@ -46,7 +59,9 @@ internal class ImportStreamingPlaylistUseCase(
     ): PlaylistImportResult {
         val placeholders = streamingTracks
             .orEmpty()
-            .mapNotNull { track -> track?.let { StreamingPlaybackAdapter.placeholderTrack(it) } }
+            .mapNotNull { track ->
+                track?.playableLibraryTrackOrNull()?.let(StreamingPlaybackAdapter::placeholderTrack)
+            }
         val result = operations.importStreamingPlaylist(playlistName, placeholders)
         val cleanProviderPlaylistId = providerPlaylistId?.trim().orEmpty()
         if (result.playlistId >= 0L && (cleanProviderPlaylistId.isNotEmpty() || linkWhenProviderPlaylistIdBlank)) {

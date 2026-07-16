@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import app.yukine.data.room.HistoryDao;
+import app.yukine.data.room.MusicIdentityDao;
+import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.YukineDatabase;
 import app.yukine.data.room.TrackEntityMapper;
 import app.yukine.data.room.TrackPlayRecordRow;
 import app.yukine.model.Track;
@@ -12,25 +15,45 @@ import app.yukine.model.TrackPlayRecord;
 /** Playback history and event-window owner. */
 public final class HistoryRepository {
     private final HistoryDao dao;
+    private final MusicIdentityDao identityDao;
 
     public HistoryRepository(HistoryDao dao) {
         this.dao = dao;
+        this.identityDao = null;
+    }
+
+    public HistoryRepository(YukineDatabase database) {
+        this.dao = database.historyDao();
+        this.identityDao = database.musicIdentityDao();
     }
 
     public void markPlayed(long trackId) {
-        dao.recordPlay(trackId, System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        TrackSourceMappingEntity source = identityDao == null ? null : identityDao.sourceForLocalTrack(trackId);
+        if (source == null || source.getSourceId() == null) {
+            dao.recordPlay(trackId, now);
+        } else {
+            dao.recordCanonicalPlay(trackId, source.getRecordingId(), source.getSourceId(), now);
+        }
     }
 
     public List<TrackPlayRecord> loadRecentlyPlayed(int limit) {
-        return records(dao.recentlyPlayed(Math.max(limit, 1)));
+        int safeLimit = Math.max(limit, 1);
+        List<TrackPlayRecordRow> canonical = dao.canonicalRecentlyPlayed(safeLimit);
+        return records(canonical.isEmpty() ? dao.recentlyPlayed(safeLimit) : canonical);
     }
 
     public List<TrackPlayRecord> loadMostPlayed(int limit) {
-        return records(dao.mostPlayed(Math.max(limit, 1)));
+        int safeLimit = Math.max(limit, 1);
+        List<TrackPlayRecordRow> canonical = dao.canonicalMostPlayed(safeLimit);
+        return records(canonical.isEmpty() ? dao.mostPlayed(safeLimit) : canonical);
     }
 
     public List<TrackPlayRecord> loadPlayedSince(long startMs, int limit) {
-        return records(dao.playedSince(Math.max(0L, startMs), Math.max(limit, 1)));
+        long safeStart = Math.max(0L, startMs);
+        int safeLimit = Math.max(limit, 1);
+        List<TrackPlayRecordRow> canonical = dao.canonicalPlayedSince(safeStart, safeLimit);
+        return records(canonical.isEmpty() ? dao.playedSince(safeStart, safeLimit) : canonical);
     }
 
     public int clear() {

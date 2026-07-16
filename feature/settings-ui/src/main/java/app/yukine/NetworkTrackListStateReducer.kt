@@ -182,6 +182,7 @@ class NetworkTrackListStateReducer(private val listener: Listener) {
         AppLanguage.text(languageMode, "add.to.playlist"),
         AppLanguage.text(languageMode, "edit"),
         AppLanguage.text(languageMode, "delete"),
-        AppLanguage.text(languageMode, "download")
+        AppLanguage.text(languageMode, "download"),
+        matchManagementLabel = AppLanguage.text(languageMode, "recording.match.manage")
     )
 }

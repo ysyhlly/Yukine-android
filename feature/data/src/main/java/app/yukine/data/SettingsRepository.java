@@ -50,6 +50,7 @@ public final class SettingsRepository {
     private static final String PAGE_BACKGROUND_PLAYER_TRANSFORM = "page_background_player_transform";
     private static final String PAGE_BACKGROUND_SETTINGS_TRANSFORM = "page_background_settings_transform";
     private static final String MEDIA_STORE_GENERATION = "media_store_generation";
+    private static final String LIBRARY_AUTO_SYNC_ENABLED = "library_auto_sync_enabled";
 
     private final SettingsDao dao;
 
@@ -81,6 +82,14 @@ public final class SettingsRepository {
     void saveOnlineLyricsEnabled(boolean value) { saveBool(ONLINE_LYRICS, value); }
     boolean loadConcurrentPlaybackEnabled() { return bool(CONCURRENT_PLAYBACK, false); }
     void saveConcurrentPlaybackEnabled(boolean value) { saveBool(CONCURRENT_PLAYBACK, value); }
+    boolean loadLibraryAutoSyncEnabled() { return bool(LIBRARY_AUTO_SYNC_ENABLED, false); }
+    void saveLibraryAutoSyncEnabled(boolean value) { saveBool(LIBRARY_AUTO_SYNC_ENABLED, value); }
+    String loadWebDavSyncManifest(long sourceId) {
+        return load("webdav_sync_manifest_" + sourceId, "");
+    }
+    void saveWebDavSyncManifest(long sourceId, String value) {
+        save("webdav_sync_manifest_" + sourceId, value == null ? "" : value);
+    }
     long loadLyricsOffsetMs() { return longValue(LYRICS_OFFSET_MS, 0L); }
     void saveLyricsOffsetMs(long value) { save(LYRICS_OFFSET_MS, String.valueOf(value)); }
     boolean loadShuffleEnabled() { return bool(SHUFFLE_ENABLED, false); }

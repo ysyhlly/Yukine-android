@@ -37,6 +37,49 @@ interface StreamingGateway {
      */
     suspend fun userLikedTracks(provider: StreamingProviderName): List<StreamingTrack>
 
+    suspend fun setUserTrackFavorite(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        favorite: Boolean
+    ) {
+        throw StreamingGatewayException(
+            "Provider ${provider.wireName} does not support favorite writes",
+            code = StreamingErrorCode.UNSUPPORTED_OPERATION
+        )
+    }
+
+    suspend fun createUserPlaylist(provider: StreamingProviderName, title: String): StreamingPlaylist {
+        throw StreamingGatewayException(
+            "Provider ${provider.wireName} does not support playlist creation",
+            code = StreamingErrorCode.UNSUPPORTED_OPERATION
+        )
+    }
+
+    suspend fun renameUserPlaylist(provider: StreamingProviderName, providerPlaylistId: String, title: String) {
+        throw StreamingGatewayException("Playlist rename is unsupported", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+    }
+
+    suspend fun deleteUserPlaylist(provider: StreamingProviderName, providerPlaylistId: String) {
+        throw StreamingGatewayException("Playlist delete is unsupported", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+    }
+
+    suspend fun mutateUserPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        providerTrackIds: List<String>,
+        add: Boolean
+    ) {
+        throw StreamingGatewayException("Playlist write is unsupported", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+    }
+
+    suspend fun reorderUserPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        orderedProviderTrackIds: List<String>
+    ) {
+        throw StreamingGatewayException("Playlist reorder is unsupported", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+    }
+
     /**
      * Returns the provider's personalized "daily recommendation" track list (e.g. NetEase 每日推荐).
      * Returns an empty list when the provider or gateway does not expose this capability.
@@ -158,8 +201,14 @@ class RegistryStreamingGateway(
     }
 
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+        if (StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(request.provider)) {
+            throw StreamingGatewayException(
+                "${request.provider.wireName} does not provide playback audio",
+                code = StreamingErrorCode.UNSUPPORTED_OPERATION
+            )
+        }
         val provider = requireProvider(request.provider)
-        if (!provider.descriptor.capabilities.supportsPlayback) {
+        if (!StreamingAudioCapabilityPolicy.canResolve(provider.descriptor)) {
             throw StreamingGatewayException(
                 "Provider ${request.provider} does not support playback",
                 code = StreamingErrorCode.UNSUPPORTED_OPERATION
@@ -474,8 +523,13 @@ class RemoteStreamingGateway(
             return emptyList()
         }
         requireCurrentLocalSession(provider)
-        if (!configured() && provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
-            return localNeteaseClient.userLikedTracks()
+        if (!configured()) {
+            if (provider == StreamingProviderName.NETEASE && localNeteaseClient.canHandle(provider)) {
+                return localNeteaseClient.userLikedTracks()
+            }
+            if (provider == StreamingProviderName.QQ_MUSIC) {
+                return localQqMusicClient.userLikedTracks()
+            }
         }
         requireConfigured()
         return try {
@@ -490,9 +544,100 @@ class RemoteStreamingGateway(
                     provider == StreamingProviderName.NETEASE &&
                     localNeteaseClient.canHandle(provider) ->
                     localNeteaseClient.userLikedTracks()
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
+                    provider == StreamingProviderName.QQ_MUSIC ->
+                    localQqMusicClient.userLikedTracks()
                 else -> throw error
             }
         }
+    }
+
+    override suspend fun setUserTrackFavorite(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        favorite: Boolean
+    ) {
+        requireCurrentLocalSession(provider)
+        when (provider) {
+            StreamingProviderName.NETEASE -> localNeteaseClient.setFavorite(providerTrackId, favorite)
+            StreamingProviderName.QQ_MUSIC -> localQqMusicClient.setFavorite(providerTrackId, favorite)
+            else -> {
+                requireConfigured()
+                post(
+                    "userLikedTracks/mutate",
+                    JSONObject()
+                        .put("provider", provider.wireName)
+                        .put("providerTrackId", providerTrackId)
+                        .put("favorite", favorite)
+                        .toString()
+                )
+            }
+        }
+    }
+
+    override suspend fun createUserPlaylist(provider: StreamingProviderName, title: String): StreamingPlaylist {
+        requireCurrentLocalSession(provider)
+        if (provider == StreamingProviderName.QQ_MUSIC) return localQqMusicClient.createPlaylist(title)
+        requireConfigured()
+        return StreamingGatewayJson.userPlaylists(
+            post("userPlaylists/create", JSONObject().put("provider", provider.wireName).put("title", title).toString()),
+            provider
+        ).firstOrNull() ?: throw StreamingGatewayException("Playlist create returned no ID")
+    }
+
+    override suspend fun renameUserPlaylist(provider: StreamingProviderName, providerPlaylistId: String, title: String) {
+        requireCurrentLocalSession(provider)
+        if (provider == StreamingProviderName.QQ_MUSIC) {
+            localQqMusicClient.renamePlaylist(providerPlaylistId, title)
+            return
+        }
+        requireConfigured()
+        post("userPlaylists/rename", JSONObject().put("provider", provider.wireName)
+            .put("providerPlaylistId", providerPlaylistId).put("title", title).toString())
+    }
+
+    override suspend fun deleteUserPlaylist(provider: StreamingProviderName, providerPlaylistId: String) {
+        requireCurrentLocalSession(provider)
+        if (provider == StreamingProviderName.QQ_MUSIC) {
+            localQqMusicClient.deletePlaylist(providerPlaylistId)
+            return
+        }
+        requireConfigured()
+        post("userPlaylists/delete", JSONObject().put("provider", provider.wireName)
+            .put("providerPlaylistId", providerPlaylistId).toString())
+    }
+
+    override suspend fun mutateUserPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        providerTrackIds: List<String>,
+        add: Boolean
+    ) {
+        requireCurrentLocalSession(provider)
+        if (provider == StreamingProviderName.QQ_MUSIC) {
+            localQqMusicClient.mutatePlaylistTracks(providerPlaylistId, providerTrackIds, add)
+            return
+        }
+        requireConfigured()
+        post("userPlaylists/tracks", JSONObject().put("provider", provider.wireName)
+            .put("providerPlaylistId", providerPlaylistId)
+            .put("providerTrackIds", org.json.JSONArray(providerTrackIds)).put("add", add).toString())
+    }
+
+    override suspend fun reorderUserPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        orderedProviderTrackIds: List<String>
+    ) {
+        requireCurrentLocalSession(provider)
+        if (provider == StreamingProviderName.QQ_MUSIC) {
+            localQqMusicClient.reorderPlaylistTracks(providerPlaylistId, orderedProviderTrackIds)
+            return
+        }
+        requireConfigured()
+        post("userPlaylists/reorder", JSONObject().put("provider", provider.wireName)
+            .put("providerPlaylistId", providerPlaylistId)
+            .put("providerTrackIds", org.json.JSONArray(orderedProviderTrackIds)).toString())
     }
 
     override suspend fun dailyRecommendations(provider: StreamingProviderName): List<StreamingTrack> {
@@ -522,6 +667,12 @@ class RemoteStreamingGateway(
     }
 
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+        if (StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(request.provider)) {
+            throw StreamingGatewayException(
+                "${request.provider.wireName} is available for library sync only; playback is disabled",
+                code = StreamingErrorCode.UNSUPPORTED_OPERATION
+            )
+        }
         if (!configured() && request.provider == offlineProvider.descriptor.name) {
             return offlineProvider.resolvePlayback(request)
         }

@@ -1,8 +1,11 @@
 package app.yukine.streaming
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -192,6 +195,79 @@ class QuickJsLuoxueScriptRuntimeTest {
         assertEquals("http://media.example.test/nested.mp3", url)
     }
 
+    @Test
+    fun callerCancellationDoesNotCloseQuickJsBeforeAsyncCallbackReturns() = runBlocking {
+        val runtime = QuickJsLuoxueScriptRuntime(DelayedHttpClient(delayMs = 250L))
+        val script = """
+            const { EVENT_NAMES, request, on, send } = globalThis.lx
+            on(EVENT_NAMES.request, ({ action }) => {
+              if (action !== 'musicUrl') return Promise.reject(new Error('unsupported'))
+              return new Promise((resolve, reject) => {
+                request('https://source.example.test/slow', {}, (err, response) => {
+                  if (err) return reject(err)
+                  resolve(response.body.url)
+                })
+              })
+            })
+            send(EVENT_NAMES.inited, { sources: { kw: { actions: ['musicUrl'] } } })
+        """.trimIndent()
+        val source = LuoxueImportedSource(
+            id = "cancel-safe",
+            name = "取消安全测试源",
+            sourceKinds = listOf("kw"),
+            script = script
+        )
+
+        val cancelledResult = withTimeoutOrNull(50L) {
+            runtime.resolveMusicUrl(source, "kw", mapOf("rid" to "first"), "128k")
+        }
+        assertNull(cancelledResult)
+
+        // The first request keeps ownership of its native runtime until the HTTP callback has
+        // returned. A later resolution proves that teardown completed and released the serial gate.
+        delay(350L)
+        val nextUrl = runtime.resolveMusicUrl(
+            source,
+            "kw",
+            mapOf("rid" to "second"),
+            "128k"
+        )
+        assertEquals("https://media.example.test/cancel-safe.mp3", nextUrl)
+    }
+
+    @Test
+    fun emptyHttpErrorBodyIsExposedAsStructuredLxFailure() = runBlocking {
+        val runtime = QuickJsLuoxueScriptRuntime(EmptyHttpErrorClient(statusCode = 520))
+        val script = """
+            const { EVENT_NAMES, request, on, send } = globalThis.lx
+            const httpFetch = (url, options = { method: 'GET' }) => new Promise((resolve, reject) => {
+              request(url, options, (err, response) => err ? reject(err) : resolve(response))
+            })
+            on(EVENT_NAMES.request, ({ action }) => {
+              if (action !== 'musicUrl') return Promise.reject(new Error('unsupported'))
+              return httpFetch('https://source.example.test/music/url').then(({ body }) => {
+                if (!body || isNaN(Number(body.code))) throw new Error('unknown error')
+                if (body.code === 200) return body.url
+                throw new Error(body.message ?? '未知错误')
+              })
+            })
+            send(EVENT_NAMES.inited, { sources: { tx: { actions: ['musicUrl'] } } })
+        """.trimIndent()
+        val source = LuoxueImportedSource(
+            id = "empty-http-error",
+            name = "空响应测试源",
+            sourceKinds = listOf("tx"),
+            script = script
+        )
+
+        val error = runCatching {
+            runtime.resolveMusicUrl(source, "tx", mapOf("songmid" to "001SongMid"), "128k")
+        }.exceptionOrNull()
+
+        assertTrue(error?.message.orEmpty().contains("HTTP 520 返回空响应"))
+        assertTrue(!error?.message.orEmpty().contains("unknown error"))
+    }
+
     private class RecordingHttpClient : LuoxueScriptHttpClient {
         var request: LuoxueScriptHttpRequest? = null
 
@@ -201,6 +277,31 @@ class QuickJsLuoxueScriptRuntimeTest {
                 statusCode = 200,
                 headers = mapOf("Content-Type" to "application/json"),
                 body = "{\"url\":\"https://media.example.test/song.flac\"}"
+            )
+        }
+    }
+
+    private class DelayedHttpClient(
+        private val delayMs: Long
+    ) : LuoxueScriptHttpClient {
+        override fun execute(request: LuoxueScriptHttpRequest): LuoxueScriptHttpResponse {
+            Thread.sleep(delayMs)
+            return LuoxueScriptHttpResponse(
+                statusCode = 200,
+                headers = mapOf("Content-Type" to "application/json"),
+                body = "{\"url\":\"https://media.example.test/cancel-safe.mp3\"}"
+            )
+        }
+    }
+
+    private class EmptyHttpErrorClient(
+        private val statusCode: Int
+    ) : LuoxueScriptHttpClient {
+        override fun execute(request: LuoxueScriptHttpRequest): LuoxueScriptHttpResponse {
+            return LuoxueScriptHttpResponse(
+                statusCode = statusCode,
+                headers = emptyMap(),
+                body = ""
             )
         }
     }

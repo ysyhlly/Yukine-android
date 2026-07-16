@@ -9,6 +9,9 @@ import java.util.Map;
 import app.yukine.data.room.LibraryDao;
 import app.yukine.data.room.PlaybackPersistenceDao;
 import app.yukine.data.room.PlaybackQueueEntity;
+import app.yukine.data.room.PlaybackQueueIdentityEntity;
+import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.MusicIdentityDao;
 import app.yukine.data.room.SettingEntity;
 import app.yukine.data.room.SettingsDao;
 import app.yukine.data.room.TrackEntity;
@@ -27,12 +30,14 @@ public final class PlaybackPersistenceRepository {
     private final PlaybackPersistenceDao playbackDao;
     private final SettingsDao settingsDao;
     private final LibraryDao libraryDao;
+    private final MusicIdentityDao identityDao;
 
     public PlaybackPersistenceRepository(YukineDatabase database) {
         this.database = database;
         playbackDao = database.playbackPersistenceDao();
         settingsDao = database.settingsDao();
         libraryDao = database.libraryDao();
+        identityDao = database.musicIdentityDao();
     }
 
     public List<Track> loadQueue() {
@@ -54,8 +59,28 @@ public final class PlaybackPersistenceRepository {
             }
         }
         ArrayList<Track> tracks = new ArrayList<>(rows.size());
+        Map<Integer, PlaybackQueueIdentityEntity> identities = new HashMap<>();
+        for (PlaybackQueueIdentityEntity identity : playbackDao.loadQueueIdentities()) {
+            identities.put(identity.getPosition(), identity);
+        }
         for (PlaybackQueueEntity row : rows) {
-            Track track = TrackEntityMapper.queueTrack(row, fallbacks.get(row.getTrackId()));
+            Track track = null;
+            PlaybackQueueIdentityEntity identity = identities.get(row.getPosition());
+            if (identity != null) {
+                TrackSourceMappingEntity source = identity.getPreferredSourceId() == null
+                        ? null
+                        : identityDao.source(identity.getPreferredSourceId());
+                if (source == null || source.getRecordingId() != identity.getRecordingId()
+                        || !source.getPlayable() || !"CONFIRMED".equals(source.getMatchStatus())) {
+                    source = identityDao.activeSource(identity.getRecordingId());
+                }
+                if (source != null && source.getLocalTrackId() != null) {
+                    track = TrackEntityMapper.track(libraryDao.loadTrack(source.getLocalTrackId()));
+                }
+            }
+            if (track == null) {
+                track = TrackEntityMapper.queueTrack(row, fallbacks.get(row.getTrackId()));
+            }
             if (track != null) {
                 tracks.add(track);
             }
@@ -65,13 +90,23 @@ public final class PlaybackPersistenceRepository {
 
     public void saveQueue(List<Track> tracks, int currentIndex) {
         ArrayList<PlaybackQueueEntity> rows = new ArrayList<>();
+        ArrayList<PlaybackQueueIdentityEntity> identities = new ArrayList<>();
         if (tracks != null) {
             for (int index = 0; index < tracks.size(); index++) {
-                rows.add(TrackEntityMapper.queueEntity(tracks.get(index), index));
+                Track track = tracks.get(index);
+                rows.add(TrackEntityMapper.queueEntity(track, index));
+                TrackSourceMappingEntity source = identityDao.sourceForLocalTrack(track.id);
+                if (source != null && source.getSourceId() != null) {
+                    identities.add(new PlaybackQueueIdentityEntity(
+                            index,
+                            source.getRecordingId(),
+                            source.getSourceId()
+                    ));
+                }
             }
         }
         database.runInTransaction(() -> {
-            playbackDao.replaceQueue(rows);
+            playbackDao.replaceQueue(rows, identities);
             settingsDao.put(new SettingEntity(QUEUE_INDEX, String.valueOf(currentIndex)));
         });
     }

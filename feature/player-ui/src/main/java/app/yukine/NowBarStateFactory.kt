@@ -149,8 +149,6 @@ object NowBarStateFactory {
         expandNowBar = AppLanguage.text(languageMode, "now.bar.expand"),
         dockTop = AppLanguage.text(languageMode, "now.bar.dock.top"),
         restoreBottom = AppLanguage.text(languageMode, "now.bar.restore.bottom"),
-        collapseTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.collapse"),
-        showTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.show"),
         expandTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.expand"),
         compactTopCloud = AppLanguage.text(languageMode, "now.bar.cloud.compact")
     )

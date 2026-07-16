@@ -8,29 +8,38 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import app.yukine.common.StreamingDataPathMetadata
+import app.yukine.common.ApplicationNetworkClient
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 import app.yukine.model.RemoteSource
+import app.yukine.playback.PlaybackCachedMediaReader
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import java.io.File
+import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import java.util.function.LongFunction
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 @UnstableApi
 internal class PlaybackMediaSourceProvider(
     private val context: Context,
     private val remoteSourceLookup: LongFunction<RemoteSource?>,
     private val streamingPlaybackHeaderStore: StreamingPlaybackHeaderStore
-) : PlaybackQueueManager.StreamingRestoreProvider {
+) : PlaybackQueueManager.StreamingRestoreProvider, PlaybackCachedMediaReader {
     constructor(
         context: Context,
         repository: MusicLibraryRepository,
@@ -40,12 +49,7 @@ internal class PlaybackMediaSourceProvider(
     private var audioCache: SimpleCache? = null
 
     fun mediaSourceFactory(track: Track): DefaultMediaSourceFactory {
-        val headers = headersForTrack(track)
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-        if (headers.isNotEmpty()) {
-            httpFactory.setDefaultRequestProperties(headers)
-        }
+        val httpFactory = httpDataSourceFactory(headersForTrack(track))
         val upstreamFactory = DefaultDataSource.Factory(context, httpFactory)
         if (!isHttpTrack(track)) {
             return DefaultMediaSourceFactory(upstreamFactory)
@@ -58,18 +62,47 @@ internal class PlaybackMediaSourceProvider(
     }
 
     fun cacheDataSourceForTrack(track: Track): CacheDataSource {
-        val headers = headersForTrack(track)
-        val httpFactory = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-        if (headers.isNotEmpty()) {
-            httpFactory.setDefaultRequestProperties(headers)
-        }
+        val httpFactory = httpDataSourceFactory(headersForTrack(track))
         val upstream = DefaultDataSource(context, httpFactory.createDataSource())
         return CacheDataSource(
             audioCache(),
             upstream,
             CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
         )
+    }
+
+    private fun httpDataSourceFactory(headers: Map<String, String>): HttpDataSource.Factory {
+        // Factory/headers remain track-scoped, while every playback, precache and retry request
+        // shares the same OkHttp DNS/TLS/HTTP2 connection pool.
+        return OkHttpDataSource.Factory(PlaybackNetworkClient.httpClient).apply {
+            if (headers.isNotEmpty()) {
+                setDefaultRequestProperties(headers)
+            }
+        }
+    }
+
+    internal fun connectionPoolForTest(): ConnectionPool = PlaybackNetworkClient.httpClient.connectionPool
+
+    internal fun rangeProbeConnectionPoolForTest(): ConnectionPool =
+        PlaybackNetworkClient.rangeProbeClient.connectionPool
+
+    fun contentLengthFromRange(track: Track, start: Long, endInclusive: Long): Long {
+        if (!isHttpTrack(track) || start < 0L || endInclusive < start) return -1L
+        val request = Request.Builder()
+            .url(track.contentUri.toString())
+            .header("Range", "bytes=$start-$endInclusive")
+            .apply {
+                headersForTrack(track).forEach { (name, value) ->
+                    if (name.isNotBlank()) header(name, value)
+                }
+            }
+            .build()
+        return runCatching {
+            PlaybackNetworkClient.rangeProbeClient.newCall(request).execute().use { response ->
+                if (response.code != 206) return@use -1L
+                contentLengthFromContentRange(response.header("Content-Range"))
+            }
+        }.getOrDefault(-1L)
     }
 
     fun mediaItemForTrack(track: Track, metadataProvider: ((Track) -> MediaMetadata)?): MediaItem {
@@ -231,6 +264,59 @@ internal class PlaybackMediaSourceProvider(
         }
     }
 
+    /**
+     * Copies a continuous cached prefix without constructing an upstream DataSource. Missing
+     * bytes therefore return zero instead of contacting WebDAV. The caller owns [target].
+     */
+    override fun copyCachedPrefix(
+        track: Track?,
+        target: File,
+        minimumBytes: Long,
+        maximumBytes: Long
+    ): Long {
+        val cacheKey = cacheKeyForTrack(track) ?: return 0L
+        if (minimumBytes <= 0L || maximumBytes < minimumBytes) return 0L
+        val available = continuousCachedBytes(cacheKey)
+        if (available < minimumBytes) return 0L
+        val targetBytes = minOf(available, maximumBytes)
+        val spans = runCatching { audioCache().getCachedSpans(cacheKey).toList() }
+            .getOrDefault(emptyList())
+            .sortedBy { it.position }
+        target.parentFile?.mkdirs()
+        var copied = 0L
+        return try {
+            FileOutputStream(target, false).use { output ->
+                val buffer = ByteArray(CACHED_PREFIX_COPY_BUFFER_BYTES)
+                spans.forEach { span ->
+                    if (copied >= targetBytes || span.position > copied) return@forEach
+                    val spanEnd = span.position + span.length
+                    if (spanEnd <= copied) return@forEach
+                    val spanFile = span.file ?: return@forEach
+                    val offset = copied - span.position
+                    var remaining = minOf(spanEnd - copied, targetBytes - copied)
+                    RandomAccessFile(spanFile, "r").use { input ->
+                        input.seek(offset)
+                        while (remaining > 0L) {
+                            val requested = minOf(buffer.size.toLong(), remaining).toInt()
+                            val count = input.read(buffer, 0, requested)
+                            if (count <= 0) break
+                            output.write(buffer, 0, count)
+                            copied += count
+                            remaining -= count
+                        }
+                    }
+                }
+            }
+            if (copied >= minimumBytes) copied else {
+                target.delete()
+                0L
+            }
+        } catch (_: Exception) {
+            target.delete()
+            0L
+        }
+    }
+
     fun isHttpTrack(track: Track?): Boolean {
         val uri = track?.contentUri ?: return false
         val scheme = uri.scheme
@@ -257,6 +343,7 @@ internal class PlaybackMediaSourceProvider(
     companion object {
         private const val TAG = "PlaybackMediaSource"
         private const val AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L
+        private const val CACHED_PREFIX_COPY_BUFFER_BYTES = 64 * 1024
 
         @JvmStatic
         fun hasPlayableMediaUri(track: Track?): Boolean {
@@ -318,7 +405,9 @@ internal class PlaybackMediaSourceProvider(
                 val identity = StreamingDataPathMetadata.cacheIdentity(dataPath) ?: dataPath
                 return if (uri.isNullOrEmpty()) identity else "$identity|url=$uri"
             }
-            if (dataPath.startsWith("webdav:")) return dataPath
+            if (dataPath.startsWith("webdav:")) {
+                return if (uri.isNullOrEmpty()) dataPath else "$dataPath|url=$uri"
+            }
             return null
         }
 
@@ -371,5 +460,22 @@ internal class PlaybackMediaSourceProvider(
             }
             return left == right
         }
+
+        @JvmStatic
+        fun contentLengthFromContentRange(contentRange: String?): Long {
+            if (contentRange.isNullOrBlank()) return -1L
+            val total = contentRange.substringAfterLast('/', "").trim()
+            return total.toLongOrNull()?.takeIf { it > 0L } ?: -1L
+        }
     }
+}
+
+private object PlaybackNetworkClient {
+    val httpClient: OkHttpClient = ApplicationNetworkClient.httpClient
+
+    val rangeProbeClient: OkHttpClient = httpClient.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(4, TimeUnit.SECONDS)
+        .callTimeout(4, TimeUnit.SECONDS)
+        .build()
 }

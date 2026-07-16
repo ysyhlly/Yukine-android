@@ -9,6 +9,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -29,10 +30,16 @@ import java.util.regex.Pattern;
 
 import app.yukine.model.LyricsLine;
 import app.yukine.model.Track;
+import app.yukine.identity.LyricSourceBinding;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 public final class LyricsRepository {
+    public interface BindingStore {
+        List<LyricSourceBinding> load(long trackId);
+        void save(long trackId, LyricSourceBinding binding);
+    }
+
     private static final Pattern LRC_TIME_PATTERN = Pattern.compile("\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?\\]");
     private static final String LRCLIB_API_ROOT = "https://lrclib.net/api";
     private static final String NETEASE_LYRIC_URL = "https://music.163.com/api/song/lyric";
@@ -63,6 +70,16 @@ public final class LyricsRepository {
                     return size() > ONLINE_CACHE_LIMIT;
                 }
             };
+    private final BindingStore bindingStore;
+    private final ThreadLocal<ResolvedBinding> resolvedBinding = new ThreadLocal<>();
+
+    public LyricsRepository() {
+        this(null);
+    }
+
+    public LyricsRepository(BindingStore bindingStore) {
+        this.bindingStore = bindingStore;
+    }
 
     public List<LyricsLine> loadForTrack(Track track) {
         return loadForTrack(track, false);
@@ -76,6 +93,7 @@ public final class LyricsRepository {
         if (track == null) {
             return Collections.emptyList();
         }
+        resolvedBinding.remove();
         if (!track.dataPath.isEmpty()) {
             File audioFile = new File(track.dataPath);
             File lyricsFile = findSidecarLyrics(audioFile);
@@ -83,44 +101,137 @@ public final class LyricsRepository {
                 try {
                     List<LyricsLine> localLines = parseLrc(lyricsFile);
                     if (!localLines.isEmpty()) {
-                        return localLines;
+                        rememberBinding("local", lyricsFile.getAbsolutePath());
+                        return finish(track, localLines);
                     }
                 } catch (IOException ignored) {
                     // Fall back to online lyrics when enabled.
                 }
             }
         }
+        List<LyricsLine> boundLines = fetchBoundLyrics(track);
+        if (!boundLines.isEmpty()) {
+            return finish(track, boundLines);
+        }
         List<LyricsLine> neteaseLines = fetchNeteaseLyrics(neteaseProviderTrackId);
         if (neteaseLines.isEmpty()) {
             neteaseLines = fetchNeteaseStreamingLyrics(track);
         }
         if (!neteaseLines.isEmpty()) {
-            return neteaseLines;
+            return finish(track, neteaseLines);
         }
         List<LyricsLine> streamingProviderLines = fetchDirectStreamingProviderLyrics(track);
         if (!streamingProviderLines.isEmpty()) {
-            return streamingProviderLines;
+            return finish(track, streamingProviderLines);
         }
         if (!onlineEnabled) {
             return Collections.emptyList();
         }
         List<LyricsLine> lrclibLines = fetchOnlineLyrics(track);
         if (!lrclibLines.isEmpty()) {
-            return lrclibLines;
+            return finish(track, lrclibLines);
         }
         neteaseLines = fetchNeteaseSearchLyrics(track);
         if (!neteaseLines.isEmpty()) {
-            return neteaseLines;
+            return finish(track, neteaseLines);
         }
         List<LyricsLine> qqLines = fetchQqSearchLyrics(track);
         if (!qqLines.isEmpty()) {
-            return qqLines;
+            return finish(track, qqLines);
         }
         List<LyricsLine> kugouLines = fetchKugouSearchLyrics(track);
         if (!kugouLines.isEmpty()) {
-            return kugouLines;
+            return finish(track, kugouLines);
         }
-        return fetchKuwoSearchLyrics(track);
+        return finish(track, fetchKuwoSearchLyrics(track));
+    }
+
+    private List<LyricsLine> fetchBoundLyrics(Track track) {
+        if (bindingStore == null) {
+            return Collections.emptyList();
+        }
+        List<LyricSourceBinding> bindings;
+        try {
+            bindings = bindingStore.load(track.id);
+        } catch (RuntimeException ignored) {
+            return Collections.emptyList();
+        }
+        if (bindings == null) {
+            return Collections.emptyList();
+        }
+        for (LyricSourceBinding binding : bindings) {
+            String provider = binding.getProvider().trim().toLowerCase(java.util.Locale.ROOT);
+            String id = binding.getProviderLyricId().trim();
+            List<LyricsLine> lines;
+            if ("netease".equals(provider)) {
+                lines = fetchNeteaseLyrics(id);
+            } else if ("qq".equals(provider) || "qqmusic".equals(provider)) {
+                lines = fetchQqLyricsByMid(id, track);
+            } else if ("kuwo".equals(provider)) {
+                lines = fetchKuwoLyricsByRid(id, track);
+            } else if ("kugou".equals(provider)) {
+                lines = fetchKugouLyricsByBinding(id);
+            } else {
+                continue;
+            }
+            if (!lines.isEmpty()) {
+                return lines;
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    private List<LyricsLine> finish(Track track, List<LyricsLine> lines) {
+        try {
+            ResolvedBinding binding = resolvedBinding.get();
+            if (bindingStore != null && binding != null && lines != null && !lines.isEmpty()) {
+                bindingStore.save(track.id, new LyricSourceBinding(
+                        0L,
+                        binding.provider,
+                        binding.providerLyricId,
+                        lines.size() > 1,
+                        Math.max(0L, track.durationMs),
+                        lyricsChecksum(lines),
+                        System.currentTimeMillis()
+                ));
+            }
+            return lines == null ? Collections.emptyList() : lines;
+        } finally {
+            resolvedBinding.remove();
+        }
+    }
+
+    private void rememberBinding(String provider, String providerLyricId) {
+        if (provider != null && providerLyricId != null
+                && !provider.trim().isEmpty() && !providerLyricId.trim().isEmpty()) {
+            resolvedBinding.set(new ResolvedBinding(provider.trim(), providerLyricId.trim()));
+        }
+    }
+
+    private String lyricsChecksum(List<LyricsLine> lines) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            for (LyricsLine line : lines) {
+                digest.update((line.timeMs + "\u0000" + line.text + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+            StringBuilder value = new StringBuilder();
+            for (byte part : digest.digest()) {
+                value.append(String.format(java.util.Locale.ROOT, "%02x", part & 0xff));
+            }
+            return value.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static final class ResolvedBinding {
+        final String provider;
+        final String providerLyricId;
+
+        ResolvedBinding(String provider, String providerLyricId) {
+            this.provider = provider;
+            this.providerLyricId = providerLyricId;
+        }
     }
 
     private File findSidecarLyrics(File audioFile) {
@@ -189,6 +300,7 @@ public final class LyricsRepository {
         String cacheKey = onlineCacheKey(track);
         List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
         if (cached != null) {
+            rememberBinding("lrclib", cacheKey);
             return cached;
         }
         try {
@@ -196,6 +308,7 @@ public final class LyricsRepository {
             if (record == null) {
                 return Collections.emptyList();
             }
+            rememberBinding("lrclib", record.optString("id", cacheKey));
             String syncedLyrics = record.optString("syncedLyrics", "").trim();
             if (!syncedLyrics.isEmpty()) {
                 return cacheOnlineLyrics(cacheKey, parseLrcText(syncedLyrics));
@@ -350,6 +463,7 @@ public final class LyricsRepository {
         if (mid.isEmpty()) {
             return Collections.emptyList();
         }
+        rememberBinding("qqmusic", mid);
         String cacheKey = "qq\n" + mid;
         List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
         if (cached != null) {
@@ -454,6 +568,7 @@ public final class LyricsRepository {
             if (id.isEmpty() || accessKey.isEmpty()) {
                 return Collections.emptyList();
             }
+            rememberBinding("kugou", id + "\n" + accessKey);
             String downloadUrl = KUGOU_LYRIC_DOWNLOAD_URL
                     + "?ver=1&client=pc&id=" + encode(id)
                     + "&accesskey=" + encode(accessKey)
@@ -461,6 +576,29 @@ public final class LyricsRepository {
             JSONObject body = requestProviderJson(downloadUrl, "https://www.kugou.com/");
             String lyrics = maybeDecodeBase64(body.optString("content", "")).trim();
             return parseProviderLyrics(lyrics, "");
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private List<LyricsLine> fetchKugouLyricsByBinding(String bindingId) {
+        if (bindingId == null) {
+            return Collections.emptyList();
+        }
+        String[] parts = bindingId.split("\\n", 2);
+        if (parts.length != 2 || parts[0].trim().isEmpty() || parts[1].trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String id = parts[0].trim();
+        String accessKey = parts[1].trim();
+        rememberBinding("kugou", id + "\n" + accessKey);
+        try {
+            String downloadUrl = KUGOU_LYRIC_DOWNLOAD_URL
+                    + "?ver=1&client=pc&id=" + encode(id)
+                    + "&accesskey=" + encode(accessKey)
+                    + "&fmt=lrc&charset=utf8";
+            JSONObject body = requestProviderJson(downloadUrl, "https://www.kugou.com/");
+            return parseProviderLyrics(maybeDecodeBase64(body.optString("content", "")).trim(), "");
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
@@ -544,6 +682,7 @@ public final class LyricsRepository {
         if (rid.isEmpty()) {
             return Collections.emptyList();
         }
+        rememberBinding("kuwo", rid);
         String cacheKey = "kuwo\n" + rid;
         List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
         if (cached != null) {
@@ -685,6 +824,7 @@ public final class LyricsRepository {
         if (providerTrackId.isEmpty()) {
             return Collections.emptyList();
         }
+        rememberBinding("netease", providerTrackId);
         String cacheKey = "netease\n" + providerTrackId;
         List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
         if (cached != null) {

@@ -155,8 +155,21 @@ class LyricsViewModel @JvmOverloads constructor(
     }
 
     fun loadPlaybackTrack(track: Track?): Job {
-        val providerTrackId = track?.let { providerTrackIdResolver?.providerTrackId(it) }.orEmpty()
-        return load(track, providerTrackId)
+        if (track == null) {
+            return load(null, "")
+        }
+        val lookupToken = ++requestToken
+        return viewModelScope.launch {
+            val providerTrackId = withContext(ioDispatcher) {
+                runCatching {
+                    providerTrackIdResolver?.providerTrackId(track).orEmpty()
+                }.getOrDefault("")
+            }
+            if (lookupToken != requestToken) {
+                return@launch
+            }
+            load(track, providerTrackId).join()
+        }
     }
 
     @JvmOverloads

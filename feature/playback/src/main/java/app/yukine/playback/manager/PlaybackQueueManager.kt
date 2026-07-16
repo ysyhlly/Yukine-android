@@ -7,6 +7,7 @@ import app.yukine.playback.PlaybackRepeatMode.REPEAT_ALL
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_OFF
 import app.yukine.playback.PlaybackRepeatMode.REPEAT_ONE
 import app.yukine.model.Track
+import app.yukine.model.PlaybackTrackSourceOverlay
 import java.util.ArrayList
 import java.util.Collections
 import java.util.HashSet
@@ -697,9 +698,9 @@ internal class PlaybackQueueManager(
     /**
      * Replaces the active queue item with another source for the same logical song.
      *
-     * Unlike streaming URL refreshes, alternate sources can have different physical track IDs.
-     * The expected current ID keeps a late resolution from replacing a song the user has already
-     * changed to, while still allowing a deliberate source switch to retain its current position.
+     * Alternate sources can have different physical IDs, but the queue keeps the current logical
+     * ID so canonical favorites, history and persistence never change identity during playback.
+     * The expected current ID also prevents a late resolution from replacing another song.
      */
     fun replaceCurrentSourceAndResume(
         expectedTrackId: Long,
@@ -714,7 +715,11 @@ internal class PlaybackQueueManager(
         if (current == null || current.id != expectedTrackId) {
             return null
         }
-        return replaceCurrentTrackAtCurrentIndex(current, replacement, positionMs)
+        return replaceCurrentTrackAtCurrentIndex(
+            current,
+            PlaybackTrackSourceOverlay.merge(current, replacement),
+            positionMs
+        )
     }
 
     private fun replaceCurrentTrackAtCurrentIndex(

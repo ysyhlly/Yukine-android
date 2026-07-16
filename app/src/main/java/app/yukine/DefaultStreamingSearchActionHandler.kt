@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.StreamingAudioCapabilityPolicy
 import app.yukine.streaming.StreamingCapabilityResolver
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingProviderName
@@ -57,19 +58,9 @@ internal class DefaultStreamingSearchActionHandler(
     }
 
     override fun playStreamingTrack(track: StreamingTrack) {
-        val descriptor = streamingViewModel.state.providers.firstOrNull { it.name == track.provider }
-        val capability = streamingViewModel.state.providerCapabilities.firstOrNull { it.provider == track.provider }
-        if (descriptor != null && !(capability?.supportsPlayback ?: StreamingCapabilityResolver.canPlayback(descriptor))) {
-            streamingViewModel.search.failRequest(sourceMessage(descriptor.displayName, "streaming.playback.unsupported"))
-            return
-        }
-        if (!track.playable) {
-            val reason = track.unavailableReason
-            streamingViewModel.search.failRequest(
-                reason?.takeIf { it.isNotBlank() } ?: text("streaming.track.unavailable")
-            )
-            return
-        }
+        // Source-provider playback may be disabled while metadata/search stays enabled. Always
+        // hand online tracks to the central policy, which tries LX first and only then enabled
+        // providers. This also keeps QQ metadata playable without ever resolving a QQ URL.
         streamingViewModel.playbackResolution.resolveStreamingPlaybackTrack(
             provider = track.provider,
             providerTrackId = track.providerTrackId,
@@ -91,6 +82,23 @@ internal class DefaultStreamingSearchActionHandler(
             return
         }
         streamingViewModel.search.searchNextStreamingPage()
+    }
+
+    override fun setPlaybackProviderEnabled(provider: StreamingProviderName, enabled: Boolean) {
+        if (provider == StreamingProviderName.QQ_MUSIC) return
+        streamingViewModel.setPlaybackProviderEnabled(provider, enabled)
+    }
+
+    override fun movePlaybackProvider(provider: StreamingProviderName, direction: Int) {
+        if (provider == StreamingProviderName.QQ_MUSIC || provider == StreamingProviderName.LUOXUE) return
+        val order = streamingViewModel.state.playbackSourcePolicy.remotePriority.toMutableList()
+        val from = order.indexOf(provider)
+        if (from < 0) return
+        val to = (from + direction).coerceIn(1, order.lastIndex)
+        if (from == to) return
+        order.removeAt(from)
+        order.add(to, provider)
+        streamingViewModel.setPlaybackProviderPriority(order)
     }
 
     private fun sourceMessage(displayName: String, suffixKey: String): String {

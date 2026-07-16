@@ -1207,10 +1207,14 @@ class PlaybackQueueManagerTest {
         val recovery = requireNotNull(
             manager.replaceCurrentSourceAndResume(current.id, replacement, 800L)
         )
+        val merged = provider.queue.first()
 
-        assertEquals(replacement, provider.queue.first())
-        assertEquals(1_200L, provider.positionManager.restoredPositionFor(replacement))
-        assertEquals(replacement, recovery.track)
+        assertEquals(current.id, merged.id)
+        assertEquals(current.title, merged.title)
+        assertEquals(replacement.contentUri, merged.contentUri)
+        assertEquals(replacement.dataPath, merged.dataPath)
+        assertEquals(1_200L, provider.positionManager.restoredPositionFor(merged))
+        assertEquals(merged, recovery.track)
         assertEquals(1_200L, recovery.restoredPositionMs)
         assertTrue(recovery.playWhenReady)
     }

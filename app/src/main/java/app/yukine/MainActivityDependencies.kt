@@ -2,6 +2,7 @@ package app.yukine
 
 import android.os.Handler
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.data.RecordingMatchRepository
 import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.LuoxueTrackMetadataResolver
 import app.yukine.streaming.cache.StreamingCacheRepository
@@ -18,6 +19,7 @@ internal class MainActivityDependencies @Inject constructor(
     val streamingPlaybackTaskScheduler: StreamingPlaybackTaskScheduler,
     val resolveStreamingPlaybackUseCase: ResolveStreamingPlaybackUseCase,
     val streamingTrackMatchUseCase: StreamingTrackMatchUseCase,
+    val favoriteSyncEventBus: FavoriteSyncEventBus,
     val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     val loadPlaylistTracksUseCase: LoadPlaylistTracksUseCase,
     val libraryCollectionGateway: LibraryCollectionGateway,
@@ -33,11 +35,11 @@ internal class MainActivityDependencies @Inject constructor(
     val networkActionUseCases: NetworkActionUseCases,
     val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
     val repository: MusicLibraryRepository,
+    val recordingMatchRepository: RecordingMatchRepository,
     val trackDownloadManager: TrackDownloadManager,
     val trackShareOperations: TrackShareOperations,
     val settingsStore: MainSettingsStore,
     val nowPlayingPlaybackServiceStarter: NowPlayingPlaybackServiceStarter,
     val playbackServiceCommandQueue: PlaybackServiceCommandQueue,
-    val libraryDeletionUseCase: LibraryDeletionUseCase,
-    val artistInfoRepository: ArtistInfoRepository
+    val libraryDeletionUseCase: LibraryDeletionUseCase
 )

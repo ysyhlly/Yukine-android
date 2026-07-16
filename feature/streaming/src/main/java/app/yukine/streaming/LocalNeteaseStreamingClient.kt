@@ -11,12 +11,12 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
 import java.security.SecureRandom
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import java.security.spec.X509EncodedKeySpec
-import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -46,8 +46,8 @@ data class NeteaseHttpResponse(
 
 class DefaultNeteaseHttpClient(
     private val baseUrl: String = "https://music.163.com",
-    private val connectTimeoutMs: Int = 8_000,
-    private val readTimeoutMs: Int = 12_000
+    private val connectTimeoutMs: Int = 2_500,
+    private val readTimeoutMs: Int = 4_000
 ) : NeteaseHttpClient {
     override fun getJson(path: String, query: Map<String, String>, cookieHeader: String?): JSONObject {
         return request("GET", path, query, null, cookieHeader).body
@@ -78,7 +78,13 @@ class DefaultNeteaseHttpClient(
         connection.readTimeout = readTimeoutMs
         connection.instanceFollowRedirects = false
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android")
+        connection.setRequestProperty(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        )
+        connection.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+        connection.setRequestProperty("Origin", "https://music.163.com")
         connection.setRequestProperty("Referer", "https://music.163.com/")
         cookieHeader?.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Cookie", it) }
         try {
@@ -227,12 +233,12 @@ private object NeteaseWeApiCipher {
             SecretKeySpec(key.toByteArray(StandardCharsets.UTF_8), "AES"),
             IvParameterSpec(IV.toByteArray(StandardCharsets.UTF_8))
         )
-        return Base64.encodeToString(cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8)), Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8)))
     }
 
     private fun rsaNoPadding(value: String): String {
         val key = KeyFactory.getInstance("RSA").generatePublic(
-            X509EncodedKeySpec(Base64.decode(PUBLIC_KEY_DER_BASE64, Base64.NO_WRAP))
+            X509EncodedKeySpec(Base64.getDecoder().decode(PUBLIC_KEY_DER_BASE64))
         )
         val cipher = Cipher.getInstance("RSA/ECB/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key)
@@ -248,6 +254,8 @@ class LocalNeteaseStreamingClient(
 ) {
     private val heartbeatSeedSequence = AtomicInteger(0)
     private val heartbeatResultSequence = AtomicInteger(0)
+    @Volatile
+    private var likedPlaylistIdCache: String? = null
 
     fun canHandle(provider: StreamingProviderName): Boolean {
         return supportsProvider(provider) && authStore?.connected(provider) == true
@@ -319,6 +327,62 @@ class LocalNeteaseStreamingClient(
             cookie
         )
         return fetchSongs(idList(body.optJSONArray("ids")))
+    }
+
+    fun setFavorite(providerTrackId: String, favorite: Boolean) {
+        val id = providerTrackId.trim()
+        if (id.isEmpty()) {
+            throw StreamingGatewayException("NetEase track id is empty", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+        }
+        val requestCookie = StreamingCookieHeaderParser.merge(requireCookie(), "os=pc")
+        val csrf = neteaseCookieValue(requestCookie, "__csrf").orEmpty()
+        val likedPlaylistId = likedPlaylistId(requestCookie)
+        val response = httpClient.postForm(
+            "/weapi/playlist/manipulate/tracks?csrf_token=${URLEncoder.encode(csrf, StandardCharsets.UTF_8.name())}",
+            NeteaseWeApiCipher.encryptForm(
+                JSONObject()
+                    .put("pid", likedPlaylistId)
+                    .put("trackIds", JSONArray().put(id).toString())
+                    .put("op", if (favorite) "add" else "del")
+                    .put("csrf_token", csrf)
+            ),
+            requestCookie
+        )
+        val code = response.body.optInt("code", 200)
+        if (code != 200) {
+            throw StreamingGatewayException(
+                response.body.optString("message", "更新网易云红心失败 ($code)"),
+                code = if (code == 301 || code == 302) StreamingErrorCode.AUTH_REQUIRED else StreamingErrorCode.SOURCE_UNAVAILABLE,
+                retryable = code >= 500
+            )
+        }
+    }
+
+    private fun likedPlaylistId(cookie: String): String {
+        likedPlaylistIdCache?.let { return it }
+        return synchronized(this) {
+            likedPlaylistIdCache?.let { return@synchronized it }
+            val userId = resolveUserId(cookie)
+            val body = httpClient.getJson(
+                "/api/user/playlist",
+                mapOf(
+                    "uid" to userId,
+                    "limit" to "1000",
+                    "offset" to "0",
+                    "includeVideo" to "true"
+                ),
+                cookie
+            )
+            val playlistId = playlistRecords(body)
+                .firstOrNull { it.optInt("specialType", 0) == 5 }
+                ?.let { idText(it.opt("id") ?: it.opt("playlistId")) }
+                ?: throw StreamingGatewayException(
+                    "未找到网易云「我喜欢的音乐」歌单，请在网易云创建后重试。",
+                    code = StreamingErrorCode.SOURCE_UNAVAILABLE
+                )
+            likedPlaylistIdCache = playlistId
+            playlistId
+        }
     }
 
     /**

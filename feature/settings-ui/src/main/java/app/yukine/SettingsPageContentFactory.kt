@@ -288,7 +288,8 @@ internal object SettingsPageContentFactory {
                     runtime.streamingGatewayEndpoint,
                     runtime.streamingGatewayConfigured,
                     onNavigate = ::navigateSettingsPage,
-                    onApplyEndpoint = { endpoint -> network.applyStreamingGatewayEndpoint(endpoint) }
+                    onApplyEndpoint = { endpoint -> network.applyStreamingGatewayEndpoint(endpoint) },
+                    onEditMusicBrainzProxy = { network.editMusicBrainzProxy() }
                 )
             SettingsPage.Home,
             SettingsPage.Downloads ->

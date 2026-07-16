@@ -28,7 +28,6 @@ class StreamingPlaylistImporter(
         val unresolved = ArrayList<Track>()
         val errors = ArrayList<String>()
         for (track in localTracks) {
-            if (track == null) continue
             val query = StreamingTrackMatchPolicy.searchQuery(track)
             if (query.isBlank()) {
                 unresolved.add(track)
@@ -62,6 +61,40 @@ class StreamingPlaylistImporter(
             unresolvedTracks = unresolved.toList(),
             errors = errors.toList()
         )
+    }
+
+    suspend fun createRemotePlaylist(summary: StreamingPlaylistImportSummary): StreamingPlaylistImportSummary {
+        if (summary.matchedTracks.isEmpty()) return summary
+        val capability = repository.providerCapabilities().firstOrNull { it.provider == summary.provider }
+        if (capability?.supportsPlaylistCreate != true || capability.supportsPlaylistWrite.not()) return summary
+        val playlist = repository.createUserPlaylist(summary.provider, summary.playlistName)
+        repository.mutateUserPlaylistTracks(
+            summary.provider,
+            playlist.providerPlaylistId,
+            summary.matchedTracks.map { it.providerTrackId }.distinct(),
+            add = true
+        )
+        return summary.copy(remotePlaylist = playlist)
+    }
+
+    /** Incrementally reconciles a mirror playlist without clearing or rebuilding it. */
+    suspend fun syncRemotePlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        title: String,
+        desiredTracks: List<StreamingTrack>
+    ) {
+        val existing = repository.playlist(provider, providerPlaylistId, pageSize = 2_000, useCache = false)
+        val existingIds = existing.tracks.map { it.providerTrackId }
+        val desiredIds = desiredTracks.map { it.providerTrackId }.filter { it.isNotBlank() }.distinct()
+        if (existing.playlist?.title != title) repository.renameUserPlaylist(provider, providerPlaylistId, title)
+        val add = desiredIds.filterNot(existingIds::contains)
+        val remove = existingIds.filterNot(desiredIds::contains)
+        if (add.isNotEmpty()) repository.mutateUserPlaylistTracks(provider, providerPlaylistId, add, true)
+        if (remove.isNotEmpty()) repository.mutateUserPlaylistTracks(provider, providerPlaylistId, remove, false)
+        if (desiredIds.isNotEmpty() && desiredIds != existingIds) {
+            repository.reorderUserPlaylistTracks(provider, providerPlaylistId, desiredIds)
+        }
     }
 
     private fun buildSearchQuery(track: Track): String {

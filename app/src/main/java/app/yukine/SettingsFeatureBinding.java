@@ -85,6 +85,13 @@ final class SettingsFeatureBinding {
                 task -> mainHandler.post(task),
                 this::languageMode
         );
+        IdentityEnhancementProxyDialogController identityProxyDialogController =
+                new IdentityEnhancementProxyDialogController(
+                        activity,
+                        new IdentityEnhancementSettingsStore(activity),
+                        this::languageMode,
+                        statusMessages::setStatus
+                );
         effectOwner = new SettingsEffectOwner(
                 new SettingsNavigationEffectActions(
                         statusMessages::setStatus,
@@ -117,7 +124,10 @@ final class SettingsFeatureBinding {
                         backupRestoreLauncher::exportBackup,
                         backupRestoreLauncher::importBackup
                 ),
-                streaming::applyEndpoint
+                new SettingsStreamingEffectActions(
+                        streaming::applyEndpoint,
+                        identityProxyDialogController::show
+                )
         );
         viewModel.bindEffectListener(effectOwner);
         SettingsRuntimeApplier runtimeApplier = new SettingsRuntimeApplier(

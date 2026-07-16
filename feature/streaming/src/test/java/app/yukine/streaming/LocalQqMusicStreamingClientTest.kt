@@ -584,6 +584,51 @@ class LocalQqMusicStreamingClientTest {
         )
     }
 
+    @Test
+    fun setFavoriteUsesAuthenticatedMusicuEnvelope() {
+        val httpClient = FakeQqMusicHttpClient(
+            postResponses = listOf(
+                JSONObject().put(
+                    "req_0",
+                    JSONObject()
+                        .put("code", 0)
+                        .put(
+                            "data",
+                            JSONObject().put(
+                                "tracks",
+                                JSONArray().put(JSONObject().put("id", 987654L).put("type", 0))
+                            )
+                        )
+                ),
+                JSONObject().put("req_0", JSONObject().put("code", 0).put("data", JSONObject()))
+            )
+        )
+        val client = LocalQqMusicStreamingClient(
+            FakeAuthStore("uin=o12345; qqmusic_key=local-key"),
+            httpClient
+        )
+
+        client.setFavorite("song-mid|media-mid", true)
+
+        assertEquals(2, httpClient.postBodies.size)
+        val lookup = httpClient.postBodies.first().getJSONObject("req_0")
+        assertEquals("music.trackInfo.UniformRuleCtrl", lookup.getString("module"))
+        assertEquals("CgiGetTrackInfo", lookup.getString("method"))
+        assertEquals("song-mid", lookup.getJSONObject("param").getJSONArray("mids").getString(0))
+
+        val request = httpClient.postBodies.last()
+        assertEquals("12345", request.getString("loginUin"))
+        assertEquals("json", request.getJSONObject("comm").getString("format"))
+        assertEquals("local-key", request.getJSONObject("comm").getString("authst"))
+        val write = request.getJSONObject("req_0")
+        assertEquals("music.musicasset.PlaylistDetailWrite", write.getString("module"))
+        assertEquals("AddSonglist", write.getString("method"))
+        assertEquals(201, write.getJSONObject("param").getInt("dirId"))
+        val songInfo = write.getJSONObject("param").getJSONArray("v_songInfo").getJSONObject(0)
+        assertEquals(987654L, songInfo.getLong("songId"))
+        assertEquals(0, songInfo.getInt("songType"))
+    }
+
     private class FakeAuthStore(
         private val cookie: String
     ) : StreamingLocalAuthStore {

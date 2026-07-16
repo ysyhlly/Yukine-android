@@ -10,9 +10,22 @@ import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -216,6 +229,15 @@ private class ByteArrayOutputStreamLimited(
 internal class QuickJsLuoxueScriptRuntime(
     private val httpClient: LuoxueScriptHttpClient = DefaultLuoxueScriptHttpClient()
 ) : LuoxueScriptRuntime {
+    /**
+     * quickjs-kt completes bound async functions from its own coroutines. Cancelling the caller
+     * must therefore not close the native runtime while one of those callbacks is still returning
+     * through JNI. Keep execution owned by this runtime and serialize instances because the
+     * bundled alpha native bridge is not safe to tear down concurrently with another callback.
+     */
+    private val executionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val executionMutex = Mutex()
+
     override suspend fun search(
         source: LuoxueImportedSource,
         sourceKey: String,
@@ -316,9 +338,50 @@ internal class QuickJsLuoxueScriptRuntime(
         sourceKey: String,
         action: String,
         actionInfo: JSONObject
-    ): String = withTimeout(SCRIPT_TIMEOUT_MS) {
+    ): String {
+        val abandoned = AtomicBoolean(false)
+        val execution = executionScope.async {
+            executionMutex.withLock {
+                if (abandoned.get()) {
+                    throw CancellationException("LX 脚本请求已取消")
+                }
+                executeAction(source, sourceKey, action, actionInfo)
+            }
+        }
+        return try {
+            withTimeout(SCRIPT_TIMEOUT_MS) { execution.await() }
+        } catch (error: TimeoutCancellationException) {
+            abandoned.set(true)
+            val callerWasCancelled = !currentCoroutineContext().isActive
+            awaitExecutionTeardown(execution)
+            if (callerWasCancelled) throw error
+            throw StreamingGatewayException(
+                "LX 音源「${source.name}」${action} 解析超时",
+                cause = error,
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE,
+                retryable = true
+            )
+        } catch (error: CancellationException) {
+            abandoned.set(true)
+            awaitExecutionTeardown(execution)
+            throw error
+        }
+    }
+
+    private suspend fun awaitExecutionTeardown(execution: kotlinx.coroutines.Deferred<String>) {
+        withContext(NonCancellable) {
+            withTimeoutOrNull(CANCEL_CLEANUP_TIMEOUT_MS) { execution.join() }
+        }
+    }
+
+    private suspend fun executeAction(
+        source: LuoxueImportedSource,
+        sourceKey: String,
+        action: String,
+        actionInfo: JSONObject
+    ): String {
         val quickJs = QuickJs.create(Dispatchers.IO)
-        try {
+        return try {
             quickJs.memoryLimit = MAX_MEMORY_BYTES
             quickJs.maxStackSize = MAX_STACK_BYTES
             quickJs.function("__yukineLxMd5") { args ->
@@ -342,6 +405,7 @@ internal class QuickJsLuoxueScriptRuntime(
                 invocation(sourceKey, action, actionInfo),
                 source.origin.ifBlank { "lx-source.js" }
             )
+            awaitActionResult(quickJs)
         } catch (error: StreamingGatewayException) {
             throw error
         } catch (error: Throwable) {
@@ -401,6 +465,25 @@ internal class QuickJsLuoxueScriptRuntime(
         if (actions != null && actions.length() > 0 && !actions.containsText(action)) {
             throw IllegalStateException("LX 音源「${source.name}」的 $sourceKey 子源不支持 $action")
         }
+    }
+
+    private suspend fun awaitActionResult(quickJs: QuickJs): String {
+        val attempts = (SCRIPT_TIMEOUT_MS / ACTION_POLL_MS).toInt().coerceAtLeast(1)
+        repeat(attempts) {
+            val stateJson = quickJs.evaluate<String>(
+                "JSON.stringify({done: !!globalThis.__yukineLxActionDone," +
+                    "result: globalThis.__yukineLxActionResult || ''," +
+                    "error: globalThis.__yukineLxActionError || ''})"
+            )
+            val state = JSONObject(stateJson)
+            if (state.optBoolean("done")) {
+                val error = state.optString("error").trim()
+                if (error.isNotBlank()) throw IllegalStateException(error)
+                return state.optString("result")
+            }
+            delay(ACTION_POLL_MS)
+        }
+        throw IllegalStateException("LX 音源请求处理超时")
     }
 
     private fun bootstrap(source: LuoxueImportedSource): String {
@@ -473,9 +556,23 @@ internal class QuickJsLuoxueScriptRuntime(
             .put("info", actionInfo)
             .toString()
         return """
-            (async () => {
-              const result = await globalThis.__yukineLxRequestHandler($info);
-              return JSON.stringify(typeof result === 'undefined' ? null : result);
+            (() => {
+              globalThis.__yukineLxActionDone = false;
+              globalThis.__yukineLxActionResult = '';
+              globalThis.__yukineLxActionError = '';
+              Promise.resolve()
+                .then(() => globalThis.__yukineLxRequestHandler($info))
+                .then(result => {
+                  globalThis.__yukineLxActionResult = JSON.stringify(
+                    typeof result === 'undefined' ? null : result
+                  );
+                  globalThis.__yukineLxActionDone = true;
+                })
+                .catch(error => {
+                  globalThis.__yukineLxActionError = String(error && error.message ? error.message : error);
+                  globalThis.__yukineLxActionDone = true;
+                });
+              return '';
             })()
         """.trimIndent()
     }
@@ -589,6 +686,10 @@ internal class QuickJsLuoxueScriptRuntime(
     private fun decodeJsonValue(value: String, depth: Int): Any? {
         val raw = value.trim()
         if (raw.isBlank()) return null
+        val looksLikeJson = raw.startsWith("{") || raw.startsWith("[") ||
+            (raw.startsWith('"') && raw.endsWith('"')) ||
+            raw == "null" || raw == "true" || raw == "false" || raw.toDoubleOrNull() != null
+        if (!looksLikeJson) return raw
         val parsed = runCatching { JSONTokener(raw).nextValue() }.getOrElse { return raw }
         if (parsed is String && depth < MAX_JSON_UNWRAP_DEPTH) {
             val nested = parsed.trim()
@@ -674,10 +775,21 @@ internal class QuickJsLuoxueScriptRuntime(
     }
 
     private fun LuoxueScriptHttpResponse.toScriptJson(): String {
+        val scriptBody = if (body.isBlank() && statusCode !in 200..299) {
+            // LX-compatible hosts expose request failures as a structured body. Without this,
+            // scripts that inspect body.code collapse an upstream HTTP failure into "unknown error".
+            JSONObject()
+                .put("code", statusCode)
+                .put("error", "HttpError")
+                .put("message", "HTTP $statusCode 返回空响应")
+                .toString()
+        } else {
+            body
+        }
         return JSONObject()
             .put("statusCode", statusCode)
             .put("headers", JSONObject(headers))
-            .put("body", body)
+            .put("body", scriptBody)
             .toString()
     }
 
@@ -688,9 +800,11 @@ internal class QuickJsLuoxueScriptRuntime(
     }
 
     private companion object {
-        private const val SCRIPT_TIMEOUT_MS = 25_000L
+        private const val SCRIPT_TIMEOUT_MS = 12_000L
         private const val SOURCE_INIT_TIMEOUT_MS = 8_000L
         private const val SOURCE_INIT_POLL_MS = 25L
+        private const val ACTION_POLL_MS = 25L
+        private const val CANCEL_CLEANUP_TIMEOUT_MS = 2_000L
         private const val DEFAULT_HTTP_TIMEOUT_MS = 10_000
         private const val MIN_HTTP_TIMEOUT_MS = 1_000
         private const val MAX_HTTP_TIMEOUT_MS = 20_000

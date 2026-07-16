@@ -18,11 +18,11 @@ internal class PlaybackPlayerFactory(
 ) {
     companion object {
         private const val TAG = "PlaybackPlayerFactory"
-        private const val STREAMING_MIN_BUFFER_MS = 90000
-        private const val STREAMING_MAX_BUFFER_MS = 600000
-        private const val STREAMING_BUFFER_FOR_PLAYBACK_MS = 2500
-        private const val STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3500
-        private const val STREAMING_BACK_BUFFER_MS = 60000
+        private const val STREAMING_MIN_BUFFER_MS = 15000
+        private const val STREAMING_MAX_BUFFER_MS = 120000
+        private const val STREAMING_BUFFER_FOR_PLAYBACK_MS = 750
+        private const val STREAMING_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1500
+        private const val STREAMING_BACK_BUFFER_MS = 15000
     }
 
     fun createPlayer(): ExoPlayer {

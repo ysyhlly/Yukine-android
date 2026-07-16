@@ -36,6 +36,7 @@ class StreamingAuthStateOwner internal constructor(
                 val providers = currentRepository.providers()
                 val capabilities = runCatching { currentRepository.providerCapabilities() }.getOrElse { emptyList() }
                 val health = runCatching { currentRepository.providersHealth() }.getOrElse { emptyList() }
+                val playbackPolicy = currentRepository.playbackSourcePolicy()
                 val authStates = providers.associate { provider ->
                     provider.name to runCatching {
                         currentRepository.authState(provider.name)
@@ -43,7 +44,7 @@ class StreamingAuthStateOwner internal constructor(
                         provider.auth
                     }
                 }
-                ProviderRefresh(providers, capabilities, health, authStates)
+                ProviderRefresh(providers, capabilities, health, authStates, playbackPolicy)
             }.onSuccess { refresh ->
                 updateProviders(refresh.providers, refresh.capabilities, refresh.health)
                 stateOwner.value = stateOwner.value.copy(
@@ -51,6 +52,7 @@ class StreamingAuthStateOwner internal constructor(
                     loading = false,
                     errorMessage = null,
                     diagnostics = repository().diagnostics()
+                    , playbackSourcePolicy = refresh.playbackPolicy
                 )
             }.onFailure { error ->
                 failRequest(error.message)
@@ -273,5 +275,6 @@ class StreamingAuthStateOwner internal constructor(
         val capabilities: List<StreamingProviderCapability>,
         val health: List<StreamingProviderHealth>,
         val authStates: Map<StreamingProviderName, StreamingAuthState>
+        , val playbackPolicy: app.yukine.streaming.PlaybackSourcePolicySnapshot
     )
 }

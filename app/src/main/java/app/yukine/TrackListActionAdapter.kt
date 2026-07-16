@@ -9,7 +9,8 @@ internal class TrackListActionAdapter(
     private val trackDownloader: TrackDownloader,
     private val tracksDownloader: TracksDownloader,
     private val streamEditor: StreamEditor,
-    private val trackDeleteConfirmer: TrackDeleteConfirmer
+    private val trackDeleteConfirmer: TrackDeleteConfirmer,
+    private val recordingMatchOpener: RecordingMatchOpener
 ) : TrackListStateReducer.Listener {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
@@ -39,6 +40,10 @@ internal class TrackListActionAdapter(
         fun confirmDeleteTrack(track: Track)
     }
 
+    fun interface RecordingMatchOpener {
+        fun showRecordingMatch(track: Track)
+    }
+
     override fun playTrackList(tracks: List<Track>, index: Int) {
         trackListPlayer.playTrackList(tracks, index)
     }
@@ -49,6 +54,10 @@ internal class TrackListActionAdapter(
 
     override fun showAddToPlaylist(track: Track) {
         playlistAdder.showAddToPlaylist(track)
+    }
+
+    override fun showRecordingMatch(track: Track) {
+        recordingMatchOpener.showRecordingMatch(track)
     }
 
     override fun downloadTrack(track: Track) {

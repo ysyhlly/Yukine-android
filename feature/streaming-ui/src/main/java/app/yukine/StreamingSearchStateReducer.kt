@@ -51,6 +51,10 @@ class StreamingSearchStateReducer(
 
         fun inputProviderCookie()
 
+        fun setPlaybackProviderEnabled(provider: StreamingProviderName, enabled: Boolean) = Unit
+
+        fun movePlaybackProvider(provider: StreamingProviderName, direction: Int) = Unit
+
         fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions)
     }
 
@@ -73,7 +77,10 @@ class StreamingSearchStateReducer(
             onHeartbeatRecommend = Runnable { listener.playHeartbeatRecommendations() },
             onPasteImport = Runnable { listener.pasteImportPlaylist() },
             onManageLuoxueSources = Runnable { listener.manageLuoxueSources() },
-            onInputCookie = Runnable { listener.inputProviderCookie() }
+            onInputCookie = Runnable { listener.inputProviderCookie() },
+            onPlaybackEnabledChanged = { provider, enabled -> listener.setPlaybackProviderEnabled(provider, enabled) },
+            onPlaybackPriorityUp = { provider -> listener.movePlaybackProvider(provider, -1) },
+            onPlaybackPriorityDown = { provider -> listener.movePlaybackProvider(provider, 1) }
         )
         listener.publishStreamingSearchChrome(labels, actions)
     }

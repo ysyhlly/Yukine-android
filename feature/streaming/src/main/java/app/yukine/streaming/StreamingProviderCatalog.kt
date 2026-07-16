@@ -23,7 +23,7 @@ object StreamingProviderCatalog {
                 supportsAuth = true,
                 authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
                 localFirst = localFirst,
-                statusMessage = if (localFirst) "登录后本机直连，支持搜索、播放和歌单导入" else ""
+                statusMessage = "红心与歌单双向同步已启用；播放音源已禁用"
             ),
             descriptor(
                 StreamingProviderName.KUGOU,
@@ -94,7 +94,7 @@ object StreamingProviderCatalog {
             enabled = !localPending,
             capabilities = StreamingProviderCapabilities(
                 supportsSearch = !localPending,
-                supportsPlayback = !localPending,
+                supportsPlayback = !localPending && name != StreamingProviderName.QQ_MUSIC,
                 supportsLyrics = !localPending,
                 supportsMv = supportsMv && !localPending,
                 supportsAuth = supportsAuth && !localPending,
@@ -109,7 +109,20 @@ object StreamingProviderCatalog {
                         StreamingMediaType.ARTIST,
                         StreamingMediaType.PLAYLIST
                     )
-                }
+                },
+                supportsPlaylistImport = !localPending,
+                supportsPlaylistReadSync = !localPending,
+                supportsPlaylistCreate = !localPending && supportsAuth,
+                supportsPlaylistWrite = !localPending && supportsAuth,
+                supportsPlaylistDelete = !localPending && supportsAuth,
+                supportsPlaylistRename = !localPending && supportsAuth,
+                supportsPlaylistReorder = !localPending && supportsAuth,
+                supportsFavoritesRead = !localPending && supportsAuth,
+                supportsFavoritesWrite = !localPending && supportsAuth,
+                supportsAudioResolve = !localPending && name != StreamingProviderName.QQ_MUSIC,
+                supportsAudioFallback = !localPending && name != StreamingProviderName.QQ_MUSIC,
+                supportsAudioDownload = !localPending && name != StreamingProviderName.QQ_MUSIC,
+                supportsAudioCache = !localPending && name != StreamingProviderName.QQ_MUSIC
             ),
             auth = auth,
             status = when {

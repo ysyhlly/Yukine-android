@@ -5,11 +5,15 @@ import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
+import app.yukine.ui.LibraryPlaylistFolderEntryUiState
+import app.yukine.ui.LibraryPlaylistFolderUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.EchoIconKind
+import app.yukine.streaming.StreamingProviderName
 import java.util.ArrayList
+import java.util.LinkedHashMap
 
 class LibraryPlaylistsStateReducer(
     private val viewModel: LibraryViewModel,
@@ -47,7 +51,8 @@ class LibraryPlaylistsStateReducer(
         selectedPlaylistTracks: List<Track>,
         favoriteTracks: List<Track>,
         recentRecords: List<TrackPlayRecord>,
-        modeActions: List<TrackListModeAction>
+        modeActions: List<TrackListModeAction>,
+        playlistSources: Map<Long, StreamingProviderName> = emptyMap()
     ) {
         if (selectedLibraryGroupKey == favoritesKey) {
             reduceFavoriteTracks(languageMode, favoriteTracks, modeActions)
@@ -61,7 +66,7 @@ class LibraryPlaylistsStateReducer(
             publishPlaylistTracks(languageMode, selectedPlaylistName, selectedPlaylistTracks, modeActions)
             return
         }
-        reducePlaylists(languageMode, playlists, favoriteTracks, recentRecords, modeActions)
+        reducePlaylists(languageMode, playlists, favoriteTracks, recentRecords, modeActions, playlistSources)
     }
 
     private fun reducePlaylists(
@@ -69,7 +74,8 @@ class LibraryPlaylistsStateReducer(
         playlists: List<Playlist>,
         favoriteTracks: List<Track>,
         recentRecords: List<TrackPlayRecord>,
-        modeActions: List<TrackListModeAction>
+        modeActions: List<TrackListModeAction>,
+        playlistSources: Map<Long, StreamingProviderName>
     ) {
         val rows = ArrayList<LibraryGroupUiState>()
         val actions = ArrayList<LibraryGroupActions>()
@@ -106,14 +112,17 @@ class LibraryPlaylistsStateReducer(
                 null
             )
         )
+        val groupedPlaylists = LinkedHashMap<
+            StreamingProviderName?,
+            MutableList<Pair<LibraryPlaylistFolderEntryUiState, Int>>
+        >()
         for (playlist in playlists) {
-            rows.add(
-                LibraryGroupUiState(
-                    "playlist:${playlist.id}",
-                    playlist.name,
-                    CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode)
-                )
+            val row = LibraryGroupUiState(
+                "playlist:${playlist.id}",
+                playlist.name,
+                CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode)
             )
+            val actionIndex = actions.size
             actions.add(
                 LibraryGroupActions(
                     Runnable { listener.openPlaylist(playlist.id, playlist.name) },
@@ -122,11 +131,23 @@ class LibraryPlaylistsStateReducer(
                     Runnable { listener.confirmDeletePlaylist(playlist) }
                 )
             )
+            groupedPlaylists.getOrPut(playlistSources[playlist.id]) { ArrayList() }
+                .add(LibraryPlaylistFolderEntryUiState(row, actionIndex) to playlist.trackCount)
         }
+        val playlistFolders = groupedPlaylists.entries
+            .sortedBy { playlistSourceOrder(it.key) }
+            .map { (provider, entries) ->
+                LibraryPlaylistFolderUiState(
+                    key = provider?.wireName ?: "local",
+                    title = playlistSourceTitle(provider, languageMode),
+                    subtitle = playlistFolderSubtitle(entries.size, entries.sumOf { it.second }, languageMode),
+                    entries = entries.map { it.first }
+                )
+            }
 
         val title = AppLanguage.text(languageMode, "playlists")
         viewModel.presentation.clearTrackList()
-        viewModel.presentation.updateLibraryGroups(title, rows)
+        viewModel.presentation.updateLibraryGroups(title, rows, playlistFolders)
         listener.publishLibraryGroupsChrome(
             LibraryGroupsChromeState(
                 actions = actions,
@@ -134,6 +155,52 @@ class LibraryPlaylistsStateReducer(
                 modeActions = ArrayList(modeActions)
             )
         )
+    }
+
+    private fun playlistSourceOrder(provider: StreamingProviderName?): Int = when (provider) {
+        null -> 0
+        StreamingProviderName.NETEASE -> 10
+        StreamingProviderName.QQ_MUSIC -> 20
+        StreamingProviderName.LUOXUE -> 30
+        StreamingProviderName.KUGOU -> 40
+        StreamingProviderName.BILIBILI -> 50
+        StreamingProviderName.YOUTUBE -> 60
+        StreamingProviderName.SOUNDCLOUD -> 70
+        StreamingProviderName.SPOTIFY -> 80
+        StreamingProviderName.TIDAL -> 90
+        StreamingProviderName.M3U8 -> 100
+        StreamingProviderName.PLUGIN -> 110
+        StreamingProviderName.MOCK -> 120
+    }
+
+    private fun playlistSourceTitle(provider: StreamingProviderName?, languageMode: String): String {
+        if (provider == null) {
+            return if (AppLanguage.MODE_ENGLISH == languageMode) "Local source" else "本地音源"
+        }
+        val english = AppLanguage.MODE_ENGLISH == languageMode
+        return when (provider) {
+            StreamingProviderName.NETEASE -> if (english) "NetEase Cloud Music" else "网易云音乐"
+            StreamingProviderName.QQ_MUSIC -> if (english) "QQ Music" else "QQ 音乐"
+            StreamingProviderName.KUGOU -> if (english) "Kugou Music" else "酷狗音乐"
+            StreamingProviderName.BILIBILI -> "bilibili"
+            StreamingProviderName.YOUTUBE -> "YouTube"
+            StreamingProviderName.SOUNDCLOUD -> "SoundCloud"
+            StreamingProviderName.SPOTIFY -> "Spotify"
+            StreamingProviderName.TIDAL -> "TIDAL"
+            StreamingProviderName.M3U8 -> "M3U8"
+            StreamingProviderName.LUOXUE -> if (english) "LX Music Source" else "洛雪音源"
+            StreamingProviderName.PLUGIN -> if (english) "Custom plugins" else "自定义插件"
+            StreamingProviderName.MOCK -> "Mock"
+        }
+    }
+
+    private fun playlistFolderSubtitle(playlistCount: Int, trackCount: Int, languageMode: String): String {
+        return if (AppLanguage.MODE_ENGLISH == languageMode) {
+            "$playlistCount ${if (playlistCount == 1) "playlist" else "playlists"} · " +
+                CollectionRowStateFactory.trackCountLabel(trackCount, languageMode)
+        } else {
+            "$playlistCount 个歌单 · " + CollectionRowStateFactory.trackCountLabel(trackCount, languageMode)
+        }
     }
 
     private fun reducePlayHistory(

@@ -133,6 +133,14 @@ internal class StreamingSearchActionAdapter(
         manualCookiePresenter.showStreamingCookieDialog()
     }
 
+    override fun setPlaybackProviderEnabled(provider: StreamingProviderName, enabled: Boolean) {
+        actionHandler.setPlaybackProviderEnabled(provider, enabled)
+    }
+
+    override fun movePlaybackProvider(provider: StreamingProviderName, direction: Int) {
+        actionHandler.movePlaybackProvider(provider, direction)
+    }
+
     override fun publishStreamingSearchChrome(labels: StreamingSearchLabels, actions: StreamingSearchActions) {
         chromePublisher.publishStreamingSearchChrome(labels, actions)
     }

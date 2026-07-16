@@ -8,11 +8,13 @@ import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class UnifiedSearchOwnerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -75,6 +77,7 @@ class UnifiedSearchOwnerTest {
         fixture.routeController.setSearchQuery("missing")
 
         fixture.owner.applyCurrentSearch()
+        mainDispatcherRule.testScheduler.advanceUntilIdle()
 
         assertEquals(listOf("search:missing"), fixture.streamingHandler.calls)
         assertEquals(

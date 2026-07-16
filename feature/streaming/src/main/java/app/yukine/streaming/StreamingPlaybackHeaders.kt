@@ -19,7 +19,8 @@ interface StreamingPlaybackHeaderStore {
 
 class PersistentStreamingPlaybackHeaders(
     private val cacheRepository: StreamingCacheRepository,
-    private val localAuthStore: StreamingLocalAuthStore? = null
+    private val localAuthStore: StreamingLocalAuthStore? = null,
+    private val playbackSourcePolicy: PlaybackSourcePolicy = DefaultPlaybackSourcePolicy
 ) : StreamingPlaybackHeaderStore {
     private val headersByDataPath = ConcurrentHashMap<String, Map<String, String>>()
 
@@ -28,6 +29,8 @@ class PersistentStreamingPlaybackHeaders(
         if (dataPath.isBlank()) {
             return
         }
+        val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath)
+        if (provider != null && !playbackSourcePolicy.isEnabled(provider)) return
         val headerKey = headerKey(dataPath)
         val runtimeHeaders = headersWithStreamingAuth(dataPath, headers, localAuthStore)
         if (runtimeHeaders.isEmpty()) {
@@ -42,6 +45,9 @@ class PersistentStreamingPlaybackHeaders(
         if (dataPath.isNullOrBlank()) {
             return emptyMap()
         }
+        StreamingPlaybackAdapter.streamingProviderName(dataPath)?.let { provider ->
+            if (!playbackSourcePolicy.isEnabled(provider)) return emptyMap()
+        }
         return headersByDataPath[headerKey(dataPath)].orEmpty()
     }
 
@@ -51,6 +57,7 @@ class PersistentStreamingPlaybackHeaders(
             return false
         }
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return false
+        if (!playbackSourcePolicy.isEnabled(provider) || !StreamingAudioCapabilityPolicy.canUsePlaybackUrl(provider)) return false
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return false
         val cached = cacheRepository.cachedPlaybackBlocking(
             provider,
@@ -58,7 +65,7 @@ class PersistentStreamingPlaybackHeaders(
             StreamingPlaybackAdapter.luoxueMusicInfoJson(dataPath)
         ) ?: return false
         val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return false
-        if (!isSupportedPlaybackSourceUrl(source.url)) {
+        if (!StreamingAudioCapabilityPolicy.canUsePlaybackUrl(source.provider) || !isSupportedPlaybackSourceUrl(source.url)) {
             return false
         }
         val headers = source.headers
@@ -75,6 +82,9 @@ class PersistentStreamingPlaybackHeaders(
         }
         val dataPath = track?.dataPath ?: return null
         val provider = StreamingPlaybackAdapter.streamingProviderName(dataPath) ?: return null
+        if (!playbackSourcePolicy.isEnabled(provider) || !StreamingAudioCapabilityPolicy.canUsePlaybackUrl(provider)) {
+            return track.withPlaybackUri(Uri.EMPTY)
+        }
         val providerTrackId = StreamingPlaybackAdapter.providerTrackId(dataPath).takeIf { it.isNotBlank() } ?: return null
         val cached = cacheRepository.cachedPlaybackBlocking(
             provider,
@@ -82,7 +92,7 @@ class PersistentStreamingPlaybackHeaders(
             StreamingPlaybackAdapter.luoxueMusicInfoJson(dataPath)
         ) ?: return null
         val source = runCatching { StreamingGatewayJson.playbackSource(cached) }.getOrNull() ?: return null
-        if (!isSupportedPlaybackSourceUrl(source.url)) {
+        if (!StreamingAudioCapabilityPolicy.canUsePlaybackUrl(source.provider) || !isSupportedPlaybackSourceUrl(source.url)) {
             return null
         }
         register(dataPath, source.headers)
@@ -113,6 +123,12 @@ class PersistentStreamingPlaybackHeaders(
     private fun headerKey(dataPath: String): String {
         return StreamingDataPathMetadata.cacheIdentity(dataPath) ?: dataPath
     }
+
+    private fun Track.withPlaybackUri(uri: Uri): Track = Track(
+        id, title, artist, album, durationMs, uri, dataPath, albumId, albumArtUri,
+        codec, bitrateKbps, sampleRateHz, bitsPerSample, channelCount,
+        replayGainTrackDb, replayGainAlbumDb
+    )
 }
 
 /** Shared cache/restore guard: a stored URL must be safe to hand to Media3. */
@@ -135,13 +151,8 @@ internal fun headersWithStreamingAuth(
     localAuthStore: StreamingLocalAuthStore?
 ): Map<String, String> {
     val runtimeHeaders = headers.toMutableMap()
-    if (
-        StreamingPlaybackAdapter.streamingProviderName(dataPath) == StreamingProviderName.QQ_MUSIC &&
-        runtimeHeaders["Cookie"].isNullOrBlank()
-    ) {
-        localAuthStore?.cookieHeader(StreamingProviderName.QQ_MUSIC)
-            ?.takeIf(::hasQqPlaybackCredential)
-            ?.let { cookie -> runtimeHeaders["Cookie"] = cookie }
+    if (StreamingPlaybackAdapter.streamingProviderName(dataPath) == StreamingProviderName.QQ_MUSIC) {
+        return emptyMap()
     }
     return runtimeHeaders.toMap()
 }

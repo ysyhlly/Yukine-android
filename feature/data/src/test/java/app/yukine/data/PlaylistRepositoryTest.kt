@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.TrackEntityMapper
 import app.yukine.data.room.YukineDatabase
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentityTags
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,6 +80,47 @@ class PlaylistRepositoryTest {
         assertEquals(listOf(queued.id), PlaybackPersistenceRepository(database).loadQueue().map { it.id })
     }
 
+    @Test
+    fun playlistStoresOneCanonicalRecordingAndSurvivesSourceRemoval() {
+        val mbid = "123e4567-e89b-12d3-a456-426614174012"
+        val webDav = identifiedTrack(31L, "webdav:1:/playlist.flac", mbid)
+        val local = identifiedTrack(32L, "/music/playlist.flac", mbid)
+        val library = LibraryRepository(database)
+        library.upsertTracks(listOf(webDav, local))
+        val playlist = repository.create("Canonical")
+
+        assertTrue(repository.addTrack(playlist, webDav.id))
+        assertFalse(repository.addTrack(playlist, local.id))
+        assertEquals(listOf(local.id), repository.loadTracks(playlist).map { it.id })
+        assertEquals(1, database.playlistDao().playlistRecordingRows(playlist).size)
+
+        library.deleteTrack(local.id)
+
+        assertEquals(listOf(webDav.id), repository.loadTracks(playlist).map { it.id })
+        assertTrue(repository.removeTrack(playlist, webDav.id))
+        assertTrue(repository.loadTracks(playlist).isEmpty())
+    }
+
+    @Test
+    fun replaceTracksWritesCompletePlaylistAndDeduplicatesCanonicalSources() {
+        val sharedMbid = "123e4567-e89b-12d3-a456-426614174099"
+        val firstSource = identifiedTrack(41L, "webdav:1:/bulk.flac", sharedMbid)
+        val secondSource = identifiedTrack(42L, "/music/bulk.flac", sharedMbid)
+        val independent = track(43L, "streaming:independent")
+        val library = LibraryRepository(database)
+        library.upsertTracks(listOf(firstSource, secondSource, independent))
+        val playlist = repository.create("Bulk")
+
+        assertEquals(2, repository.replaceTracks(
+            playlist,
+            listOf(firstSource.id, secondSource.id, independent.id, independent.id)
+        ))
+
+        assertEquals(listOf(secondSource.id, independent.id), repository.loadTracks(playlist).map { it.id })
+        assertEquals(2, database.playlistDao().playlistRecordingRows(playlist).size)
+        assertEquals(2, database.playlistDao().playlistTrackRows(playlist).size)
+    }
+
     private fun track(id: Long, dataPath: String) = Track(
         id,
         "Track $id",
@@ -90,4 +132,27 @@ class PlaylistRepositoryTest {
         0L,
         null
     )
+
+    private fun identifiedTrack(id: Long, dataPath: String, mbid: String): Track {
+        val base = track(id, dataPath)
+        return Track(
+            base.id,
+            base.title,
+            base.artist,
+            base.album,
+            base.durationMs,
+            base.contentUri,
+            base.dataPath,
+            base.albumId,
+            base.albumArtUri,
+            base.codec,
+            base.bitrateKbps,
+            base.sampleRateHz,
+            base.bitsPerSample,
+            base.channelCount,
+            base.replayGainTrackDb,
+            base.replayGainAlbumDb,
+            TrackIdentityTags(mbid, "", "", "", emptyList())
+        )
+    }
 }

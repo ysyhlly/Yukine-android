@@ -3,6 +3,7 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Playlist
 import app.yukine.model.Track
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
@@ -31,14 +32,28 @@ class LibraryPlaylistsStateReducerTest {
             selectedPlaylistTracks = emptyList(),
             favoriteTracks = listOf(track(90L)),
             recentRecords = emptyList(),
-            modeActions = modeActions
+            modeActions = modeActions,
+            playlistSources = mapOf(7L to StreamingProviderName.NETEASE)
         )
 
         assertEquals("Playlists", viewModel.libraryGroups.value.title)
         assertEquals(
-            listOf("virtual:favorites", "virtual:play-history", "playlist:7", "playlist:8"),
+            listOf("virtual:favorites", "virtual:play-history"),
             viewModel.libraryGroups.value.rows.map(LibraryGroupUiState::id)
         )
+        assertEquals(
+            listOf("local", "netease"),
+            viewModel.libraryGroups.value.playlistFolders.map { it.key }
+        )
+        assertEquals(
+            listOf("Empty"),
+            viewModel.libraryGroups.value.playlistFolders[0].entries.map { it.group.title }
+        )
+        assertEquals(
+            listOf("Favorites"),
+            viewModel.libraryGroups.value.playlistFolders[1].entries.map { it.group.title }
+        )
+        assertEquals(listOf(3, 2), viewModel.libraryGroups.value.playlistFolders.map { it.entries.single().actionIndex })
         assertEquals("No playlists", listener.chromeState?.emptyText)
         assertEquals(modeActions, listener.chromeState?.modeActions)
         assertNotSame(modeActions, listener.chromeState?.modeActions)

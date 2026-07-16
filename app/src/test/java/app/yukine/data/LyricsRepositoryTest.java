@@ -5,12 +5,56 @@ import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
 import app.yukine.model.Track;
+import app.yukine.identity.LyricSourceBinding;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.json.JSONObject;
 import org.junit.Test;
 
 public final class LyricsRepositoryTest {
+    @Test
+    public void successfulSidecarLyricsPersistCanonicalProviderBinding() throws Exception {
+        Path directory = Files.createTempDirectory("echo-lyrics-binding");
+        Path audio = directory.resolve("song.flac");
+        Path lyrics = directory.resolve("song.lrc");
+        Files.write(audio, new byte[]{0});
+        Files.write(lyrics, "[00:01.00]第一行\n[00:02.00]第二行\n".getBytes(StandardCharsets.UTF_8));
+        ArrayList<LyricSourceBinding> saved = new ArrayList<>();
+        LyricsRepository repository = new LyricsRepository(new LyricsRepository.BindingStore() {
+            @Override
+            public List<LyricSourceBinding> load(long trackId) {
+                return Collections.emptyList();
+            }
+
+            @Override
+            public void save(long trackId, LyricSourceBinding binding) {
+                assertEquals(7L, trackId);
+                saved.add(binding);
+            }
+        });
+        Track track = new Track(
+                7L,
+                "Song",
+                "Artist",
+                "Album",
+                120000L,
+                Uri.EMPTY,
+                audio.toString()
+        );
+
+        assertEquals(2, repository.loadForTrack(track, false, "").size());
+        assertEquals(1, saved.size());
+        assertEquals("local", saved.get(0).getProvider());
+        assertEquals(lyrics.toFile().getAbsolutePath(), saved.get(0).getProviderLyricId());
+        assertEquals(64, saved.get(0).getChecksum().length());
+        assertTrue(saved.get(0).getSynced());
+    }
+
     @Test
     public void neteaseSearchQueriesTryTitleOnlyAndArtistTitleFallbacks() throws Exception {
         LyricsRepository repository = new LyricsRepository();

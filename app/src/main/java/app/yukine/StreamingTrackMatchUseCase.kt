@@ -144,7 +144,11 @@ internal class StreamingTrackMatchUseCase(
         if (directTrackId.isNotEmpty()) {
             return directTrackId
         }
-        return operations.loadStreamingTrackMatch(track, provider.wireName).trim()
+        return operations.loadStreamingTrackMatch(track, provider.wireName)
+            .trim()
+            .takeUnless(::isStreamingNoSourceMatch)
+            ?.let(StoredStreamingSourceMatchCodec::primaryProviderTrackId)
+            .orEmpty()
     }
 
     override fun saveProviderTrackId(track: Track, provider: StreamingProviderName, providerTrackId: String) {

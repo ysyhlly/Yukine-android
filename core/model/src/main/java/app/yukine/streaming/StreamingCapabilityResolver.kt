@@ -8,7 +8,7 @@ object StreamingCapabilityResolver {
 
     @JvmStatic
     fun canPlayback(descriptor: StreamingProviderDescriptor?): Boolean {
-        return descriptor?.enabled == true && descriptor.capabilities.supportsPlayback
+        return StreamingAudioCapabilityPolicy.canResolve(descriptor)
     }
 
     @JvmStatic
@@ -18,13 +18,38 @@ object StreamingCapabilityResolver {
 
     @JvmStatic
     fun canFavorites(descriptor: StreamingProviderDescriptor): Boolean {
-        return descriptor.enabled && descriptor.capabilities.supportsFavorites
+        return canReadFavorites(descriptor) || canWriteFavorites(descriptor)
     }
 
     @JvmStatic
     fun canPlaylists(descriptor: StreamingProviderDescriptor): Boolean {
-        return descriptor.enabled && descriptor.capabilities.supportsPlaylists
+        return canReadPlaylists(descriptor) || canWritePlaylists(descriptor)
     }
+
+    @JvmStatic
+    fun canReadFavorites(descriptor: StreamingProviderDescriptor): Boolean =
+        descriptor.enabled && descriptor.capabilities.supportsFavoritesRead
+
+    @JvmStatic
+    fun canWriteFavorites(descriptor: StreamingProviderDescriptor): Boolean =
+        descriptor.enabled && descriptor.capabilities.supportsFavoritesWrite
+
+    @JvmStatic
+    fun canReadPlaylists(descriptor: StreamingProviderDescriptor): Boolean =
+        descriptor.enabled && (
+            descriptor.capabilities.supportsPlaylistImport ||
+                descriptor.capabilities.supportsPlaylistReadSync
+            )
+
+    @JvmStatic
+    fun canWritePlaylists(descriptor: StreamingProviderDescriptor): Boolean =
+        descriptor.enabled && (
+            descriptor.capabilities.supportsPlaylistCreate ||
+                descriptor.capabilities.supportsPlaylistWrite ||
+                descriptor.capabilities.supportsPlaylistDelete ||
+                descriptor.capabilities.supportsPlaylistRename ||
+                descriptor.capabilities.supportsPlaylistReorder
+            )
 
     @JvmStatic
     fun supportedSearchMediaTypes(descriptor: StreamingProviderDescriptor?): Set<StreamingMediaType> {
@@ -72,7 +97,20 @@ object StreamingCapabilityResolver {
             supportsLyrics = descriptor.enabled && descriptor.capabilities.supportsLyrics,
             supportsMv = descriptor.enabled && descriptor.capabilities.supportsMv,
             supportedSearchMediaTypes = supportedSearchMediaTypes(descriptor),
-            actions = actionLabels(descriptor)
+            actions = actionLabels(descriptor),
+            supportsPlaylistImport = descriptor.enabled && descriptor.capabilities.supportsPlaylistImport,
+            supportsPlaylistReadSync = descriptor.enabled && descriptor.capabilities.supportsPlaylistReadSync,
+            supportsPlaylistCreate = descriptor.enabled && descriptor.capabilities.supportsPlaylistCreate,
+            supportsPlaylistWrite = descriptor.enabled && descriptor.capabilities.supportsPlaylistWrite,
+            supportsPlaylistDelete = descriptor.enabled && descriptor.capabilities.supportsPlaylistDelete,
+            supportsPlaylistRename = descriptor.enabled && descriptor.capabilities.supportsPlaylistRename,
+            supportsPlaylistReorder = descriptor.enabled && descriptor.capabilities.supportsPlaylistReorder,
+            supportsFavoritesRead = canReadFavorites(descriptor),
+            supportsFavoritesWrite = canWriteFavorites(descriptor),
+            supportsAudioResolve = canPlayback(descriptor),
+            supportsAudioFallback = canPlayback(descriptor) && descriptor.capabilities.supportsAudioFallback,
+            supportsAudioDownload = canPlayback(descriptor) && descriptor.capabilities.supportsAudioDownload,
+            supportsAudioCache = canPlayback(descriptor) && descriptor.capabilities.supportsAudioCache
         )
     }
 

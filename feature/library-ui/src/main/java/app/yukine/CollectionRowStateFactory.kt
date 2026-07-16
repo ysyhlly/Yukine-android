@@ -13,7 +13,8 @@ object CollectionRowStateFactory {
         PlaylistRowUiState(
             playlist.name,
             trackCountLabel(playlist.trackCount, languageMode),
-            playlist.id == selectedPlaylistId
+            playlist.id == selectedPlaylistId,
+            playlist.id
         )
 
     @JvmStatic

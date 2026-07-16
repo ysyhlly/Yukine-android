@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.model.PlaylistImportResult
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -63,6 +64,30 @@ class ImportStreamingPlaylistUseCaseTest {
         )
 
         assertEquals(listOf("link:9|netease|"), operations.events)
+    }
+
+    @Test
+    fun unavailableTrackUsesFallbackAndTrackWithoutAnySourceIsNotStored() {
+        val operations = FakeStreamingPlaylistImportOperations()
+        val unavailable = streamingTrack("missing").copy(playable = false)
+        val withFallback = unavailable.copy(
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerTrackId = "qq-fallback",
+                    available = true
+                )
+            )
+        )
+
+        ImportStreamingPlaylistUseCase(operations).execute(
+            "Fallback",
+            StreamingProviderName.NETEASE,
+            "list",
+            listOf(unavailable, withFallback)
+        )
+
+        assertEquals(listOf("streaming:qqmusic:qq-fallback"), operations.importedTracks.map { it.dataPath.substringBefore('?') })
     }
 
     private class FakeStreamingPlaylistImportOperations : StreamingPlaylistImportOperations {

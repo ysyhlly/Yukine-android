@@ -833,26 +833,29 @@ class SettingsPageStateBuilderTest {
     fun streamingGatewayBuildsEndpointActions() {
         val navigated = mutableListOf<SettingsPage>()
         val applied = mutableListOf<String>()
+        var editedMusicBrainzProxy = false
 
         val content = SettingsPageStateBuilder.streamingGateway(
             languageMode = AppLanguage.MODE_ENGLISH,
             endpoint = StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT,
             configured = true,
             onNavigate = { page -> navigated += page },
-            onApplyEndpoint = { endpoint -> applied += endpoint }
+            onApplyEndpoint = { endpoint -> applied += endpoint },
+            onEditMusicBrainzProxy = { editedMusicBrainzProxy = true }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.gateway"), content.uiState.title)
         assertEquals(3, content.uiState.metrics.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "connected"), content.uiState.metrics[0].value)
         assertEquals(StreamingGatewaySettingsStore.LOCALHOST_ENDPOINT, content.uiState.metrics[1].value)
-        assertEquals(4, content.actions.size)
+        assertEquals(5, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.gateway.localhost") + AppLanguage.text(AppLanguage.MODE_ENGLISH, "selected"), content.actions[2].label)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[4].onClick.run()
 
         assertEquals(listOf(SettingsPage.SourcesGroup), navigated)
         assertEquals(
@@ -863,6 +866,7 @@ class SettingsPageStateBuilderTest {
             ),
             applied
         )
+        assertTrue(editedMusicBrainzProxy)
     }
 
     @Test

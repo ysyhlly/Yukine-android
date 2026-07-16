@@ -1,7 +1,6 @@
 package app.yukine
 
 import androidx.lifecycle.SavedStateHandle
-import app.yukine.navigation.CollectionsTab
 import app.yukine.navigation.LibraryTab
 import app.yukine.navigation.NetworkTab
 import app.yukine.navigation.SettingsTab
@@ -287,18 +286,15 @@ class MainRouteControllerTest {
     }
 
     @Test
-    fun backNavigationClosesSelectedCollectionsPlaylist() {
+    fun removedCollectionsRouteRestoresAsLibrary() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_COLLECTIONS,
             selectedPlaylistId = 7L
         )
 
-        val result = controller.applyBackNavigation()
-
-        assertEquals(true, result.handled)
         val state = controller.current()
-        assertEquals(CollectionsTab, state.selectedTab)
-        assertEquals(-1L, state.selectedPlaylistId)
+        assertEquals(LibraryTab, state.selectedTab)
+        assertEquals(7L, state.selectedPlaylistId)
     }
 
     private fun controllerWith(

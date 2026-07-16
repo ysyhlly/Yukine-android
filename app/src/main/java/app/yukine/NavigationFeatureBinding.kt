@@ -135,7 +135,8 @@ internal class NavigationFeatureBinding(
                 }
             ).actions(),
             searchState = viewModels.searchViewModel.uiState,
-            libraryActionHandler = viewModels.libraryViewModel.presentation::onAction
+            libraryActionHandler = viewModels.libraryViewModel.presentation::onAction,
+            recordingMatchStateProvider = viewModels.recordingMatchViewModel
         ),
         settings = SettingsNavBinding(
             settingsState = viewModels.settingsViewModel.state,

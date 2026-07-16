@@ -16,6 +16,9 @@ import app.yukine.NowPlayingProgressState
 import app.yukine.NowPlayingTrackState
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingAudioQuality
+import app.yukine.streaming.PlaybackSourcePolicySnapshot
+import app.yukine.streaming.StreamingProviderCapabilities
+import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.EchoTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,6 +109,12 @@ class NowPlayingDestinationTest {
             EchoTheme.EchoTheme {
                 NowPlayingDestination(
                     state = state,
+                    playbackSourcePolicy = PlaybackSourcePolicySnapshot(
+                        enabledRemoteProviders = setOf(
+                            StreamingProviderName.LUOXUE,
+                            StreamingProviderName.NETEASE
+                        )
+                    ),
                     onSwitchSource = { _, provider, providerTrackId, quality ->
                         switchRequest = StreamingSwitchRequest(provider, providerTrackId, quality)
                     }
@@ -113,10 +122,12 @@ class NowPlayingDestinationTest {
             }
         }
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("QQ 音乐 / HIGH"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasText("仅用于曲库与同步，不提供播放音源 / HIGH")
+        )
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("QQ 音乐 / HIGH").assertIsDisplayed()
-        composeRule.onAllNodesWithText("QQ 音乐 / STANDARD").assertCountEquals(0)
+        composeRule.onNodeWithText("仅用于曲库与同步，不提供播放音源 / HIGH").assertIsDisplayed()
+        composeRule.onAllNodesWithText("仅用于曲库与同步，不提供播放音源 / STANDARD").assertCountEquals(0)
         composeRule.onAllNodesWithText("qmusic").assertCountEquals(0)
         composeRule.onNodeWithText("网易云音乐").performScrollTo().assertIsDisplayed().performClick()
 
@@ -126,6 +137,57 @@ class NowPlayingDestinationTest {
                 "netease-song",
                 StreamingAudioQuality.LOSSLESS
             ),
+            switchRequest
+        )
+    }
+
+    @Test
+    fun sameLxProviderKeepsDifferentSongVersionsAsSeparateSourceRows() {
+        val current = streamingTrack(
+            """[
+                {"provider":"luoxue","providerTrackId":"wy:main","label":"洛雪音源 · WY · Streaming Song","available":true},
+                {"provider":"luoxue","providerTrackId":"tx:live","label":"洛雪音源 · TX · Streaming Song (Live)","available":true}
+            ]"""
+        )
+        var switchRequest: StreamingSwitchRequest? = null
+        val state = MutableStateFlow(
+            NowPlayingUiState(
+                track = NowPlayingTrackState(
+                    title = current.title,
+                    artist = current.artist,
+                    album = current.album,
+                    trackId = current.id,
+                    currentTrack = current
+                ),
+                progress = NowPlayingProgressState(durationMs = current.durationMs)
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                NowPlayingDestination(
+                    state = state,
+                    playbackSourcePolicy = PlaybackSourcePolicySnapshot(
+                        enabledRemoteProviders = setOf(StreamingProviderName.LUOXUE)
+                    ),
+                    onSwitchSource = { _, provider, providerTrackId, quality ->
+                        switchRequest = StreamingSwitchRequest(provider, providerTrackId, quality)
+                    }
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasText("洛雪音源 · TX · Streaming Song (Live)")
+        )
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("洛雪音源 · WY · Streaming Song").assertIsDisplayed()
+        composeRule.onNodeWithText("洛雪音源 · TX · Streaming Song (Live)")
+            .assertIsDisplayed()
+            .performClick()
+
+        assertEquals(
+            StreamingSwitchRequest(StreamingProviderName.LUOXUE, "tx:live", null),
             switchRequest
         )
     }
@@ -158,10 +220,46 @@ class NowPlayingDestinationTest {
             }
         }
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("QQ 音乐 / STANDARD"))
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasText("仅用于曲库与同步，不提供播放音源 / STANDARD")
+        )
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("QQ 音乐 / STANDARD").assertIsDisplayed()
-        composeRule.onAllNodesWithText("QQ 音乐 / HIGH").assertCountEquals(0)
+        composeRule.onNodeWithText("仅用于曲库与同步，不提供播放音源 / STANDARD").assertIsDisplayed()
+        composeRule.onAllNodesWithText("仅用于曲库与同步，不提供播放音源 / HIGH").assertCountEquals(0)
+    }
+
+    @Test
+    fun everyAddedProviderIsShownWithCurrentOrNoSourceStatus() {
+        val current = streamingTrack("[]")
+        val state = MutableStateFlow(
+            NowPlayingUiState(
+                track = NowPlayingTrackState(
+                    title = current.title,
+                    artist = current.artist,
+                    album = current.album,
+                    trackId = current.id,
+                    currentTrack = current
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                NowPlayingDestination(
+                    state = state,
+                    streamingProviders = listOf(
+                        provider(StreamingProviderName.QQ_MUSIC, "QQ 音乐"),
+                        provider(StreamingProviderName.NETEASE, "网易云音乐")
+                    )
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("设置中未开启"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("仅用于曲库与同步，不提供播放音源").assertIsDisplayed()
+        composeRule.onNodeWithText("设置中未开启").assertIsDisplayed()
+        composeRule.onNodeWithText("网易云音乐").performScrollTo().assertIsDisplayed()
     }
 
     private fun track(id: Long, dataPath: String, codec: String): Track = Track(
@@ -197,6 +295,15 @@ class NowPlayingDestinationTest {
         44_100,
         16,
         2
+    )
+
+    private fun provider(name: StreamingProviderName, displayName: String) = StreamingProviderDescriptor(
+        name = name,
+        displayName = displayName,
+        capabilities = StreamingProviderCapabilities(
+            supportsSearch = true,
+            supportsPlayback = true
+        )
     )
 
     private data class StreamingSwitchRequest(

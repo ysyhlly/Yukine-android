@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -58,7 +60,10 @@ data class StreamingSearchActions(
     val onHeartbeatRecommend: Runnable,
     val onPasteImport: Runnable,
     val onManageLuoxueSources: Runnable,
-    val onInputCookie: Runnable
+    val onInputCookie: Runnable,
+    val onPlaybackEnabledChanged: ProviderToggleAction = ProviderToggleAction { _, _ -> },
+    val onPlaybackPriorityUp: ProviderAction = ProviderAction { _ -> },
+    val onPlaybackPriorityDown: ProviderAction = ProviderAction { _ -> }
 ) {
     companion object {
         @JvmStatic
@@ -79,7 +84,10 @@ data class StreamingSearchActions(
             onHeartbeatRecommend = Runnable {},
             onPasteImport = Runnable {},
             onManageLuoxueSources = Runnable {},
-            onInputCookie = Runnable {}
+            onInputCookie = Runnable {},
+            onPlaybackEnabledChanged = ProviderToggleAction { _, _ -> },
+            onPlaybackPriorityUp = ProviderAction { _ -> },
+            onPlaybackPriorityDown = ProviderAction { _ -> }
         )
     }
 }
@@ -269,7 +277,10 @@ fun StreamingSearchScreen(
             StreamingSearchHero(
                 providerName = provider?.displayName ?: labels.sourceDefault,
                 providerStatus = provider?.let {
-                    streamingProviderStatusText(it.statusMessage, it.status, selectedHealth, selectedAuthState, labels)
+                    listOfNotNull(
+                        streamingProviderStatusText(it.statusMessage, it.status, selectedHealth, selectedAuthState, labels),
+                        selectedCapability?.let(::providerCapabilitySummary)
+                    ).filter { text -> text.isNotBlank() }.distinct().joinToString(" · ")
                 }.orEmpty(),
                 query = state.searchQuery.ifBlank { "echo" },
                 canSearch = canSearch,
@@ -316,6 +327,18 @@ fun StreamingSearchScreen(
                             onSignOut = { actions.onSignOut.run(selected.name) }
                         )
                     }
+                }
+                item(key = "selected-provider-playback:${selected.name.wireName}") {
+                    ProviderPlaybackPolicyRow(
+                        provider = selected.name,
+                        intrinsicallySupported = selected.capabilities.supportsAudioResolve,
+                        enabled = state.playbackSourcePolicy.isEnabled(selected.name),
+                        priorityIndex = state.playbackSourcePolicy.remotePriority.indexOf(selected.name),
+                        priorityCount = state.playbackSourcePolicy.remotePriority.size,
+                        onChanged = { enabled -> actions.onPlaybackEnabledChanged.run(selected.name, enabled) },
+                        onMoveUp = { actions.onPlaybackPriorityUp.run(selected.name) },
+                        onMoveDown = { actions.onPlaybackPriorityDown.run(selected.name) }
+                    )
                 }
             }
         }
@@ -640,11 +663,83 @@ private fun QuickActionCard(item: StreamingQuickAction) {
 }
 
 private fun trackProviderSupportsPlayback(state: StreamingSearchState, track: StreamingTrack): Boolean {
+    if (track.provider == StreamingProviderName.QQ_MUSIC) {
+        // QQ search results remain actionable: playback resolution uses metadata to find LX/other
+        // allowed sources and never resolves a QQ URL.
+        return true
+    }
     state.providerCapabilities.firstOrNull { it.provider == track.provider }?.let { capability ->
         return capability.supportsPlayback
     }
     val descriptor = state.providers.firstOrNull { it.name == track.provider }
     return StreamingCapabilityResolver.canPlayback(descriptor)
+}
+
+fun interface ProviderToggleAction {
+    fun run(provider: StreamingProviderName, enabled: Boolean)
+}
+
+@Composable
+private fun ProviderPlaybackPolicyRow(
+    provider: StreamingProviderName,
+    intrinsicallySupported: Boolean,
+    enabled: Boolean,
+    priorityIndex: Int,
+    priorityCount: Int,
+    onChanged: (Boolean) -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit
+) {
+    val colors = EchoTheme.colors()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = colors.surface.copy(alpha = 0.7f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("允许用于播放", color = colors.text, fontWeight = FontWeight.SemiBold)
+                Text(
+                    when (provider) {
+                        StreamingProviderName.QQ_MUSIC -> "仅用于搜索、红心和歌单同步"
+                        StreamingProviderName.LUOXUE -> "默认远程播放音源，始终优先"
+                        else -> if (enabled) "已加入解析、兜底、缓存和下载候选" else "默认关闭，不会请求该平台音频接口"
+                    },
+                    color = colors.muted,
+                    fontSize = 12.sp
+                )
+            }
+            if (provider != StreamingProviderName.QQ_MUSIC &&
+                provider != StreamingProviderName.LUOXUE && intrinsicallySupported) {
+                Switch(checked = enabled, onCheckedChange = onChanged)
+            } else if (provider == StreamingProviderName.LUOXUE) {
+                Switch(checked = true, onCheckedChange = null)
+            }
+            }
+            if (enabled && provider != StreamingProviderName.LUOXUE && provider != StreamingProviderName.QQ_MUSIC) {
+                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    TextButton(onClick = onMoveUp, enabled = priorityIndex > 1) { Text("提高优先级") }
+                    TextButton(onClick = onMoveDown, enabled = priorityIndex in 1 until priorityCount - 1) { Text("降低优先级") }
+                }
+            }
+        }
+    }
+}
+
+private fun providerCapabilitySummary(capability: app.yukine.streaming.StreamingProviderCapability): String {
+    if (capability.provider == StreamingProviderName.QQ_MUSIC) {
+        return "红心与歌单双向同步已启用；播放音源已禁用"
+    }
+    return listOf(
+        "曲库同步" to (capability.supportsPlaylistImport || capability.supportsPlaylistReadSync),
+        "红心读写" to (capability.supportsFavoritesRead && capability.supportsFavoritesWrite),
+        "歌单读写" to (capability.supportsPlaylistReadSync && capability.supportsPlaylistWrite),
+        "音频播放" to capability.supportsAudioResolve
+    ).joinToString(" / ") { (label, enabled) -> "$label${if (enabled) "✓" else "—"}" }
 }
 
 fun streamingProviderStatusText(

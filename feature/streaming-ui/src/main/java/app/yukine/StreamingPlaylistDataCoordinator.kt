@@ -121,11 +121,13 @@ internal class StreamingPlaylistDataCoordinator(
         playlistName: String,
         localTracks: List<Track>
     ): app.yukine.streaming.StreamingPlaylistImportSummary {
-        return StreamingPlaylistImporter(repositoryProvider()).importToStreaming(
+        val importer = StreamingPlaylistImporter(repositoryProvider())
+        val summary = importer.importToStreaming(
             provider,
             playlistName,
             localTracks
         )
+        return importer.createRemotePlaylist(summary)
     }
 
     companion object {

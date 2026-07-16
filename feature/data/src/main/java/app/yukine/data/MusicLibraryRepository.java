@@ -11,9 +11,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import app.yukine.model.Playlist;
 import app.yukine.model.PlaylistImportResult;
@@ -29,9 +32,31 @@ import app.yukine.LibraryRefreshProgress;
 import app.yukine.LibraryRefreshProgressListener;
 import app.yukine.playback.AudioEffectSettings;
 import app.yukine.streaming.StreamingQualityPreference;
+import app.yukine.streaming.StreamingTrack;
 import app.yukine.TrackShareStyle;
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.room.YukineDatabase;
+import app.yukine.data.room.AudioFeatureEntity;
+import app.yukine.data.room.MusicIdentityDao;
+import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.TrackArtistIdentityRow;
+import app.yukine.data.room.TrackMergeIdentityRow;
+import app.yukine.data.room.TrackRecordingIdentityRow;
+import app.yukine.identity.ArtistCreditRole;
+import app.yukine.identity.ArtistAlias;
+import app.yukine.identity.ArtistAliasType;
+import app.yukine.identity.ArtistSourceMapping;
+import app.yukine.identity.ArtistType;
+import app.yukine.identity.CanonicalArtist;
+import app.yukine.identity.IdentityMatchStatus;
+import app.yukine.identity.TrackArtistIdentity;
+import app.yukine.identity.LyricSourceBinding;
+import app.yukine.fingerprint.AudioFingerprintCandidate;
+import app.yukine.fingerprint.AudioFingerprintEvidence;
+import app.yukine.data.room.LyricBindingEntity;
+import app.yukine.data.room.ArtistAliasEntity;
+import app.yukine.data.room.ArtistSourceMappingEntity;
+import app.yukine.data.room.CanonicalArtistEntity;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -39,9 +64,20 @@ import javax.inject.Singleton;
 @Singleton
 public final class MusicLibraryRepository {
     private static final String TAG = "MusicLibraryRepository";
-    private static final int AUDIO_SPEC_UPDATE_BATCH_SIZE = 24;
+    private static final int AUDIO_SPEC_PARSE_LIMIT = 24;
+    private static final int AUDIO_SPEC_CANDIDATE_SCAN_LIMIT = 192;
+    private static final int AUDIO_SPEC_ALGORITHM_VERSION = 1;
+    private static final int AUDIO_FEATURE_ALGORITHM_VERSION = 1;
+    private static final int AUDIO_FINGERPRINT_ALGORITHM_VERSION = 1;
+    private static final int AUDIO_FINGERPRINT_SCAN_MULTIPLIER = 8;
+    private static final long AUDIO_FINGERPRINT_RETRY_DELAY_MS = 6L * 60L * 60L * 1000L;
+    private static final String AUDIO_SPEC_READY = "READY";
+    private static final String AUDIO_SPEC_FAILED = "FAILED";
+    private static final String STRUCTURED_MATCH_PREFIX = "__echo_source_match_v";
 
     private final LibraryRepository libraryRepository;
+    private final YukineDatabase database;
+    private final Context appContext;
     private final PlaybackPersistenceRepository playbackPersistenceRepository;
     private final SettingsRepository settingsRepository;
     private final HistoryRepository historyRepository;
@@ -52,26 +88,297 @@ public final class MusicLibraryRepository {
     private final AudioSpecParser audioSpecParser;
     private final WebDavClient webDavClient;
     private final StreamingDataPathParser streamingDataPathParser;
+    private final MusicIdentityDao musicIdentityDao;
+    private final RoomArtistIdentityRepository artistIdentityRepository;
+    private final StreamingCandidateCatalogStore streamingCandidateCatalogStore;
 
     @Inject
     public MusicLibraryRepository(@ApplicationContext Context context, StreamingDataPathParser streamingDataPathParser) {
+        this(context, streamingDataPathParser, YukineDatabase.getInstance(context.getApplicationContext()));
+    }
+
+    MusicLibraryRepository(
+            Context context,
+            StreamingDataPathParser streamingDataPathParser,
+            YukineDatabase database
+    ) {
         Context appContext = context.getApplicationContext();
-        YukineDatabase database = YukineDatabase.getInstance(appContext);
+        this.appContext = appContext;
+        this.database = database;
         libraryRepository = new LibraryRepository(database);
         playbackPersistenceRepository = new PlaybackPersistenceRepository(database);
         settingsRepository = new SettingsRepository(database.settingsDao());
-        historyRepository = new HistoryRepository(database.historyDao());
+        historyRepository = new HistoryRepository(database);
         playlistRepository = new PlaylistRepository(database);
         remoteSourceRepository = new RemoteSourceRepository(database, libraryRepository);
         scanner = new MediaStoreMusicScanner(appContext);
         documentImporter = new DocumentMusicImporter(appContext);
         audioSpecParser = new AudioSpecParser(appContext);
-        webDavClient = new WebDavClient();
+        webDavClient = new WebDavClient(appContext);
         this.streamingDataPathParser = streamingDataPathParser;
+        streamingCandidateCatalogStore = new StreamingCandidateCatalogStore(database);
+        musicIdentityDao = database.musicIdentityDao();
+        artistIdentityRepository = new RoomArtistIdentityRepository(database);
     }
 
     public List<Track> loadCachedTracks() {
         return libraryRepository.loadTracks();
+    }
+
+    /** Off-main-thread, network-free lookup of the canonical recording's preferred source. */
+    public Track loadActivePlaybackSource(Track requested) {
+        return libraryRepository.loadActivePlaybackSource(requested);
+    }
+
+    /** Off-main-thread feedback from the playback service after the first decoded PCM buffer. */
+    public boolean recordSuccessfulPlayback(Track track) {
+        if (track == null) {
+            return false;
+        }
+        String dataPath = track.dataPath == null ? "" : track.dataPath;
+        boolean streaming = streamingDataPathParser.isStreamingTrack(dataPath);
+        String provider = streaming
+                ? streamingDataPathParser.providerName(dataPath)
+                : "";
+        String providerTrackId = streaming
+                ? streamingDataPathParser.providerTrackId(dataPath)
+                : "";
+        return libraryRepository.recordSuccessfulPlayback(track, provider, providerTrackId);
+    }
+
+    /** Off-main-thread, non-blocking-to-playback persistence invoked by telemetry. */
+    public boolean recordPlaybackResolutionFailure(
+            String provider,
+            String providerTrackId,
+            String errorCode,
+            boolean timedOut
+    ) {
+        return libraryRepository.recordPlaybackResolutionFailure(
+                provider,
+                providerTrackId,
+                errorCode,
+                timedOut
+        );
+    }
+
+    /** Loads provider lyric IDs by canonical recording, newest successful binding first. */
+    public List<LyricSourceBinding> loadLyricBindings(long trackId) {
+        Long recordingId = musicIdentityDao.recordingIdForLocalTrack(trackId);
+        if (recordingId == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<LyricSourceBinding> bindings = new ArrayList<>();
+        for (LyricBindingEntity entity : musicIdentityDao.lyricBindings(recordingId)) {
+            bindings.add(new LyricSourceBinding(
+                    entity.getRecordingId(),
+                    entity.getProvider(),
+                    entity.getProviderLyricId(),
+                    entity.getSynced(),
+                    entity.getDurationMs(),
+                    entity.getChecksum(),
+                    entity.getUpdatedAt()
+            ));
+        }
+        return bindings;
+    }
+
+    /** Persists a successful lyric lookup without changing the recording identity. */
+    public void saveLyricBinding(long trackId, LyricSourceBinding binding) {
+        if (binding == null || binding.getProvider().trim().isEmpty()
+                || binding.getProviderLyricId().trim().isEmpty()) {
+            return;
+        }
+        Long recordingId = musicIdentityDao.recordingIdForLocalTrack(trackId);
+        if (recordingId == null) {
+            return;
+        }
+        musicIdentityDao.upsert(new LyricBindingEntity(
+                recordingId,
+                binding.getProvider().trim(),
+                binding.getProviderLyricId().trim(),
+                binding.getSynced(),
+                Math.max(0L, binding.getDurationMs()),
+                binding.getChecksum().trim(),
+                binding.getUpdatedAt()
+        ));
+    }
+
+    /** Stable offline identity used to merge display rows; never performs network work. */
+    public String loadCanonicalId(long trackId) {
+        return libraryRepository.loadCanonicalId(trackId);
+    }
+
+    /**
+     * Batch display-merge identities. A generated UUID remains stable storage identity, but it
+     * becomes a hard display anchor only after strong evidence, confirmation, a manual split, or
+     * an existing multi-source grouping. Empty values intentionally allow metadata/LX fallback.
+     */
+    public Map<Long, String> loadTrackMergeIdentities() {
+        LinkedHashMap<Long, String> values = new LinkedHashMap<>();
+        for (TrackMergeIdentityRow row : musicIdentityDao.trackMergeIdentities()) {
+            values.put(row.getLocalTrackId(), row.getMergeIdentity());
+        }
+        return values;
+    }
+
+    /** One-query integer recording snapshot for canonical library deduplication. */
+    public Map<Long, Long> loadTrackRecordingIdentities() {
+        LinkedHashMap<Long, Long> values = new LinkedHashMap<>();
+        for (TrackRecordingIdentityRow row : musicIdentityDao.trackRecordingIdentities()) {
+            if (row.getRecordingId() > 0L) {
+                values.put(row.getLocalTrackId(), row.getRecordingId());
+            }
+        }
+        return values;
+    }
+
+    /** Batch snapshot for artist grouping; one query avoids per-row/N+1 identity lookups. */
+    public Map<Long, List<TrackArtistIdentity>> loadTrackArtistIdentities() {
+        LinkedHashMap<Long, List<TrackArtistIdentity>> values = new LinkedHashMap<>();
+        for (TrackArtistIdentityRow row : musicIdentityDao.trackArtistIdentities()) {
+            ArtistCreditRole role;
+            try {
+                role = ArtistCreditRole.valueOf(row.getRole());
+            } catch (IllegalArgumentException ignored) {
+                role = ArtistCreditRole.UNKNOWN;
+            }
+            values.computeIfAbsent(row.getLocalTrackId(), ignored -> new ArrayList<>()).add(
+                    new TrackArtistIdentity(
+                            row.getLocalTrackId(),
+                            row.getArtistKey(),
+                            row.getArtistId(),
+                            row.getDisplayName(),
+                            row.getCreditedName(),
+                            role,
+                            row.getPosition()
+                    )
+            );
+        }
+        return values;
+    }
+
+    /** Network-free canonical artist lookup for artist pages and offline navigation. */
+    public CanonicalArtist loadCanonicalArtist(String artistId) {
+        if (artistId == null || artistId.trim().isEmpty()) {
+            return null;
+        }
+        CanonicalArtistEntity entity = musicIdentityDao.canonicalArtist(artistId.trim());
+        if (entity == null || entity.getId() == null) {
+            return null;
+        }
+        return canonicalArtist(entity);
+    }
+
+    /** Network-free alias snapshot keyed by the stable external artist UUID. */
+    public List<ArtistAlias> loadArtistAliases(String artistId) {
+        CanonicalArtist artist = loadCanonicalArtist(artistId);
+        if (artist == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<ArtistAlias> aliases = new ArrayList<>();
+        for (ArtistAliasEntity entity : musicIdentityDao.aliases(artist.getArtistKey())) {
+            aliases.add(new ArtistAlias(
+                    artist.getArtistKey(),
+                    artist.getArtistId(),
+                    entity.getAlias(),
+                    entity.getNormalizedAlias(),
+                    entity.getLocale(),
+                    entity.getScript(),
+                    enumValueOr(entity.getAliasType(), ArtistAliasType.ALIAS, ArtistAliasType.class),
+                    entity.getSource(),
+                    entity.getConfidence(),
+                    entity.getVerifiedAt()
+            ));
+        }
+        return aliases;
+    }
+
+    /** Local merge choices for a user-confirmed artist identity correction. */
+    public List<CanonicalArtist> loadArtistMergeTargets(String artistId, int limit) {
+        CanonicalArtist source = loadCanonicalArtist(artistId);
+        if (source == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<CanonicalArtist> artists = new ArrayList<>();
+        for (CanonicalArtistEntity entity : musicIdentityDao.otherArtists(
+                source.getArtistKey(),
+                Math.max(1, Math.min(limit, 200))
+        )) {
+            if (entity.getId() != null) {
+                artists.add(canonicalArtist(entity));
+            }
+        }
+        return artists;
+    }
+
+    /** Provider mappings that can be detached into a new canonical artist. */
+    public List<ArtistSourceMapping> loadArtistSourceMappings(String artistId) {
+        CanonicalArtist artist = loadCanonicalArtist(artistId);
+        if (artist == null) {
+            return Collections.emptyList();
+        }
+        ArrayList<ArtistSourceMapping> mappings = new ArrayList<>();
+        for (ArtistSourceMappingEntity entity : musicIdentityDao.artistMappings(artist.getArtistKey())) {
+            if (entity.getMappingId() == null) {
+                continue;
+            }
+            mappings.add(new ArtistSourceMapping(
+                    entity.getMappingId(),
+                    artist.getArtistKey(),
+                    artist.getArtistId(),
+                    entity.getProvider(),
+                    entity.getProviderArtistId(),
+                    entity.getDisplayName(),
+                    enumValueOr(entity.getStatus(), IdentityMatchStatus.UNRESOLVED, IdentityMatchStatus.class),
+                    entity.getConfidence(),
+                    entity.getLastVerifiedAt()
+            ));
+        }
+        return mappings;
+    }
+
+    public CanonicalArtist mergeArtistIdentities(String sourceArtistId, String targetArtistId) {
+        CanonicalArtist source = loadCanonicalArtist(sourceArtistId);
+        CanonicalArtist target = loadCanonicalArtist(targetArtistId);
+        if (source == null || target == null) {
+            throw new IllegalArgumentException("Unknown artist identity");
+        }
+        return artistIdentityRepository.mergeArtists(source.getArtistKey(), target.getArtistKey());
+    }
+
+    public CanonicalArtist splitArtistSourceMapping(long mappingId) {
+        if (mappingId <= 0L) {
+            throw new IllegalArgumentException("Invalid artist source mapping");
+        }
+        return artistIdentityRepository.splitArtistMapping(mappingId);
+    }
+
+    private static CanonicalArtist canonicalArtist(CanonicalArtistEntity entity) {
+        return new CanonicalArtist(
+                entity.getId(),
+                entity.getArtistUuid(),
+                entity.getDisplayName(),
+                entity.getSortName(),
+                enumValueOr(entity.getArtistType(), ArtistType.UNKNOWN, ArtistType.class),
+                entity.getCountryCode(),
+                entity.getMusicBrainzArtistId(),
+                enumValueOr(entity.getMatchStatus(), IdentityMatchStatus.UNRESOLVED, IdentityMatchStatus.class),
+                entity.getConfidence(),
+                entity.getMetadataSource(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
+        );
+    }
+
+    private static <T extends Enum<T>> T enumValueOr(String value, T fallback, Class<T> type) {
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Enum.valueOf(type, value.trim());
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
     }
 
     public List<Track> loadRecentlyAdded(int limit) {
@@ -257,6 +564,14 @@ public final class MusicLibraryRepository {
         settingsRepository.saveOnboardingCompleted(completed);
     }
 
+    public boolean loadLibraryAutoSyncEnabled() {
+        return settingsRepository.loadLibraryAutoSyncEnabled();
+    }
+
+    public void saveLibraryAutoSyncEnabled(boolean enabled) {
+        settingsRepository.saveLibraryAutoSyncEnabled(enabled);
+    }
+
     public List<RemoteSource> loadRemoteSources() {
         return remoteSourceRepository.loadSources();
     }
@@ -285,7 +600,11 @@ public final class MusicLibraryRepository {
                 sourceId > 0L ? "已更新，等待测试" : "已保存，等待测试",
                 System.currentTimeMillis()
         );
-        return remoteSourceRepository.save(source);
+        long savedId = remoteSourceRepository.save(source);
+        if (sourceId > 0L && savedId > 0L) {
+            settingsRepository.saveWebDavSyncManifest(sourceId, "");
+        }
+        return savedId;
     }
 
     public String testRemoteSource(long sourceId) {
@@ -305,9 +624,15 @@ public final class MusicLibraryRepository {
         }
         try {
             List<Track> oldTracks = remoteSourceRepository.loadTracks(sourceId);
-            List<Track> tracks = webDavClient.listAudioTracks(source);
+            WebDavClient.IncrementalResult incremental = webDavClient.listAudioTracksIncremental(
+                    source,
+                    oldTracks,
+                    settingsRepository.loadWebDavSyncManifest(sourceId)
+            );
+            List<Track> tracks = incremental.tracks;
             WebDavSyncResult result = syncResult(oldTracks, tracks);
-            remoteSourceRepository.replaceTracks(sourceId, tracks);
+            remoteSourceRepository.applyIncrementalTracks(oldTracks, tracks);
+            settingsRepository.saveWebDavSyncManifest(sourceId, incremental.manifest);
             remoteSourceRepository.updateStatus(sourceId, "已同步 WebDAV：" + result.summary());
             return result;
         } catch (RuntimeException error) {
@@ -345,6 +670,7 @@ public final class MusicLibraryRepository {
 
     public void deleteRemoteSource(long sourceId) {
         remoteSourceRepository.delete(sourceId);
+        settingsRepository.saveWebDavSyncManifest(sourceId, "");
     }
 
     public Track addStreamUrl(String title, String url) {
@@ -383,21 +709,71 @@ public final class MusicLibraryRepository {
 
     public String loadStreamingTrackMatch(Track track, String provider) {
         String cleanProvider = provider == null ? "" : provider;
-        for (String key : streamingTrackMatchKeys(track)) {
-            String match = libraryRepository.loadStreamingTrackMatch(key, cleanProvider);
-            if (match != null && !match.trim().isEmpty()) {
-                return match.trim();
+        return libraryRepository.loadStreamingTrackMatch(
+                track,
+                cleanProvider,
+                streamingTrackMatchKeys(track)
+        );
+    }
+
+    /** Fixed-query snapshot used by startup and incremental sync; performs no network work. */
+    public Map<Long, Map<String, String>> loadStreamingTrackMatches(
+            List<Track> tracks,
+            List<String> providers
+    ) {
+        if (tracks == null || tracks.isEmpty() || providers == null || providers.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        LinkedHashMap<Long, List<String>> legacyKeysByTrack = new LinkedHashMap<>();
+        for (Track track : tracks) {
+            if (track != null) {
+                legacyKeysByTrack.put(track.id, streamingTrackMatchKeys(track));
             }
         }
-        return "";
+        return libraryRepository.loadStreamingTrackMatches(tracks, providers, legacyKeysByTrack);
     }
 
     public void saveStreamingTrackMatch(Track track, String provider, String providerTrackId) {
         String cleanProvider = provider == null ? "" : provider;
         String cleanProviderTrackId = providerTrackId == null ? "" : providerTrackId.trim();
-        for (String key : streamingTrackMatchKeys(track)) {
-            libraryRepository.saveStreamingTrackMatch(key, cleanProvider, cleanProviderTrackId, track);
+        List<String> keys = streamingTrackMatchKeys(track);
+        if (!keys.isEmpty()) {
+            libraryRepository.saveStreamingTrackMatch(keys.get(keys.size() - 1), cleanProvider, cleanProviderTrackId, track);
         }
+    }
+
+    /** Stores one structured candidate catalog instead of duplicating it for every lookup key. */
+    public void saveStructuredStreamingTrackMatch(Track track, String provider, String encodedMatch) {
+        String cleanProvider = provider == null ? "" : provider.trim();
+        String cleanEncodedMatch = encodedMatch == null ? "" : encodedMatch.trim();
+        if (cleanProvider.isEmpty() || !cleanEncodedMatch.startsWith(STRUCTURED_MATCH_PREFIX)) {
+            saveStreamingTrackMatch(track, cleanProvider, cleanEncodedMatch);
+            return;
+        }
+        List<String> keys = streamingTrackMatchKeys(track);
+        if (keys.isEmpty()) {
+            return;
+        }
+        String catalogKey = keys.get(keys.size() - 1);
+        libraryRepository.replaceStreamingTrackMatches(
+                keys,
+                cleanProvider,
+                catalogKey,
+                cleanEncodedMatch,
+                track
+        );
+    }
+
+    /** Stores the bounded, ranked search catalog as reviewable candidates without confirming Top1. */
+    public void saveStreamingTrackCandidates(
+            Track track,
+            String provider,
+            List<StreamingTrack> candidates
+    ) {
+        if (track == null || candidates == null) {
+            return;
+        }
+        streamingCandidateCatalogStore.replace(track, provider == null ? "" : provider, candidates);
     }
 
     private void cacheStreamingTrackMatches(List<Track> tracks) {
@@ -583,15 +959,15 @@ public final class MusicLibraryRepository {
             libraryRepository.upsertTracks(toUpsert);
         }
         cacheStreamingTrackMatches(streamingTracks);
-        // Replace playlist tracks
-        playlistRepository.clearTracks(playlistId);
-        int added = 0;
+        // Replace the complete membership in one database transaction. This keeps large remote
+        // playlists fast and guarantees that the sync marker is only advanced after all rows exist.
+        ArrayList<Long> trackIds = new ArrayList<>();
         for (Track track : streamingTracks) {
-            if (track != null && playlistRepository.addTrack(playlistId, track.id)) {
-                added++;
+            if (track != null) {
+                trackIds.add(track.id);
             }
         }
-        return added;
+        return playlistRepository.replaceTracks(playlistId, trackIds);
     }
 
     /**
@@ -838,9 +1214,30 @@ public final class MusicLibraryRepository {
     }
 
     public int parseMissingAudioSpecs() {
-        List<Track> tracks = libraryRepository.loadTracksNeedingAudioSpecs(Integer.MAX_VALUE);
+        // Scan a bounded candidate window, but perform extractor work for at most 24 changed items.
+        // Persisted failures with the same content signature are rotated without reopening media.
+        List<Track> tracks = libraryRepository.loadTracksNeedingAudioSpecs(AUDIO_SPEC_CANDIDATE_SCAN_LIMIT);
+        if (tracks.isEmpty()) return 0;
+        ArrayList<Long> localTrackIds = new ArrayList<>(tracks.size());
+        for (Track track : tracks) if (track != null && track.id > 0L) localTrackIds.add(track.id);
+        HashMap<Long, TrackSourceMappingEntity> sourceByTrack = new HashMap<>();
+        for (TrackSourceMappingEntity source : musicIdentityDao.sourcesForLocalTracks(localTrackIds)) {
+            if (source.getLocalTrackId() != null) sourceByTrack.put(source.getLocalTrackId(), source);
+        }
+        ArrayList<Long> sourceIds = new ArrayList<>(sourceByTrack.size());
+        for (TrackSourceMappingEntity source : sourceByTrack.values()) {
+            if (source.getSourceId() != null) sourceIds.add(source.getSourceId());
+        }
+        HashMap<Long, AudioFeatureEntity> featureBySource = new HashMap<>();
+        if (!sourceIds.isEmpty()) {
+            for (AudioFeatureEntity feature : musicIdentityDao.audioFeatures(sourceIds)) {
+                featureBySource.put(feature.getSourceId(), feature);
+            }
+        }
         ArrayList<Track> enriched = new ArrayList<>();
-        int updated = 0;
+        ArrayList<AudioFeatureEntity> featureUpdates = new ArrayList<>();
+        long attemptedAt = System.currentTimeMillis();
+        int parsedCount = 0;
         for (Track track : tracks) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new java.util.concurrent.CancellationException("Audio spec parsing cancelled");
@@ -848,19 +1245,263 @@ public final class MusicLibraryRepository {
             if (track == null || !track.needsAudioSpecParsing()) {
                 continue;
             }
-            Track parsed = audioSpecParser.enrich(track);
-            if (parsed != null && parsed.hasAudioSpec()) {
+            TrackSourceMappingEntity source = sourceByTrack.get(track.id);
+            if (source == null || source.getSourceId() == null) {
+                libraryRepository.markAudioSpecAttempt(track.id, attemptedAt);
+                continue;
+            }
+            long sourceId = source.getSourceId();
+            String contentSignature = AudioContentSignature.create(appContext, track);
+            AudioFeatureEntity previous = featureBySource.get(sourceId);
+            if (shouldSkipAudioSpec(previous, contentSignature)) {
+                libraryRepository.markAudioSpecAttempt(track.id, attemptedAt);
+                continue;
+            }
+            if (parsedCount >= AUDIO_SPEC_PARSE_LIMIT) break;
+            parsedCount++;
+            Track parsed;
+            try {
+                parsed = audioSpecParser.enrich(track);
+            } catch (RuntimeException ignored) {
+                parsed = track;
+            }
+            boolean hasAudioSpec = parsed != null && parsed.hasAudioSpec();
+            if (parsed != null && (parsed.hasAudioSpec()
+                    || parsed.identityTags != null && !parsed.identityTags.isEmpty())) {
                 enriched.add(parsed);
-                if (enriched.size() >= AUDIO_SPEC_UPDATE_BATCH_SIZE) {
-                    updated += libraryRepository.updateAudioSpecs(enriched);
-                    enriched.clear();
-                }
+            }
+            if (!hasAudioSpec) {
+                libraryRepository.markAudioSpecAttempt(track.id, attemptedAt);
+            }
+            featureUpdates.add(audioFeature(
+                    sourceId,
+                    contentSignature,
+                    previous,
+                    hasAudioSpec,
+                    attemptedAt
+            ));
+        }
+        int updated = enriched.isEmpty() ? 0 : libraryRepository.updateAudioSpecs(enriched);
+        if (!featureUpdates.isEmpty()) musicIdentityDao.upsertAudioFeatures(featureUpdates);
+        return updated;
+    }
+
+    /**
+     * Returns a bounded, network-free batch for the app's native decoder. This method never opens
+     * media and is intentionally separate from library/display queries.
+     */
+    public List<AudioFingerprintCandidate> loadPendingAudioFingerprintCandidates(int requestedLimit) {
+        int limit = Math.max(1, Math.min(requestedLimit, 16));
+        long now = System.currentTimeMillis();
+        List<TrackSourceMappingEntity> sources = musicIdentityDao.sourcesNeedingAudioFingerprint(
+                AUDIO_FINGERPRINT_ALGORITHM_VERSION,
+                now - AUDIO_FINGERPRINT_RETRY_DELAY_MS,
+                limit * AUDIO_FINGERPRINT_SCAN_MULTIPLIER
+        );
+        if (sources.isEmpty()) return Collections.emptyList();
+        ArrayList<Long> trackIds = new ArrayList<>(sources.size());
+        ArrayList<Long> sourceIds = new ArrayList<>(sources.size());
+        for (TrackSourceMappingEntity source : sources) {
+            if (source.getLocalTrackId() != null && source.getSourceId() != null) {
+                trackIds.add(source.getLocalTrackId());
+                sourceIds.add(source.getSourceId());
             }
         }
-        if (!enriched.isEmpty()) {
-            updated += libraryRepository.updateAudioSpecs(enriched);
+        HashMap<Long, Track> tracksById = new HashMap<>();
+        for (Track track : libraryRepository.loadTracksByIds(trackIds)) {
+            tracksById.put(track.id, track);
         }
-        return updated;
+        HashMap<Long, AudioFeatureEntity> featuresBySource = new HashMap<>();
+        for (AudioFeatureEntity feature : musicIdentityDao.audioFeatures(sourceIds)) {
+            featuresBySource.put(feature.getSourceId(), feature);
+        }
+        ArrayList<AudioFingerprintCandidate> candidates = new ArrayList<>(limit);
+        ArrayList<AudioFeatureEntity> resets = new ArrayList<>();
+        for (TrackSourceMappingEntity source : sources) {
+            if (candidates.size() >= limit || source.getSourceId() == null
+                    || source.getLocalTrackId() == null) break;
+            Track track = tracksById.get(source.getLocalTrackId());
+            if (!isLocallyReadableForAudioVerification(track)) continue;
+            long sourceId = source.getSourceId();
+            String signature = AudioContentSignature.create(appContext, track);
+            AudioFeatureEntity previous = featuresBySource.get(sourceId);
+            boolean contentChanged = previous == null
+                    || !previous.getContentSignature().equals(signature);
+            if (contentChanged) {
+                AudioFeatureEntity reset = resetAudioEvidence(sourceId, signature, track, previous, now);
+                resets.add(reset);
+                previous = reset;
+            } else if (!previous.getChromaprint().isEmpty()
+                    && previous.getAlgorithmVersion() >= AUDIO_FINGERPRINT_ALGORITHM_VERSION) {
+                musicIdentityDao.touchAudioFeatureIfCurrent(sourceId, signature, now);
+                continue;
+            }
+            candidates.add(new AudioFingerprintCandidate(
+                    sourceId,
+                    track,
+                    signature,
+                    previous.getAlgorithmVersion()
+            ));
+        }
+        if (!resets.isEmpty()) musicIdentityDao.upsertAudioFeatures(resets);
+        return candidates;
+    }
+
+    /**
+     * Returns one WebDAV fingerprint work item without opening media or performing network I/O.
+     * The playback service calls this only after it has found a sufficiently large cached prefix.
+     */
+    public AudioFingerprintCandidate loadPendingWebDavAudioFingerprintCandidate(long localTrackId) {
+        if (localTrackId <= 0L) return null;
+        TrackSourceMappingEntity source = musicIdentityDao.sourceForLocalTrack(localTrackId);
+        if (source == null || source.getSourceId() == null
+                || !"webdav".equalsIgnoreCase(source.getProvider())) {
+            return null;
+        }
+        Track track = libraryRepository.loadTrack(localTrackId);
+        if (track == null || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)
+                || !track.dataPath.startsWith("webdav:")) {
+            return null;
+        }
+        long sourceId = source.getSourceId();
+        long now = System.currentTimeMillis();
+        String signature = AudioContentSignature.create(appContext, track);
+        AudioFeatureEntity previous = musicIdentityDao.audioFeature(sourceId);
+        if (previous == null || !previous.getContentSignature().equals(signature)) {
+            previous = resetAudioEvidence(sourceId, signature, track, previous, now);
+            musicIdentityDao.upsertAudioFeatures(Collections.singletonList(previous));
+        } else if (!previous.getChromaprint().isEmpty()
+                && previous.getAlgorithmVersion() >= AUDIO_FINGERPRINT_ALGORITHM_VERSION) {
+            musicIdentityDao.touchAudioFeatureIfCurrent(sourceId, signature, now);
+            return null;
+        }
+        return new AudioFingerprintCandidate(
+                sourceId,
+                track,
+                signature,
+                previous.getAlgorithmVersion()
+        );
+    }
+
+    /** Conditional write prevents an analysis result from attaching after a file changed. */
+    public boolean saveAudioFingerprint(
+            AudioFingerprintCandidate candidate,
+            AudioFingerprintEvidence evidence
+    ) {
+        if (candidate == null || evidence == null || candidate.getSourceId() <= 0L
+                || evidence.getChromaprint().trim().isEmpty()
+                || evidence.getAlgorithmVersion() < AUDIO_FINGERPRINT_ALGORITHM_VERSION) {
+            return false;
+        }
+        return musicIdentityDao.updateAudioFingerprintIfCurrent(
+                candidate.getSourceId(),
+                candidate.getContentSignature(),
+                evidence.getPcmHash().trim(),
+                evidence.getChromaprint().trim(),
+                evidence.getAlgorithmVersion(),
+                System.currentTimeMillis()
+        ) == 1;
+    }
+
+    /** One cold incremental identity pass after an entire fingerprint batch has been persisted. */
+    public int refreshAudioVerifiedMatches(List<Long> localTrackIds) {
+        if (localTrackIds == null || localTrackIds.isEmpty()) return 0;
+        ArrayList<Long> validIds = new ArrayList<>(localTrackIds.size());
+        for (Long trackId : localTrackIds) {
+            if (trackId != null && trackId > 0L && !validIds.contains(trackId)) {
+                validIds.add(trackId);
+            }
+        }
+        if (validIds.isEmpty()) return 0;
+        return new SourceIdentityIngestor(database).ingestLocalTracks(validIds);
+    }
+
+    public boolean recordAudioFingerprintFailure(
+            AudioFingerprintCandidate candidate,
+            String errorCode
+    ) {
+        if (candidate == null || candidate.getSourceId() <= 0L) return false;
+        String normalized = errorCode == null ? "FAILED" : errorCode.trim().toUpperCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^A-Z0-9_]+", "_");
+        if (normalized.isEmpty()) normalized = "FAILED";
+        return musicIdentityDao.recordAudioFingerprintFailureIfCurrent(
+                candidate.getSourceId(),
+                candidate.getContentSignature(),
+                AUDIO_FINGERPRINT_ALGORITHM_VERSION,
+                "FINGERPRINT_" + normalized,
+                System.currentTimeMillis()
+        ) == 1;
+    }
+
+    private static boolean isLocallyReadableForAudioVerification(Track track) {
+        if (track == null || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)) return false;
+        String scheme = track.contentUri.getScheme();
+        if ("content".equalsIgnoreCase(scheme) || "file".equalsIgnoreCase(scheme)) return true;
+        String path = track.dataPath == null ? "" : track.dataPath.trim();
+        return path.startsWith("/") || path.matches("^[A-Za-z]:[\\\\/].*");
+    }
+
+    private static AudioFeatureEntity resetAudioEvidence(
+            long sourceId,
+            String signature,
+            Track track,
+            AudioFeatureEntity previous,
+            long updatedAt
+    ) {
+        boolean specReady = track != null && track.hasAudioSpec();
+        return new AudioFeatureEntity(
+                sourceId,
+                signature,
+                "",
+                "",
+                null,
+                null,
+                "",
+                0,
+                specReady ? AUDIO_SPEC_READY : "PENDING",
+                specReady ? AUDIO_SPEC_ALGORITHM_VERSION : 0,
+                previous == null ? 0 : previous.getAudioSpecAttemptCount(),
+                previous == null ? 0L : previous.getLastAttemptAt(),
+                "",
+                updatedAt
+        );
+    }
+
+    private static AudioFeatureEntity audioFeature(
+            long sourceId,
+            String contentSignature,
+            AudioFeatureEntity previous,
+            boolean ready,
+            long attemptedAt
+    ) {
+        boolean contentUnchanged = previous != null
+                && previous.getContentSignature().equals(contentSignature == null ? "" : contentSignature);
+        return new AudioFeatureEntity(
+                sourceId,
+                contentSignature,
+                contentUnchanged ? previous.getPcmHash() : "",
+                contentUnchanged ? previous.getChromaprint() : "",
+                contentUnchanged ? previous.getRecordingEmbedding() : null,
+                contentUnchanged ? previous.getWorkEmbedding() : null,
+                contentUnchanged ? previous.getVersionScores() : "",
+                Math.max(
+                        AUDIO_FEATURE_ALGORITHM_VERSION,
+                        contentUnchanged ? previous.getAlgorithmVersion() : 0
+                ),
+                ready ? AUDIO_SPEC_READY : AUDIO_SPEC_FAILED,
+                AUDIO_SPEC_ALGORITHM_VERSION,
+                previous == null ? 1 : previous.getAudioSpecAttemptCount() + 1,
+                attemptedAt,
+                ready ? "" : "AUDIO_SPEC_UNAVAILABLE",
+                attemptedAt
+        );
+    }
+
+    static boolean shouldSkipAudioSpec(AudioFeatureEntity previous, String contentSignature) {
+        return previous != null
+                && previous.getAudioSpecAlgorithmVersion() == AUDIO_SPEC_ALGORITHM_VERSION
+                && AUDIO_SPEC_FAILED.equals(previous.getAudioSpecState())
+                && previous.getContentSignature().equals(contentSignature == null ? "" : contentSignature);
     }
 
     public List<Track> search(List<Track> source, String query) {
@@ -926,6 +1567,38 @@ public final class MusicLibraryRepository {
 
     public List<Track> loadFavoriteTracks() {
         return libraryRepository.loadFavoriteTracks();
+    }
+
+    public Track loadTrack(long trackId) {
+        return libraryRepository.loadTrack(trackId);
+    }
+
+    public long loadRecordingId(long trackId) {
+        return libraryRepository.loadRecordingId(trackId);
+    }
+
+    public String loadConfirmedProviderTrackId(long recordingId, String provider) {
+        return libraryRepository.loadConfirmedProviderTrackId(recordingId, provider);
+    }
+
+    public boolean confirmDirectProviderSource(
+            long localTrackId,
+            String provider,
+            String providerTrackId
+    ) {
+        return libraryRepository.confirmDirectProviderSource(
+                localTrackId,
+                provider,
+                providerTrackId
+        );
+    }
+
+    public int ingestConfirmedIdentitySources() {
+        return libraryRepository.ingestConfirmedIdentitySources();
+    }
+
+    public void updateFavoriteSyncState(long recordingId, String syncState) {
+        libraryRepository.updateFavoriteSyncState(recordingId, syncState);
     }
 
     public List<Playlist> loadPlaylists() {

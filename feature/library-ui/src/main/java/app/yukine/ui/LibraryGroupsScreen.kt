@@ -30,10 +30,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +57,18 @@ data class LibraryGroupActions @JvmOverloads constructor(
     val onLongPress: Runnable? = null
 )
 
+data class LibraryPlaylistFolderEntryUiState(
+    val group: LibraryGroupUiState,
+    val actionIndex: Int
+)
+
+data class LibraryPlaylistFolderUiState(
+    val key: String,
+    val title: String,
+    val subtitle: String,
+    val entries: List<LibraryPlaylistFolderEntryUiState>
+)
+
 @Composable
 fun LibraryGroupsScreen(
     title: String,
@@ -68,7 +82,8 @@ fun LibraryGroupsScreen(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     libraryUi: LibraryUiState = LibraryUiState(),
     libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
-    libraryControlsEnabled: Boolean = false
+    libraryControlsEnabled: Boolean = false,
+    playlistFolders: List<LibraryPlaylistFolderUiState> = emptyList()
 ) {
     val p = EchoTheme.colors()
     CollapsibleSearchHeader(
@@ -119,11 +134,106 @@ fun LibraryGroupsScreen(
                     )
                 }
             }
-            if (groups.isEmpty() && emptyText.isNotBlank()) {
+            itemsIndexed(
+                items = playlistFolders,
+                key = { _, folder -> "playlist-source:${folder.key}" }
+            ) { _, folder ->
+                LibraryPlaylistFolderSection(folder, actions, libraryUi.labels.play)
+            }
+            if (groups.isEmpty() && playlistFolders.isEmpty() && emptyText.isNotBlank()) {
                 item(key = "empty") {
                     GroupMessage(emptyText)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryPlaylistFolderSection(
+    folder: LibraryPlaylistFolderUiState,
+    actions: List<LibraryGroupActions>,
+    playDescription: String
+) {
+    var expanded by rememberSaveable(folder.key) { mutableStateOf(true) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LibraryPlaylistFolderRow(folder, expanded) { expanded = !expanded }
+        if (expanded) {
+            Column(
+                modifier = Modifier.padding(start = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                folder.entries.forEach { entry ->
+                    actions.getOrNull(entry.actionIndex)?.let { action ->
+                        LibraryGroupRow(
+                            group = entry.group,
+                            actions = action,
+                            playDescription = playDescription
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryPlaylistFolderRow(
+    folder: LibraryPlaylistFolderUiState,
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoPressScale(interaction)
+            .echoFloatingLayer(p, EchoShapes.large)
+            .echoGlassLayer(p, EchoShapes.large)
+            .semantics { contentDescription = folder.title },
+        shape = EchoShapes.large,
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = EchoShapes.medium,
+                color = p.accentSoft
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    EchoIcon(EchoIconKind.Folder, Modifier.size(26.dp), p.accent)
+                }
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    folder.title,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = p.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    folder.subtitle,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            EchoIcon(
+                EchoIconKind.Next,
+                Modifier
+                    .size(18.dp)
+                    .graphicsLayer { rotationZ = if (expanded) 90f else 0f },
+                p.muted
+            )
         }
     }
 }
@@ -156,6 +266,7 @@ private fun LibraryGroupControls(state: LibraryUiState, actionHandler: LibraryAc
             placeholder = { Text(state.labels.search, color = p.muted) },
             shape = EchoShapes.medium
         )
+        LibrarySyncControls(state, actionHandler)
         Box {
             Surface(
                 onClick = { filterExpanded = true },

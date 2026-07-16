@@ -27,6 +27,22 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
     @Test
+    fun providersReuseApplicationPlaybackConnectionPool() {
+        val first = provider(FakeStreamingPlaybackHeaderStore())
+        val second = provider(FakeStreamingPlaybackHeaderStore())
+
+        assertSame(first.connectionPoolForTest(), second.connectionPoolForTest())
+        assertSame(first.connectionPoolForTest(), first.rangeProbeConnectionPoolForTest())
+    }
+
+    @Test
+    fun parsesRangeProbeContentLengthSafely() {
+        assertEquals(8_388_608L, PlaybackMediaSourceProvider.contentLengthFromContentRange("bytes 524288-524288/8388608"))
+        assertEquals(-1L, PlaybackMediaSourceProvider.contentLengthFromContentRange("bytes */*"))
+        assertEquals(-1L, PlaybackMediaSourceProvider.contentLengthFromContentRange(null))
+    }
+
+    @Test
     fun playbackMediaItemForLocalTrackPreservesUriAndMetadataWithoutCacheKey() {
         val uri = Uri.parse("file:///storage/emulated/0/Music/local.flac")
         val track = Track(7L, "Local", "Artist", "Album", 180_000L, uri, "/storage/emulated/0/Music/local.flac")
@@ -144,7 +160,10 @@ class PlaybackMediaSourceProviderTest {
             "streaming:netease:42|url=https://audio.example/current.flac",
             provider.mediaCacheKeyForTrack(streaming)
         )
-        assertEquals("webdav:3:/music/webdav.flac", provider.mediaCacheKeyForTrack(webDav))
+        assertEquals(
+            "webdav:3:/music/webdav.flac|url=https://dav.example/music/webdav.flac",
+            provider.mediaCacheKeyForTrack(webDav)
+        )
         assertEquals("file:///storage/emulated/0/Music/local.flac", provider.mediaCacheKeyForTrack(local))
         assertEquals("", provider.mediaCacheKeyForTrack(localMissingUri))
         assertNull(PlaybackMediaSourceProvider.mediaCacheKey("/storage/emulated/0/Music/local.flac", local.contentUri.toString()))
@@ -185,6 +204,44 @@ class PlaybackMediaSourceProviderTest {
             assertEquals(4L, provider.continuousCachedBytes(cacheKey))
             assertEquals(-1L, provider.contentLengthForCacheKey(cacheKey))
         } finally {
+            provider.releaseAudioCache()
+        }
+    }
+
+    @Test
+    fun cachedPrefixCopyReadsOnlyCommittedCacheAndHonorsBounds() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        val bytes = ByteArray(4096) { index -> (index % 251).toByte() }
+        val track = Track(
+            91L,
+            "Cached WebDAV",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://dav.example/music/cached.flac"),
+            "webdav:3:/music/cached.flac"
+        )
+        val target = File(RuntimeEnvironment.getApplication().cacheDir, "cached-prefix-test.bin")
+        try {
+            val cacheKey = provider.cacheKeyForTrack(track)!!
+            CacheWriter(
+                CacheDataSource(provider.audioCache(), ByteArrayDataSource(bytes)),
+                DataSpec.Builder()
+                    .setUri(track.contentUri)
+                    .setKey(cacheKey)
+                    .setLength(bytes.size.toLong())
+                    .build(),
+                ByteArray(1024),
+                null
+            ).cache()
+
+            assertEquals(2048L, provider.copyCachedPrefix(track, target, 1024L, 2048L))
+            assertTrue(target.readBytes().contentEquals(bytes.copyOf(2048)))
+            target.delete()
+            assertEquals(0L, provider.copyCachedPrefix(track, target, 8192L, 16384L))
+            assertFalse(target.exists())
+        } finally {
+            target.delete()
             provider.releaseAudioCache()
         }
     }

@@ -7,7 +7,8 @@ data class StreamingPlaylistImportSummary(
     val playlistName: String,
     val matchedTracks: List<StreamingTrack>,
     val unresolvedTracks: List<Track>,
-    val errors: List<String>
+    val errors: List<String>,
+    val remotePlaylist: StreamingPlaylist? = null
 ) {
     val totalRequested: Int = matchedTracks.size + unresolvedTracks.size
     val matchRatePercent: Int =

@@ -60,6 +60,8 @@ class MainLibraryGatewayTest {
         gateway.scanLibrary()
         gateway.playTrackList(listOf(track), 0)
         gateway.addToPlaylist(track)
+        gateway.syncWebDavLibrary()
+        gateway.setAutomaticSyncEnabled(true)
 
         assertEquals(
             listOf(
@@ -67,7 +69,9 @@ class MainLibraryGatewayTest {
                 "importFiles",
                 "scan:false",
                 "play:3:0",
-                "playlistAdd:3"
+                "playlistAdd:3",
+                "syncLibrary",
+                "autoSync:true"
             ),
             events
         )
@@ -84,7 +88,9 @@ class MainLibraryGatewayTest {
             routeActions = FakeRouteActions(events),
             searchApplier = { events += "applySearch" },
             audioImporter = { events += "importFiles" },
-            libraryScanner = { allowCachedFirst -> events += "scan:$allowCachedFirst" }
+            libraryScanner = { allowCachedFirst -> events += "scan:$allowCachedFirst" },
+            librarySynchronizer = { events += "syncLibrary" },
+            automaticSyncSetter = { enabled -> events += "autoSync:$enabled" }
         )
     }
 

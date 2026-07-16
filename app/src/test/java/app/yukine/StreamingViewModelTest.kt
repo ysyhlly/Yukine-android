@@ -227,8 +227,8 @@ class StreamingViewModelTest {
                 1,
                 listOf(
                     streamingTrack("netease-echo").copy(
-                        title = "Echo",
-                        artist = "Artist",
+                        title = "Echo (如果是回声)",
+                        artist = "Artist / Guest",
                         durationMs = 210_000L
                     )
                 )
@@ -244,8 +244,8 @@ class StreamingViewModelTest {
                     streamingTrack("qq-echo").copy(
                         provider = StreamingProviderName.QQ_MUSIC,
                         title = "Echo",
-                        artist = "Artist",
-                        durationMs = 211_000L,
+                        artist = "Guest feat. Artist",
+                        durationMs = 214_500L,
                         playbackCandidates = listOf(
                             StreamingPlaybackCandidate(
                                 provider = StreamingProviderName.QQ_MUSIC,
@@ -718,6 +718,48 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun newForegroundTrackCancelsPreviousInFlightResolve() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val provider = FakeProvider()
+        val gate = CompletableDeferred<Unit>()
+        provider.playbackResolveGate = gate
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(dispatcher)
+        viewModel.bindStreamingRepository(repository(provider))
+        viewModel.playbackResolution.bindPlaybackCoordinator(
+            ResolveStreamingPlaybackUseCase(),
+            FakeStreamingPlaybackTaskQueue()
+        )
+        val firstResults = mutableListOf<ResolvedStreamingTrackList?>()
+        val secondResults = mutableListOf<ResolvedStreamingTrackList?>()
+
+        assertTrue(
+            viewModel.playbackResolution.resolveStreamingTrackListForPlayback(
+                listOf(streamingPlaceholderTrack(31L, "first-31")),
+                0,
+                StreamingAudioQuality.HIGH
+            ) { firstResults += it }
+        )
+        waitUntil { provider.playbackRequests.any { it.providerTrackId == "first-31" } }
+
+        assertTrue(
+            viewModel.playbackResolution.resolveStreamingTrackListForPlayback(
+                listOf(streamingPlaceholderTrack(32L, "second-32")),
+                0,
+                StreamingAudioQuality.HIGH
+            ) { secondResults += it }
+        )
+        waitUntil { provider.playbackRequests.any { it.providerTrackId == "second-32" } }
+        gate.complete(Unit)
+        advanceUntilIdle()
+        waitUntil { secondResults.isNotEmpty() }
+
+        assertTrue(firstResults.isEmpty())
+        assertEquals("Streaming 32", secondResults.single()?.tracks?.single()?.title)
+    }
+
+    @Test
     fun preResolveStreamingQueueWindowBatchResolvesUpcomingTracksInOneCallback() = runTest {
         // Unify viewModelScope (Main), the IO async children, and runTest on a single
         // scheduler so awaitAll fully drains before job.join() returns. Mixing the class
@@ -800,6 +842,57 @@ class StreamingViewModelTest {
             provider.playbackRequests.toList()
         )
         assertEquals(listOf(3L), resolved.map { it.first })
+    }
+
+    @Test
+    fun foregroundPlaybackSharesInFlightQueuePreResolveForSameTrack() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val provider = FakeProvider()
+        val gate = CompletableDeferred<Unit>()
+        provider.playbackResolveGate = gate
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(dispatcher)
+        val current = localTrack(id = 1L)
+        val next = localTrack(id = 2L)
+        val target = streamingPlaceholderTrack(id = 3L, providerTrackId = "shared-3")
+        val playbackResults = mutableListOf<Track?>()
+        viewModel.bindStreamingRepository(repository(provider))
+
+        val background = viewModel.playbackResolution.preResolveStreamingQueueWindowBatch(
+            snapshot = playbackSnapshot(
+                currentTrack = current,
+                currentIndex = 0,
+                queueSize = 3,
+                playing = true
+            ),
+            queue = listOf(current, next, target),
+            quality = StreamingAudioQuality.HIGH,
+            maxCount = 1
+        ) { }
+        waitUntil { provider.playbackRequests.size == 1 }
+
+        val foreground = viewModel.playbackResolution.resolveStreamingTrackForPlayback(
+            provider = StreamingProviderName.NETEASE,
+            providerTrackId = "shared-3",
+            metadata = ResolveStreamingPlaybackUseCase().metadataFor(
+                target,
+                StreamingProviderName.NETEASE,
+                "shared-3"
+            ),
+            quality = StreamingAudioQuality.HIGH
+        ) { resolved -> playbackResults += resolved }
+
+        assertEquals(1, provider.playbackRequests.size)
+        gate.complete(Unit)
+        background?.join()
+        foreground.join()
+
+        assertEquals(
+            listOf(StreamingPlaybackRequest(StreamingProviderName.NETEASE, "shared-3", StreamingAudioQuality.HIGH)),
+            provider.playbackRequests.toList()
+        )
+        assertEquals(listOf("Streaming 3"), playbackResults.mapNotNull { it?.title })
     }
 
     @Test

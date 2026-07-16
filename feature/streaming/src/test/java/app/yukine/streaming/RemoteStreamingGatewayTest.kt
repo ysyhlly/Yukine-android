@@ -212,7 +212,7 @@ class RemoteStreamingGatewayTest {
     }
 
     @Test
-    fun qqPlaybackRejectsUinOnlyCookieBeforeCallingProvider() = runTest {
+    fun qqPlaybackIsRejectedByFixedCapabilityBeforeCallingProvider() = runTest {
         val authStore = FakeLocalAuthStore(
             cookies = mapOf(StreamingProviderName.QQ_MUSIC to "uin=o12345; p_uin=o12345")
         )
@@ -235,8 +235,8 @@ class RemoteStreamingGatewayTest {
             error
         }
 
-        assertEquals(StreamingErrorCode.AUTH_REQUIRED, error?.code)
-        assertTrue(error?.message.orEmpty().contains("qqmusic_key/qm_keyst"))
+        assertEquals(StreamingErrorCode.UNSUPPORTED_OPERATION, error?.code)
+        assertTrue(error?.message.orEmpty().contains("playback is disabled"))
         assertTrue(qq.paths.isEmpty())
     }
 

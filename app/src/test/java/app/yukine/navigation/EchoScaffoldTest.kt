@@ -200,7 +200,7 @@ class EchoScaffoldTest {
     }
 
     @Test
-    fun pageScrollCollapsesTopCloudIntoHandle() {
+    fun pageScrollCompactsTopCloudWithoutCreatingAHandle() {
         composeRule.setContent {
             EchoTheme.EchoTheme {
                 EchoScaffold(
@@ -215,7 +215,12 @@ class EchoScaffoldTest {
                                         title = "Scroll cloud track",
                                         canExpand = true
                                     ),
-                                    labels = state.labels.copy(play = "Play", pause = "Pause")
+                                    labels = state.labels.copy(
+                                        play = "Play",
+                                        pause = "Pause",
+                                        expandTopCloud = "Expand cloud",
+                                        compactTopCloud = "Compact cloud"
+                                    )
                                 )
                             },
                             waveformExpanded = false,
@@ -253,13 +258,16 @@ class EchoScaffoldTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Play").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Compact cloud").assertIsDisplayed()
+        composeRule.onNodeWithTag("top-cloud-artwork").assertIsDisplayed()
 
         composeRule.onNodeWithTag("scroll-cloud-list").performTouchInput {
             swipeUp(durationMillis = 180L)
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithContentDescription("显示流体云").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Expand cloud").assertIsDisplayed()
+        composeRule.onNodeWithTag("top-cloud-artwork").assertDoesNotExist()
 
         composeRule.onNodeWithTag("scroll-cloud-list").performTouchInput {
             swipeDown(durationMillis = 180L)
@@ -267,6 +275,8 @@ class EchoScaffoldTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithContentDescription("Play").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Compact cloud").assertIsDisplayed()
+        composeRule.onNodeWithTag("top-cloud-artwork").assertIsDisplayed()
     }
 
     @Test
@@ -335,23 +345,22 @@ class EchoScaffoldTest {
         val directTopBounds = composeRule.onNodeWithContentDescription("Play")
             .fetchSemanticsNode().boundsInRoot
         assertTrue(directTopBounds.top > 0f)
-        val compactTopContentTop = composeRule.onNodeWithText("content")
-            .fetchSemanticsNode().boundsInRoot.top
-        assertTrue(compactTopContentTop > initialContentTop)
-
-        val compactCloudWidth = composeRule.onNodeWithContentDescription("Expand cloud")
-            .fetchSemanticsNode().boundsInRoot.width
-        composeRule.onNodeWithContentDescription("Expand cloud").performClick()
-        composeRule.waitForIdle()
         composeRule.onNodeWithTag("top-cloud-artwork").assertIsDisplayed()
         val expandedTopContentTop = composeRule.onNodeWithText("content")
             .fetchSemanticsNode().boundsInRoot.top
-        assertTrue(expandedTopContentTop > compactTopContentTop)
+        assertTrue(expandedTopContentTop > initialContentTop)
+
         val expandedCloudWidth = composeRule.onNodeWithContentDescription("Compact cloud")
             .fetchSemanticsNode().boundsInRoot.width
-        assertTrue(expandedCloudWidth > compactCloudWidth)
         composeRule.onNodeWithContentDescription("Compact cloud").performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("top-cloud-artwork").assertDoesNotExist()
+        val compactTopContentTop = composeRule.onNodeWithText("content")
+            .fetchSemanticsNode().boundsInRoot.top
+        assertTrue(expandedTopContentTop > compactTopContentTop)
+        val compactCloudWidth = composeRule.onNodeWithContentDescription("Expand cloud")
+            .fetchSemanticsNode().boundsInRoot.width
+        assertTrue(expandedCloudWidth > compactCloudWidth)
 
         composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
@@ -404,16 +413,16 @@ class EchoScaffoldTest {
         assertTrue(topCloudBounds.top > 0f)
         assertTrue(topCloudBounds.bottom < leftDockBounds.top)
 
-        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
+        composeRule.onNodeWithContentDescription("Compact cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x, center.y - 180f), 300L)
             up()
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("显示流体云").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Expand cloud").assertIsDisplayed()
 
-        composeRule.onNodeWithContentDescription("显示流体云").performTouchInput {
+        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x, center.y + 180f), 300L)
@@ -421,14 +430,6 @@ class EchoScaffoldTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Play").assertIsDisplayed()
-
-        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
-            val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
-            down(center)
-            moveTo(Offset(center.x, center.y + 180f), 300L)
-            up()
-        }
-        composeRule.waitForIdle()
 
         composeRule.onAllNodesWithContentDescription("Expand Now Bar").assertCountEquals(0)
 
@@ -439,7 +440,7 @@ class EchoScaffoldTest {
             up()
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
+        composeRule.onNodeWithContentDescription("Compact cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x + 120f, center.y + 180f), 300L)
@@ -458,7 +459,7 @@ class EchoScaffoldTest {
             up()
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
+        composeRule.onNodeWithContentDescription("Compact cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x, center.y + 180f), 300L)
@@ -475,7 +476,7 @@ class EchoScaffoldTest {
             up()
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription("Expand cloud").performTouchInput {
+        composeRule.onNodeWithContentDescription("Compact cloud").performTouchInput {
             val center = Offset(visibleSize.width / 2f, visibleSize.height / 2f)
             down(center)
             moveTo(Offset(center.x - 120f, center.y + 180f), 300L)
@@ -640,6 +641,7 @@ class EchoScaffoldTest {
         TabRoute.all.forEach { tab ->
             assertEquals(tab, TabRoute.fromKey(tab.route))
         }
+        assertEquals(LibraryTab, TabRoute.fromKey(CollectionsTab.route))
         assertTrue(TabRoute.fromKey("nonexistent-route") == null)
     }
 }

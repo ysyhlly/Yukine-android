@@ -100,6 +100,7 @@ internal class TrackListStatePublisher(
         AppLanguage.text(languageMode, "download.current.list"),
         AppLanguage.text(languageMode, "all.albums"),
         AppLanguage.text(languageMode, "play.all"),
-        AppLanguage.text(languageMode, "shuffle")
+        AppLanguage.text(languageMode, "shuffle"),
+        AppLanguage.text(languageMode, "recording.match.manage")
     )
 }

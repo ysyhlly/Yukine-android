@@ -1,0 +1,33 @@
+{
+  "buildFiles": [
+    "E:\\ECHO andriod\\echo-android\\app\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\31283\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "E:\\ECHO andriod\\echo-android\\app\\.cxx\\Debug\\184q4g1k\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\31283\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "E:\\ECHO andriod\\echo-android\\app\\.cxx\\Debug\\184q4g1k\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "echo_chromaprint_jni::@6890427a1f51a3e7e1df": {
+      "artifactName": "echo_chromaprint_jni",
+      "abi": "arm64-v8a",
+      "output": "E:\\ECHO andriod\\echo-android\\app\\build\\intermediates\\cxx\\Debug\\184q4g1k\\obj\\arm64-v8a\\libecho_chromaprint_jni.so",
+      "runtimeFiles": []
+    },
+    "chromaprint::@6890427a1f51a3e7e1df": {
+      "artifactName": "chromaprint",
+      "abi": "arm64-v8a",
+      "output": "E:\\ECHO andriod\\echo-android\\app\\build\\intermediates\\cxx\\Debug\\184q4g1k\\obj\\arm64-v8a\\libchromaprint.so",
+      "runtimeFiles": []
+    }
+  }
+}

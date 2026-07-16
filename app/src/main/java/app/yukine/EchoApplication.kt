@@ -15,5 +15,6 @@ class EchoApplication : Application() {
         }
         CrashLogger.install(this)
         StreamingSessionMaintenanceScheduler.schedule(this)
+        IdentityEnhancementScheduler.schedule(this)
     }
 }

@@ -10,8 +10,7 @@ internal enum class NowBarDockPosition {
     BottomLeft,
     BottomRight,
     TopCloud,
-    TopCloudExpanded,
-    TopCloudCollapsed
+    TopCloudExpanded
 }
 
 @Immutable
@@ -105,8 +104,6 @@ data class NowBarLabels(
     val expandNowBar: String = "",
     val dockTop: String = "",
     val restoreBottom: String = "",
-    val collapseTopCloud: String = "",
-    val showTopCloud: String = "",
     val expandTopCloud: String = "",
     val compactTopCloud: String = ""
 )

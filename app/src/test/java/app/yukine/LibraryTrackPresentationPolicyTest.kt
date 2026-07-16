@@ -33,12 +33,41 @@ class LibraryTrackPresentationPolicyTest {
         assertEquals(listOf("stream-detail", "local-detail"), sorted.map { it.detail })
     }
 
-    private fun track(id: Long, title: String, path: String): Track = Track(
+    @Test
+    fun precomputedSortKeysPreserveEverySortOrder() {
+        val first = track(1L, "Beta", "/music/1.mp3", "Zulu", "One", 3_000L)
+        val second = track(2L, "alpha", "/music/2.mp3", "Artist", "Two", 2_000L)
+        val third = track(3L, "Gamma", "/music/3.mp3", "Artist", "One", 2_000L)
+        val tracks = listOf(first, second, third)
+
+        fun ids(sort: LibrarySort): List<Long> = LibraryTrackPresentationPolicy.present(
+            tracks,
+            emptyList(),
+            LibraryUiState(sort = sort),
+            emptySet()
+        ).map { it.track.id }
+
+        assertEquals(listOf(2L, 1L, 3L), ids(LibrarySort.TitleAscending))
+        assertEquals(listOf(3L, 1L, 2L), ids(LibrarySort.TitleDescending))
+        assertEquals(listOf(2L, 3L, 1L), ids(LibrarySort.Artist))
+        assertEquals(listOf(1L, 3L, 2L), ids(LibrarySort.Album))
+        assertEquals(listOf(2L, 3L, 1L), ids(LibrarySort.DurationAscending))
+        assertEquals(listOf(1L, 2L, 3L), ids(LibrarySort.DurationDescending))
+    }
+
+    private fun track(
+        id: Long,
+        title: String,
+        path: String,
+        artist: String = "Artist",
+        album: String = "Album",
+        durationMs: Long = 1_000L
+    ): Track = Track(
         id,
         title,
-        "Artist",
-        "Album",
-        1000L,
+        artist,
+        album,
+        durationMs,
         Uri.parse(if (path.startsWith("stream:")) "https://example.test/$id" else "file://$path"),
         path
     )

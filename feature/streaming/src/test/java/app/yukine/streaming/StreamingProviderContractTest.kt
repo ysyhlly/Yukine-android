@@ -58,7 +58,7 @@ class StreamingProviderContractTest {
         }
 
         assertTrue(searchError.message.orEmpty().contains("does not support search"))
-        assertTrue(playbackError.message.orEmpty().contains("does not support playback"))
+        assertTrue(playbackError.message.orEmpty().contains("does not provide playback audio"))
         assertEquals(StreamingErrorCode.UNSUPPORTED_OPERATION, searchError.code)
         assertEquals(StreamingErrorCode.UNSUPPORTED_OPERATION, playbackError.code)
         assertEquals(0, provider.searchRequests.size)

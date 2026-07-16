@@ -1,5 +1,6 @@
 package app.yukine.data;
 
+import android.content.Context;
 import android.net.Uri;
 import android.util.Base64;
 
@@ -7,9 +8,13 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
@@ -22,10 +27,15 @@ import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,33 +45,85 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
 import app.yukine.model.TrackIdentity;
 
 public final class WebDavClient {
     private static final int MAX_DIRECTORIES = 200;
+    private static final int INITIAL_FLAC_PREFIX_BYTES = 64 * 1024;
+    private static final int MAX_FLAC_PREFIX_BYTES = 2 * 1024 * 1024;
+    private static final String METADATA_CACHE_VERSION = "metadata-v2";
     private static final String[] AUDIO_EXTENSIONS = {
             ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".alac"
     };
     private static final Pattern HTML_HREF_PATTERN = Pattern.compile(
             "(?is)<a\\s+[^>]*href\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))"
     );
+    private final File artworkDirectory;
+
+    public WebDavClient() {
+        artworkDirectory = null;
+    }
+
+    public WebDavClient(Context context) {
+        Context appContext = context == null ? null : context.getApplicationContext();
+        artworkDirectory = appContext == null
+                ? null
+                : new File(appContext.getCacheDir(), "webdav-artwork");
+    }
 
     public List<Track> listAudioTracks(RemoteSource source) {
+        return listAudioTracksIncremental(source, Collections.emptyList(), "").tracks;
+    }
+
+    public IncrementalResult listAudioTracksIncremental(
+            RemoteSource source,
+            List<Track> cachedTracks,
+            String previousManifest
+    ) {
         ArrayList<Track> tracks = new ArrayList<>();
         HashSet<String> visitedDirectories = new HashSet<>();
+        Map<String, Track> cachedByPath = tracksByDataPath(cachedTracks);
+        Map<String, String> previousFingerprints = decodeManifest(previousManifest);
+        Map<String, Track> relocatableByFingerprint = relocatableTracksByFingerprint(
+                cachedByPath,
+                previousFingerprints
+        );
+        HashSet<String> claimedRelocationFingerprints = new HashSet<>();
+        LinkedHashMap<String, String> nextFingerprints = new LinkedHashMap<>();
         try {
-            scanDirectory(source, directoryUrl(source), tracks, visitedDirectories);
+            scanDirectory(
+                    source,
+                    directoryUrl(source),
+                    tracks,
+                    visitedDirectories,
+                    cachedByPath,
+                    previousFingerprints,
+                    relocatableByFingerprint,
+                    claimedRelocationFingerprints,
+                    nextFingerprints
+            );
         } catch (Exception error) {
             throw new IllegalStateException(safeMessage(error), error);
         }
-        return tracks;
+        return new IncrementalResult(tracks, encodeManifest(nextFingerprints));
     }
 
     public String test(RemoteSource source) {
         try {
             ArrayList<Track> tracks = new ArrayList<>();
             HashSet<String> visitedDirectories = new HashSet<>();
-            ScanStats stats = scanDirectory(source, directoryUrl(source), tracks, visitedDirectories);
+            ScanStats stats = scanDirectory(
+                    source,
+                    directoryUrl(source),
+                    tracks,
+                    visitedDirectories,
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    new HashSet<>(),
+                    new LinkedHashMap<>()
+            );
             return "连接成功，目录：" + stats.directoryCount + "，子目录：" + stats.childDirectoryCount + "，音频：" + tracks.size();
         } catch (Exception error) {
             return "连接失败：" + safeMessage(error);
@@ -72,7 +134,12 @@ public final class WebDavClient {
             RemoteSource source,
             String directoryUrl,
             ArrayList<Track> tracks,
-            Set<String> visitedDirectories
+            Set<String> visitedDirectories,
+            Map<String, Track> cachedByPath,
+            Map<String, String> previousFingerprints,
+            Map<String, Track> relocatableByFingerprint,
+            Set<String> claimedRelocationFingerprints,
+            Map<String, String> nextFingerprints
     ) throws Exception {
         String normalizedDirectory = ensureTrailingSlash(directoryUrl);
         if (!visitedDirectories.add(normalizedDirectory)) {
@@ -88,7 +155,17 @@ public final class WebDavClient {
         for (WebDavEntry entry : entries) {
             if (entry.directory) {
                 stats.childDirectoryCount++;
-                ScanStats childStats = scanDirectory(source, entry.url, tracks, visitedDirectories);
+                ScanStats childStats = scanDirectory(
+                        source,
+                        entry.url,
+                        tracks,
+                        visitedDirectories,
+                        cachedByPath,
+                        previousFingerprints,
+                        relocatableByFingerprint,
+                        claimedRelocationFingerprints,
+                        nextFingerprints
+                );
                 stats.add(childStats);
                 continue;
             }
@@ -96,16 +173,49 @@ public final class WebDavClient {
             if (!isAudio(title)) {
                 continue;
             }
+            String dataPath = "webdav:" + source.id + ":" + entry.url;
+            String fingerprint = metadataFingerprint(entry.fingerprint());
+            Uri contentUri = revisionedContentUri(entry.url, fingerprint);
+            nextFingerprints.put(dataPath, fingerprint);
+            Track cached = cachedByPath.get(dataPath);
+            if (canReuseCached(cached != null, fingerprint, previousFingerprints.get(dataPath))) {
+                tracks.add(cached);
+                continue;
+            }
+            Track relocated = relocatableByFingerprint.get(fingerprint);
+            if (relocated != null
+                    && isStrongRelocationFingerprint(fingerprint)
+                    && claimedRelocationFingerprints.add(fingerprint)) {
+                tracks.add(relocatedTrack(relocated, contentUri, dataPath));
+                continue;
+            }
+            long trackId = stableId(source.id, entry.url);
+            FlacMetadataParser.Result metadata = readFlacMetadata(source, entry.url, title);
+            Uri artworkUri = storeArtwork(trackId, metadata.artwork);
             tracks.add(new Track(
-                    stableId(source.id, entry.url),
-                    stripExtension(title),
-                    source.name,
-                    "WebDAV",
+                    trackId,
+                    firstNonBlank(metadata.title, stripExtension(title)),
+                    firstNonBlank(metadata.artist, source.name),
+                    firstNonBlank(metadata.album, "WebDAV"),
+                    metadata.durationMs,
+                    contentUri,
+                    dataPath,
                     0L,
-                    Uri.parse(entry.url),
-                    "webdav:" + source.id + ":" + entry.url,
-                    0L,
-                    null
+                    artworkUri,
+                    extensionCodec(title),
+                    estimatedBitrateKbps(entry.contentLength, metadata.durationMs),
+                    metadata.sampleRateHz,
+                    metadata.bitsPerSample,
+                    metadata.channelCount,
+                    metadata.replayGainTrackDb,
+                    metadata.replayGainAlbumDb,
+                    new TrackIdentityTags(
+                            metadata.recordingMusicBrainzId,
+                            metadata.workMusicBrainzId,
+                            metadata.isrc,
+                            metadata.acoustId,
+                            metadata.artistMusicBrainzIds
+                    )
             ));
         }
         return stats;
@@ -118,7 +228,10 @@ public final class WebDavClient {
             connection.setRequestProperty("Depth", "1");
             connection.setRequestProperty("Content-Type", "text/xml; charset=utf-8");
             connection.setDoOutput(true);
-            byte[] body = "<?xml version=\"1.0\"?><d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/></d:prop></d:propfind>"
+            byte[] body = ("<?xml version=\"1.0\"?><d:propfind xmlns:d=\"DAV:\"><d:prop>"
+                    + "<d:resourcetype/><d:getcontentlength/><d:getcontenttype/>"
+                    + "<d:getetag/><d:getlastmodified/>"
+                    + "</d:prop></d:propfind>")
                     .getBytes(StandardCharsets.UTF_8);
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(body);
@@ -181,7 +294,7 @@ public final class WebDavClient {
             if (!directory && !isAudio(name)) {
                 continue;
             }
-            entries.add(new WebDavEntry(href, entryUrl, directory));
+            entries.add(new WebDavEntry(href, entryUrl, directory, -1L, "", ""));
         }
         return entries;
     }
@@ -332,9 +445,259 @@ public final class WebDavClient {
             if (normalizedEntry.equals(current)) {
                 continue;
             }
-            entries.add(new WebDavEntry(href, entryUrl, isDirectory(response, href)));
+            entries.add(new WebDavEntry(
+                    href,
+                    entryUrl,
+                    isDirectory(response, href),
+                    parseLong(firstText(response, "getcontentlength")),
+                    firstText(response, "getetag"),
+                    firstText(response, "getlastmodified")
+            ));
         }
         return entries;
+    }
+
+    private Map<String, Track> tracksByDataPath(List<Track> tracks) {
+        LinkedHashMap<String, Track> values = new LinkedHashMap<>();
+        if (tracks == null) return values;
+        for (Track track : tracks) {
+            if (track != null && track.dataPath != null && !track.dataPath.isEmpty()) {
+                values.put(track.dataPath, track);
+            }
+        }
+        return values;
+    }
+
+    private boolean canReuseCached(boolean cached, String fingerprint, String previousFingerprint) {
+        return cached
+                && fingerprint != null
+                && !fingerprint.isEmpty()
+                && fingerprint.equals(previousFingerprint);
+    }
+
+    private Map<String, Track> relocatableTracksByFingerprint(
+            Map<String, Track> cachedByPath,
+            Map<String, String> previousFingerprints
+    ) {
+        LinkedHashMap<String, Track> unique = new LinkedHashMap<>();
+        HashSet<String> duplicates = new HashSet<>();
+        if (cachedByPath == null || previousFingerprints == null) {
+            return unique;
+        }
+        for (Map.Entry<String, String> entry : previousFingerprints.entrySet()) {
+            String fingerprint = entry.getValue();
+            Track cached = cachedByPath.get(entry.getKey());
+            if (cached == null || !isStrongRelocationFingerprint(fingerprint)) {
+                continue;
+            }
+            if (unique.containsKey(fingerprint)) {
+                unique.remove(fingerprint);
+                duplicates.add(fingerprint);
+            } else if (!duplicates.contains(fingerprint)) {
+                unique.put(fingerprint, cached);
+            }
+        }
+        return unique;
+    }
+
+    private boolean isStrongRelocationFingerprint(String fingerprint) {
+        if (fingerprint == null) {
+            return false;
+        }
+        int etag = fingerprint.indexOf("|etag:");
+        return etag >= 0 && etag + "|etag:".length() < fingerprint.length();
+    }
+
+    private Track relocatedTrack(Track cached, Uri contentUri, String dataPath) {
+        return new Track(
+                cached.id,
+                cached.title,
+                cached.artist,
+                cached.album,
+                cached.durationMs,
+                contentUri,
+                dataPath,
+                cached.albumId,
+                cached.albumArtUri,
+                cached.codec,
+                cached.bitrateKbps,
+                cached.sampleRateHz,
+                cached.bitsPerSample,
+                cached.channelCount,
+                cached.replayGainTrackDb,
+                cached.replayGainAlbumDb,
+                cached.identityTags
+        );
+    }
+
+    /** Invalidates unchanged remote rows when the best-effort metadata parser gains new fields. */
+    private String metadataFingerprint(String serverFingerprint) {
+        if (serverFingerprint == null || serverFingerprint.isEmpty()) {
+            return "";
+        }
+        return METADATA_CACHE_VERSION + "|" + serverFingerprint;
+    }
+
+    /**
+     * Keep the canonical WebDAV dataPath stable while making media/audio cache keys revision-aware.
+     * URL fragments are not sent in HTTP requests, so this token only participates in local identity.
+     */
+    private Uri revisionedContentUri(String url, String fingerprint) {
+        Uri base = Uri.parse(url == null ? "" : url);
+        if (fingerprint == null || fingerprint.isEmpty()) return base;
+        return base.buildUpon()
+                .fragment(revisionFragment(fingerprint))
+                .build();
+    }
+
+    private String revisionFragment(String fingerprint) {
+        if (fingerprint == null || fingerprint.isEmpty()) return "";
+        return "echoRevision=" + sha256(fingerprint).substring(0, 24);
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder encoded = new StringBuilder(digest.length * 2);
+            for (byte item : digest) encoded.append(String.format(Locale.ROOT, "%02x", item & 0xff));
+            return encoded.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+
+    private Map<String, String> decodeManifest(String encoded) {
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        if (encoded == null || encoded.trim().isEmpty()) return values;
+        try {
+            JSONObject object = new JSONObject(encoded);
+            java.util.Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                values.put(key, object.optString(key, ""));
+            }
+        } catch (Exception ignored) {
+            values.clear();
+        }
+        return values;
+    }
+
+    private String encodeManifest(Map<String, String> values) {
+        JSONObject object = new JSONObject();
+        if (values != null) {
+            for (Map.Entry<String, String> entry : values.entrySet()) {
+                try {
+                    object.put(entry.getKey(), entry.getValue());
+                } catch (Exception ignored) {
+                    // A malformed server path must not abort the library sync.
+                }
+            }
+        }
+        return object.toString();
+    }
+
+    private FlacMetadataParser.Result readFlacMetadata(RemoteSource source, String url, String title) {
+        if (!title.toLowerCase(Locale.ROOT).endsWith(".flac")) {
+            return new FlacMetadataParser.Result();
+        }
+        try {
+            byte[] prefix = readPrefix(source, url, INITIAL_FLAC_PREFIX_BYTES);
+            FlacMetadataParser.Result metadata = FlacMetadataParser.parse(prefix);
+            int required = metadata.requiredPrefixBytes;
+            if (required > prefix.length && required <= MAX_FLAC_PREFIX_BYTES) {
+                byte[] expanded = readPrefix(source, url, required);
+                if (expanded.length > prefix.length) {
+                    metadata = FlacMetadataParser.parse(expanded);
+                }
+            }
+            return metadata;
+        } catch (Exception ignored) {
+            // Remote metadata is best-effort; an audio file remains playable when its tags fail.
+            return new FlacMetadataParser.Result();
+        }
+    }
+
+    private byte[] readPrefix(RemoteSource source, String url, int requestedBytes) throws Exception {
+        int limit = Math.max(4, Math.min(requestedBytes, MAX_FLAC_PREFIX_BYTES));
+        HttpURLConnection connection = open(source, url);
+        try {
+            connection.setRequestProperty("Range", "bytes=0-" + (limit - 1));
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return new byte[0];
+            }
+            try (InputStream input = connection.getInputStream();
+                 ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(limit, 64 * 1024))) {
+                byte[] buffer = new byte[8192];
+                while (output.size() < limit) {
+                    int read = input.read(buffer, 0, Math.min(buffer.length, limit - output.size()));
+                    if (read < 0) {
+                        break;
+                    }
+                    if (read == 0) {
+                        int value = input.read();
+                        if (value < 0) {
+                            break;
+                        }
+                        output.write(value);
+                    } else {
+                        output.write(buffer, 0, read);
+                    }
+                }
+                return output.toByteArray();
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private Uri storeArtwork(long trackId, byte[] artwork) {
+        if (artworkDirectory == null || artwork == null || artwork.length == 0) {
+            return null;
+        }
+        try {
+            if (!artworkDirectory.exists() && !artworkDirectory.mkdirs()) {
+                return null;
+            }
+            File target = new File(artworkDirectory, Long.toUnsignedString(trackId) + ".img");
+            try (FileOutputStream output = new FileOutputStream(target)) {
+                output.write(artwork);
+            }
+            return Uri.fromFile(target);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.trim().isEmpty() ? fallback : preferred.trim();
+    }
+
+    private String extensionCodec(String title) {
+        int dot = title == null ? -1 : title.lastIndexOf('.');
+        return dot < 0 || dot >= title.length() - 1
+                ? ""
+                : title.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
+    }
+
+    private int estimatedBitrateKbps(long contentLength, long durationMs) {
+        if (contentLength <= 0L || durationMs <= 0L) {
+            return 0;
+        }
+        return (int) Math.max(1L, Math.round(contentLength * 8.0d / durationMs));
+    }
+
+    private long parseLong(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ignored) {
+            return -1L;
+        }
     }
 
     private HttpURLConnection open(RemoteSource source, String url) throws Exception {
@@ -527,11 +890,40 @@ public final class WebDavClient {
         final String href;
         final String url;
         final boolean directory;
+        final long contentLength;
+        final String etag;
+        final String lastModified;
 
-        WebDavEntry(String href, String url, boolean directory) {
+        WebDavEntry(
+                String href,
+                String url,
+                boolean directory,
+                long contentLength,
+                String etag,
+                String lastModified
+        ) {
             this.href = href;
             this.url = url;
             this.directory = directory;
+            this.contentLength = contentLength;
+            this.etag = etag == null ? "" : etag.trim();
+            this.lastModified = lastModified == null ? "" : lastModified.trim();
+        }
+
+        String fingerprint() {
+            if (!etag.isEmpty()) return "etag:" + etag;
+            if (!lastModified.isEmpty()) return "modified:" + lastModified + ":" + contentLength;
+            return contentLength >= 0L ? "length:" + contentLength : "";
+        }
+    }
+
+    public static final class IncrementalResult {
+        public final List<Track> tracks;
+        public final String manifest;
+
+        IncrementalResult(List<Track> tracks, String manifest) {
+            this.tracks = tracks == null ? Collections.emptyList() : tracks;
+            this.manifest = manifest == null ? "" : manifest;
         }
     }
 

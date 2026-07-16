@@ -11,9 +11,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
-private const val CROSS_SOURCE_DURATION_TOLERANCE_MS = 3_000L
-private val CROSS_SOURCE_ARTIST_JOINERS = setOf("and", "feat", "featuring", "ft", "with", "和", "与")
-
 /** Owns streaming search requests, pagination, aggregation and match ranking. */
 class StreamingSearchStateOwner internal constructor(
     private val scope: CoroutineScope,
@@ -310,12 +307,12 @@ class StreamingSearchStateOwner internal constructor(
         val itemsByKey = unifiedItems
             .filter { it.type == StreamingMediaType.TRACK && it.track != null }
             .associateBy { "${it.provider.wireName}:${it.id}" }
-        // 保持首次出现顺序，并允许同名歌曲按时长形成多个独立版本簇。
+        // 保持首次出现顺序。一个新来源必须与簇内每条记录都兼容，避免时长链式漂移误合并。
         val clusters = mutableListOf<MutableList<StreamingTrack>>()
         tracks.forEach { track ->
             val sourceFamily = track.crossSourceFamilyKey()
             val cluster = clusters.firstOrNull { group ->
-                group.first().isSameSongAcrossSource(track) &&
+                group.all { existing -> existing.isSameSongAcrossSource(track) } &&
                     group.none { existing -> existing.crossSourceFamilyKey() == sourceFamily }
             }
             if (cluster != null) {
@@ -342,23 +339,6 @@ class StreamingSearchStateOwner internal constructor(
         )
     }
 
-    /** 归一化「作者 + 曲名」作为合并主键；作者多人时排序 token 以兼容不同音源的拼接顺序。 */
-    private fun StreamingTrack.crossSourceMergeKey(): String {
-        val normalizedTitle = title.rankText()
-        val artistValues = artists
-            .map { it.name }
-            .filter { it.isNotBlank() }
-            .ifEmpty { listOf(artist) }
-        val normalizedArtist = artistValues
-            .flatMap { value -> value.rankText().split(' ') }
-            .filter { it.isNotBlank() }
-            .filterNot { it in CROSS_SOURCE_ARTIST_JOINERS }
-            .distinct()
-            .sorted()
-            .joinToString(" ")
-        return "$normalizedArtist\u0001$normalizedTitle"
-    }
-
     /** 普通 provider 本身就是音源族；LX/插件型 provider 再按曲目 ID 前缀区分子音源。 */
     private fun StreamingTrack.crossSourceFamilyKey(): String {
         if (provider != StreamingProviderName.LUOXUE && provider != StreamingProviderName.PLUGIN) {
@@ -368,27 +348,19 @@ class StreamingSearchStateOwner internal constructor(
         return if (sourcePrefix.isBlank()) provider.wireName else "${provider.wireName}:$sourcePrefix"
     }
 
-    /** 作者名与曲名归一化相同，且时长缺失或落在 ±3 秒容差内时，判定为同一首歌。 */
-    private fun StreamingTrack.isSameSongAcrossSource(other: StreamingTrack): Boolean {
-        if (crossSourceMergeKey() != other.crossSourceMergeKey()) {
-            return false
-        }
-        val left = durationMs
-        val right = other.durationMs
-        if (left == null || right == null || left <= 0L || right <= 0L) {
-            return true
-        }
-        return kotlin.math.abs(left - right) <= CROSS_SOURCE_DURATION_TOLERANCE_MS
-    }
+    /** ISRC 优先；否则复用标题别名、作者集合、版本标记和时长容差的统一匹配规则。 */
+    private fun StreamingTrack.isSameSongAcrossSource(other: StreamingTrack): Boolean =
+        StreamingTrackMatchPolicy.isSameRecording(this, other)
 
     /** 优先选真正支持播放的代表项，并完整保留每个合并项已有的音质/子音源候选。 */
     private fun List<StreamingTrack>.mergeSourcesIntoRepresentative(): StreamingTrack {
         if (size == 1) {
             return first()
         }
-        val representative = firstOrNull { track ->
-            track.playable && providerSupportsPlayback(track.provider)
-        } ?: firstOrNull { it.playable } ?: first()
+        val representative = withIndex().maxWithOrNull(
+            compareBy<IndexedValue<StreamingTrack>> { (_, track) -> representativeScore(track) }
+                .thenBy { -it.index }
+        )?.value ?: first()
         val candidates = mutableListOf<StreamingPlaybackCandidate>()
         val seenCandidates = linkedSetOf<String>()
 
@@ -437,7 +409,22 @@ class StreamingSearchStateOwner internal constructor(
         )
     }
 
+    /** 可播放性优先，其次选择元数据、音质和备用源更完整的条目作为列表代表。 */
+    private fun representativeScore(track: StreamingTrack): Int {
+        var score = 0
+        if (track.playable) score += 1_000
+        if (providerSupportsPlayback(track.provider)) score += 2_000
+        if (!track.coverUrl.isNullOrBlank() || !track.coverThumbUrl.isNullOrBlank()) score += 80
+        if (!track.album.isNullOrBlank()) score += 40
+        if (!track.isrc.isNullOrBlank()) score += 30
+        if ((track.durationMs ?: 0L) > 0L) score += 20
+        score += track.qualities.size * 12
+        score += track.playbackCandidates.count { it.available } * 8
+        return score
+    }
+
     private fun providerSupportsPlayback(provider: StreamingProviderName): Boolean {
+        if (provider == StreamingProviderName.QQ_MUSIC) return false
         val state = stateOwner.value
         state.providerCapabilities.firstOrNull { it.provider == provider }?.let { capability ->
             return capability.supportsPlayback

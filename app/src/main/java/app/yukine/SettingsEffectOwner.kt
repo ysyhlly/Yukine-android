@@ -34,9 +34,10 @@ internal data class SettingsFileEffectActions(
     val importBackup: Runnable
 )
 
-internal fun interface SettingsStreamingEffectActions {
-    fun applyGatewayEndpoint(endpoint: String)
-}
+internal data class SettingsStreamingEffectActions(
+    val applyGatewayEndpoint: Consumer<String>,
+    val editMusicBrainzProxy: Runnable
+)
 
 /** Exhaustively consumes one-time settings effects at focused platform boundaries. */
 internal class SettingsEffectOwner(
@@ -69,7 +70,8 @@ internal class SettingsEffectOwner(
             SettingsEffect.ExportBackup -> files.exportBackup.run()
             SettingsEffect.ImportBackup -> files.importBackup.run()
             is SettingsEffect.ApplyStreamingGatewayEndpoint ->
-                streaming.applyGatewayEndpoint(effect.endpoint)
+                streaming.applyGatewayEndpoint.accept(effect.endpoint)
+            SettingsEffect.EditMusicBrainzProxy -> streaming.editMusicBrainzProxy.run()
         }
     }
 }

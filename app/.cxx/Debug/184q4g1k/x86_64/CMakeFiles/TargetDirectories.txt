@@ -1,0 +1,4 @@
+E:/ECHO andriod/echo-android/app/.cxx/Debug/184q4g1k/x86_64/CMakeFiles/chromaprint.dir
+E:/ECHO andriod/echo-android/app/.cxx/Debug/184q4g1k/x86_64/CMakeFiles/echo_chromaprint_jni.dir
+E:/ECHO andriod/echo-android/app/.cxx/Debug/184q4g1k/x86_64/CMakeFiles/edit_cache.dir
+E:/ECHO andriod/echo-android/app/.cxx/Debug/184q4g1k/x86_64/CMakeFiles/rebuild_cache.dir

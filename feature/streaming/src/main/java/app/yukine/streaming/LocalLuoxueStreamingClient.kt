@@ -10,6 +10,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -18,8 +19,8 @@ interface LuoxueHttpClient {
 }
 
 class DefaultLuoxueHttpClient(
-    private val connectTimeoutMs: Int = 8_000,
-    private val readTimeoutMs: Int = 12_000
+    private val connectTimeoutMs: Int = 2_500,
+    private val readTimeoutMs: Int = 4_000
 ) : LuoxueHttpClient {
     override fun getText(url: String, headers: Map<String, String>): String {
         val connection = URL(url).openConnection() as HttpURLConnection
@@ -68,7 +69,8 @@ class LocalLuoxueStreamingClient(
     private val httpClient: LuoxueHttpClient = DefaultLuoxueHttpClient(),
     private val neteaseClient: LocalNeteaseStreamingClient? = null,
     private val qqMusicClient: LocalQqMusicStreamingClient? = null,
-    private val scriptRuntime: LuoxueScriptRuntime = QuickJsLuoxueScriptRuntime()
+    private val scriptRuntime: LuoxueScriptRuntime = QuickJsLuoxueScriptRuntime(),
+    private val importedSourcePlaybackBudgetMs: Long = IMPORTED_SOURCE_PLAYBACK_BUDGET_MS
 ) {
     fun search(request: StreamingSearchRequest): StreamingSearchResult {
         val normalized = request.normalizedLocal()
@@ -195,43 +197,54 @@ class LocalLuoxueStreamingClient(
     ): StreamingPlaybackSource {
         val sourceId = parseLuoxueId(request.providerTrackId)
         val scriptFailures = mutableListOf<String>()
-        for (imported in importedSources) {
-            if (!imported.enabled) {
-                continue
-            }
-            for (quality in request.quality.toLuoxueScriptQualityCandidates()) {
-                for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
-                    val url = try {
-                        scriptRuntime.resolveMusicUrl(
-                            source = imported,
-                            sourceKey = sourceKey,
-                            musicInfo = scriptMusicInfo(sourceId, request.luoxueMusicInfoJson),
-                            quality = quality
+        var completedWithinBudget = false
+        val resolved = withTimeoutOrNull(importedSourcePlaybackBudgetMs.coerceAtLeast(1L)) {
+            for (imported in importedSources) {
+                if (!imported.enabled) {
+                    continue
+                }
+                for (quality in request.quality.toLuoxueScriptQualityCandidates()) {
+                    for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
+                        val url = try {
+                            scriptRuntime.resolveMusicUrl(
+                                source = imported,
+                                sourceKey = sourceKey,
+                                musicInfo = scriptMusicInfo(sourceId, request.luoxueMusicInfoJson),
+                                quality = quality
+                            )
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Throwable) {
+                            scriptFailures += "${imported.name}/$sourceKey：${safeScriptFailureMessage(error)}"
+                            null
+                        }?.trim()
+                        if (url.isNullOrBlank()) continue
+                        if (!url.isHttpUrl()) {
+                            scriptFailures += "${imported.name}/$sourceKey/$quality：返回的不是 HTTP 播放地址"
+                            continue
+                        }
+                        return@withTimeoutOrNull StreamingPlaybackSource(
+                            provider = StreamingProviderName.LUOXUE,
+                            providerTrackId = request.providerTrackId,
+                            url = url,
+                            mimeType = mimeType(url),
+                            bitrate = bitrate(quality.toStreamingAudioQuality()),
+                            codec = url.substringBefore('?').substringAfterLast('.', "").takeIf { it.isNotBlank() },
+                            supportsRange = true
                         )
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (error: Throwable) {
-                        scriptFailures += "${imported.name}/$sourceKey：${safeScriptFailureMessage(error)}"
-                        null
-                    }?.trim()
-                    if (url.isNullOrBlank()) continue
-                    if (!url.isHttpUrl()) {
-                        scriptFailures += "${imported.name}/$sourceKey/$quality：返回的不是 HTTP 播放地址"
-                        continue
                     }
-                    return StreamingPlaybackSource(
-                        provider = StreamingProviderName.LUOXUE,
-                        providerTrackId = request.providerTrackId,
-                        url = url,
-                        mimeType = mimeType(url),
-                        bitrate = bitrate(quality.toStreamingAudioQuality()),
-                        codec = url.substringBefore('?').substringAfterLast('.', "").takeIf { it.isNotBlank() },
-                        supportsRange = true
-                    )
                 }
             }
+            completedWithinBudget = true
+            null
         }
-        resolveShiqianjiangKugouCompatibility(request, sourceId, importedSources)?.let { return it }
+        if (resolved != null) {
+            return resolved
+        }
+        if (!completedWithinBudget) {
+            scriptFailures += "导入音源总解析超过 ${importedSourcePlaybackBudgetMs.coerceAtLeast(1L)}ms，已切换本机兜底"
+        }
+        resolveShiqianjiangCompatibility(request, sourceId, importedSources)?.let { return it }
         return try {
             resolvePlayback(request)
         } catch (error: CancellationException) {
@@ -253,13 +266,18 @@ class LocalLuoxueStreamingClient(
      * the same public endpoint and key, but some Android QuickJS/cellular requests return a false
      * digital-album failure. Keep this strictly scoped to the script's own HTTPS host and key.
      */
-    private fun resolveShiqianjiangKugouCompatibility(
+    private fun resolveShiqianjiangCompatibility(
         request: StreamingPlaybackRequest,
         sourceId: SourceId,
         importedSources: List<LuoxueImportedSource>
     ): StreamingPlaybackSource? {
-        if (sourceId.source != "kg") return null
-        val trackKey = runCatching { parseKugouProviderTrackId(sourceId.id) }.getOrNull() ?: return null
+        val songId = when (sourceId.source) {
+            "kg" -> runCatching { parseKugouProviderTrackId(sourceId.id).hash }.getOrNull()
+            // QQ ids can persist as songMid|mediaMid. LX scripts and the sponsored endpoint both
+            // consume songMid, so never forward the compound persistence key as the song id.
+            "tx" -> sourceId.id.substringBefore('|').trim().takeIf { it.isNotBlank() }
+            else -> null
+        } ?: return null
         val imported = importedSources.firstNotNullOfOrNull { source ->
             if (!source.enabled) return@firstNotNullOfOrNull null
             val origin = runCatching { URL(source.origin) }.getOrNull() ?: return@firstNotNullOfOrNull null
@@ -273,7 +291,8 @@ class LocalLuoxueStreamingClient(
         val key = imported.second
         for (quality in request.quality.toLuoxueScriptQualityCandidates()) {
             val requestUrl = "https://$SHIQIANJIANG_SOURCE_HOST/api/music/url" +
-                "?source=kg&songId=${encode(trackKey.hash)}&quality=${encode(quality)}&key=${encode(key)}"
+                "?source=${encode(sourceId.source)}&songId=${encode(songId)}" +
+                "&quality=${encode(quality)}&key=${encode(key)}"
             val body = runCatching {
                 httpClient.getText(
                     requestUrl,
@@ -1090,11 +1109,10 @@ class LocalLuoxueStreamingClient(
         request: StreamingPlaybackRequest,
         sourceId: SourceId
     ): StreamingPlaybackSource {
-        val source = (qqMusicClient ?: throw StreamingGatewayException(
-            "LX/QQ 子源不可用，请先启用 QQ 音乐本机音源",
+        throw StreamingGatewayException(
+            "LX/QQ 子源仅保留元数据关联，不允许请求 QQ 音频 URL",
             code = StreamingErrorCode.UNSUPPORTED_OPERATION
-        )).resolvePlayback(request.copy(provider = StreamingProviderName.QQ_MUSIC, providerTrackId = sourceId.id))
-        return source.copy(provider = StreamingProviderName.LUOXUE, providerTrackId = "tx:${sourceId.id}")
+        )
     }
 
     private fun kuwoTrack(value: JSONObject): StreamingTrack {
@@ -1589,6 +1607,9 @@ class LocalLuoxueStreamingClient(
             "tx" -> {
                 val songMid = sourceId.id.substringBefore('|')
                 val mediaMid = sourceId.id.substringAfter('|', "").takeIf { it.isNotBlank() }
+                // Widely shared LX scripts use `hash ?? songmid`. A compound persistence id here
+                // makes the valid songmid unreachable and causes the remote resolver to reject it.
+                values["hash"] = songMid
                 values.putIfAbsent("songmid", songMid)
                 values.putIfAbsent("mid", songMid)
                 mediaMid?.let {
@@ -1744,6 +1765,7 @@ class LocalLuoxueStreamingClient(
     }
 
     private companion object {
+        private const val IMPORTED_SOURCE_PLAYBACK_BUDGET_MS = 2_500L
         private const val KUGOU_APP_ID = 1005
         private const val KUGOU_CLIENT_VERSION = 11430
         private const val KUGOU_ANDROID_SECRET = "OIlwieks28dk2k092lksi2UIkp"

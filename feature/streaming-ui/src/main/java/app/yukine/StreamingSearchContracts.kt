@@ -8,6 +8,7 @@ import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingPlaybackSource
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistImportSummary
+import app.yukine.streaming.PlaybackSourcePolicySnapshot
 import app.yukine.streaming.StreamingProviderCapability
 import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderHealth
@@ -37,7 +38,8 @@ data class StreamingSearchState(
     val userPlaylists: List<StreamingPlaylist> = emptyList(),
     val userPlaylistsLoading: Boolean = false,
     val searchChromeLabels: StreamingSearchLabels = StreamingSearchLabels.empty(),
-    val searchChromeActions: StreamingSearchActions = StreamingSearchActions.empty()
+    val searchChromeActions: StreamingSearchActions = StreamingSearchActions.empty(),
+    val playbackSourcePolicy: PlaybackSourcePolicySnapshot = PlaybackSourcePolicySnapshot()
 )
 
 data class StreamingSearchAuthLaunch(

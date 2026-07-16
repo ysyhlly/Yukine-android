@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.yukine.queue.QueueViewModel
 
-data class MainActivityViewModels(
+internal data class MainActivityViewModels(
     val navigationViewModel: NavigationViewModel,
     val playbackViewModel: PlaybackViewModel,
     val streamingViewModel: StreamingViewModel,
@@ -17,7 +17,9 @@ data class MainActivityViewModels(
     val searchViewModel: SearchViewModel,
     val lyricsViewModel: LyricsViewModel,
     val libraryViewModel: LibraryViewModel,
+    val recordingMatchViewModel: RecordingMatchViewModel,
     val collectionsViewModel: CollectionsViewModel,
+    val favoriteSyncViewModel: FavoriteSyncViewModel,
     val settingsViewModel: SettingsViewModel,
     val networkMenuViewModel: NetworkMenuViewModel,
     val networkActionsViewModel: ViewModel,
@@ -39,7 +41,9 @@ data class MainActivityViewModels(
                 searchViewModel = provider[SearchViewModel::class.java],
                 lyricsViewModel = provider[LyricsViewModel::class.java],
                 libraryViewModel = provider[LibraryViewModel::class.java],
+                recordingMatchViewModel = provider[RecordingMatchViewModel::class.java],
                 collectionsViewModel = provider[CollectionsViewModel::class.java],
+                favoriteSyncViewModel = provider[FavoriteSyncViewModel::class.java],
                 settingsViewModel = provider[SettingsViewModel::class.java],
                 networkMenuViewModel = provider[NetworkMenuViewModel::class.java],
                 networkActionsViewModel = provider[NetworkActionsViewModel::class.java],

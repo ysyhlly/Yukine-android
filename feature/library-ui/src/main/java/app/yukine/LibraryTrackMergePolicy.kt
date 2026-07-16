@@ -1,33 +1,19 @@
 package app.yukine
 
 import app.yukine.model.Track
-import java.text.Normalizer
-import java.util.Locale
-import kotlin.math.abs
+import app.yukine.streaming.RecordingMatchEvaluatorV2
+import app.yukine.streaming.RecordingVersionClassifier
+import app.yukine.streaming.StreamingTrackMatchPolicy
 
 /**
  * Produces the logical library list without changing stored rows or source files.
  *
  * A song can be available from a device scan, document import, WebDAV, or network stream. When
  * complete metadata and duration agree, those rows are one logical song with interchangeable
- * sources. Remix/version, album, unknown metadata, and materially different duration still remain
- * separate so they cannot be switched accidentally.
+ * sources. Remote catalog copies may disagree on album labels, while two local album copies stay
+ * separate. Remix/version, unknown metadata, and materially different duration never collapse.
  */
 object LibraryTrackMergePolicy {
-    private const val LOCAL_DURATION_TOLERANCE_MS = 3_000L
-    private val whitespace = Regex("\\s+")
-    private val bracketedQualifier = Regex(
-        """(?:\(|\[|（|【)\s*([^()\[\]（）【】]*)\s*(?:\)|\]|）|】)"""
-    )
-    private val featuredArtistSuffix = Regex(
-        """(?i)\s*[-–—]?\s*(?:(?:\(|\[|（|【)\s*)?(?:feat(?:uring)?\.?|ft\.?)\s+[^()\[\]（）【】]+(?:\s*(?:\)|\]|）|】))?\s*$"""
-    )
-    private val translatedAliasMarker = Regex(
-        """(?i)(?:\b(?:translation|translated|chinese)\b|中文|中译|中譯|翻译|翻譯|译名|譯名|[的了们們鱼])"""
-    )
-    private val versionQualifier = Regex(
-        """(?i)\b(?:remix|mix|version|ver\.?|live|acoustic|instrumental|demo|edit|cover|karaoke|radio|extended|rework|remaster(?:ed)?|remake|original|alternate|alt\.?|part|pt\.?|chapter|episode|vol\.?|volume|disc|tv|movie|anime|game|op|ed|opening|ending|intro|outro|interlude)\b|(?:伴奏|纯音乐|純音樂|翻唱|现场|現場|演唱会|演唱會|混音|原唱|原曲|版本|重制|重製|剧场版|劇場版|リミックス|ライブ|バージョン|アコースティック|インスト|デモ|カバー)"""
-    )
     private val unknownMetadata = setOf(
         "<unknown>",
         "unknown",
@@ -45,6 +31,11 @@ object LibraryTrackMergePolicy {
 
     fun merge(tracks: List<Track>): List<Track> = snapshot(tracks).mergedTracks
 
+    fun merge(
+        tracks: List<Track>,
+        canonicalIdentity: (Track) -> String?
+    ): List<Track> = snapshot(tracks, canonicalIdentity).mergedTracks
+
     /** Returns every interchangeable source for [track], in the same cluster used by [merge]. */
     fun sourceCandidatesFor(track: Track?, tracks: List<Track>): List<Track> {
         val selected = track ?: return emptyList()
@@ -60,8 +51,55 @@ object LibraryTrackMergePolicy {
     }
 
     /** Builds the library display list and duplicate-source lookup in one metadata pass. */
-    fun snapshot(tracks: List<Track>): Snapshot {
-        val clusters = clusters(tracks)
+    fun snapshot(tracks: List<Track>): Snapshot = snapshot(tracks) { null }
+
+    fun snapshot(
+        tracks: List<Track>,
+        canonicalIdentity: (Track) -> String?
+    ): Snapshot {
+        return snapshotOf(clusters(tracks, canonicalIdentity))
+    }
+
+    /**
+     * Fast display path for a library whose recording identities were already persisted during
+     * scan/sync. Missing identities stay as single rows; fuzzy scoring belongs to ingestion and
+     * background correction, never to opening or searching the library.
+     */
+    fun persistedSnapshot(
+        tracks: List<Track>,
+        canonicalIdentity: (Track) -> String?
+    ): Snapshot = persistedSnapshotBy(tracks, canonicalIdentity)
+
+    /** Integer-keyed variant used by the Room-backed library hot path. */
+    fun persistedRecordingSnapshot(
+        tracks: List<Track>,
+        recordingIdentity: (Track) -> Long?
+    ): Snapshot = persistedSnapshotBy(tracks, recordingIdentity)
+
+    private fun <Identity : Any> persistedSnapshotBy(
+        tracks: List<Track>,
+        identityProvider: (Track) -> Identity?
+    ): Snapshot {
+        val clusters = ArrayList<TrackCluster>(tracks.size)
+        val clustersByIdentity = HashMap<Identity, TrackCluster>()
+        val clustersByTrackId = HashMap<Long, TrackCluster>()
+        tracks.forEach { track ->
+            val identity = identityProvider(track)
+            val cluster = identity?.let(clustersByIdentity::get) ?: clustersByTrackId[track.id]
+            if (cluster == null) {
+                val created = TrackCluster(mutableListOf(track), null)
+                clusters += created
+                clustersByTrackId[track.id] = created
+                identity?.let { clustersByIdentity[it] = created }
+            } else if (cluster.tracks.none { it.id == track.id }) {
+                cluster.tracks += track
+            }
+        }
+        return snapshotOf(clusters)
+    }
+
+    private fun snapshotOf(clusters: List<TrackCluster>): Snapshot {
+        clusters.forEach { cluster -> cluster.tracks.sortWith(sourcePreference) }
         val index = HashMap<Long, List<Track>>()
         clusters
             .asSequence()
@@ -77,33 +115,89 @@ object LibraryTrackMergePolicy {
         )
     }
 
-    private fun clusters(tracks: List<Track>): List<TrackCluster> {
+    private fun clusters(
+        tracks: List<Track>,
+        canonicalIdentity: (Track) -> String?
+    ): List<TrackCluster> {
         if (tracks.isEmpty()) {
             return emptyList()
         }
 
         val result = ArrayList<TrackCluster>(tracks.size)
-        val clustersByMetadata = HashMap<LocalTrackMetadata, MutableList<DurationCluster>>()
+        val clustersByTitle = HashMap<String, MutableList<TrackCluster>>()
+        val clustersByCanonicalIdentity = HashMap<String, MutableList<TrackCluster>>()
         tracks.forEach { track ->
+            val identity = canonicalIdentity(track)?.trim()?.takeIf { it.isNotBlank() }
+            val anchoredCluster = identity?.let { canonicalId ->
+                clustersByCanonicalIdentity[canonicalId]
+                    .orEmpty()
+                    .map { cluster -> cluster to clusterMatch(cluster, track) }
+                    .filterNot { (_, match) -> match.hardConflict }
+                    .maxByOrNull { (_, match) -> match.score }
+                    ?.first
+            }
+            if (anchoredCluster != null) {
+                anchoredCluster.tracks += track
+                return@forEach
+            }
             val metadata = track.mergeMetadataOrNull()
             if (metadata == null) {
-                result += TrackCluster(mutableListOf(track))
+                val cluster = TrackCluster(mutableListOf(track), identity)
+                result += cluster
+                identity?.let { canonicalId ->
+                    clustersByCanonicalIdentity.getOrPut(canonicalId) { ArrayList() } += cluster
+                }
                 return@forEach
             }
 
-            val clusters = clustersByMetadata.getOrPut(metadata) { ArrayList() }
-            val matchingCluster = clusters.firstOrNull { cluster ->
-                abs(cluster.anchorDurationMs - track.durationMs) <= LOCAL_DURATION_TOLERANCE_MS
-            }
+            val clusters = clustersByTitle.getOrPut(metadata.title) { ArrayList() }
+            val rankedClusters = clusters.asSequence()
+                .filter { cluster -> identity == null || cluster.canonicalIdentity == null }
+                .map { cluster ->
+                    cluster to clusterMatch(cluster, track)
+                }
+                .sortedByDescending { (_, evaluation) -> evaluation.score }
+                .toList()
+            val best = rankedClusters.firstOrNull()
+            val runnerUpScore = rankedClusters.getOrNull(1)?.second?.score ?: 0.0
+            val matchingCluster = best?.takeIf { (_, evaluation) ->
+                !evaluation.hardConflict &&
+                    evaluation.score >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
+                    evaluation.score - runnerUpScore >=
+                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN
+            }?.first
             if (matchingCluster == null) {
-                val cluster = DurationCluster(track.durationMs, mutableListOf(track))
+                val cluster = TrackCluster(mutableListOf(track), identity)
                 clusters += cluster
-                result += TrackCluster(cluster.tracks)
+                result += cluster
+                identity?.let { canonicalId ->
+                    clustersByCanonicalIdentity.getOrPut(canonicalId) { ArrayList() } += cluster
+                }
             } else {
                 matchingCluster.tracks += track
+                if (identity != null && matchingCluster.canonicalIdentity == null) {
+                    matchingCluster.canonicalIdentity = identity
+                    clustersByCanonicalIdentity.getOrPut(identity) { ArrayList() } += matchingCluster
+                }
             }
         }
         return result
+    }
+
+    /** Complete-link comparison prevents A≈B and B≈C from silently producing A=B=C. */
+    private fun clusterMatch(cluster: TrackCluster, candidate: Track): ClusterMatch {
+        var minimumScore = 1.0
+        cluster.tracks.forEach { member ->
+            val evaluation = RecordingMatchEvaluatorV2.evaluate(
+                StreamingTrackMatchPolicy.reference(member),
+                StreamingTrackMatchPolicy.reference(candidate)
+            )
+            if (evaluation.hardConflicts.isNotEmpty()) {
+                return ClusterMatch(0.0, hardConflict = true)
+            }
+            minimumScore = minOf(minimumScore, evaluation.sameRecordingProbability)
+        }
+        return ClusterMatch(minimumScore, hardConflict = false)
     }
 
     private fun Track.mergeMetadataOrNull(): LocalTrackMetadata? {
@@ -111,9 +205,9 @@ object LibraryTrackMergePolicy {
             return null
         }
 
-        val normalizedTitle = title.normalizedTitleMetadata()
-        val normalizedArtist = artist.normalizedArtistMetadata()
-        val normalizedAlbum = album.normalizedAlbumMetadata()
+        val normalizedTitle = RecordingVersionClassifier.coreTitle(title)
+        val normalizedArtist = StreamingTrackMatchPolicy.canonicalArtistKey(listOf(artist))
+        val normalizedAlbum = StreamingTrackMatchPolicy.canonicalAlbum(album)
         if (
             normalizedTitle.isUnknownMetadata() ||
             normalizedArtist.isUnknownMetadata() ||
@@ -121,70 +215,33 @@ object LibraryTrackMergePolicy {
         ) {
             return null
         }
-        return LocalTrackMetadata(normalizedTitle, normalizedArtist, normalizedAlbum)
+        return LocalTrackMetadata(normalizedTitle)
     }
 
-    private fun String.normalizedTitleMetadata(): String =
-        normalizedMetadata()
-            .withoutFeaturedArtistSuffix()
-            .withoutTranslatedAliasQualifier()
-            .compactMetadataWhitespace()
-
-    private fun String.normalizedArtistMetadata(): String =
-        normalizedMetadata()
-            // A translated alias in an artist field is descriptive noise, but a featured artist is
-            // a real performer difference and stays part of the strict artist key.
-            .withoutTranslatedAliasQualifier()
-            .compactMetadataWhitespace()
-
-    private fun String.normalizedAlbumMetadata(): String =
-        normalizedMetadata()
-            .withoutFeaturedArtistSuffix()
-            .withoutTranslatedAliasQualifier()
-            .compactMetadataWhitespace()
-
-    private fun String.normalizedMetadata(): String =
-        Normalizer.normalize(this, Normalizer.Form.NFKC)
-            .lowercase(Locale.ROOT)
-            .trim()
-
-    private fun String.withoutFeaturedArtistSuffix(): String =
-        featuredArtistSuffix.replace(this, " ")
-
-    /**
-     * Importers sometimes inject a translated alias in parentheses. Only explicit translation
-     * labels or conservative Chinese-language signals are removable, so ordinary Japanese Kanji
-     * qualifiers remain part of the strict key. Known version labels (Remix, Live, Ver., etc.) are
-     * always retained so different recordings cannot collapse into one logical song.
-     */
-    private fun String.withoutTranslatedAliasQualifier(): String =
-        bracketedQualifier.replace(this) { match ->
-            val qualifier = match.groupValues[1].trim()
-            if (
-                translatedAliasMarker.containsMatchIn(qualifier) &&
-                !versionQualifier.containsMatchIn(qualifier)
-            ) {
-                " "
-            } else {
-                match.value
-            }
+    private val sourcePreference = compareBy<Track> { track ->
+        val path = track.dataPath.orEmpty().lowercase()
+        when {
+            path.startsWith("document:") -> 0
+            !path.startsWith("webdav:") && !path.startsWith("streaming:") && !path.startsWith("stream:") -> 0
+            path.startsWith("webdav:") -> 1
+            path.contains(":netease:") -> 2
+            path.contains(":qqmusic:") || path.contains(":qq:") -> 3
+            path.contains(":luoxue:") || path.contains(":lx:") -> 4
+            else -> 5
         }
-
-    private fun String.compactMetadataWhitespace(): String =
-        replace(whitespace, " ").trim()
+    }
 
     private fun String.isUnknownMetadata(): Boolean = isBlank() || this in unknownMetadata
 
-    private data class LocalTrackMetadata(
-        val title: String,
-        val artist: String,
-        val album: String
+    private data class LocalTrackMetadata(val title: String)
+
+    private data class TrackCluster(
+        val tracks: MutableList<Track>,
+        var canonicalIdentity: String?
     )
 
-    private data class DurationCluster(
-        val anchorDurationMs: Long,
-        val tracks: MutableList<Track>
+    private data class ClusterMatch(
+        val score: Double,
+        val hardConflict: Boolean
     )
-
-    private data class TrackCluster(val tracks: MutableList<Track>)
 }

@@ -50,8 +50,8 @@ internal fun qqCookieValue(cookie: String?, vararg names: String): String? {
 }
 
 class DefaultQqMusicHttpClient(
-    private val connectTimeoutMs: Int = 8_000,
-    private val readTimeoutMs: Int = 12_000
+    private val connectTimeoutMs: Int = 2_500,
+    private val readTimeoutMs: Int = 4_000
 ) : QqMusicHttpClient {
     override fun getJson(url: String, headers: Map<String, String>): JSONObject {
         return request("GET", url, null, headers)
@@ -233,6 +233,157 @@ class LocalQqMusicStreamingClient(
         }
         return result
     }
+
+    /** Returns the complete current QQ liked playlist; the sync coordinator derives additions. */
+    fun userLikedTracks(): List<StreamingTrack> {
+        val liked = userPlaylists().firstOrNull {
+            it.providerPlaylistId == "201" || it.title.contains("喜欢") || it.title.contains("liked", true)
+        } ?: return emptyList()
+        val tracks = ArrayList<StreamingTrack>()
+        var page = 1
+        do {
+            val detail = playlist(
+                StreamingPlaylistRequest(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    providerPlaylistId = liked.providerPlaylistId,
+                    page = page,
+                    pageSize = 500
+                )
+            )
+            tracks += detail.tracks
+            page += 1
+        } while (detail.hasMore && page <= 100)
+        return tracks.distinctBy { it.providerTrackId }
+    }
+
+    fun setFavorite(providerTrackId: String, favorite: Boolean) {
+        val songMid = providerTrackId.substringBefore('|').trim()
+        requireWriteId(songMid, "歌曲")
+        val songInfo = favoriteSongInfo(songMid)
+        qqWrite(
+            module = "music.musicasset.PlaylistDetailWrite",
+            method = if (favorite) "AddSonglist" else "DelSonglist",
+            param = JSONObject()
+                .put("dirId", 201)
+                .put(
+                    "v_songInfo",
+                    JSONArray().put(
+                        JSONObject()
+                            .put("songType", songInfo.songType)
+                            .put("songId", songInfo.songId)
+                    )
+                )
+        )
+    }
+
+    private fun favoriteSongInfo(songMid: String): QqFavoriteSongInfo {
+        val data = qqWrite(
+            module = "music.trackInfo.UniformRuleCtrl",
+            method = "CgiGetTrackInfo",
+            param = JSONObject()
+                .put("mids", JSONArray().put(songMid))
+                .put("types", JSONArray().put(0))
+        )
+        val track = data.optJSONArray("tracks")?.optJSONObject(0)
+            ?: throw StreamingGatewayException(
+                "QQ 音乐未返回歌曲写入 ID",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        val songId = idText(track.opt("id") ?: track.opt("songId"))?.toLongOrNull()
+            ?: throw StreamingGatewayException(
+                "QQ 音乐歌曲写入 ID 无效",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        return QqFavoriteSongInfo(songId = songId, songType = track.optInt("type", 0))
+    }
+
+    fun createPlaylist(title: String): StreamingPlaylist {
+        val cleanTitle = title.trim().takeIf { it.isNotEmpty() }
+            ?: throw StreamingGatewayException("QQ 歌单名称不能为空", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+        val data = qqWrite(
+            module = "music.musicasset.PlaylistWrite",
+            method = "CreatePlaylist",
+            param = JSONObject().put("playlistName", cleanTitle)
+        )
+        val id = data.optionalStringLocal("playlistId")
+            ?: data.optionalStringLocal("dirId")
+            ?: data.optionalStringLocal("id")
+            ?: throw StreamingGatewayException("QQ 创建歌单成功但未返回歌单 ID")
+        return StreamingPlaylist(StreamingProviderName.QQ_MUSIC, id, cleanTitle)
+    }
+
+    fun renamePlaylist(providerPlaylistId: String, title: String) {
+        requireWriteId(providerPlaylistId, "歌单")
+        qqWrite(
+            "music.musicasset.PlaylistWrite",
+            "ModifyPlaylist",
+            JSONObject().put("playlistId", providerPlaylistId).put("playlistName", title.trim())
+        )
+    }
+
+    fun deletePlaylist(providerPlaylistId: String) {
+        requireWriteId(providerPlaylistId, "歌单")
+        qqWrite(
+            "music.musicasset.PlaylistWrite",
+            "DeletePlaylist",
+            JSONObject().put("playlistId", providerPlaylistId)
+        )
+    }
+
+    fun mutatePlaylistTracks(providerPlaylistId: String, providerTrackIds: List<String>, add: Boolean) {
+        requireWriteId(providerPlaylistId, "歌单")
+        val mids = providerTrackIds.map { it.substringBefore('|').trim() }.filter { it.isNotEmpty() }.distinct()
+        if (mids.isEmpty()) return
+        qqWrite(
+            "music.musicasset.PlaylistWrite",
+            if (add) "AddSongToPlaylist" else "DelSongFromPlaylist",
+            JSONObject().put("playlistId", providerPlaylistId).put("songMid", JSONArray(mids))
+        )
+    }
+
+    fun reorderPlaylistTracks(providerPlaylistId: String, orderedProviderTrackIds: List<String>) {
+        requireWriteId(providerPlaylistId, "歌单")
+        val mids = orderedProviderTrackIds.map { it.substringBefore('|').trim() }.filter { it.isNotEmpty() }
+        qqWrite(
+            "music.musicasset.PlaylistWrite",
+            "ReorderPlaylistSong",
+            JSONObject().put("playlistId", providerPlaylistId).put("songMid", JSONArray(mids))
+        )
+    }
+
+    private fun qqWrite(module: String, method: String, param: JSONObject): JSONObject {
+        val cookie = requireCookie()
+        val uin = uinFromCookie(cookie)
+        val requestKey = "req_0"
+        val body = JSONObject()
+            .put("loginUin", uin)
+            .put("comm", qqVkeyComm(uin, qqPlaybackAuthst(cookie)))
+            .put(requestKey, JSONObject().put("module", module).put("method", method).put("param", param))
+        val response = httpClient.postJson(
+            "https://u.y.qq.com/cgi-bin/musicu.fcg",
+            body,
+            defaultHeaders(cookie)
+        )
+        throwIfQqAuthRejected(response)
+        val result = response.optJSONObject(requestKey) ?: response
+        val code = result.optInt("code", response.optInt("code", 0))
+        if (code != 0) {
+            throw StreamingGatewayException(
+                result.optionalStringLocal("msg") ?: result.optionalStringLocal("message") ?: "QQ 写入失败 ($code)",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE,
+                retryable = code == -1 || code == 1000 || code == 2000
+            )
+        }
+        return result.optJSONObject("data") ?: result
+    }
+
+    private fun requireWriteId(value: String, label: String) {
+        if (value.isBlank()) {
+            throw StreamingGatewayException("QQ $label ID 为空", code = StreamingErrorCode.UNSUPPORTED_OPERATION)
+        }
+    }
+
+    private data class QqFavoriteSongInfo(val songId: Long, val songType: Int)
 
     private fun createdPlaylists(uin: String, cookie: String): List<StreamingPlaylist> {
         val body = httpClient.getJson(

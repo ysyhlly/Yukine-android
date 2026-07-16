@@ -475,6 +475,27 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void upcomingPrecacheUsesFourSecondsOfBitrateWithSafeBounds() {
+        assertEquals(
+                1_601_500L,
+                PlaybackPrecacheManager.upcomingPrecacheBytesForBitrate(3203)
+        );
+        assertEquals(
+                PlaybackPrecacheManager.UPCOMING_TRACK_MIN_PRECACHE_BYTES,
+                PlaybackPrecacheManager.upcomingPrecacheBytesForBitrate(128)
+        );
+        assertEquals(
+                450_000L,
+                PlaybackPrecacheManager.upcomingPrecacheBytesForBitrate(0)
+        );
+        assertEquals(
+                PlaybackPrecacheManager.UPCOMING_TRACK_MAX_PRECACHE_BYTES,
+                PlaybackPrecacheManager.upcomingPrecacheBytesForBitrate(10_000)
+        );
+        assertEquals(750L, PlaybackPrecacheManager.UPCOMING_TRACK_PRECACHE_DELAY_MS);
+    }
+
+    @Test
     public void repeatedUpcomingPrecacheKeepsOneTaskPerPlaybackGeneration() {
         FakeStateProvider stateProvider = new FakeStateProvider();
         FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
@@ -748,6 +769,7 @@ public final class PlaybackPrecacheManagerTest {
     private static final class FakeMediaCacheOperations implements PlaybackPrecacheManager.MediaCacheOperations {
         private long contentLength = -1L;
         private long cachedBytes;
+        private long rangeContentLength = -1L;
         private boolean mediaItemMatchesForReuse = true;
         private int cacheKeyForPrecacheCalls;
         private int contentLengthCalls;
@@ -784,6 +806,11 @@ public final class PlaybackPrecacheManagerTest {
         @Override
         public Map<String, String> headersForTrack(Track track) {
             return Collections.emptyMap();
+        }
+
+        @Override
+        public long contentLengthFromRange(Track track, long start, long endInclusive) {
+            return rangeContentLength;
         }
 
         @Override

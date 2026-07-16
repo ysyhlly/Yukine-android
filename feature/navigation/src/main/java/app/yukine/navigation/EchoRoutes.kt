@@ -22,7 +22,7 @@ sealed interface TabRoute : EchoRoute {
         fun fromKey(key: String): TabRoute? = when (key) {
             HomeTab.route -> HomeTab
             LibraryTab.route -> LibraryTab
-            CollectionsTab.route -> CollectionsTab
+            CollectionsTab.route -> LibraryTab
             QueueTab.route -> QueueTab
             NowTab.route -> NowTab
             NetworkTab.route -> NetworkTab
@@ -42,6 +42,7 @@ data object LibraryTab : TabRoute {
     override val route = "library"
 }
 
+/** Retained only so stale in-memory callers can be normalized to [LibraryTab]. */
 data object CollectionsTab : TabRoute {
     override val route = "collections"
 }
@@ -246,7 +247,7 @@ object RouteMigration {
     fun tabFromLegacy(legacyTab: String): TabRoute = when (legacyTab) {
         "home" -> HomeTab
         "library" -> LibraryTab
-        "collections" -> CollectionsTab
+        "collections" -> LibraryTab
         "queue" -> QueueTab
         "now" -> NowTab
         "network" -> NetworkTab

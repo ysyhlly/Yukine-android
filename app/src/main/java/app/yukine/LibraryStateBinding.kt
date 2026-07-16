@@ -1,22 +1,29 @@
 package app.yukine
 
 import app.yukine.navigation.LibraryTab
+import app.yukine.model.Playlist
 import app.yukine.playback.PlaybackReadModel
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.LibraryUiLabels
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListLabels
 import app.yukine.ui.TrackListModeAction
 import java.util.ArrayList
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 internal fun interface LibraryAudioPermissionReader {
     fun hasAudioPermission(): Boolean
@@ -24,6 +31,10 @@ internal fun interface LibraryAudioPermissionReader {
 
 internal fun interface LibraryStatusSink {
     fun showStatus(message: String)
+}
+
+internal fun interface LibraryPlaylistSourcesLoader {
+    fun load(playlists: List<Playlist>): Map<Long, StreamingProviderName>
 }
 
 internal class LibraryStateBinding @JvmOverloads constructor(
@@ -34,10 +45,14 @@ internal class LibraryStateBinding @JvmOverloads constructor(
     private val playlistsReducer: LibraryPlaylistsStateReducer,
     private val audioPermissionReader: LibraryAudioPermissionReader,
     private val statusSink: LibraryStatusSink,
-    private val scope: CoroutineScope = MainScope()
+    private val playlistSourcesLoader: LibraryPlaylistSourcesLoader = LibraryPlaylistSourcesLoader { emptyMap() },
+    private val scope: CoroutineScope = MainScope(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private var bindingJob: Job? = null
+    private var playlistSourcesJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
+    private val playlistSources = MutableStateFlow<Map<Long, StreamingProviderName>>(emptyMap())
 
     fun bindStateSources(
         routeState: StateFlow<NavigationRouteState>?,
@@ -46,30 +61,46 @@ internal class LibraryStateBinding @JvmOverloads constructor(
         playback: PlaybackReadModel?
     ) {
         bindingJob?.cancel()
+        playlistSourcesJob?.cancel()
         bindingJob = null
+        playlistSourcesJob = null
         playbackReadModel = playback
         if (routeState == null || libraryState == null || settingsState == null || playback == null) {
             return
         }
+        val route = routeState.map(::libraryBindingRoute).distinctUntilChanged()
         bindingJob = scope.launch {
             combine(
-                routeState.map(::libraryBindingRoute).distinctUntilChanged(),
+                route,
                 libraryState,
                 settingsState.map { it.preferences.languageMode }.distinctUntilChanged(),
-                playback.state.map { it.currentTrack }.distinctUntilChanged()
-            ) { route, library, languageMode, _ ->
-                LibraryBindingInputs(route, library, languageMode)
+                playback.state.map { it.currentTrack }.distinctUntilChanged(),
+                playlistSources
+            ) { route, library, languageMode, _, sources ->
+                LibraryBindingInputs(route, library, languageMode, sources)
             }.collect { inputs ->
                 if (inputs.route.active) {
                     publish(inputs)
                 }
             }
         }
+        playlistSourcesJob = scope.launch {
+            combine(route, libraryState) { routeInput, library -> routeInput to library.playlists }
+                .collectLatest { (routeInput, playlists) ->
+                    if (routeInput.active && routeInput.libraryMode == LibraryGrouping.PLAYLISTS) {
+                        playlistSources.value = withContext(ioDispatcher) {
+                            playlistSourcesLoader.load(playlists)
+                        }
+                    }
+                }
+        }
     }
 
     fun release() {
         bindingJob?.cancel()
+        playlistSourcesJob?.cancel()
         bindingJob = null
+        playlistSourcesJob = null
         playbackReadModel = null
         scope.cancel()
     }
@@ -138,7 +169,8 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             libraryStore.filteredTracks(inputs.library.selectedPlaylistTracks, route.searchQuery),
             inputs.library.favoriteTracks,
             inputs.library.recentRecords,
-            modeActions
+            modeActions,
+            inputs.playlistSources
         )
     }
 
@@ -180,7 +212,8 @@ private data class LibraryBindingRoute(
 private data class LibraryBindingInputs(
     val route: LibraryBindingRoute,
     val library: LibraryStoreState,
-    val languageMode: String
+    val languageMode: String,
+    val playlistSources: Map<Long, StreamingProviderName>
 )
 
 private fun libraryBindingRoute(state: NavigationRouteState): LibraryBindingRoute =
@@ -215,7 +248,11 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
     sortArtist = AppLanguage.text(languageMode, "library.sort.artist"),
     sortAlbum = AppLanguage.text(languageMode, "library.sort.album"),
     sortDurationAscending = AppLanguage.text(languageMode, "library.sort.duration.asc"),
-    sortDurationDescending = AppLanguage.text(languageMode, "library.sort.duration.desc")
+    sortDurationDescending = AppLanguage.text(languageMode, "library.sort.duration.desc"),
+    syncLibrary = AppLanguage.text(languageMode, "library.sync.title"),
+    syncLibraryDescription = AppLanguage.text(languageMode, "library.sync.description"),
+    syncingLibrary = AppLanguage.text(languageMode, "library.sync.in.progress"),
+    autoSync = AppLanguage.text(languageMode, "library.auto.sync")
 )
 
 private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLabels(
@@ -228,5 +265,6 @@ private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLa
     AppLanguage.text(languageMode, "download.current.list"),
     AppLanguage.text(languageMode, "all.albums"),
     AppLanguage.text(languageMode, "play.all"),
-    AppLanguage.text(languageMode, "shuffle")
+    AppLanguage.text(languageMode, "shuffle"),
+    AppLanguage.text(languageMode, "recording.match.manage")
 )

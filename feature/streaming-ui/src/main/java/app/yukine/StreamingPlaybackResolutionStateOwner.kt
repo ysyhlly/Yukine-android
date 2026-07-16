@@ -1,9 +1,12 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.model.PlaybackTrackSourceOverlay
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.*
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -26,6 +29,10 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
     private val queueWindowPreResolveInFlight = Collections.newSetFromMap(
         ConcurrentHashMap<StreamingQueuePreResolveKey, Boolean>()
     )
+    private val playbackResolveInFlight =
+        ConcurrentHashMap<StreamingPlaybackResolveKey, CompletableDeferred<StreamingResolvedPlayback>>()
+    @Volatile
+    private var currentPlaybackResolveJob: Job? = null
 
     fun bindPlaybackCoordinator(
         planner: StreamingPlaybackResolvePlanner?,
@@ -67,7 +74,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
         beginRequest()
         return scope.launch {
             runCatching {
-                repository().resolvePlaybackTrack(provider, providerTrackId, quality, metadata)
+                resolvePlaybackTrackWithFallback(provider, providerTrackId, quality, metadata)
             }.onSuccess { result ->
                 updatePlaybackTrack(result.source, result.track)
                 updateDiagnostics(repository().diagnostics())
@@ -100,22 +107,40 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
         quality: StreamingAudioQuality,
         forceRefresh: Boolean,
         onResolved: StreamingCallback<Track?>
+    ): Job = resolveStreamingPlaybackResult(
+        provider,
+        providerTrackId,
+        metadata,
+        quality,
+        forceRefresh
+    ) { result ->
+        onResolved.onResult(result?.track)
+    }
+
+    private fun resolveStreamingPlaybackResult(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        metadata: StreamingTrack?,
+        quality: StreamingAudioQuality,
+        forceRefresh: Boolean,
+        onResolved: StreamingCallback<StreamingResolvedPlayback?>
     ): Job {
         beginRequest()
         return scope.launch {
-            runCatching {
-                repository().resolvePlaybackTrack(
+            try {
+                val result = resolvePlaybackTrackWithFallback(
                     provider,
                     providerTrackId,
                     quality,
                     metadata,
-                    forceRefresh = forceRefresh
+                    forceRefresh
                 )
-            }.onSuccess { result ->
                 updatePlaybackTrack(result.source, result.track)
                 updateDiagnostics(repository().diagnostics())
-                onResolved.onResult(result.track)
-            }.onFailure { error ->
+                onResolved.onResult(result)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
                 failRequest(error.message)
                 updateDiagnostics(repository().diagnostics())
                 onResolved.onResult(null)
@@ -140,7 +165,12 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
                     request.metadata,
                     quality
                 ) { resolved ->
-                    onResolved.onResult(request.oldTrackId, resolved)
+                    onResolved.onResult(
+                        request.oldTrackId,
+                        resolved?.let {
+                            PlaybackTrackSourceOverlay.merge(request.logicalTrack, it)
+                        }
+                    )
                 }
                 job.invokeOnCompletion {
                     planner.clearPreResolve(request.key)
@@ -199,7 +229,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
                 eligibleTargets.map { target ->
                     async(ioDispatcher()) {
                         target to runCatching {
-                            repository().resolvePlaybackTrack(
+                            resolvePlaybackTrackWithFallback(
                                 target.provider,
                                 target.providerTrackId,
                                 quality,
@@ -210,7 +240,10 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
                 }.awaitAll().forEach { (target, result) ->
                     result?.let {
                         updatePlaybackTrack(it.source, it.track)
-                        resolvedTracks[target.oldTrackId] = it.track
+                        resolvedTracks[target.oldTrackId] = PlaybackTrackSourceOverlay.merge(
+                            target.logicalTrack,
+                            it.track
+                        )
                     }
                 }
                 if (resolvedTracks.isNotEmpty()) {
@@ -234,26 +267,29 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
         val planner = playbackPlanner ?: return false
         val taskQueue = playbackTaskQueue ?: return false
         val request = planner.prepare(tracks, index) ?: return false
+        currentPlaybackResolveJob?.cancel()
         taskQueue.scheduleCurrentUrlResolve(
             StreamingPlaybackTask { onComplete ->
-                val job = resolveStreamingTrackForPlayback(
+                val job = resolveStreamingPlaybackResult(
                     request.provider,
                     request.providerTrackId,
                     request.metadata,
-                    quality
-                ) { resolved ->
-                    if (resolved == null) {
+                    quality,
+                    forceRefresh = false
+                ) { result ->
+                    if (result == null) {
                         onResolved.onResult(null)
-                        return@resolveStreamingTrackForPlayback
+                        return@resolveStreamingPlaybackResult
                     }
                     onResolved.onResult(
                         ResolvedStreamingTrackList(
-                            tracks = planner.replaceResolvedTrack(request, resolved),
-                            index = request.index
+                            tracks = planner.replaceResolvedTrack(request, result.track),
+                            index = request.index,
+                            resolutionPath = result.resolutionPath
                         )
                     )
                 }
-                job.invokeOnCompletion { onComplete.run() }
+                trackCurrentPlaybackResolve(job, onComplete)
             }
         )
         return true
@@ -286,6 +322,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
 
     private data class StreamingQueuePreResolveTarget(
         val oldTrackId: Long,
+        val logicalTrack: Track,
         val provider: StreamingProviderName,
         val providerTrackId: String,
         val metadata: StreamingTrack?
@@ -299,6 +336,14 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
         val provider: StreamingProviderName,
         val providerTrackId: String,
         val quality: StreamingAudioQuality
+    )
+
+    private data class StreamingPlaybackResolveKey(
+        val provider: StreamingProviderName,
+        val providerTrackId: String,
+        val quality: StreamingAudioQuality,
+        val metadata: StreamingTrack?,
+        val forceRefresh: Boolean
     )
 
     private fun streamingQueuePreResolveTargets(
@@ -324,6 +369,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
                     ?: return@mapNotNull null
                 StreamingQueuePreResolveTarget(
                     oldTrackId = track.id,
+                    logicalTrack = track,
                     provider = provider,
                     providerTrackId = providerTrackId,
                     metadata = ResolveStreamingPlaybackUseCase().metadataFor(track, provider, providerTrackId)
@@ -350,6 +396,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
             adaptiveQuality,
             refuseAutomaticQualityDowngrade
         ) ?: return null
+        currentPlaybackResolveJob?.cancel()
         taskQueue.scheduleCurrentPlaybackRecovery(
             StreamingPlaybackTask { onComplete ->
                 val job = resolveStreamingTrackForPlaybackInternal(
@@ -363,14 +410,18 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
                         resolved?.let {
                             StreamingRecoveryResolution(
                                 expectedTrackId = request.expectedTrackId,
-                                track = it,
+                                track = PlaybackTrackSourceOverlay.merge(request.logicalTrack, it),
                                 quality = request.quality,
                                 positionMs = snapshot?.positionMs ?: 0L
                             )
                         }
                     )
                 }
+                currentPlaybackResolveJob = job
                 job.invokeOnCompletion {
+                    if (currentPlaybackResolveJob === job) {
+                        currentPlaybackResolveJob = null
+                    }
                     planner.clearRecovery(request.key)
                     onComplete.run()
                 }
@@ -412,6 +463,56 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
             withContext(ioDispatcher()) {
                 trackMatchStore?.saveProviderTrackId(track, provider, cleanTrackId)
             }
+        }
+    }
+
+    private suspend fun resolvePlaybackTrackWithFallback(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        quality: StreamingAudioQuality,
+        metadata: StreamingTrack?,
+        forceRefresh: Boolean = false
+    ): StreamingResolvedPlayback {
+        val key = StreamingPlaybackResolveKey(
+            provider,
+            providerTrackId.trim(),
+            quality,
+            metadata,
+            forceRefresh
+        )
+        val pending = CompletableDeferred<StreamingResolvedPlayback>()
+        val existing = playbackResolveInFlight.putIfAbsent(key, pending)
+        if (existing != null) {
+            return existing.await()
+        }
+        try {
+            val result = repository().resolvePlaybackTrack(
+                provider,
+                providerTrackId,
+                quality,
+                metadata,
+                forceRefresh = forceRefresh
+            )
+            pending.complete(result)
+            return result
+        } catch (cancelled: CancellationException) {
+            pending.cancel(cancelled)
+            throw cancelled
+        } catch (error: Throwable) {
+            pending.completeExceptionally(error)
+            throw error
+        } finally {
+            playbackResolveInFlight.remove(key, pending)
+        }
+    }
+
+    private fun trackCurrentPlaybackResolve(job: Job, onComplete: Runnable) {
+        currentPlaybackResolveJob = job
+        job.invokeOnCompletion {
+            if (currentPlaybackResolveJob === job) {
+                currentPlaybackResolveJob = null
+            }
+            onComplete.run()
         }
     }
 

@@ -2,6 +2,7 @@ package app.yukine.streaming
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -501,6 +502,42 @@ class LocalLuoxueStreamingClientTest {
     }
 
     @Test
+    fun importedSourceBudgetStopsQualityRetriesAndUsesBuiltInResolver() = runTest {
+        val hash = "0123456789abcdef0123456789abcdef"
+        var scriptCalls = 0
+        val client = LocalLuoxueStreamingClient(
+            httpClient = FakeLuoxueHttpClient(
+                mapOf(
+                    "gateway.kugou.com/v5/url" to JSONObject()
+                        .put("data", JSONObject().put("play_url", "https://kugou.example.test/fast-fallback.flac"))
+                        .toString()
+                )
+            ),
+            scriptRuntime = FakeScriptRuntime { _, _, _, _ ->
+                scriptCalls += 1
+                delay(100)
+                ""
+            },
+            importedSourcePlaybackBudgetMs = 20
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "kg:$hash.22.33",
+                quality = StreamingAudioQuality.HIRES
+            ),
+            listOf(
+                LuoxueImportedSource("script-1", "缓慢脚本 1", sourceKinds = listOf("kg")),
+                LuoxueImportedSource("script-2", "缓慢脚本 2", sourceKinds = listOf("kg"))
+            )
+        )
+
+        assertEquals("https://kugou.example.test/fast-fallback.flac", source.url)
+        assertEquals(1, scriptCalls)
+    }
+
+    @Test
     fun shiqianjiangKugouSourceUsesScopedCompatibilityEndpointWhenScriptFails() = runTest {
         val hash = "0123456789abcdef0123456789abcdef"
         val http = FakeLuoxueHttpClient(
@@ -537,6 +574,57 @@ class LocalLuoxueStreamingClientTest {
         assertEquals("https://media.example.test/kg-song.flac", source.url)
         assertTrue(http.urls.single().contains("songId=$hash"))
         assertTrue(http.urls.single().contains("key=test-key"))
+    }
+
+    @Test
+    fun shiqianjiangTxSourceUsesSongMidForScriptAndScopedCompatibilityEndpoint() = runTest {
+        val songMid = "001xexDg3Hqe8z"
+        val mediaMid = "000KBB0Z4dV7xe"
+        val observedMusicInfo = mutableListOf<Map<String, Any?>>()
+        val http = FakeLuoxueHttpClient(
+            mapOf(
+                "source.shiqianjiang.cn/api/music/url" to JSONObject()
+                    .put("code", 200)
+                    .put("url", "https://media.example.test/tx-song.mp3")
+                    .toString()
+            )
+        )
+        val client = LocalLuoxueStreamingClient(
+            httpClient = http,
+            scriptRuntime = FakeScriptRuntime { _, sourceKey, musicInfo, _ ->
+                assertEquals("tx", sourceKey)
+                observedMusicInfo += musicInfo
+                throw IllegalStateException("HTTP 520 返回空响应")
+            }
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "tx:$songMid|$mediaMid",
+                quality = StreamingAudioQuality.LOSSLESS
+            ),
+            listOf(
+                LuoxueImportedSource(
+                    id = "script-tx",
+                    name = "测试 TX 脚本",
+                    origin = "https://source.shiqianjiang.cn/api/script/lx?key=test-key",
+                    sourceKinds = listOf("tx")
+                )
+            )
+        )
+
+        assertEquals("https://media.example.test/tx-song.mp3", source.url)
+        assertTrue(observedMusicInfo.isNotEmpty())
+        observedMusicInfo.forEach { musicInfo ->
+            assertEquals(songMid, musicInfo["hash"])
+            assertEquals(songMid, musicInfo["songmid"])
+            assertEquals(mediaMid, musicInfo["mediaMid"])
+        }
+        assertTrue(http.urls.single().contains("source=tx"))
+        assertTrue(http.urls.single().contains("songId=$songMid"))
+        assertTrue(http.urls.single().contains("key=test-key"))
+        assertTrue(!http.urls.single().contains(mediaMid))
     }
 
     @Test

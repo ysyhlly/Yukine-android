@@ -69,6 +69,7 @@ import app.yukine.ui.LocalEchoNowBarScrollProgress
 import app.yukine.ui.LocalEchoNowBarPageScrollEvent
 import app.yukine.ui.LocalEchoNowBarBottomInset
 import app.yukine.ui.LocalEchoNowBarTopCloudClearanceChanged
+import app.yukine.ui.LocalEchoPageBottomChromeInset
 import app.yukine.ui.blockPointerInputBehind
 import app.yukine.ui.echoPressScale
 import kotlinx.coroutines.Job
@@ -224,12 +225,17 @@ fun EchoScaffold(
               ) {
                 topBar()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    content(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(top = topCloudClearance)
-                            .nestedScroll(chromeScrollConnection)
-                    )
+                    CompositionLocalProvider(
+                        LocalEchoPageBottomChromeInset provides
+                            bottomNavHeight + EchoMobileLayoutMetrics.nowBarHeight
+                    ) {
+                        content(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(top = topCloudClearance)
+                                .nestedScroll(chromeScrollConnection)
+                        )
+                    }
                 }
               }
             }

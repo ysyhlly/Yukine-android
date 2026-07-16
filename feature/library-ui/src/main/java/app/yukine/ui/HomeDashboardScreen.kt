@@ -117,7 +117,6 @@ data class HomeDashboardActions(
     val onRecentTabChanged: (Int) -> Unit,
     val onDailyRecommend: Runnable = Runnable { },
     val onHeartbeatRecommend: Runnable = Runnable { },
-    val onOpenCollections: Runnable = Runnable { },
     val onConnectStreaming: Runnable = Runnable { },
     val onSearch: Runnable = Runnable { }
 )
@@ -271,7 +270,6 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
         }
         item { HeroSecondaryButton("队列", EchoIconKind.Queue) { actions.onViewQueue.run() } }
         item { HeroSecondaryButton("随机", EchoIconKind.Shuffle) { actions.onShuffleAll.run() } }
-        item { HeroSecondaryButton("收藏", EchoIconKind.Heart) { actions.onOpenCollections.run() } }
         item { HeroSecondaryButton("搜索", EchoIconKind.Search) { actions.onSearch.run() } }
         item { HeroSecondaryButton("刷新", EchoIconKind.Sync) { actions.onRefresh.run() } }
     }

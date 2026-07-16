@@ -2,18 +2,20 @@ package app.yukine
 
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingPlaybackAdapter
 
 internal class StreamingPlaybackController(
     private val streamingViewModel: StreamingViewModel,
     private val nowPlayingViewModel: NowPlayingViewModel,
-    private val listener: Listener
+    private val listener: Listener,
+    private val canonicalSourceResolver: CanonicalPlaybackSourceResolver? = null
 ) {
     private var foregroundResolveGeneration = 0L
 
     private companion object {
-        private const val PRE_RESOLVE_WINDOW_TARGETS = 3
+    private const val PRE_RESOLVE_WINDOW_TARGETS = 3
         private const val PRE_RESOLVE_LOOKAHEAD_LIMIT = 32
     }
 
@@ -40,7 +42,46 @@ internal class StreamingPlaybackController(
     }
 
     fun resolveAndPlayStreamingTrack(tracks: List<Track>?, index: Int): Boolean {
+        if (tracks.isNullOrEmpty()) {
+            return false
+        }
+        val safeIndex = index.coerceIn(0, tracks.size - 1)
+        val selected = tracks[safeIndex]
+        if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(selected)) {
+            return false
+        }
+        val diagnostics = PlaybackStreamingDiagnostics.process()
+        diagnostics.recordResolveStarted(selected)
         val generation = nextForegroundResolveGeneration()
+        val canonicalScheduled = canonicalSourceResolver?.resolve(selected) { resolved ->
+            if (!isCurrentForegroundResolve(generation)) {
+                return@resolve
+            }
+            diagnostics.recordActiveSourceLookupCompleted(selected)
+            val canonicalTracks = ArrayList(tracks)
+            canonicalTracks[safeIndex] = resolved
+            if (!StreamingPlaybackAdapter.isUnresolvedStreamingTrack(resolved)) {
+                diagnostics.recordPlaybackUrlReady(resolved, "active_source")
+                listener.applyPlaybackActionResult(
+                    nowPlayingViewModel.playTrackList(canonicalTracks, safeIndex)
+                )
+                nowPlayingViewModel.warmPlaybackTrack(resolved)
+            } else {
+                scheduleStreamingResolve(canonicalTracks, safeIndex, generation)
+            }
+        } == true
+        if (canonicalScheduled) {
+            publishResolving()
+            return true
+        }
+        return scheduleStreamingResolve(tracks, safeIndex, generation)
+    }
+
+    private fun scheduleStreamingResolve(
+        tracks: List<Track>,
+        index: Int,
+        generation: Long
+    ): Boolean {
         val scheduled = streamingViewModel.playbackResolution.resolveStreamingTrackListForPlayback(
             tracks,
             index,
@@ -53,6 +94,10 @@ internal class StreamingPlaybackController(
                 publishResolveFailure()
                 return@resolveStreamingTrackListForPlayback
             }
+            PlaybackStreamingDiagnostics.process().recordPlaybackUrlReady(
+                resolved.tracks.getOrNull(resolved.index),
+                resolved.resolutionPath?.wireName.orEmpty()
+            )
             listener.applyPlaybackActionResult(
                 nowPlayingViewModel.playTrackList(resolved.tracks, resolved.index)
             )

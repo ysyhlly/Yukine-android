@@ -978,7 +978,8 @@ object SettingsPageStateBuilder {
         endpoint: String,
         configured: Boolean,
         onNavigate: (SettingsPage) -> Unit,
-        onApplyEndpoint: (String) -> Unit
+        onApplyEndpoint: (String) -> Unit,
+        onEditMusicBrainzProxy: () -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "streaming.gateway"), if (configured) text(languageMode, "connected") else text(languageMode, "missing")),
@@ -990,6 +991,13 @@ object SettingsPageStateBuilder {
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.EMULATOR_HOST, "streaming.gateway.emulator", onApplyEndpoint))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.LOCALHOST, "streaming.gateway.localhost", onApplyEndpoint))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.UNCONFIGURED, "disable", onApplyEndpoint))
+            add(SettingsAction(
+                label = text(languageMode, "musicbrainz.proxy"),
+                description = text(languageMode, "musicbrainz.proxy.description"),
+                onClick = Runnable(onEditMusicBrainzProxy),
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Network
+            ))
         }
         return buildContent(text(languageMode, "streaming.gateway"), metrics, actions)
     }

@@ -6,6 +6,8 @@ import app.yukine.StreamingGatewaySettingsStore
 import app.yukine.AndroidStreamingWebCookieSessionSource
 import app.yukine.StreamingRepositoryProvider
 import app.yukine.StreamingRepositorySource
+import app.yukine.DefaultRecordingSourceVerificationGateway
+import app.yukine.data.RecordingSourceVerificationGateway
 import app.yukine.streaming.HeaderBackedStreamingPlaybackTrackAdapter
 import app.yukine.streaming.LocalStreamingAuthStore
 import app.yukine.streaming.LocalLuoxueTrackMetadataResolver
@@ -113,9 +115,10 @@ object StreamingDataModule {
     @Singleton
     fun provideStreamingPlaybackHeaderStore(
         cacheRepository: StreamingCacheRepository,
-        localAuthStore: LocalStreamingAuthStore
+        localAuthStore: LocalStreamingAuthStore,
+        playbackSourcePolicy: app.yukine.PersistentPlaybackSourcePolicy
     ): StreamingPlaybackHeaderStore {
-        return PersistentStreamingPlaybackHeaders(cacheRepository, localAuthStore)
+        return PersistentStreamingPlaybackHeaders(cacheRepository, localAuthStore, playbackSourcePolicy)
     }
 
     @Provides
@@ -130,6 +133,11 @@ object StreamingDataModule {
     fun provideStreamingRepositorySource(provider: StreamingRepositoryProvider): StreamingRepositorySource {
         return provider
     }
+
+    @Provides
+    fun provideRecordingSourceVerificationGateway(
+        gateway: DefaultRecordingSourceVerificationGateway
+    ): RecordingSourceVerificationGateway = gateway
 
     @Provides
     @Singleton

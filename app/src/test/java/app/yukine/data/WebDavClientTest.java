@@ -6,9 +6,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import android.net.Uri;
 import app.yukine.model.RemoteSource;
+import app.yukine.model.Track;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -99,6 +103,93 @@ public final class WebDavClientTest {
         assertEquals("sub/", field(entries.get(1), "href"));
         assertEquals("http://127.0.0.1:5005/music/sub/", field(entries.get(1), "url"));
         assertEquals(true, field(entries.get(1), "directory"));
+    }
+
+    @Test
+    public void incrementalReuseRequiresMatchingNonEmptyFingerprint() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method canReuse = WebDavClient.class.getDeclaredMethod(
+                "canReuseCached",
+                boolean.class,
+                String.class,
+                String.class
+        );
+        canReuse.setAccessible(true);
+
+        assertEquals(true, canReuse.invoke(client, true, "etag:abc", "etag:abc"));
+        assertEquals(false, canReuse.invoke(client, true, "etag:new", "etag:old"));
+        assertEquals(false, canReuse.invoke(client, true, "", ""));
+        assertEquals(false, canReuse.invoke(client, false, "etag:abc", "etag:abc"));
+
+        Method metadataFingerprint = WebDavClient.class.getDeclaredMethod("metadataFingerprint", String.class);
+        metadataFingerprint.setAccessible(true);
+        assertEquals("metadata-v2|etag:abc", metadataFingerprint.invoke(client, "etag:abc"));
+        assertEquals("", metadataFingerprint.invoke(client, ""));
+
+        Method revisionFragment = WebDavClient.class.getDeclaredMethod("revisionFragment", String.class);
+        revisionFragment.setAccessible(true);
+        String first = (String) revisionFragment.invoke(client, "metadata-v2|etag:first");
+        String second = (String) revisionFragment.invoke(client, "metadata-v2|etag:second");
+        assertTrue(first.startsWith("echoRevision="));
+        assertEquals(37, first.length());
+        assertFalse(first.equals(second));
+    }
+
+    @Test
+    public void relocationFingerprintRequiresUniqueEtagAndKeepsTrackIdentity() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method candidates = WebDavClient.class.getDeclaredMethod(
+                "relocatableTracksByFingerprint",
+                Map.class,
+                Map.class
+        );
+        candidates.setAccessible(true);
+        Track original = track(41L, "webdav:7:https://dav/old.flac");
+        Map<String, Track> cached = new LinkedHashMap<>();
+        cached.put(original.dataPath, original);
+        Map<String, String> manifest = new LinkedHashMap<>();
+        manifest.put(original.dataPath, "metadata-v2|etag:content-41");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Track> unique = (Map<String, Track>) candidates.invoke(client, cached, manifest);
+
+        assertEquals(original.id, unique.get("metadata-v2|etag:content-41").id);
+
+        Track duplicate = track(42L, "webdav:7:https://dav/copy.flac");
+        cached.put(duplicate.dataPath, duplicate);
+        manifest.put(duplicate.dataPath, "metadata-v2|etag:content-41");
+        @SuppressWarnings("unchecked")
+        Map<String, Track> ambiguous = (Map<String, Track>) candidates.invoke(client, cached, manifest);
+        assertTrue(ambiguous.isEmpty());
+
+        Method relocatedTrack = WebDavClient.class.getDeclaredMethod(
+                "relocatedTrack",
+                Track.class,
+                Uri.class,
+                String.class
+        );
+        relocatedTrack.setAccessible(true);
+        Track moved = (Track) relocatedTrack.invoke(
+                client,
+                original,
+                Uri.parse("https://dav/new.flac"),
+                "webdav:7:https://dav/new.flac"
+        );
+        assertEquals(original.id, moved.id);
+        assertEquals(original.title, moved.title);
+        assertEquals("webdav:7:https://dav/new.flac", moved.dataPath);
+    }
+
+    private Track track(long id, String dataPath) {
+        return new Track(
+                id,
+                "Same recording",
+                "Artist",
+                "Album",
+                180_000L,
+                Uri.parse(dataPath.substring(dataPath.indexOf("https://"))),
+                dataPath
+        );
     }
 
     private Object field(Object target, String name) throws Exception {

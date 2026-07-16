@@ -21,6 +21,10 @@ internal interface StreamingSearchActionHandler {
     fun playResolvedTrack(track: Track)
 
     fun loadNextPage()
+
+    fun setPlaybackProviderEnabled(provider: StreamingProviderName, enabled: Boolean) = Unit
+
+    fun movePlaybackProvider(provider: StreamingProviderName, direction: Int) = Unit
 }
 
 interface MainActivityStreamingActionGateway {

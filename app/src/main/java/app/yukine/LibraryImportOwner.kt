@@ -4,7 +4,7 @@ import android.net.Uri
 import app.yukine.model.Track
 
 /** Owns the complete library scan/import-to-state publication pipeline. */
-internal class LibraryImportOwner(
+internal class LibraryImportOwner @JvmOverloads constructor(
     private val viewModel: LibraryViewModel,
     private val libraryStore: LibraryDataStateOwner,
     private val routeController: MainRouteController,
@@ -13,7 +13,8 @@ internal class LibraryImportOwner(
     private val statusSink: StatusSink,
     private val collectionsLoader: CollectionsLoader,
     private val onboardingScanObserver: OnboardingScanObserver,
-    private val networkNavigator: NetworkNavigator
+    private val networkNavigator: NetworkNavigator,
+    private val audioVerificationScheduler: AudioVerificationScheduler = AudioVerificationScheduler {}
 ) {
     fun interface AudioPermissionSource {
         fun hasAudioPermission(): Boolean
@@ -37,6 +38,10 @@ internal class LibraryImportOwner(
 
     fun interface NetworkNavigator {
         fun openStreaming()
+    }
+
+    fun interface AudioVerificationScheduler {
+        fun schedule()
     }
 
     fun loadLibrary(allowCachedFirst: Boolean) {
@@ -112,6 +117,7 @@ internal class LibraryImportOwner(
         applyLibraryReplacement(tracks, favorites) {
             statusSink.setStatus(status)
             viewModel.loading.parseMissingAudioSpecsJava { result ->
+                audioVerificationScheduler.schedule()
                 applyLibraryReplacement(result.tracks, result.favorites) {
                     if (result.updatedCount > 0) {
                         statusSink.setStatus(text("audio.specs.updated") + " (${result.updatedCount})")
@@ -119,6 +125,17 @@ internal class LibraryImportOwner(
                 }
             }
             onApplied.run()
+        }
+    }
+
+    /**
+     * Republishes a Room snapshot after an offline identity merge. This deliberately skips media
+     * scanning, audio-spec parsing, and verification scheduling; only canonical grouping and the
+     * collection projections are refreshed.
+     */
+    fun republishCanonicalLibrary(tracks: List<Track>, favorites: Set<Long>) {
+        applyLibraryReplacement(tracks, favorites) {
+            collectionsLoader.loadCollections()
         }
     }
 

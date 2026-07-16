@@ -27,6 +27,7 @@ dependencies {
     implementation project(":feature:streaming-ui")
     implementation project(":feature:playback")
     implementation project(":feature:streaming")
+    implementation project(":feature:data")
     implementation project(":core:common")
     implementation libs.androidx.lifecycle.viewmodel.ktx
     implementation platform(libs.androidx.compose.bom)
@@ -34,4 +35,5 @@ dependencies {
     implementation libs.androidx.compose.material3
     implementation libs.androidx.compose.ui
     testImplementation libs.junit
+    testImplementation libs.json
 }

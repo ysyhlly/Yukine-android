@@ -6,14 +6,18 @@ import app.yukine.model.TrackPlayRecord
 import app.yukine.navigation.CollectionsTab
 import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.CollectionActionUiState
 import app.yukine.ui.CollectionMetricUiState
+import app.yukine.ui.CollectionPlaylistFolderUiState
 import app.yukine.ui.CollectionTrackSectionActions
 import app.yukine.ui.CollectionTrackSectionUiState
 import app.yukine.ui.CollectionsActions
 import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoIconKind
+import app.yukine.ui.FavoriteSyncActions
+import app.yukine.ui.FavoriteSyncUiState
 import app.yukine.ui.PlaylistRowActions
 import app.yukine.ui.PlaylistRowUiState
 import app.yukine.ui.PlaylistTrackActions
@@ -40,11 +44,12 @@ import kotlinx.coroutines.withContext
 
 internal data class CollectionsInsightSnapshot(
     val recentlyAdded: List<Track> = emptyList(),
-    val longUnplayed: List<Track> = emptyList()
+    val longUnplayed: List<Track> = emptyList(),
+    val playlistSources: Map<Long, StreamingProviderName> = emptyMap()
 )
 
 internal fun interface CollectionsInsightsLoader {
-    fun load(): CollectionsInsightSnapshot
+    fun load(playlists: List<Playlist>): CollectionsInsightSnapshot
 }
 
 internal class CollectionsStateBinding @JvmOverloads constructor(
@@ -54,9 +59,12 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val insights = MutableStateFlow(CollectionsInsightSnapshot())
+    private val favoriteDashboard = MutableStateFlow(FavoriteSyncDashboard())
     private var bindingJob: Job? = null
     private var insightsJob: Job? = null
+    private var favoriteJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
+    private var favoriteSyncViewModel: FavoriteSyncViewModel? = null
 
     interface Listener {
         fun showCreatePlaylist()
@@ -98,6 +106,14 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         fun removeSelectedPlaylistTrack(playlistId: Long, track: Track)
     }
 
+    fun bindFavoriteSync(viewModel: FavoriteSyncViewModel?) {
+        favoriteJob?.cancel()
+        favoriteSyncViewModel = viewModel
+        favoriteJob = viewModel?.let { target ->
+            scope.launch { target.dashboard.collect { favoriteDashboard.value = it } }
+        }
+    }
+
     fun bindStateSources(
         routeState: StateFlow<NavigationRouteState>?,
         libraryState: StateFlow<LibraryStoreState>?,
@@ -126,6 +142,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 insights
             ) { routeInput, library, languageMode, _, insightSnapshot ->
                 CollectionsBindingInputs(routeInput, library, languageMode, insightSnapshot)
+            }.combine(favoriteDashboard) { input, dashboard ->
+                input.copy(favoriteSync = dashboard)
             }.collect { input ->
                 if (input.route.active) {
                     publishFromState(input)
@@ -137,9 +155,11 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 route.map { it.active }.distinctUntilChanged(),
                 libraryState
             ) { active, library -> active to library }
-                .collectLatest { (active, _) ->
+                .collectLatest { (active, library) ->
                     if (active) {
-                        insights.value = withContext(ioDispatcher) { insightsLoader.load() }
+                        insights.value = withContext(ioDispatcher) {
+                            insightsLoader.load(library.playlists)
+                        }
                     }
                 }
         }
@@ -148,8 +168,11 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
     fun release() {
         bindingJob?.cancel()
         insightsJob?.cancel()
+        favoriteJob?.cancel()
         bindingJob = null
         insightsJob = null
+        favoriteJob = null
+        favoriteSyncViewModel = null
         playbackReadModel = null
         scope.cancel()
     }
@@ -166,7 +189,9 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             playbackReadModel?.state?.value,
             input.library.favoriteTrackIds,
             input.insights.recentlyAdded,
-            input.insights.longUnplayed
+            input.insights.longUnplayed,
+            input.insights.playlistSources,
+            input.favoriteSync
         )
     }
 
@@ -181,7 +206,9 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>,
         recentlyAdded: List<Track> = emptyList(),
-        longUnplayed: List<Track> = emptyList()
+        longUnplayed: List<Track> = emptyList(),
+        playlistSources: Map<Long, StreamingProviderName> = emptyMap(),
+        favoriteSync: FavoriteSyncDashboard = FavoriteSyncDashboard()
     ) {
         val fallbackPlaylistTitle = text(languageMode, "playlist")
         viewModel.updateCollections(
@@ -292,6 +319,7 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         val playlistRows = ArrayList<PlaylistRowUiState>()
         val playlistActions = ArrayList<PlaylistRowActions>()
         buildPlaylistRows(playlistRows, playlistActions, playlists, selectedPlaylistId, languageMode)
+        val playlistFolders = buildPlaylistFolders(playlists, playlistRows, playlistSources, languageMode)
 
         val selectedPlaylistActionRows = ArrayList<CollectionActionUiState>()
         val selectedPlaylistActions = ArrayList<Runnable>()
@@ -350,7 +378,21 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             deleteLabel = text(languageMode, "delete"),
             upLabel = text(languageMode, "up"),
             downLabel = text(languageMode, "down"),
-            removeLabel = text(languageMode, "remove")
+            removeLabel = text(languageMode, "remove"),
+            playlistFolders = playlistFolders,
+            favoriteSync = FavoriteSyncUiState(
+                lastSyncText = if (favoriteSync.lastSyncAtMs <= 0L) "尚未同步"
+                    else "最近同步 ${formatDateTime(favoriteSync.lastSyncAtMs)}",
+                pendingText = "待同步 ${favoriteSync.pendingCount}",
+                failureText = "失败 ${favoriteSync.failureCount}",
+                running = favoriteSync.running,
+                autoSync = favoriteSync.preferences.autoSyncEnabled,
+                syncOnForeground = favoriteSync.preferences.syncOnForeground,
+                periodicSync = favoriteSync.preferences.periodicSyncEnabled,
+                wifiOnly = favoriteSync.preferences.wifiOnly,
+                propagateRemovals = favoriteSync.preferences.propagateRemovals,
+                confirmLowConfidence = favoriteSync.preferences.confirmLowConfidence
+            )
         )
         val actions = CollectionsActions(
             Runnable { listener.requestBack() },
@@ -358,7 +400,16 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             trackSectionActions,
             playlistActions,
             selectedPlaylistActions,
-            selectedPlaylistTrackActions
+            selectedPlaylistTrackActions,
+            FavoriteSyncActions(
+                onSyncNow = Runnable { favoriteSyncViewModel?.syncNow() },
+                onAutoSyncChanged = { favoriteSyncViewModel?.setAutoSync(it) },
+                onForegroundChanged = { favoriteSyncViewModel?.setSyncOnForeground(it) },
+                onPeriodicChanged = { favoriteSyncViewModel?.setPeriodicSync(it) },
+                onWifiOnlyChanged = { favoriteSyncViewModel?.setWifiOnly(it) },
+                onPropagateRemovalsChanged = { favoriteSyncViewModel?.setPropagateRemovals(it) },
+                onConfirmLowConfidenceChanged = { favoriteSyncViewModel?.setConfirmLowConfidence(it) }
+            )
         )
         viewModel.updateScreenWithActions(state, actions)
     }
@@ -439,7 +490,11 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         languageMode: String
     ) {
         for (playlist in playlistsToRender) {
-            rows.add(CollectionRowStateFactory.playlistRow(playlist, selectedPlaylistId, languageMode))
+            val actionIndex = actions.size
+            rows.add(
+                CollectionRowStateFactory.playlistRow(playlist, selectedPlaylistId, languageMode)
+                    .copy(actionIndex = actionIndex)
+            )
             actions.add(
                 PlaylistRowActions(
                     Runnable { listener.selectPlaylist(playlist.id) },
@@ -448,6 +503,78 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 )
             )
         }
+    }
+
+    private fun buildPlaylistFolders(
+        playlists: List<Playlist>,
+        rows: List<PlaylistRowUiState>,
+        playlistSources: Map<Long, StreamingProviderName>,
+        languageMode: String
+    ): List<CollectionPlaylistFolderUiState> {
+        val grouped = linkedMapOf<StreamingProviderName?, MutableList<Pair<Playlist, PlaylistRowUiState>>>()
+        for (index in playlists.indices) {
+            val playlist = playlists[index]
+            val row = rows.getOrNull(index) ?: continue
+            grouped.getOrPut(playlistSources[playlist.id]) { ArrayList() }.add(playlist to row)
+        }
+        return grouped.entries
+            .sortedBy { playlistSourceOrder(it.key) }
+            .map { (provider, entries) ->
+                val trackCount = entries.sumOf { it.first.trackCount }
+                CollectionPlaylistFolderUiState(
+                    key = provider?.wireName ?: "local",
+                    title = playlistSourceTitle(provider, languageMode),
+                    subtitle = playlistFolderSummary(entries.size, trackCount, languageMode),
+                    playlists = entries.map { it.second }
+                )
+            }
+    }
+
+    private fun playlistSourceOrder(provider: StreamingProviderName?): Int = when (provider) {
+        null -> 0
+        StreamingProviderName.NETEASE -> 10
+        StreamingProviderName.QQ_MUSIC -> 20
+        StreamingProviderName.LUOXUE -> 30
+        StreamingProviderName.KUGOU -> 40
+        StreamingProviderName.BILIBILI -> 50
+        StreamingProviderName.YOUTUBE -> 60
+        StreamingProviderName.SOUNDCLOUD -> 70
+        StreamingProviderName.SPOTIFY -> 80
+        StreamingProviderName.TIDAL -> 90
+        StreamingProviderName.M3U8 -> 100
+        StreamingProviderName.PLUGIN -> 110
+        StreamingProviderName.MOCK -> 120
+    }
+
+    private fun playlistSourceTitle(provider: StreamingProviderName?, languageMode: String): String {
+        if (provider == null) {
+            return text(languageMode, "playlist.source.local")
+        }
+        val chinese = AppLanguage.isChinese(languageMode)
+        return when (provider) {
+            StreamingProviderName.NETEASE -> if (chinese) "\u7f51\u6613\u4e91\u97f3\u4e50" else "NetEase Cloud Music"
+            StreamingProviderName.QQ_MUSIC -> if (chinese) "QQ \u97f3\u4e50" else "QQ Music"
+            StreamingProviderName.KUGOU -> if (chinese) "\u9177\u72d7\u97f3\u4e50" else "Kugou Music"
+            StreamingProviderName.BILIBILI -> "bilibili"
+            StreamingProviderName.YOUTUBE -> "YouTube"
+            StreamingProviderName.SOUNDCLOUD -> "SoundCloud"
+            StreamingProviderName.SPOTIFY -> "Spotify"
+            StreamingProviderName.TIDAL -> "TIDAL"
+            StreamingProviderName.M3U8 -> "M3U8"
+            StreamingProviderName.LUOXUE -> if (chinese) "\u6d1b\u96ea\u97f3\u6e90" else "LX Music Source"
+            StreamingProviderName.PLUGIN -> if (chinese) "\u81ea\u5b9a\u4e49\u63d2\u4ef6" else "Custom plugins"
+            StreamingProviderName.MOCK -> "Mock"
+        }
+    }
+
+    private fun playlistFolderSummary(playlistCount: Int, trackCount: Int, languageMode: String): String {
+        val playlistLabel = if (playlistCount == 1) {
+            text(languageMode, "playlist.folder.count.one")
+        } else {
+            text(languageMode, "playlist.folder.count.prefix") + playlistCount +
+                text(languageMode, "playlist.folder.count.suffix")
+        }
+        return playlistLabel + " \u00b7 " + CollectionRowStateFactory.trackCountLabel(trackCount, languageMode)
     }
 
     private fun buildSelectedPlaylistRows(
@@ -528,7 +655,8 @@ private data class CollectionsBindingInputs(
     val route: CollectionsBindingRoute,
     val library: LibraryStoreState,
     val languageMode: String,
-    val insights: CollectionsInsightSnapshot
+    val insights: CollectionsInsightSnapshot,
+    val favoriteSync: FavoriteSyncDashboard = FavoriteSyncDashboard()
 )
 
 private fun collectionsBindingRoute(state: NavigationRouteState): CollectionsBindingRoute =

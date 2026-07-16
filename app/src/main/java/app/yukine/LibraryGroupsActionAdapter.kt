@@ -8,7 +8,7 @@ import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import java.util.ArrayList
 
-internal class LibraryGroupsActionAdapter(
+internal class LibraryGroupsActionAdapter @JvmOverloads constructor(
     private val groupOpener: GroupOpener,
     private val groupSelectionClearer: GroupSelectionClearer,
     private val groupCloser: GroupCloser,
@@ -16,7 +16,8 @@ internal class LibraryGroupsActionAdapter(
     private val trackListPlayer: TrackListPlayer,
     private val groupDeleteConfirmer: GroupDeleteConfirmer,
     private val chromePublisher: ChromePublisher,
-    private val trackListPublisher: TrackListPublisher
+    private val trackListPublisher: TrackListPublisher,
+    private val artistIdentityManager: ArtistIdentityManager = ArtistIdentityManager { _, _ -> }
 ) : LibraryGroupsStateReducer.Listener {
     fun interface GroupOpener {
         fun openGroup(key: String, title: String)
@@ -40,6 +41,10 @@ internal class LibraryGroupsActionAdapter(
 
     fun interface GroupDeleteConfirmer {
         fun confirmDeleteGroup(title: String, tracks: List<Track>)
+    }
+
+    fun interface ArtistIdentityManager {
+        fun manageArtistIdentity(artistId: String, title: String)
     }
 
     fun interface ChromePublisher {
@@ -75,6 +80,10 @@ internal class LibraryGroupsActionAdapter(
 
     override fun confirmDeleteGroup(title: String, tracks: List<Track>) {
         groupDeleteConfirmer.confirmDeleteGroup(title, tracks)
+    }
+
+    override fun manageArtistIdentity(artistId: String, title: String) {
+        artistIdentityManager.manageArtistIdentity(artistId, title)
     }
 
     override fun publishLibraryGroupsChrome(

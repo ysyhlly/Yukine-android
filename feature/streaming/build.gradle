@@ -11,6 +11,7 @@ android {
 
     defaultConfig {
         minSdk 23
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -58,6 +59,7 @@ dependencies {
     androidTestImplementation libs.junit
     androidTestImplementation libs.androidx.test.junit
     androidTestImplementation libs.androidx.test.core
+    androidTestImplementation libs.androidx.test.runner
     androidTestImplementation libs.kotlinx.coroutines.test
 
 }

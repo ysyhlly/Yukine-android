@@ -10,6 +10,7 @@ import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.LibraryUiState
+import app.yukine.ui.LibraryPlaylistFolderUiState
 
 data class LibraryTrackListDestinationState @JvmOverloads constructor(
     val title: String = "",
@@ -30,5 +31,6 @@ data class LibraryGroupsDestinationState @JvmOverloads constructor(
     val actions: List<LibraryGroupActions> = emptyList(),
     val emptyText: String = "",
     val modeActions: List<TrackListModeAction> = emptyList(),
-    val libraryUi: LibraryUiState = LibraryUiState()
+    val libraryUi: LibraryUiState = LibraryUiState(),
+    val playlistFolders: List<LibraryPlaylistFolderUiState> = emptyList()
 )

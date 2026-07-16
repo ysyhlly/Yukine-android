@@ -20,10 +20,6 @@ internal object LibraryModule {
 
     @Provides
     @ActivityScoped
-    fun provideArtistInfoRepository(): ArtistInfoRepository = ArtistInfoRepository()
-
-    @Provides
-    @ActivityScoped
     fun provideNetworkActionUseCases(repository: MusicLibraryRepository): NetworkActionUseCases {
         val webDavSourceOperations = MusicLibraryWebDavSourceOperations(repository)
         val networkLibraryOperations = MusicLibraryNetworkLibraryOperations(repository)

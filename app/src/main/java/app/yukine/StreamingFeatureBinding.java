@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.List;
 
 import app.yukine.model.Track;
+import app.yukine.data.MusicLibraryRepository;
 import app.yukine.playback.PlaybackStateSnapshot;
 import app.yukine.streaming.LuoxueTrackMetadataResolver;
 import app.yukine.streaming.StreamingProviderName;
@@ -41,6 +42,7 @@ final class StreamingFeatureBinding {
     private final StreamingRecommendationViewModel recommendationViewModel;
     private final StreamingPlaybackQualityPolicy qualityPolicy;
     private final StreamingProviderSettingsOwner providerSettingsOwner;
+    private final MusicLibraryRepository musicLibraryRepository;
 
     private PlaybackFeatureBinding playback;
     private NavigationFeatureBinding navigation;
@@ -76,7 +78,8 @@ final class StreamingFeatureBinding {
             ResolveStreamingPlaybackUseCase resolvePlaybackUseCase,
             StreamingTrackMatchUseCase trackMatchUseCase,
             StreamingLocalPlaylistOperations localPlaylistOperations,
-            LuoxueTrackMetadataResolver luoxueTrackMetadataResolver
+            LuoxueTrackMetadataResolver luoxueTrackMetadataResolver,
+            MusicLibraryRepository musicLibraryRepository
     ) {
         this.activity = activity;
         this.mainHandler = mainHandler;
@@ -89,6 +92,7 @@ final class StreamingFeatureBinding {
         this.trackMatchUseCase = trackMatchUseCase;
         this.localPlaylistOperations = localPlaylistOperations;
         this.luoxueTrackMetadataResolver = luoxueTrackMetadataResolver;
+        this.musicLibraryRepository = musicLibraryRepository;
         this.viewModel = viewModels.getStreamingViewModel();
         this.recommendationViewModel = viewModels.getStreamingRecommendationViewModel();
         this.viewModel.bindRepositorySource(streamingRepositorySource);
@@ -107,6 +111,12 @@ final class StreamingFeatureBinding {
 
     StreamingViewModel viewModel() {
         return viewModel;
+    }
+
+    StreamingProviderName linkedPlaylistProvider(long localPlaylistId) {
+        app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist linked =
+                localPlaylistOperations.linkedPlaylist(localPlaylistId);
+        return linked == null ? null : linked.getProvider();
     }
 
     StreamingPlaybackQuality qualityPolicy() {
@@ -205,6 +215,11 @@ final class StreamingFeatureBinding {
                         snapshot -> heartbeatRecommendationController.maybeAppendHeartbeatRecommendations(snapshot),
                         playback::applyActionResult,
                         statusMessages::setStatus
+                ),
+                new AsyncCanonicalPlaybackSourceResolver(
+                        musicLibraryRepository,
+                        executors,
+                        mainHandler
                 )
         );
         playback.bindActions(

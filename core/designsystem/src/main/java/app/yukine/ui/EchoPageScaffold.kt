@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -248,16 +249,28 @@ private fun AsyncPageBackgroundImage(
     }
 }
 
+/** Full bottom overlay height supplied by the app scaffold, including its system inset. */
+val LocalEchoPageBottomChromeInset = staticCompositionLocalOf { 0.dp }
+
 @Composable
 fun echoPagePadding(
     top: Dp = EchoPageDefaults.topPadding,
-    bottom: Dp = EchoPageDefaults.bottomPadding
-): PaddingValues = PaddingValues(
-    start = EchoPageDefaults.horizontalPadding,
-    top = top,
-    end = EchoPageDefaults.horizontalPadding,
-    bottom = bottom + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-)
+    bottom: Dp = EchoPageDefaults.bottomPadding,
+    includeBottomChrome: Boolean = false
+): PaddingValues {
+    val systemInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomInset = if (includeBottomChrome) {
+        maxOf(systemInset, LocalEchoPageBottomChromeInset.current)
+    } else {
+        systemInset
+    }
+    return PaddingValues(
+        start = EchoPageDefaults.horizontalPadding,
+        top = top,
+        end = EchoPageDefaults.horizontalPadding,
+        bottom = bottom + bottomInset
+    )
+}
 
 @Composable
 fun echoPageBottomPadding(extra: Dp = 0.dp): Dp =

@@ -37,7 +37,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -103,8 +102,7 @@ internal fun DockedNowBarCapsule(
     onDockRight: () -> Unit,
     onDockTop: () -> Unit,
     onRestoreBottom: () -> Unit,
-    onCollapseTopCloud: () -> Unit,
-    onPreviewTopCloudFold: (Float?) -> Unit,
+    onCompactTopCloud: () -> Unit,
     onPlayPause: Runnable,
     interactive: Boolean,
     modifier: Modifier = Modifier
@@ -135,8 +133,7 @@ internal fun DockedNowBarCapsule(
                 onDockRight = onDockRight,
                 onDockTop = onDockTop,
                 onRestoreBottom = onRestoreBottom,
-                onCollapseTopCloud = onCollapseTopCloud,
-                onPreviewTopCloudFold = onPreviewTopCloudFold,
+                onCompactTopCloud = onCompactTopCloud,
                 onTap = onExpand
             )
             .semantics {
@@ -224,12 +221,23 @@ internal fun DockedNowBarCapsule(
             }
             val playbackIcon = if (state.progress.playing) EchoIconKind.Pause else EchoIconKind.Play
             if (interactive) {
-                IconButton(
-                    icon = playbackIcon,
-                    desc = if (state.progress.playing) state.labels.pause else state.labels.play,
-                    accent = true
+                if (dockPosition == NowBarDockPosition.TopCloud ||
+                    dockPosition == NowBarDockPosition.TopCloudExpanded
                 ) {
-                    onPlayPause.run()
+                    TopCloudPlaybackButton(
+                        icon = playbackIcon,
+                        desc = if (state.progress.playing) state.labels.pause else state.labels.play,
+                        expanded = expandedTopCloud,
+                        onClick = onPlayPause::run
+                    )
+                } else {
+                    IconButton(
+                        icon = playbackIcon,
+                        desc = if (state.progress.playing) state.labels.pause else state.labels.play,
+                        accent = true
+                    ) {
+                        onPlayPause.run()
+                    }
                 }
             } else {
                 DockedPlaybackIndicator(playbackIcon)
@@ -239,53 +247,42 @@ internal fun DockedNowBarCapsule(
 }
 
 @Composable
-internal fun CollapsedTopCloudHandle(
-    state: NowBarState,
-    onShowTopCloud: () -> Unit,
-    onRestoreBottom: () -> Unit,
-    onPreviewTopCloudFold: (Float?) -> Unit,
-    interactive: Boolean,
-    modifier: Modifier = Modifier
+private fun TopCloudPlaybackButton(
+    icon: EchoIconKind,
+    desc: String,
+    expanded: Boolean,
+    onClick: () -> Unit
 ) {
     val p = EchoTheme.colors()
-    val interaction = if (interactive) {
-        Modifier
-            .nowBarDockGesture(
-                enabled = true,
-                dockPosition = NowBarDockPosition.TopCloudCollapsed,
-                onDockLeft = {},
-                onDockRight = {},
-                onRestoreBottom = onRestoreBottom,
-                onShowTopCloud = onShowTopCloud,
-                onPreviewTopCloudFold = onPreviewTopCloudFold,
-                onTap = onShowTopCloud
-            )
-            .semantics {
-                contentDescription = state.labels.showTopCloud.ifBlank { "显示流体云" }
-                onClick(state.labels.showTopCloud.ifBlank { "显示流体云" }) {
-                    onShowTopCloud()
-                    true
-                }
-                customActions = listOf(
-                    CustomAccessibilityAction(
-                        state.labels.restoreBottom.ifBlank { "恢复到底部" }
-                    ) {
-                        onRestoreBottom()
-                        true
-                    }
-                )
-            }
+    val interaction = remember { MutableInteractionSource() }
+    val controlSize = if (expanded) {
+        EchoMobileLayoutMetrics.nowBarTopCloudExpandedControlSize
     } else {
-        Modifier
+        EchoMobileLayoutMetrics.nowBarTopCloudControlSize
     }
-    Box(
-        modifier = modifier.then(interaction)
+    val iconSize = if (expanded) {
+        EchoMobileLayoutMetrics.nowBarTopCloudExpandedControlIconSize
+    } else {
+        EchoMobileLayoutMetrics.nowBarTopCloudControlIconSize
+    }
+    Surface(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = Modifier
+            .size(controlSize)
+            .echoPressScale(interaction)
+            .semantics { contentDescription = desc },
+        shape = CircleShape,
+        color = p.accent
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawRoundRect(
-                color = p.accent.copy(alpha = 0.58f),
-                cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
-            )
+        Box(contentAlignment = Alignment.Center) {
+            Crossfade(
+                targetState = icon,
+                animationSpec = tween(EchoMotion.FAST_CROSSFADE_MS),
+                label = "topCloudPlaybackIcon"
+            ) { current ->
+                EchoIcon(current, Modifier.size(iconSize), p.onAccent)
+            }
         }
     }
 }

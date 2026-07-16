@@ -64,8 +64,11 @@ final class PlaybackServiceRuntime
             new PlaybackTaskScheduler("YukineVisualizationScheduler", Process.THREAD_PRIORITY_BACKGROUND);
     private final RealtimeBassDetector realtimeBassDetector = new RealtimeBassDetector();
     private final YukineRealtimeBassAudioProcessor realtimeBassAudioProcessor =
-            new YukineRealtimeBassAudioProcessor(realtimeBassDetector);
-    private final PlaybackStreamingDiagnostics streamingDiagnostics = new PlaybackStreamingDiagnostics();
+            new YukineRealtimeBassAudioProcessor(
+                    realtimeBassDetector,
+                    () -> mainHandler.post(this::onFirstPcmAudioOutput)
+            );
+    private final PlaybackStreamingDiagnostics streamingDiagnostics = PlaybackStreamingDiagnostics.process();
 
     private ExoPlayer player;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
@@ -171,6 +174,7 @@ final class PlaybackServiceRuntime
     private PlaybackVisualizationAnalyzer playbackVisualizationAnalyzer;
     private PlaybackVisualizationCacheStateOwner playbackVisualizationCacheStateOwner;
     private PlaybackVisualizationCacheManager playbackVisualizationCacheManager;
+    private PlaybackCachedFingerprintOwner playbackCachedFingerprintOwner;
     private PlaybackNotificationArtworkManager playbackNotificationArtworkManager;
     private PlaybackPrecacheStateOwner playbackPrecacheStateOwner;
     private PlaybackPrecacheManager playbackPrecacheManager;
@@ -206,6 +210,7 @@ final class PlaybackServiceRuntime
     private PlaybackProgressUpdateCommandOwner playbackProgressUpdateCommandOwner;
     private PlaybackProgressUpdateManager playbackProgressUpdateManager;
     private final MusicLibraryRepository repository;
+    private final PlaybackSourceHealthFeedbackOwner playbackSourceHealthFeedbackOwner;
     private final StreamingPlaybackHeaderStore streamingPlaybackHeaderStore;
     private final StreamingRepositorySource streamingRepositorySource;
     private final PlaybackPersistenceOwner persistenceOwner;
@@ -229,6 +234,10 @@ final class PlaybackServiceRuntime
     ) {
         this.service = service;
         this.repository = repository;
+        playbackSourceHealthFeedbackOwner = new PlaybackSourceHealthFeedbackOwner(
+                playbackTaskScheduler,
+                repository::recordSuccessfulPlayback
+        );
         this.streamingPlaybackHeaderStore = streamingPlaybackHeaderStore;
         this.streamingRepositorySource = streamingRepositorySource;
         this.persistenceOwner = persistenceOwner;
@@ -241,6 +250,7 @@ final class PlaybackServiceRuntime
                 return;
             }
             if (playbackState == Player.STATE_READY) {
+                streamingDiagnostics.recordPlayerReady(playbackQueueStateOwner.currentTrack());
                 playbackCurrentTrackPreparationRuntimeOwner.markPlaybackReady();
                 if (playbackErrorRecoveryManager != null) {
                     playbackErrorRecoveryManager.onPlaybackReady();
@@ -313,6 +323,15 @@ final class PlaybackServiceRuntime
             publishState();
         }
     };
+
+    private void onFirstPcmAudioOutput() {
+        if (destroyed) {
+            return;
+        }
+        Track track = playbackQueueStateOwner.currentTrack();
+        streamingDiagnostics.recordFirstAudioOutput(track);
+        playbackSourceHealthFeedbackOwner.recordFirstAudioOutput(track);
+    }
 
     @UnstableApi
     void create() {
@@ -624,21 +643,37 @@ final class PlaybackServiceRuntime
                 playbackVisualizationCacheStateOwner,
                 mediaSourceProvider
         );
+        playbackCachedFingerprintOwner = new PlaybackCachedFingerprintOwner(
+                service,
+                repository,
+                mediaSourceProvider,
+                mainHandler,
+                playbackQueueStateOwner::currentTrack,
+                task -> visualizationTaskScheduler.schedule(
+                        PlaybackTaskScheduler.Priority.NEXT_TRACK_PRECACHE,
+                        task
+                )
+        );
         playbackWarmupCoordinator = new PlaybackWarmupCoordinator(
                 PlaybackPrecacheManager.precacheTrackActionFromSupplier(() -> playbackPrecacheManager),
                 PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(
                         () -> playbackVisualizationCacheManager
-                )
+                ),
+                playbackCachedFingerprintOwner::schedule
         );
         playbackShutdownServiceResourcesOwner = new PlaybackShutdownServiceResourcesOwner(
                 PlaybackShutdownServiceResourcesOwner.releaseFrom(
                         () -> playbackNoisyReceiverManager,
                         PlaybackNoisyReceiverManager::unregister
                 ),
-                PlaybackShutdownServiceResourcesOwner.releaseFrom(
-                        () -> playbackWarmupCoordinator,
-                        PlaybackWarmupCoordinator::release
-                ),
+                () -> {
+                    if (playbackWarmupCoordinator != null) {
+                        playbackWarmupCoordinator.release();
+                    }
+                    if (playbackCachedFingerprintOwner != null) {
+                        playbackCachedFingerprintOwner.release();
+                    }
+                },
                 PlaybackShutdownServiceResourcesOwner.releaseFrom(
                         () -> playbackVisualizationAnalyzer,
                         PlaybackVisualizationAnalyzer::release
@@ -736,6 +771,7 @@ final class PlaybackServiceRuntime
                 playbackNotificationArtworkSource,
                 PlaybackStatePublisherWidgetOwner.fromContextProvider(() -> service)
         );
+        playbackStatePublisher.registerListener(IdentityEnhancementPlaybackGate::update);
         playbackBufferingDiagnosticsRecorderOwner =
                 PlaybackBufferingDiagnosticsRecorderOwner.fromStreamingDiagnosticsProvider(
                         () -> streamingDiagnostics
@@ -868,6 +904,7 @@ final class PlaybackServiceRuntime
 
     void destroy() {
         destroyed = true;
+        IdentityEnhancementPlaybackGate.clear();
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
@@ -1339,6 +1376,7 @@ final class PlaybackServiceRuntime
         applyPlaybackModeToPlayer();
         player.setPlayWhenReady(playWhenReady);
         try {
+            streamingDiagnostics.recordPrepareStarted(track);
             player.prepare();
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);
@@ -1383,6 +1421,7 @@ final class PlaybackServiceRuntime
         player.setMediaSource(mediaSource);
         player.setPlayWhenReady(playWhenReady);
         try {
+            streamingDiagnostics.recordPrepareStarted(track);
             player.prepare();
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);

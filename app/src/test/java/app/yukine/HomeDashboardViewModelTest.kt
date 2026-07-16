@@ -130,7 +130,6 @@ class HomeDashboardViewModelTest {
             shuffledTrackIds = tracks.map { it.id }
         }
         override fun openStreaming() = Unit
-        override fun openCollections() = Unit
         override fun openSearch() = Unit
         override fun playDailyRecommendations() = Unit
         override fun playHeartbeatRecommendations() = Unit

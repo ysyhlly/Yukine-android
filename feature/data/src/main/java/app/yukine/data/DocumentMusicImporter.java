@@ -17,6 +17,7 @@ import java.util.Locale;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
 import app.yukine.model.TrackIdentity;
 
 public final class DocumentMusicImporter {
@@ -95,6 +96,7 @@ public final class DocumentMusicImporter {
         String album = "导入音频";
         long durationMs = 0L;
         byte[] embeddedArtwork = null;
+        TrackIdentityTags identityTags = TrackIdentityTags.EMPTY;
 
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
@@ -103,6 +105,7 @@ public final class DocumentMusicImporter {
             String platformArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
             String platformAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
             PortableAudioMetadataReader.Metadata portable = portableMetadataReader.read(uri, displayName);
+            identityTags = portable.identityTags;
             title = firstText(platformTitle, firstText(portable.title, title));
             artist = firstText(platformArtist, firstText(portable.artist, artist));
             album = firstText(platformAlbum, firstText(portable.album, album));
@@ -130,7 +133,15 @@ public final class DocumentMusicImporter {
                 uri,
                 "document:" + uri.toString(),
                 0L,
-                EmbeddedArtwork.uriFor(uri, embeddedArtwork)
+                EmbeddedArtwork.uriFor(uri, embeddedArtwork),
+                "",
+                0,
+                0,
+                0,
+                0,
+                0.0f,
+                0.0f,
+                identityTags
         );
         return audioSpecParser.enrich(track);
     }

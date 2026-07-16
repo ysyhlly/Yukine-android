@@ -1,15 +1,25 @@
 package app.yukine.data;
 
+import android.net.Uri;
+import android.util.Log;
+
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 
-import app.yukine.data.room.FavoriteEntity;
+import app.yukine.data.room.RecordingFavoriteEntity;
 import app.yukine.data.room.HistoryDao;
 import app.yukine.data.room.LibraryDao;
 import app.yukine.data.room.LibraryExclusionEntity;
@@ -21,10 +31,17 @@ import app.yukine.data.room.SettingEntity;
 import app.yukine.data.room.SettingsDao;
 import app.yukine.data.room.StreamingTrackMatchDao;
 import app.yukine.data.room.StreamingTrackMatchEntity;
+import app.yukine.data.room.IdentityCandidateEntity;
+import app.yukine.data.room.MusicIdentityDao;
+import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.TrackStreamingMatchRow;
 import app.yukine.data.room.TrackEntity;
 import app.yukine.data.room.TrackEntityMapper;
 import app.yukine.data.room.YukineDatabase;
+import app.yukine.model.PlaybackTrackSourceOverlay;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
+import org.json.JSONObject;
 
 /**
  * Owns the local library and every cross-table invariant caused by replacing or deleting tracks.
@@ -32,11 +49,22 @@ import app.yukine.model.Track;
  * drift between import sources.
  */
 public final class LibraryRepository {
+    private static final String TAG = "LibraryRepository";
+    private static final String STRUCTURED_MATCH_PREFIX = "__echo_source_match_v";
+    private static final String STORED_MATCH_ITEM_ID = "__stored_match__";
     private static final int SQLITE_IN_BATCH_SIZE = 500;
     private static final long LONG_UNPLAYED_WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
     private static final String QUEUE_INDEX = "playback_queue_index";
     private static final String POSITION_TRACK_ID = "playback_position_track_id";
+    private static final Set<String> FAVORITE_SYNC_STATES = Set.of(
+            "LOCAL_ONLY",
+            "PENDING",
+            "SYNCED",
+            "RETRY",
+            "NEEDS_CONFIRMATION"
+    );
     private static final String POSITION_MS = "playback_position_ms";
+    private static final int PLAYBACK_SOURCE_FAILURE_THRESHOLD = 3;
 
     private final YukineDatabase database;
     private final LibraryDao libraryDao;
@@ -45,7 +73,12 @@ public final class LibraryRepository {
     private final PlaybackPersistenceDao playbackDao;
     private final SettingsDao settingsDao;
     private final StreamingTrackMatchDao streamingMatchDao;
+    private final MusicIdentityDao musicIdentityDao;
+    private final ProviderSourceIdentityWriter providerSourceIdentityWriter;
     private final PlaybackPersistenceRepository playbackPersistence;
+    private final OfflineMusicIdentityStore musicIdentityStore;
+    private final AtomicLong legacyMatchComparisons = new AtomicLong();
+    private final AtomicLong legacyMatchDivergences = new AtomicLong();
 
     public LibraryRepository(YukineDatabase database) {
         this.database = database;
@@ -55,11 +88,238 @@ public final class LibraryRepository {
         playbackDao = database.playbackPersistenceDao();
         settingsDao = database.settingsDao();
         streamingMatchDao = database.streamingTrackMatchDao();
+        musicIdentityDao = database.musicIdentityDao();
+        providerSourceIdentityWriter = new ProviderSourceIdentityWriter(musicIdentityDao);
         playbackPersistence = new PlaybackPersistenceRepository(database);
+        musicIdentityStore = new OfflineMusicIdentityStore(database);
     }
 
     public List<Track> loadTracks() {
         return tracks(libraryDao.loadTracks());
+    }
+
+    public Track loadTrack(long trackId) {
+        TrackEntity entity = libraryDao.loadTrack(trackId);
+        return entity == null ? null : TrackEntityMapper.track(entity);
+    }
+
+    /** Bounded cold-path lookup used by background audio verification. */
+    public List<Track> loadTracksByIds(List<Long> trackIds) {
+        if (trackIds == null || trackIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return tracks(libraryDao.loadTracksByIds(trackIds));
+    }
+
+    /**
+     * Resolves the persisted hot-path source for a logical recording without network work.
+     *
+     * The caller must run this off the main thread. A missing/stale source degrades to the
+     * requested track, so playback is never blocked by canonical identity maintenance.
+     */
+    public Track loadActivePlaybackSource(Track requested) {
+        if (requested == null) {
+            return null;
+        }
+        long recordingId = musicIdentityStore.recordingIdForTrack(requested.id);
+        if (recordingId <= 0L) {
+            return requested;
+        }
+        app.yukine.data.room.MusicIdentityDao identityDao = database.musicIdentityDao();
+        app.yukine.data.room.TrackSourceMappingEntity source = identityDao.activeSource(recordingId);
+        if (source == null || !source.getPlayable() || !"CONFIRMED".equals(source.getMatchStatus())) {
+            identityDao.refreshActiveSource(recordingId);
+            source = identityDao.activeSource(recordingId);
+        }
+        if (source == null) {
+            return requested;
+        }
+        if (source.getLocalTrackId() == null) {
+            Track platformSource = platformPlaybackTrack(requested, source);
+            return platformSource == null ? requested : platformSource;
+        }
+        TrackEntity entity = libraryDao.loadTrack(source.getLocalTrackId());
+        if (entity != null) {
+            return PlaybackTrackSourceOverlay.merge(requested, TrackEntityMapper.track(entity));
+        }
+        if (source.getSourceId() != null) {
+            identityDao.markSourceUnavailable(source.getSourceId(), System.currentTimeMillis());
+            identityDao.refreshActiveSource(recordingId);
+            app.yukine.data.room.TrackSourceMappingEntity fallback = identityDao.activeSource(recordingId);
+            if (fallback != null) {
+                if (fallback.getLocalTrackId() != null) {
+                    TrackEntity fallbackEntity = libraryDao.loadTrack(fallback.getLocalTrackId());
+                    if (fallbackEntity != null) {
+                        return PlaybackTrackSourceOverlay.merge(
+                                requested,
+                                TrackEntityMapper.track(fallbackEntity)
+                        );
+                    }
+                } else {
+                    Track platformFallback = platformPlaybackTrack(requested, fallback);
+                    if (platformFallback != null) {
+                        return platformFallback;
+                    }
+                }
+            }
+        }
+        return requested;
+    }
+
+    private static Track platformPlaybackTrack(Track logical, TrackSourceMappingEntity source) {
+        String provider = source.getProvider() == null
+                ? ""
+                : source.getProvider().trim().toLowerCase(java.util.Locale.ROOT);
+        String providerTrackId = source.getProviderTrackId() == null
+                ? ""
+                : source.getProviderTrackId().trim();
+        if (!("netease".equals(provider) || "qqmusic".equals(provider) || "luoxue".equals(provider))
+                || providerTrackId.isEmpty()) {
+            return null;
+        }
+        String dataPath = source.getDataPath() == null ? "" : source.getDataPath().trim();
+        if (!dataPath.startsWith("streaming:" + provider + ":")) {
+            dataPath = "streaming:" + provider + ":" + providerTrackId;
+        }
+        return new Track(
+                logical.id,
+                logical.title,
+                logical.artist,
+                logical.album,
+                logical.durationMs > 0L ? logical.durationMs : source.getDurationMs(),
+                Uri.EMPTY,
+                dataPath,
+                logical.albumId,
+                logical.albumArtUri,
+                firstNonBlank(source.getCodec(), logical.codec),
+                source.getBitrateKbps() > 0 ? source.getBitrateKbps() : logical.bitrateKbps,
+                logical.sampleRateHz,
+                logical.bitsPerSample,
+                logical.channelCount,
+                logical.replayGainTrackDb,
+                logical.replayGainAlbumDb,
+                logical.identityTags
+        );
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.trim().isEmpty() ? fallback : preferred;
+    }
+
+    /**
+     * Records a source that reached decoded audio output and promotes it only when its recording
+     * match is already confirmed. The caller must run this off the main/audio thread.
+     */
+    public boolean recordSuccessfulPlayback(
+            Track track,
+            String provider,
+            String providerTrackId
+    ) {
+        if (track == null) {
+            return false;
+        }
+        AtomicBoolean recorded = new AtomicBoolean(false);
+        database.runInTransaction(() -> {
+            TrackSourceMappingEntity source = null;
+            String cleanProvider = provider == null ? "" : provider.trim();
+            String cleanProviderTrackId = providerTrackId == null ? "" : providerTrackId.trim();
+            if (!cleanProvider.isEmpty() && !cleanProviderTrackId.isEmpty()) {
+                source = musicIdentityDao.source(cleanProvider, cleanProviderTrackId);
+            }
+            if (source == null && track.id > 0L) {
+                source = musicIdentityDao.sourceForLocalTrack(track.id);
+            }
+            if (source == null && track.dataPath != null && !track.dataPath.trim().isEmpty()) {
+                source = musicIdentityDao.sourceForDataPath(track.dataPath);
+            }
+            if (source == null || source.getSourceId() == null) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            int updated = musicIdentityDao.markSourceVerifiedSuccess(
+                    source.getSourceId(),
+                    now,
+                    track.codec,
+                    track.bitrateKbps
+            );
+            if (updated <= 0) {
+                return;
+            }
+            if ("CONFIRMED".equals(source.getMatchStatus())) {
+                musicIdentityDao.setActiveSource(source.getRecordingId(), source.getSourceId());
+            }
+            recorded.set(true);
+        });
+        return recorded.get();
+    }
+
+    /**
+     * Records a provider URL-resolution failure without treating cancellation, auth, rate limits
+     * or timeouts as proof that the source itself is invalid.
+     */
+    public boolean recordPlaybackResolutionFailure(
+            String provider,
+            String providerTrackId,
+            String errorCode,
+            boolean timedOut
+    ) {
+        String cleanProvider = provider == null ? "" : provider.trim();
+        String cleanProviderTrackId = providerTrackId == null ? "" : providerTrackId.trim();
+        if (cleanProvider.isEmpty() || cleanProviderTrackId.isEmpty()) {
+            return false;
+        }
+        AtomicBoolean recorded = new AtomicBoolean(false);
+        database.runInTransaction(() -> {
+            TrackSourceMappingEntity source = musicIdentityDao.source(
+                    cleanProvider,
+                    cleanProviderTrackId
+            );
+            if (source == null || source.getSourceId() == null) {
+                return;
+            }
+            String errorReason = boundedFailureReason(errorCode);
+            String reason = timedOut ? errorReason + "_TIMEOUT" : errorReason;
+            boolean resetCount = !reason.equals(source.getFailureReason());
+            int nextFailureCount = resetCount ? 1 : source.getFailureCount() + 1;
+            boolean disableSource = shouldDisablePlaybackSource(
+                    errorReason,
+                    timedOut,
+                    nextFailureCount
+            );
+            int updated = musicIdentityDao.recordSourcePlaybackFailure(
+                    source.getSourceId(),
+                    System.currentTimeMillis(),
+                    reason,
+                    resetCount,
+                    disableSource
+            );
+            if (updated > 0 && disableSource) {
+                musicIdentityDao.refreshActiveSource(source.getRecordingId());
+            }
+            recorded.set(updated > 0);
+        });
+        return recorded.get();
+    }
+
+    private static boolean shouldDisablePlaybackSource(
+            String errorCode,
+            boolean timedOut,
+            int failureCount
+    ) {
+        if ("UNSUPPORTED_OPERATION".equals(errorCode)) {
+            return true;
+        }
+        return !timedOut
+                && "SOURCE_UNAVAILABLE".equals(errorCode)
+                && failureCount >= PLAYBACK_SOURCE_FAILURE_THRESHOLD;
+    }
+
+    private static String boundedFailureReason(String value) {
+        String clean = value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
+        if (clean.isEmpty()) {
+            return "UNKNOWN";
+        }
+        return clean.substring(0, Math.min(clean.length(), 48));
     }
 
     public List<Track> loadRecentlyAdded(int limit) {
@@ -90,7 +350,8 @@ public final class LibraryRepository {
         }
         database.runInTransaction(() -> {
             Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
-            libraryDao.upsertTracks(trackEntities(values, exclusions, System.currentTimeMillis()));
+            long now = System.currentTimeMillis();
+            upsertTrackRows(trackEntities(values, exclusions, now), identityTags(values), now);
         });
     }
 
@@ -102,14 +363,16 @@ public final class LibraryRepository {
             List<Track> queueBefore = playbackPersistence.loadQueue();
             int queueIndexBefore = playbackPersistence.loadQueueIndex();
             Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
+            List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
+            long now = System.currentTimeMillis();
             ArrayList<TrackEntity> replacements = trackEntities(
-                    values == null ? Collections.emptyList() : values,
+                    replacementTracks,
                     exclusions,
-                    System.currentTimeMillis()
+                    now
             );
             deleteTrackRows(new ArrayList<>(removedIds));
             if (!replacements.isEmpty()) {
-                libraryDao.upsertTracks(replacements);
+                upsertTrackRows(replacements, identityTags(replacementTracks), now);
                 for (TrackEntity replacement : replacements) {
                     if (replacement.getId() != null) {
                         removedIds.remove(replacement.getId());
@@ -121,6 +384,7 @@ public final class LibraryRepository {
                     queueBefore,
                     queueIndexBefore
             );
+            musicIdentityStore.pruneMissingTracks();
         });
     }
 
@@ -130,27 +394,54 @@ public final class LibraryRepository {
             List<Long> ids = libraryDao.loadTrackIdsByDataPathPattern(pattern);
             removed.set(deleteTrackIdsInCurrentTransaction(ids));
             if (replacements != null && !replacements.isEmpty()) {
-                libraryDao.upsertTracks(trackEntities(
+                long now = System.currentTimeMillis();
+                upsertTrackRows(trackEntities(
                         replacements,
                         Collections.emptySet(),
-                        System.currentTimeMillis()
-                ));
+                        now
+                ), identityTags(replacements), now);
             }
+            musicIdentityStore.pruneMissingTracks();
+        });
+        return removed.get();
+    }
+
+    public int applyTrackDelta(List<Long> removedIds, List<Track> upserts) {
+        AtomicInteger removed = new AtomicInteger();
+        database.runInTransaction(() -> {
+            removed.set(deleteTrackIdsInCurrentTransaction(
+                    removedIds == null ? Collections.emptyList() : removedIds
+            ));
+            if (upserts != null && !upserts.isEmpty()) {
+                long now = System.currentTimeMillis();
+                upsertTrackRows(trackEntities(
+                        upserts,
+                        Collections.emptySet(),
+                        now
+                ), identityTags(upserts), now);
+            }
+            musicIdentityStore.pruneMissingTracks();
         });
         return removed.get();
     }
 
     public int deleteTracksByDataPathPattern(String pattern) {
         AtomicInteger removed = new AtomicInteger();
-        database.runInTransaction(() -> removed.set(deleteTrackIdsInCurrentTransaction(
-                libraryDao.loadTrackIdsByDataPathPattern(pattern)
-        )));
+        database.runInTransaction(() -> {
+            removed.set(deleteTrackIdsInCurrentTransaction(
+                    libraryDao.loadTrackIdsByDataPathPattern(pattern)
+            ));
+            musicIdentityStore.pruneMissingTracks();
+        });
         return removed.get();
     }
 
     public int deleteTrack(long trackId) {
         AtomicInteger removed = new AtomicInteger();
-        database.runInTransaction(() -> removed.set(deleteTrackIdsInCurrentTransaction(List.of(trackId))));
+        database.runInTransaction(() -> {
+            removed.set(deleteTrackIdsInCurrentTransaction(List.of(trackId)));
+            musicIdentityStore.pruneMissingTracks();
+        });
         return removed.get();
     }
 
@@ -176,6 +467,7 @@ public final class LibraryRepository {
                 ids.add(track.id);
             }
             removed.set(deleteTrackIdsInCurrentTransaction(ids));
+            musicIdentityStore.pruneMissingTracks();
         });
         return removed.get();
     }
@@ -211,32 +503,48 @@ public final class LibraryRepository {
         database.runInTransaction(() -> {
             long now = System.currentTimeMillis();
             for (Track track : values) {
+                boolean hasIdentityTags = track != null
+                        && track.identityTags != null
+                        && !track.identityTags.isEmpty();
                 if (track == null || (!track.hasAudioSpec()
                         && Math.abs(track.replayGainTrackDb) <= 0.001f
-                        && Math.abs(track.replayGainAlbumDb) <= 0.001f)) {
+                        && Math.abs(track.replayGainAlbumDb) <= 0.001f
+                        && !hasIdentityTags)) {
                     continue;
                 }
-                updated.addAndGet(libraryDao.updateAudioSpecs(
-                        track.id,
-                        track.codec,
-                        track.bitrateKbps,
-                        track.sampleRateHz,
-                        track.bitsPerSample,
-                        track.channelCount,
-                        track.replayGainTrackDb,
-                        track.replayGainAlbumDb,
-                        now
-                ));
-                playbackDao.updateAudioSpecs(
-                        track.id,
-                        track.codec,
-                        track.bitrateKbps,
-                        track.sampleRateHz,
-                        track.bitsPerSample,
-                        track.channelCount,
-                        track.replayGainTrackDb,
-                        track.replayGainAlbumDb
-                );
+                if (track.hasAudioSpec()
+                        || Math.abs(track.replayGainTrackDb) > 0.001f
+                        || Math.abs(track.replayGainAlbumDb) > 0.001f) {
+                    updated.addAndGet(libraryDao.updateAudioSpecs(
+                            track.id,
+                            track.codec,
+                            track.bitrateKbps,
+                            track.sampleRateHz,
+                            track.bitsPerSample,
+                            track.channelCount,
+                            track.replayGainTrackDb,
+                            track.replayGainAlbumDb,
+                            now
+                    ));
+                    playbackDao.updateAudioSpecs(
+                            track.id,
+                            track.codec,
+                            track.bitrateKbps,
+                            track.sampleRateHz,
+                            track.bitsPerSample,
+                            track.channelCount,
+                            track.replayGainTrackDb,
+                            track.replayGainAlbumDb
+                    );
+                }
+                if (hasIdentityTags) {
+                    TrackEntity identityTrack = TrackEntityMapper.entity(track, now);
+                    musicIdentityStore.ensureTracks(
+                            List.of(identityTrack),
+                            identityTags(List.of(track)),
+                            now
+                    );
+                }
             }
         });
         return updated.get();
@@ -247,23 +555,124 @@ public final class LibraryRepository {
     }
 
     public void setFavorite(long trackId, boolean favorite) {
-        if (favorite) {
-            libraryDao.putFavorite(new FavoriteEntity(trackId, System.currentTimeMillis()));
-        } else {
-            libraryDao.deleteFavorite(trackId);
-        }
+        database.runInTransaction(() -> {
+            long now = System.currentTimeMillis();
+            long recordingId = musicIdentityStore.recordingIdForTrack(trackId);
+            if (recordingId <= 0L) {
+                TrackEntity track = libraryDao.loadTrack(trackId);
+                if (track != null) {
+                    musicIdentityStore.ensureTracks(List.of(track), Collections.emptyMap(), now);
+                    recordingId = musicIdentityStore.recordingIdForTrack(trackId);
+                }
+            }
+            if (recordingId <= 0L) {
+                return;
+            }
+            if (favorite) {
+                RecordingFavoriteEntity existing = libraryDao.recordingFavorite(recordingId);
+                libraryDao.putRecordingFavorite(new RecordingFavoriteEntity(
+                        recordingId,
+                        existing == null ? now : existing.getCreatedAt(),
+                        existing == null ? "LOCAL_ONLY" : existing.getSyncState()
+                ));
+            } else {
+                libraryDao.deleteRecordingFavorite(recordingId);
+            }
+        });
     }
 
     public boolean isFavorite(long trackId) {
-        return libraryDao.favoriteCount(trackId) > 0;
+        return libraryDao.recordingFavoriteCountForTrack(trackId) > 0;
     }
 
     public Set<Long> loadFavoriteIds() {
-        return new HashSet<>(libraryDao.loadFavoriteIds());
+        return new HashSet<>(libraryDao.loadRecordingFavoriteTrackIds());
     }
 
     public List<Track> loadFavoriteTracks() {
-        return tracks(libraryDao.loadFavoriteTracks());
+        return tracks(libraryDao.loadRecordingFavoriteTracks());
+    }
+
+    /** Returns the stable local UUID without triggering metadata lookup or any network request. */
+    public String loadCanonicalId(long trackId) {
+        return musicIdentityStore.canonicalIdForTrack(trackId);
+    }
+
+    public long loadRecordingId(long trackId) {
+        return musicIdentityStore.recordingIdForTrack(trackId);
+    }
+
+    /** Returns only a verified canonical provider mapping; candidate matches still require ranking. */
+    public String loadConfirmedProviderTrackId(long recordingId, String provider) {
+        if (recordingId <= 0L || provider == null || provider.trim().isEmpty()) {
+            return "";
+        }
+        TrackSourceMappingEntity source = musicIdentityDao.bestProviderSource(
+                recordingId,
+                provider.trim().toLowerCase(java.util.Locale.ROOT)
+        );
+        if (source == null || !source.getPlayable() || !"CONFIRMED".equals(source.getMatchStatus())) {
+            return "";
+        }
+        return source.getProviderTrackId().trim();
+    }
+
+    /**
+     * Confirms only the provider identity encoded by the persisted track itself. This is used for
+     * a provider favorite pulled from that same provider; it must never be used for a search
+     * candidate or a legacy title match.
+     */
+    public boolean confirmDirectProviderSource(
+            long localTrackId,
+            String provider,
+            String providerTrackId
+    ) {
+        String cleanProvider = provider == null
+                ? ""
+                : provider.trim().toLowerCase(java.util.Locale.ROOT);
+        String cleanProviderTrackId = providerTrackId == null ? "" : providerTrackId.trim();
+        if (localTrackId <= 0L || cleanProvider.isEmpty() || cleanProviderTrackId.isEmpty()) {
+            return false;
+        }
+        AtomicBoolean confirmed = new AtomicBoolean(false);
+        AtomicLong confirmedRecordingId = new AtomicLong(0L);
+        database.runInTransaction(() -> {
+            TrackSourceMappingEntity source = musicIdentityDao.sourceForLocalTrack(localTrackId);
+            if (source == null || source.getSourceId() == null
+                    || !cleanProvider.equals(source.getProvider())
+                    || !cleanProviderTrackId.equals(source.getProviderTrackId())) {
+                return;
+            }
+            int updated = musicIdentityDao.confirmDirectProviderSource(source.getSourceId());
+            if (updated > 0) {
+                musicIdentityDao.refreshActiveSource(source.getRecordingId());
+                confirmedRecordingId.set(source.getRecordingId());
+                confirmed.set(true);
+            }
+        });
+        if (confirmed.get() && confirmedRecordingId.get() > 0L) {
+            new SourceIdentityIngestor(database).ingestLocalTracks(List.of(localTrackId));
+        }
+        return confirmed.get();
+    }
+
+    /** Runs only from explicit/background synchronization, never while opening the library. */
+    public int ingestConfirmedIdentitySources() {
+        return new SourceIdentityIngestor(database).ingestAllConfirmedSources();
+    }
+
+    public void updateFavoriteSyncState(long recordingId, String syncState) {
+        if (recordingId <= 0L) {
+            return;
+        }
+        String normalized = syncState == null ? "LOCAL_ONLY" : syncState.trim();
+        if (!FAVORITE_SYNC_STATES.contains(normalized)) {
+            normalized = "LOCAL_ONLY";
+        }
+        libraryDao.updateRecordingFavoriteSyncState(
+                recordingId,
+                normalized
+        );
     }
 
     public String loadStreamingTrackMatch(String localKey, String provider) {
@@ -272,6 +681,84 @@ public final class LibraryRepository {
         }
         StreamingTrackMatchEntity match = streamingMatchDao.match(localKey, provider);
         return match == null ? "" : match.getProviderTrackId();
+    }
+
+    /**
+     * Loads the complete current/legacy streaming match snapshot with two fixed queries. This is
+     * intentionally keyed by local track id so callers can build the library without T x P Room
+     * lookups. Current canonical mappings remain authoritative over the v15 compatibility table.
+     */
+    public Map<Long, Map<String, String>> loadStreamingTrackMatches(
+            List<Track> tracks,
+            List<String> providers,
+            Map<Long, List<String>> legacyKeysByTrack
+    ) {
+        if (tracks == null || tracks.isEmpty() || providers == null || providers.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Map<String, String>> currentByTrack = new HashMap<>();
+        for (TrackStreamingMatchRow row : musicIdentityDao.trackStreamingMatches()) {
+            String provider = row.getProvider() == null ? "" : row.getProvider().trim();
+            String value = row.getStoredCandidate() == 1
+                    ? storedMatchFromEvidence(row.getEvidenceJson())
+                    : (row.getProviderTrackId() == null ? "" : row.getProviderTrackId().trim());
+            if (provider.isEmpty() || value.isEmpty()) {
+                continue;
+            }
+            currentByTrack
+                    .computeIfAbsent(row.getLocalTrackId(), ignored -> new LinkedHashMap<>())
+                    .putIfAbsent(provider, value);
+        }
+
+        Map<String, Map<String, String>> legacyByKey = new HashMap<>();
+        for (StreamingTrackMatchEntity match : streamingMatchDao.allMatches()) {
+            String key = match.getLocalKey() == null ? "" : match.getLocalKey();
+            String provider = match.getProvider() == null ? "" : match.getProvider().trim();
+            if (key.isEmpty() || provider.isEmpty()) {
+                continue;
+            }
+            legacyByKey
+                    .computeIfAbsent(key, ignored -> new HashMap<>())
+                    .put(provider, match.getProviderTrackId() == null ? "" : match.getProviderTrackId());
+        }
+
+        Map<Long, Map<String, String>> result = new LinkedHashMap<>();
+        for (Track track : tracks) {
+            if (track == null) {
+                continue;
+            }
+            Map<String, String> current = currentByTrack.getOrDefault(track.id, Collections.emptyMap());
+            List<String> legacyKeys = legacyKeysByTrack == null
+                    ? Collections.emptyList()
+                    : legacyKeysByTrack.getOrDefault(track.id, Collections.emptyList());
+            for (String provider : providers) {
+                String cleanProvider = provider == null ? "" : provider.trim();
+                if (cleanProvider.isEmpty()) {
+                    continue;
+                }
+                String currentValue = current.getOrDefault(cleanProvider, "").trim();
+                String legacyValue = loadLegacyStreamingMatch(legacyKeys, cleanProvider, legacyByKey);
+                recordStreamingMatchCompatibility(track.id, cleanProvider, currentValue, legacyValue);
+                String selected = currentValue.isEmpty() ? legacyValue : currentValue;
+                if (!selected.isEmpty()) {
+                    result.computeIfAbsent(track.id, ignored -> new LinkedHashMap<>())
+                            .put(cleanProvider, selected);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** New identity tables first; the v15 table is a read-only compatibility fallback. */
+    public String loadStreamingTrackMatch(Track track, String provider, List<String> legacyKeys) {
+        if (track == null || provider == null || provider.isEmpty()) {
+            return "";
+        }
+        long recordingId = musicIdentityStore.recordingIdForTrack(track.id);
+        String current = recordingId <= 0L ? "" : loadCurrentStreamingMatch(recordingId, provider);
+        String legacy = loadLegacyStreamingMatch(legacyKeys, provider);
+        recordStreamingMatchCompatibility(track.id, provider, current, legacy);
+        return current.isEmpty() ? legacy : current;
     }
 
     public void saveStreamingTrackMatch(
@@ -285,15 +772,206 @@ public final class LibraryRepository {
                 || providerTrackId == null || providerTrackId.isEmpty()) {
             return;
         }
-        streamingMatchDao.upsert(new StreamingTrackMatchEntity(
-                localKey,
+        if (track == null) {
+            return;
+        }
+        long recordingId = musicIdentityStore.recordingIdForTrack(track.id);
+        if (recordingId <= 0L) {
+            Log.w(TAG, "Skipping streaming match without canonical recording trackId=" + track.id);
+            return;
+        }
+        String cleanProvider = provider.trim().toLowerCase(java.util.Locale.ROOT);
+        String cleanMatch = providerTrackId.trim();
+        if (isStoredMatchPayload(cleanMatch)) {
+            saveStoredMatchCandidate(recordingId, cleanProvider, cleanMatch, track);
+        } else {
+            ProviderSourceIdentityWriter.CandidateWriteResult result = saveProviderSource(
+                    recordingId,
+                    cleanProvider,
+                    cleanMatch,
+                    track
+            );
+            if (result == ProviderSourceIdentityWriter.CandidateWriteResult.STORED) {
+                musicIdentityDao.deleteCandidate(storedMatchCandidateId(recordingId, cleanProvider));
+            } else {
+                saveStoredMatchCandidate(recordingId, cleanProvider, cleanMatch, track);
+            }
+        }
+    }
+
+    public void replaceStreamingTrackMatches(
+            List<String> localKeys,
+            String provider,
+            String catalogKey,
+            String providerTrackId,
+            Track track
+    ) {
+        if (localKeys == null || localKeys.isEmpty()
+                || provider == null || provider.isEmpty()
+                || catalogKey == null || catalogKey.isEmpty()
+                || providerTrackId == null || providerTrackId.isEmpty()) {
+            return;
+        }
+        saveStreamingTrackMatch(catalogKey, provider, providerTrackId, track);
+    }
+
+    public String streamingMatchCompatibilitySummary() {
+        return "compared=" + legacyMatchComparisons.get()
+                + ",diverged=" + legacyMatchDivergences.get();
+    }
+
+    private String loadCurrentStreamingMatch(long recordingId, String provider) {
+        IdentityCandidateEntity stored = musicIdentityDao.candidate(
+                "RECORDING",
+                recordingId,
+                provider,
+                STORED_MATCH_ITEM_ID
+        );
+        if (stored != null && "PENDING".equals(stored.getStatus())
+                && stored.getEvidenceJson() != null && !stored.getEvidenceJson().isEmpty()) {
+            String value = storedMatchFromEvidence(stored.getEvidenceJson());
+            if (!value.isEmpty()) {
+                return value;
+            }
+        }
+        TrackSourceMappingEntity source = musicIdentityDao.bestProviderMatch(recordingId, provider);
+        return source == null ? "" : source.getProviderTrackId().trim();
+    }
+
+    private String loadLegacyStreamingMatch(List<String> keys, String provider) {
+        if (keys == null) {
+            return "";
+        }
+        String fallback = "";
+        for (String key : keys) {
+            String value = loadStreamingTrackMatch(key, provider).trim();
+            if (value.startsWith(STRUCTURED_MATCH_PREFIX)) {
+                return value;
+            }
+            if (fallback.isEmpty() && !value.isEmpty()) {
+                fallback = value;
+            }
+        }
+        return fallback;
+    }
+
+    private static String loadLegacyStreamingMatch(
+            List<String> keys,
+            String provider,
+            Map<String, Map<String, String>> legacyByKey
+    ) {
+        if (keys == null || legacyByKey == null || legacyByKey.isEmpty()) {
+            return "";
+        }
+        String fallback = "";
+        for (String key : keys) {
+            String value = legacyByKey.getOrDefault(key, Collections.emptyMap())
+                    .getOrDefault(provider, "")
+                    .trim();
+            if (value.startsWith(STRUCTURED_MATCH_PREFIX)) {
+                return value;
+            }
+            if (fallback.isEmpty() && !value.isEmpty()) {
+                fallback = value;
+            }
+        }
+        return fallback;
+    }
+
+    private void recordStreamingMatchCompatibility(
+            long trackId,
+            String provider,
+            String current,
+            String legacy
+    ) {
+        if (current.isEmpty() && legacy.isEmpty()) {
+            return;
+        }
+        legacyMatchComparisons.incrementAndGet();
+        if (!current.isEmpty() && !legacy.isEmpty() && !current.equals(legacy)) {
+            legacyMatchDivergences.incrementAndGet();
+            Log.w(TAG, "Streaming match divergence provider=" + provider
+                    + " trackId=" + trackId
+                    + " currentHash=" + Integer.toHexString(current.hashCode())
+                    + " legacyHash=" + Integer.toHexString(legacy.hashCode()));
+        }
+    }
+
+    private ProviderSourceIdentityWriter.CandidateWriteResult saveProviderSource(
+            long recordingId,
+            String provider,
+            String providerTrackId,
+            Track track
+    ) {
+        return providerSourceIdentityWriter.saveUnverifiedCandidate(
+                recordingId,
                 provider,
                 providerTrackId,
-                track == null ? "" : track.title,
-                track == null ? "" : track.artist,
-                track == null ? "" : track.dataPath,
-                System.currentTimeMillis()
+                track.title,
+                track.artist,
+                track.album,
+                track.durationMs,
+                0.75
+        );
+    }
+
+    private void saveStoredMatchCandidate(
+            long recordingId,
+            String provider,
+            String storedMatch,
+            Track track
+    ) {
+        long now = System.currentTimeMillis();
+        String candidateId = storedMatchCandidateId(recordingId, provider);
+        musicIdentityDao.upsert(new IdentityCandidateEntity(
+                candidateId,
+                "RECORDING",
+                recordingId,
+                provider,
+                STORED_MATCH_ITEM_ID,
+                track.title == null ? "" : track.title,
+                track.artist == null ? "" : track.artist,
+                track.album == null ? "" : track.album,
+                Math.max(0L, track.durationMs),
+                "",
+                "UNKNOWN",
+                0.75,
+                "PENDING",
+                storedMatchEvidence(storedMatch),
+                now,
+                now
         ));
+    }
+
+    private static boolean isStoredMatchPayload(String value) {
+        return value.startsWith(STRUCTURED_MATCH_PREFIX)
+                || value.startsWith("__echo_no_source__")
+                || value.startsWith("__echo_no_source_lx_v2__");
+    }
+
+    private static String storedMatchCandidateId(long recordingId, String provider) {
+        return UUID.nameUUIDFromBytes(
+                ("STREAMING_MATCH:" + recordingId + ":" + provider).getBytes(StandardCharsets.UTF_8)
+        ).toString();
+    }
+
+    private static String storedMatchFromEvidence(String evidenceJson) {
+        try {
+            return new JSONObject(evidenceJson).optString("storedMatch", "").trim();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static String storedMatchEvidence(String storedMatch) {
+        try {
+            return new JSONObject()
+                    .put("storedMatch", storedMatch)
+                    .put("source", "RUNTIME_MATCH")
+                    .toString();
+        } catch (Exception error) {
+            throw new IllegalStateException("Unable to encode streaming match", error);
+        }
     }
 
     public void replaceTrackAndMigrateReferences(long oldTrackId, Track replacement) {
@@ -302,15 +980,36 @@ public final class LibraryRepository {
         }
         database.runInTransaction(() -> {
             long now = System.currentTimeMillis();
-            libraryDao.upsertTracks(List.of(TrackEntityMapper.entity(replacement, now)));
+            long oldRecordingId = musicIdentityStore.recordingIdForTrack(oldTrackId);
+            RecordingFavoriteEntity canonicalFavorite = oldRecordingId > 0L
+                    ? libraryDao.recordingFavorite(oldRecordingId)
+                    : null;
+            upsertTrackRows(
+                    List.of(TrackEntityMapper.entity(replacement, now)),
+                    identityTags(List.of(replacement)),
+                    now
+            );
             long newTrackId = replacement.id;
             if (oldTrackId == newTrackId) {
                 return;
             }
 
-            if (libraryDao.favoriteCount(oldTrackId) > 0) {
-                libraryDao.putFavorite(new FavoriteEntity(newTrackId, now));
-                libraryDao.deleteFavorite(oldTrackId);
+            long newRecordingId = musicIdentityStore.recordingIdForTrack(newTrackId);
+            if (oldRecordingId > 0L && newRecordingId > 0L && oldRecordingId != newRecordingId) {
+                new RoomRecordingIdentityRepository(database).mergeRecordings(
+                        oldRecordingId,
+                        newRecordingId
+                );
+            }
+            if (canonicalFavorite != null && newRecordingId > 0L) {
+                libraryDao.putRecordingFavorite(new RecordingFavoriteEntity(
+                        newRecordingId,
+                        canonicalFavorite.getCreatedAt(),
+                        canonicalFavorite.getSyncState()
+                ));
+                if (oldRecordingId > 0L && oldRecordingId != newRecordingId) {
+                    libraryDao.deleteRecordingFavorite(oldRecordingId);
+                }
             }
             migrateHistory(oldTrackId, newTrackId);
             historyDao.migrateEvents(oldTrackId, newTrackId);
@@ -320,6 +1019,7 @@ public final class LibraryRepository {
                 playbackPersistence.savePosition(newTrackId, playbackPersistence.loadPositionMs());
             }
             libraryDao.deleteTracksByIds(List.of(oldTrackId));
+            musicIdentityStore.pruneMissingTracks();
         });
     }
 
@@ -369,7 +1069,6 @@ public final class LibraryRepository {
         }
         HashSet<Long> deleted = new HashSet<>(ids);
         for (List<Long> batch : batches(ids)) {
-            libraryDao.deleteFavoritesByTrackIds(batch);
             historyDao.deleteHistory(batch);
             historyDao.deleteEvents(batch);
             playlistDao.deleteTrackReferences(batch);
@@ -510,6 +1209,54 @@ public final class LibraryRepository {
             rows.add(TrackEntityMapper.entity(track, updatedAt));
         }
         return rows;
+    }
+
+    private void upsertTrackRows(
+            List<TrackEntity> rows,
+            Map<Long, TrackIdentityTags> identityTags,
+            long now
+    ) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        ArrayList<Long> ids = new ArrayList<>(rows.size());
+        for (TrackEntity row : rows) {
+            if (row != null && row.getId() != null) ids.add(row.getId());
+        }
+        HashMap<Long, TrackEntity> existingById = new HashMap<>();
+        for (List<Long> batch : batches(ids)) {
+            for (TrackEntity existing : libraryDao.loadTracksByIds(batch)) {
+                if (existing != null && existing.getId() != null) {
+                    existingById.put(existing.getId(), existing);
+                }
+            }
+        }
+        ArrayList<TrackEntity> persistedRows = new ArrayList<>(rows.size());
+        for (TrackEntity row : rows) {
+            TrackEntity existing = row == null || row.getId() == null
+                    ? null
+                    : existingById.get(row.getId());
+            persistedRows.add(TrackEntityMapper.preserveAudioSpecs(row, existing));
+        }
+        libraryDao.upsertTracks(persistedRows);
+        musicIdentityStore.ensureTracks(persistedRows, identityTags, now);
+    }
+
+    public void markAudioSpecAttempt(long trackId, long attemptedAt) {
+        libraryDao.touchAudioSpecAttempt(trackId, attemptedAt);
+    }
+
+    private static Map<Long, TrackIdentityTags> identityTags(List<Track> values) {
+        HashMap<Long, TrackIdentityTags> tags = new HashMap<>();
+        if (values == null) {
+            return tags;
+        }
+        for (Track track : values) {
+            if (track != null && track.identityTags != null && !track.identityTags.isEmpty()) {
+                tags.put(track.id, track.identityTags);
+            }
+        }
+        return tags;
     }
 
     private void deleteTrackRows(List<Long> ids) {

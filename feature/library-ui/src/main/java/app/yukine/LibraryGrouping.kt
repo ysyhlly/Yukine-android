@@ -16,11 +16,26 @@ object LibraryGrouping {
 
     @JvmStatic
     fun groupTracks(tracks: List<Track>, mode: String): LinkedHashMap<String, ArrayList<Track>> {
+        return groupTracks(tracks, mode) { emptyList() }
+    }
+
+    @JvmStatic
+    fun groupTracks(
+        tracks: List<Track>,
+        mode: String,
+        artistIdentity: (Track) -> List<LibraryArtistGroupIdentity>
+    ): LinkedHashMap<String, ArrayList<Track>> {
         val grouped = LinkedHashMap<String, ArrayList<Track>>()
         for (track in tracks) {
-            val key = groupKey(track, mode)
-            val groupTracks = grouped.getOrPut(key) { ArrayList() }
-            groupTracks.add(track)
+            val keys = if (ARTISTS == mode) {
+                artistIdentity(track).map { it.groupKey }.distinct().ifEmpty { listOf(track.artist) }
+            } else {
+                listOf(groupKey(track, mode))
+            }
+            keys.forEach { key ->
+                val groupTracks = grouped.getOrPut(key) { ArrayList() }
+                if (groupTracks.none { it.id == track.id }) groupTracks.add(track)
+            }
         }
         val groups = ArrayList<Group>()
         for ((key, value) in grouped) {
@@ -69,6 +84,11 @@ object LibraryGrouping {
         ) {
             return AppLanguage.text(languageMode, "unknown.artist")
         }
+        if (ARTISTS == mode && key.startsWith(ARTIST_ID_PREFIX)) {
+            return key.substringAfter(ARTIST_LABEL_SEPARATOR, "").ifBlank {
+                AppLanguage.text(languageMode, "unknown.artist")
+            }
+        }
         if (key.isNotEmpty()
             && SONGS == mode
             && (key == "未知歌曲" || key.equals("unknown track", ignoreCase = true))
@@ -76,6 +96,15 @@ object LibraryGrouping {
             return AppLanguage.text(languageMode, "unknown.track")
         }
         return if (key.isEmpty()) AppLanguage.text(languageMode, "unknown") else key
+    }
+
+    @JvmStatic
+    fun artistIdFromGroupKey(key: String?): String? {
+        val value = key?.takeIf { it.startsWith(ARTIST_ID_PREFIX) } ?: return null
+        return value.substringAfter(ARTIST_ID_PREFIX)
+            .substringBefore(ARTIST_LABEL_SEPARATOR)
+            .trim()
+            .takeIf { it.isNotEmpty() }
     }
 
     @JvmStatic
@@ -217,4 +246,11 @@ object LibraryGrouping {
         val title: String,
         val tracks: ArrayList<Track>
     )
+
+    private const val ARTIST_ID_PREFIX = "artist:"
+    private const val ARTIST_LABEL_SEPARATOR = '\u001f'
+}
+
+data class LibraryArtistGroupIdentity(val artistId: String, val displayName: String) {
+    val groupKey: String = "artist:$artistId\u001f$displayName"
 }

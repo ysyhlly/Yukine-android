@@ -3,8 +3,12 @@ package app.yukine.collections
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import app.yukine.CollectionsViewModel
+import app.yukine.ui.CollectionPlaylistFolderUiState
 import app.yukine.ui.CollectionsUiState
+import app.yukine.ui.PlaylistRowActions
+import app.yukine.ui.PlaylistRowUiState
 import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoTheme
 import org.junit.Rule
@@ -71,5 +75,37 @@ class CollectionsDestinationTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("更新标题").assertIsDisplayed()
+    }
+
+    @Test
+    fun rendersSourceFolderWithChildPlaylistsAndCanCollapseIt() {
+        val vm = CollectionsViewModel()
+        val playlist = PlaylistRowUiState("通勤歌单", "12 首歌曲", false, 7L, 0)
+        val actions = emptyCollectionsActions().copy(
+            playlistActions = listOf(PlaylistRowActions(Runnable {}, Runnable {}, Runnable {}))
+        )
+        vm.updateScreen(
+            screenState("收藏").copy(
+                playlists = listOf(playlist),
+                playlistFolders = listOf(
+                    CollectionPlaylistFolderUiState(
+                        key = "netease",
+                        title = "网易云音乐",
+                        subtitle = "1 个歌单 · 12 首歌曲",
+                        playlists = listOf(playlist)
+                    )
+                ),
+                actions = actions
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme { CollectionsDestination(vm) }
+        }
+
+        composeRule.onNodeWithText("网易云音乐").assertIsDisplayed()
+        composeRule.onNodeWithText("通勤歌单").assertIsDisplayed()
+        composeRule.onNodeWithText("网易云音乐").performClick()
+        composeRule.onNodeWithText("通勤歌单").assertDoesNotExist()
     }
 }

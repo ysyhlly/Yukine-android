@@ -27,7 +27,6 @@ interface HomeDashboardIntentHandler {
     fun openQueue()
     fun shuffleAll(tracks: List<Track>)
     fun openStreaming()
-    fun openCollections()
     fun openSearch()
     fun playDailyRecommendations()
     fun playHeartbeatRecommendations()
@@ -235,7 +234,6 @@ class HomeDashboardViewModel @JvmOverloads constructor(
                 onRecentTabChanged = {},
                 onDailyRecommend = Runnable { intentHandler.playDailyRecommendations() },
                 onHeartbeatRecommend = Runnable { intentHandler.playHeartbeatRecommendations() },
-                onOpenCollections = Runnable { intentHandler.openCollections() },
                 onConnectStreaming = Runnable { intentHandler.openStreaming() },
                 onSearch = Runnable { intentHandler.openSearch() }
             )

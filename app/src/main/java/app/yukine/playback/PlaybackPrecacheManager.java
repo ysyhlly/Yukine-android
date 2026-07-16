@@ -10,8 +10,6 @@ import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheWriter;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -38,7 +36,10 @@ import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 @OptIn(markerClass = UnstableApi.class)
 final class PlaybackPrecacheManager {
     static final int PRECACHE_BYTES = 512 * 1024;
-    static final int UPCOMING_TRACK_PRECACHE_BYTES = 256 * 1024;
+    static final int UPCOMING_TRACK_MIN_PRECACHE_BYTES = 256 * 1024;
+    static final int UPCOMING_TRACK_MAX_PRECACHE_BYTES = 3 * 1024 * 1024;
+    static final int UPCOMING_TRACK_DEFAULT_BITRATE_KBPS = 900;
+    static final long UPCOMING_TRACK_TARGET_DURATION_MS = 4000L;
     static final long SEGMENTED_PRECACHE_BYTES = 2L * 1024L * 1024L;
     static final long SEGMENTED_PRECACHE_CHUNK_BYTES = 1024L * 1024L;
     static final int SEGMENTED_PRECACHE_CONCURRENCY = 1;
@@ -47,7 +48,7 @@ final class PlaybackPrecacheManager {
     static final int PRECACHE_RANGE_PROBE_BYTES = 1;
     static final long CURRENT_TRACK_LEADING_PRECACHE_DELAY_MS = 0L;
     static final long CURRENT_TRACK_SEGMENTED_PRECACHE_DELAY_MS = 250L;
-    static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 5500L;
+    static final long UPCOMING_TRACK_PRECACHE_DELAY_MS = 750L;
 
     interface StateProvider {
         Track currentTrack();
@@ -68,6 +69,8 @@ final class PlaybackPrecacheManager {
         String cacheKeyForPrecache(Track track);
 
         Map<String, String> headersForTrack(Track track);
+
+        long contentLengthFromRange(Track track, long start, long endInclusive);
 
         long cachedBytesInRange(String cacheKey, long position, long length);
 
@@ -371,7 +374,7 @@ final class PlaybackPrecacheManager {
             return;
         }
         try {
-            long leadingTargetBytes = leadingPrecacheBytes(mode);
+            long leadingTargetBytes = leadingPrecacheBytes(mode, track);
             if (shouldLetPlayerFillCurrentLeadingRange(mode, playerAlreadyLoadsLeadingRange)) {
                 stateProvider.streamingDiagnostics().recordPrecacheComplete(track, 0L);
                 return;
@@ -386,8 +389,21 @@ final class PlaybackPrecacheManager {
         }
     }
 
-    private long leadingPrecacheBytes(PrecacheMode mode) {
-        return mode == PrecacheMode.UPCOMING_TRACK ? UPCOMING_TRACK_PRECACHE_BYTES : PRECACHE_BYTES;
+    private long leadingPrecacheBytes(PrecacheMode mode, Track track) {
+        return mode == PrecacheMode.UPCOMING_TRACK
+                ? upcomingPrecacheBytesForBitrate(track == null ? 0 : track.bitrateKbps)
+                : PRECACHE_BYTES;
+    }
+
+    static long upcomingPrecacheBytesForBitrate(int bitrateKbps) {
+        long effectiveBitrateKbps = bitrateKbps > 0
+                ? bitrateKbps
+                : UPCOMING_TRACK_DEFAULT_BITRATE_KBPS;
+        long bytes = (effectiveBitrateKbps * 1000L * UPCOMING_TRACK_TARGET_DURATION_MS + 7999L) / 8000L;
+        return Math.max(
+                UPCOMING_TRACK_MIN_PRECACHE_BYTES,
+                Math.min(UPCOMING_TRACK_MAX_PRECACHE_BYTES, bytes)
+        );
     }
 
     private boolean shouldLetPlayerFillCurrentLeadingRange(
@@ -474,31 +490,16 @@ final class PlaybackPrecacheManager {
             return SegmentedPrecacheProbe.unsupported();
         }
         try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(track.contentUri.toString()).openConnection();
-            try {
-                connection.setInstanceFollowRedirects(true);
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
-                for (Map.Entry<String, String> entry : mediaCacheOperations.headersForTrack(track).entrySet()) {
-                    if (entry.getKey() != null && !entry.getKey().isEmpty() && entry.getValue() != null) {
-                        connection.setRequestProperty(entry.getKey(), entry.getValue());
-                    }
-                }
-                connection.setRequestProperty(
-                        "Range",
-                        "bytes=" + PRECACHE_BYTES + "-" + (PRECACHE_BYTES + PRECACHE_RANGE_PROBE_BYTES - 1)
-                );
-                int responseCode = connection.getResponseCode();
-                long totalBytes = totalBytesFromContentRange(connection.getHeaderField("Content-Range"));
-                boolean supported = responseCode == HttpURLConnection.HTTP_PARTIAL
-                        && totalBytes > PRECACHE_BYTES
-                        && isCurrentPrecacheGeneration(generation, cacheKey);
-                return supported
-                        ? new SegmentedPrecacheProbe(true, totalBytes)
-                        : SegmentedPrecacheProbe.unsupported();
-            } finally {
-                connection.disconnect();
-            }
+            long totalBytes = mediaCacheOperations.contentLengthFromRange(
+                    track,
+                    PRECACHE_BYTES,
+                    PRECACHE_BYTES + PRECACHE_RANGE_PROBE_BYTES - 1L
+            );
+            boolean supported = totalBytes > PRECACHE_BYTES
+                    && isCurrentPrecacheGeneration(generation, cacheKey);
+            return supported
+                    ? new SegmentedPrecacheProbe(true, totalBytes)
+                    : SegmentedPrecacheProbe.unsupported();
         } catch (Exception ignored) {
             return SegmentedPrecacheProbe.unsupported();
         }
@@ -781,6 +782,13 @@ final class PlaybackPrecacheManager {
         @Override
         public Map<String, String> headersForTrack(Track track) {
             return mediaSourceProvider == null ? Collections.emptyMap() : mediaSourceProvider.headersForTrack(track);
+        }
+
+        @Override
+        public long contentLengthFromRange(Track track, long start, long endInclusive) {
+            return mediaSourceProvider == null
+                    ? -1L
+                    : mediaSourceProvider.contentLengthFromRange(track, start, endInclusive);
         }
 
         @Override

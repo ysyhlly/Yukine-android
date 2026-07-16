@@ -34,6 +34,50 @@ public final class TrackEntityMapper {
         );
     }
 
+    /** Keeps expensive parsed fields when a scan reports the same underlying media item. */
+    public static TrackEntity preserveAudioSpecs(TrackEntity incoming, TrackEntity existing) {
+        if (incoming == null || existing == null
+                || incoming.getCodec() != null && !incoming.getCodec().isEmpty()
+                || incoming.getBitrateKbps() > 0
+                || incoming.getSampleRateHz() > 0
+                || incoming.getBitsPerSample() > 0
+                || incoming.getChannelCount() > 0
+                || !incoming.getContentUri().equals(existing.getContentUri())
+                || !incoming.getDataPath().equals(existing.getDataPath())
+                || incoming.getDurationMs() != existing.getDurationMs()) {
+            return incoming;
+        }
+        boolean existingHasSpecs = existing.getCodec() != null && !existing.getCodec().isEmpty()
+                || existing.getBitrateKbps() > 0
+                || existing.getSampleRateHz() > 0
+                || existing.getBitsPerSample() > 0
+                || existing.getChannelCount() > 0
+                || existing.getReplayGainTrackDb() != 0.0
+                || existing.getReplayGainAlbumDb() != 0.0;
+        if (!existingHasSpecs) {
+            return incoming;
+        }
+        return new TrackEntity(
+                incoming.getId(),
+                incoming.getTitle(),
+                incoming.getArtist(),
+                incoming.getAlbum(),
+                incoming.getDurationMs(),
+                incoming.getContentUri(),
+                incoming.getDataPath(),
+                incoming.getAlbumId(),
+                incoming.getAlbumArtUri(),
+                existing.getCodec(),
+                existing.getBitrateKbps(),
+                existing.getSampleRateHz(),
+                existing.getBitsPerSample(),
+                existing.getChannelCount(),
+                existing.getReplayGainTrackDb(),
+                existing.getReplayGainAlbumDb(),
+                incoming.getUpdatedAt()
+        );
+    }
+
     public static PlaybackQueueEntity queueEntity(Track track, int position) {
         if (track == null) {
             throw new NullPointerException("track");

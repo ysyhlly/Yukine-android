@@ -22,7 +22,9 @@ internal class MainLibraryGateway(
     private val audioImporter: AudioImporter,
     private val libraryScanner: LibraryScanner,
     private val deleteRequester: DeleteRequester = DeleteRequester { },
-    private val tracksDownloader: TracksDownloader = TracksDownloader { }
+    private val tracksDownloader: TracksDownloader = TracksDownloader { },
+    private val librarySynchronizer: LibrarySynchronizer = LibrarySynchronizer { },
+    private val automaticSyncSetter: AutomaticSyncSetter = AutomaticSyncSetter { }
 ) : LibraryGateway {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
@@ -58,6 +60,14 @@ internal class MainLibraryGateway(
 
     fun interface LibraryScanner {
         fun scanLibrary(allowCachedFirst: Boolean)
+    }
+
+    fun interface LibrarySynchronizer {
+        fun sync()
+    }
+
+    fun interface AutomaticSyncSetter {
+        fun setEnabled(enabled: Boolean)
     }
 
     override fun playTrackList(tracks: List<Track>, index: Int) {
@@ -107,6 +117,14 @@ internal class MainLibraryGateway(
 
     override fun scanLibrary() {
         libraryScanner.scanLibrary(false)
+    }
+
+    override fun syncWebDavLibrary() {
+        librarySynchronizer.sync()
+    }
+
+    override fun setAutomaticSyncEnabled(enabled: Boolean) {
+        automaticSyncSetter.setEnabled(enabled)
     }
 
     fun interface DeleteRequester {

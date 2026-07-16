@@ -119,8 +119,10 @@ class DefaultStreamingSearchActionHandlerTest {
     }
 
     @Test
-    fun playStreamingTrackUnsupportedProviderUsesStreamingViewModelState() {
+    fun sourceProviderPlaybackFlagDoesNotBlockLuoxueResolution() {
+        val luoxue = FakeProvider(StreamingProviderName.LUOXUE, searchTrackId = "lx-song")
         val streamingViewModel = StreamingViewModel()
+        streamingViewModel.bindStreamingRepository(repository(luoxue))
         val handler = DefaultStreamingSearchActionHandler(streamingViewModel, FakeGateway())
         streamingViewModel.auth.updateProviders(
             providers = listOf(
@@ -132,7 +134,8 @@ class DefaultStreamingSearchActionHandlerTest {
                         supportsPlayback = false,
                         supportsAuth = true
                     )
-                )
+                ),
+                luoxue.descriptor
             )
         )
 
@@ -140,12 +143,13 @@ class DefaultStreamingSearchActionHandlerTest {
             app.yukine.streaming.StreamingTrack(
                 provider = StreamingProviderName.NETEASE,
                 providerTrackId = "song-1",
-                title = "Song",
+                title = "Song lx-song",
                 artist = "Artist"
             )
         )
 
-        assertTrue(streamingViewModel.streaming.value.errorMessage?.contains("NetEase") == true)
+        waitUntil { luoxue.playbackRequests.isNotEmpty() }
+        assertEquals(listOf("lx-song"), luoxue.playbackRequests.map { it.providerTrackId })
     }
 
     @Test

@@ -5,11 +5,16 @@ import android.os.Handler;
 import androidx.activity.ComponentActivity;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import app.yukine.data.MusicLibraryRepository;
+import app.yukine.data.RecordingMatchRepository;
+import app.yukine.model.Playlist;
 import app.yukine.model.Track;
+import app.yukine.streaming.StreamingProviderName;
 
 /** Owns Activity-scoped library/search/collections assembly and lifecycle. */
 final class LibraryFeatureBinding {
@@ -27,16 +32,21 @@ final class LibraryFeatureBinding {
     private final LibraryDocumentGateway documentGateway;
     private final LibraryPlaylistActionGateway playlistActionGateway;
     private final Handler mainHandler;
-    private final ArtistInfoRepository artistInfoRepository;
+    private final LibraryMultiSourceSyncCoordinator multiSourceSync;
+    private final FavoriteSyncRuntimeOwner favoriteSyncRuntime;
+    private final RecordingMatchRepository recordingMatchRepository;
 
     private final SearchViewModel searchViewModel;
     private final LibraryViewModel viewModel;
     private final CollectionsViewModel collectionsViewModel;
     private final HomeDashboardViewModel homeDashboardViewModel;
+    private final FavoriteSyncViewModel favoriteSyncViewModel;
     private final LibraryDataStateOwner store;
     private final LibraryCollectionsOwner collectionsOwner;
 
     private LibraryImportOwner importOwner;
+    private LibraryAudioVerificationOwner audioVerificationOwner;
+    private LibraryWebDavSyncOwner librarySyncOwner;
     private LibraryDeletionCompletionOwner deletionCompletionOwner;
     private HiddenLibraryRestoreOwner hiddenLibraryRestoreOwner;
     private TrackListStateReducer trackListStateReducer;
@@ -49,6 +59,8 @@ final class LibraryFeatureBinding {
     private UnifiedSearchOwner unifiedSearchOwner;
     private PlaylistMutationOwner playlistMutationOwner;
     private PlaylistDialogController playlistDialogController;
+    private ArtistIdentityDialogController artistIdentityDialogController;
+    private final RecordingMatchViewModel recordingMatchViewModel;
     private HomeDashboardActionAdapter homeDashboardIntentHandler;
 
     LibraryFeatureBinding(
@@ -68,7 +80,9 @@ final class LibraryFeatureBinding {
             LibraryPlaylistActionGateway playlistActionGateway,
             HomeDashboardRepository homeDashboardRepository,
             Handler mainHandler,
-            ArtistInfoRepository artistInfoRepository
+            RecordingMatchRepository recordingMatchRepository,
+            LibraryMultiSourceSyncCoordinator multiSourceSync,
+            FavoriteSyncCoordinator favoriteSyncCoordinator
     ) {
         this.activity = activity;
         this.navigationViewModel = navigationViewModel;
@@ -84,17 +98,37 @@ final class LibraryFeatureBinding {
         this.documentGateway = documentGateway;
         this.playlistActionGateway = playlistActionGateway;
         this.mainHandler = mainHandler;
-        this.artistInfoRepository = artistInfoRepository;
+        this.recordingMatchRepository = recordingMatchRepository;
+        this.recordingMatchViewModel = viewModels.getRecordingMatchViewModel();
+        this.recordingMatchViewModel.bindDataSource(recordingMatchRepository);
+        this.multiSourceSync = multiSourceSync;
         this.searchViewModel = viewModels.getSearchViewModel();
         this.viewModel = viewModels.getLibraryViewModel();
         this.collectionsViewModel = viewModels.getCollectionsViewModel();
         this.homeDashboardViewModel = viewModels.getHomeDashboardViewModel();
+        this.favoriteSyncViewModel = viewModels.getFavoriteSyncViewModel();
         this.homeDashboardViewModel.bindRepository(homeDashboardRepository);
         this.store = viewModel.dataOwner();
+        this.store.bindMergeIdentityProvider(multiSourceSync::persistedMergeIdentityFor);
+        this.store.bindRecordingIdentitySnapshotProvider(repository::loadTrackRecordingIdentities);
+        this.store.bindArtistIdentityProvider(track -> multiSourceSync.artistIdentitiesFor(track).stream()
+                .map(identity -> new LibraryArtistGroupIdentity(
+                        identity.getArtistId(),
+                        identity.getDisplayName().isBlank()
+                                ? identity.getCreditedName()
+                                : identity.getDisplayName()
+                ))
+                .toList());
         this.collectionsOwner = new LibraryCollectionsOwner(
                 viewModel,
                 navigation.getRouteController(),
                 store
+        );
+        this.favoriteSyncRuntime = new FavoriteSyncRuntimeOwner(
+                activity.getLifecycle(),
+                favoriteSyncCoordinator,
+                viewModels.getFavoriteSyncViewModel(),
+                collectionsOwner::load
         );
     }
 
@@ -151,6 +185,16 @@ final class LibraryFeatureBinding {
             PlaybackFeatureBinding playback,
             Consumer<Boolean> onboardingScanResult
     ) {
+        audioVerificationOwner = new LibraryAudioVerificationOwner(activity, repository, () -> {
+            multiSourceSync.refreshIdentitySnapshot();
+            List<Track> tracks = repository.loadCachedTracks();
+            Set<Long> favoriteIds = repository.loadFavoriteIds();
+            mainHandler.post(() -> {
+                if (importOwner != null) {
+                    importOwner.republishCanonicalLibrary(tracks, favoriteIds);
+                }
+            });
+        });
         importOwner = new LibraryImportOwner(
                 viewModel,
                 store,
@@ -160,8 +204,15 @@ final class LibraryFeatureBinding {
                 statusMessages::setStatus,
                 collectionsOwner::load,
                 onboardingScanResult::accept,
-                () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming)
+                () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming),
+                audioVerificationOwner::schedule
         );
+        recordingMatchViewModel.bindIdentityChangedListener(() -> mainHandler.post(() -> {
+            multiSourceSync.refreshIdentitySnapshot();
+            navigation.getRouteController().clearLibraryGroup();
+            importOwner.loadLibrary(false);
+            collectionsOwner.load();
+        }));
         deletionCompletionOwner = new LibraryDeletionCompletionOwner(
                 playback.getNowPlayingViewModel()::removeQueueTracks,
                 () -> viewModel.presentationOwner().onAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE),
@@ -195,6 +246,18 @@ final class LibraryFeatureBinding {
                 store::playlists,
                 playlistMutationOwner
         );
+        artistIdentityDialogController = new ArtistIdentityDialogController(
+                activity,
+                mainHandler,
+                this::languageMode,
+                repository,
+                multiSourceSync::refreshIdentitySnapshot,
+                () -> {
+                    navigation.getRouteController().clearLibraryGroup();
+                    importOwner.loadLibrary(false);
+                },
+                statusMessages
+        );
         trackListStateReducer = new TrackListStateReducer(
                 viewModel,
                 new TrackListActionAdapter(
@@ -207,7 +270,11 @@ final class LibraryFeatureBinding {
                         track -> fileDeleteLauncher.request(
                                 java.util.Collections.singletonList(track),
                                 navigation.selectedPlaylistId()
-                        )
+                        ),
+                        track -> {
+                            navigation.navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, false);
+                            recordingMatchViewModel.open(track.id, languageMode());
+                        }
                 )
         );
         trackListStatePublisher = new TrackListStatePublisher(
@@ -256,6 +323,19 @@ final class LibraryFeatureBinding {
                 }
         );
         searchViewModel.updateActions(unifiedSearchOwner.actions());
+        librarySyncOwner = new LibraryWebDavSyncOwner(
+                new MusicLibraryWebDavSyncOperations(repository),
+                viewModel.presentationOwner(),
+                snapshot -> importOwner.replaceLibrary(
+                        snapshot.getCached(),
+                        snapshot.getFavorites(),
+                        snapshot.getStatus()
+                ),
+                this::languageMode,
+                statusMessages::setStatus,
+                multiSourceSync,
+                () -> importOwner.loadLibrary(false)
+        );
         bindGateway(playback, documentPickerController, fileDeleteLauncher, downloadRequestController);
         bindStateOwners(
                 playback,
@@ -266,6 +346,7 @@ final class LibraryFeatureBinding {
                 permissionController,
                 confirmClearPlayHistory
         );
+        librarySyncOwner.initialize();
         hiddenLibraryRestoreOwner = new HiddenLibraryRestoreOwner(
                 viewModel,
                 () -> importOwner.loadLibrary(true),
@@ -282,7 +363,6 @@ final class LibraryFeatureBinding {
                 () -> importOwner.loadLibrary(true),
                 () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 () -> navigation.navigateToNetworkTabPage(NetworkPage.StreamingHub),
-                () -> navigation.navigateToTab(app.yukine.navigation.CollectionsTab.INSTANCE, true),
                 () -> navigation.navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
                 () -> streaming.runRecommendationAction(
                         new RecommendationAction.PlayDaily(app.yukine.streaming.StreamingProviderName.NETEASE)
@@ -313,7 +393,9 @@ final class LibraryFeatureBinding {
                 documentPickerController::openAudioFilePicker,
                 importOwner::loadLibrary,
                 tracks -> fileDeleteLauncher.request(tracks, navigation.selectedPlaylistId()),
-                downloadRequestController::downloadTracks
+                downloadRequestController::downloadTracks,
+                () -> librarySyncOwner.syncNow(),
+                librarySyncOwner::setAutoSyncEnabled
         ));
     }
 
@@ -347,12 +429,27 @@ final class LibraryFeatureBinding {
                         (tracks, index) -> viewModel.onEvent(new LibraryEvent.PlayTrackList(tracks, index)),
                         (title, tracks) -> fileDeleteLauncher.request(tracks, -1L),
                         playlistIntents::publishLibraryGroupsChrome,
-                        trackListStatePublisher::publishLibraryGroup
+                        trackListStatePublisher::publishLibraryGroup,
+                        artistIdentityDialogController::show
                 ),
-                artistInfoRepository,
-                action -> mainHandler.post(action)
+                action -> mainHandler.post(action),
+                new RoomArtistLocalInfoSource(repository)
         );
         playlistsStateReducer = new LibraryPlaylistsStateReducer(viewModel, playlistIntents);
+        LibraryPlaylistSourcesLoader playlistSourcesLoader = playlists -> {
+            Map<Long, StreamingProviderName> playlistSources = new HashMap<>();
+            for (Playlist playlist : playlists) {
+                StreamingProviderName provider = streaming.linkedPlaylistProvider(playlist.id);
+                provider = PlaylistSourceResolver.resolve(
+                        provider,
+                        repository.loadPlaylistTracks(playlist.id)
+                );
+                if (provider != null) {
+                    playlistSources.put(playlist.id, provider);
+                }
+            }
+            return playlistSources;
+        };
         collectionsStateBinding = new CollectionsStateBinding(
                 collectionsViewModel,
                 new CollectionsActionAdapter(
@@ -391,15 +488,19 @@ final class LibraryFeatureBinding {
                         )
                 )
         );
+        collectionsStateBinding.bindFavoriteSync(favoriteSyncViewModel);
         collectionsStateBinding.bindStateSources(
                 navigationViewModel.getState(),
                 viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel(),
-                () -> new CollectionsInsightSnapshot(
-                        repository.loadRecentlyAdded(30),
-                        repository.loadLongUnplayed(30)
-                )
+                playlists -> {
+                    return new CollectionsInsightSnapshot(
+                            repository.loadRecentlyAdded(30),
+                            repository.loadLongUnplayed(30),
+                            playlistSourcesLoader.load(playlists)
+                    );
+                }
         );
         viewModel.bindFavoriteWriter(toggleFavoriteUseCase::execute);
         viewModel.bindPlaylistTrackLoader(loadPlaylistTracksUseCase::execute);
@@ -424,7 +525,8 @@ final class LibraryFeatureBinding {
                 groupsStateReducer,
                 playlistsStateReducer,
                 permissionController::hasAudioPermission,
-                statusMessages::setStatus
+                statusMessages::setStatus,
+                playlistSourcesLoader
         );
         libraryStateBinding.bindStateSources(
                 navigationViewModel.getState(),
@@ -435,7 +537,22 @@ final class LibraryFeatureBinding {
     }
 
     List<Track> sourceCandidatesFor(Track track) {
-        return store.sourceCandidatesFor(track);
+        java.util.ArrayList<Track> candidates = store.sourceCandidatesFor(track);
+        if (librarySyncOwner != null) {
+            for (Track candidate : librarySyncOwner.sourceCandidatesFor(track)) {
+                boolean duplicate = false;
+                for (Track existing : candidates) {
+                    if (existing.dataPath.equals(candidate.dataPath)) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (!duplicate) {
+                    candidates.add(candidate);
+                }
+            }
+        }
+        return candidates;
     }
 
     void loadCollections() {
@@ -492,6 +609,8 @@ final class LibraryFeatureBinding {
 
     void release() {
         searchViewModel.bindStateSources(null, null, null);
+        recordingMatchViewModel.bindIdentityChangedListener(null);
+        recordingMatchViewModel.bindDataSource(null);
         viewModel.bindGateway(null);
         viewModel.bindPlaylistTrackLoader(null);
         viewModel.bindFavoriteWriter(null);
@@ -500,8 +619,17 @@ final class LibraryFeatureBinding {
         viewModel.bindImportGateway(null);
         viewModel.bindDocumentGateway(null);
         viewModel.bindPlaylistActionGateway(null);
+        store.bindMergeIdentityProvider(null);
+        store.bindArtistIdentityProvider(null);
+        if (librarySyncOwner != null) {
+            librarySyncOwner.release();
+        }
+        if (audioVerificationOwner != null) {
+            audioVerificationOwner.release();
+        }
         libraryStateBinding.release();
         collectionsStateBinding.release();
+        favoriteSyncRuntime.close();
     }
 
     private String languageMode() {

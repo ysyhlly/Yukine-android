@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,6 +15,8 @@ import app.yukine.playback.service.PlaybackServiceActions;
 import app.yukine.streaming.StreamingPlaybackAdapter;
 
 public final class PlaybackRestoreReceiver extends BroadcastReceiver {
+    private static final String TAG = "PlaybackRestore";
+
     @Override
     public void onReceive(Context context, Intent intent) {
         if (context == null || intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
@@ -35,11 +38,17 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
                 serviceIntent.setAction(repository.loadPlaybackResumeRequested()
                         ? PlaybackServiceActions.RESTORE_AND_PLAY
                         : PlaybackServiceActions.RESTORE);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    appContext.startForegroundService(serviceIntent);
-                } else {
-                    appContext.startService(serviceIntent);
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        appContext.startForegroundService(serviceIntent);
+                    } else {
+                        appContext.startService(serviceIntent);
+                    }
+                } catch (RuntimeException error) {
+                    Log.w(TAG, "System blocked playback restore service startup", error);
                 }
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Playback restore was skipped after a repository failure", error);
             } finally {
                 pendingResult.finish();
                 restoreExecutor.shutdown();

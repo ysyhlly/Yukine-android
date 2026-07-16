@@ -16,7 +16,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-data class PlaylistRowUiState(val name: String, val subtitle: String, val selected: Boolean)
+data class PlaylistRowUiState(
+    val name: String,
+    val subtitle: String,
+    val selected: Boolean,
+    val playlistId: Long = -1L,
+    val actionIndex: Int = -1
+)
 data class PlaylistRowActions(
     val onSelect: Runnable,
     val onRename: Runnable,

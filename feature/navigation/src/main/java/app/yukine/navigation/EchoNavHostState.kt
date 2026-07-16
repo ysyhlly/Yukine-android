@@ -11,6 +11,7 @@ import app.yukine.LibraryGroupsDestinationState
 import app.yukine.NavigationRouteState
 import app.yukine.StreamingSearchState
 import app.yukine.LibraryTrackListDestinationState
+import app.yukine.RecordingMatchDestinationStateProvider
 import app.yukine.ui.LibraryActionHandler
 import app.yukine.NetworkMenuUiState
 import app.yukine.NetworkSourcesUiState
@@ -54,7 +55,8 @@ data class LibraryNavBinding(
     val downloadsOpenDirectoryRequests: Flow<Unit> = emptyFlow(),
     val downloadsActions: DownloadsDestinationActions = DownloadsDestinationActions(),
     val searchState: StateFlow<UnifiedSearchUiState> = MutableStateFlow(UnifiedSearchUiState()),
-    val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { }
+    val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
+    val recordingMatchStateProvider: RecordingMatchDestinationStateProvider? = null
 )
 
 data class SettingsNavBinding(

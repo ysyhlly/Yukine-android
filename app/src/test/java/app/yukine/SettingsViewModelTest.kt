@@ -556,15 +556,17 @@ class SettingsViewModelTest {
         assertEquals(content.uiState, viewModel.state.value.ui)
         assertEquals(content.uiState, viewModel.uiState.value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.gateway"), content.uiState.title)
-        assertEquals(4, content.actions.size)
+        assertEquals(5, content.actions.size)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
+        content.actions[4].onClick.run()
 
         assertEquals(
             listOf(
                 SettingsEffect.NavigatePage(SettingsPage.SourcesGroup),
-                SettingsEffect.ApplyStreamingGatewayEndpoint(StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT)
+                SettingsEffect.ApplyStreamingGatewayEndpoint(StreamingGatewaySettingsStore.EMULATOR_HOST_ENDPOINT),
+                SettingsEffect.EditMusicBrainzProxy
             ),
             viewModel.drainEffects()
         )

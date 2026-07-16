@@ -70,189 +70,124 @@ class LibraryGroupsStateReducerTest {
     }
 
     @Test
-    fun keepsLoadedArtistInfoAcrossArtistGroupRerenders() {
-        var fetchCount = 0
-        val repository = ArtistInfoRepository(
-            textFetcher = { url ->
-                when {
-                    url.contains("api/cloudsearch/pc") -> """{"result":{"artists":[{"id":16152,"name":"Aimer"}]}}"""
-                    url.contains("artist/head/info/get?id=16152") -> {
-                        fetchCount++
-                        """{"code":200,"data":{"artist":{"id":16152,"name":"Aimer","briefDesc":"Aimer 是一名日本女歌手。","musicSize":531,"albumSize":108}}}"""
-                    }
-                    url.contains("artist/introduction?id=16152") -> """{"introduction":[]}"""
-                    else -> error("Unexpected URL $url")
-                }
-            }
-        )
-        val viewModel = LibraryViewModel()
-        val listener = FakeListener()
-        val controller = LibraryGroupsStateReducer(
-            viewModel,
-            listener,
-            repository,
-            LibraryGroupsUiDispatcher { it.run() }
-        )
-        val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
-
-        controller.reduce(
-            AppLanguage.MODE_CHINESE,
-            tracks,
-            LibraryGrouping.ARTISTS,
-            "Aimer",
-            "Aimer",
-            emptyList()
-        )
-        waitUntil { listener.artistIntro().contains("Aimer 是一名日本女歌手") }
-        assertTrue(listener.artistIntro().contains("Aimer 是一名日本女歌手"))
-
-        controller.reduce(
-            AppLanguage.MODE_CHINESE,
-            tracks,
-            LibraryGrouping.ARTISTS,
-            "Aimer",
-            "Aimer",
-            emptyList()
-        )
-
-        assertTrue(listener.artistIntro().contains("Aimer 是一名日本女歌手"))
-        assertTrue(fetchCount in 1..2)
+    fun extractsStableArtistIdFromCanonicalGroupKey() {
+        assertEquals("artist-aimer", LibraryGrouping.artistIdFromGroupKey("artist:artist-aimer\u001fAimer"))
+        assertEquals(null, LibraryGrouping.artistIdFromGroupKey("Aimer"))
     }
 
     @Test
-    fun artistGroupFooterShowsOnlineAlbumsAsPlayableCards() {
-        var albumTrackFetchCount = 0
-        val repository = ArtistInfoRepository(
-            textFetcher = { url ->
-                when {
-                    url.contains("api/cloudsearch/pc") -> """{"result":{"artists":[{"id":16152,"name":"Aimer"}]}}"""
-                    url.contains("artist/head/info/get?id=16152") -> """{"code":200,"data":{"artist":{"id":16152,"name":"Aimer","briefDesc":"Aimer 是一名日本女歌手。","albumSize":1}}}"""
-                    url.contains("artist/introduction?id=16152") -> """{"introduction":[]}"""
-                    url.contains("api/artist/albums/16152") -> """{"hotAlbums":[{"id":9001,"name":"Walpurgis","picUrl":"https://img.example/a.jpg","size":2,"artists":[{"name":"Aimer"}]}]}"""
-                    url.contains("api/album/9001") -> {
-                        albumTrackFetchCount++
-                        """{"songs":[{"id":11,"name":"春はゆく","duration":300000,"artists":[{"name":"Aimer"}],"album":{"picUrl":"https://img.example/a.jpg"}},{"id":12,"name":"残響散歌","duration":240000,"artists":[{"name":"Aimer"}],"album":{"picUrl":"https://img.example/a.jpg"}}]}"""
-                    }
-                    else -> error("Unexpected URL $url")
-                }
-            }
-        )
+    fun keepsLocalArtistInfoAcrossRerendersWithoutCallingNetworkRepository() {
+        var localLoadCount = 0
         val viewModel = LibraryViewModel()
-        val listener = FakeListener()
-        val controller = LibraryGroupsStateReducer(
-            viewModel,
-            listener,
-            repository,
-            LibraryGroupsUiDispatcher { it.run() }
-        )
-        val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
-
-        controller.reduce(
-            AppLanguage.MODE_CHINESE,
-            tracks,
-            LibraryGrouping.ARTISTS,
-            "Aimer",
-            "Aimer",
-            emptyList()
-        )
-        waitUntil { listener.trackListRequest?.footerAlbums?.isNotEmpty() == true }
-
-        val album = listener.trackListRequest?.footerAlbums?.single()
-        assertEquals("Walpurgis", album?.title)
-        assertTrue(album?.subtitle.orEmpty().contains("2 首"))
-        assertEquals(0, albumTrackFetchCount)
-        album?.onClick?.run()
-        waitUntil { listener.playedTracks.isNotEmpty() }
-        assertEquals(listOf("春はゆく", "残響散歌"), listener.playedTracks.map { it.title })
-        assertEquals(1, albumTrackFetchCount)
-    }
-
-    @Test
-    fun artistPreviewRendersBeforeSlowIntroductionCompletes() {
-        val pendingIntro = Object()
-        var releaseIntro = false
-        val repository = ArtistInfoRepository(
-            textFetcher = { url ->
-                when {
-                    url.contains("api/cloudsearch/pc") -> """{"result":{"artists":[{"id":16152,"name":"Aimer"}]}}"""
-                    url.contains("artist/head/info/get?id=16152") -> """{"code":200,"data":{"artist":{"id":16152,"name":"Aimer","briefDesc":"Preview bio","albumSize":1}}}"""
-                    url.contains("api/artist/albums/16152") -> """{"hotAlbums":[{"id":9001,"name":"Walpurgis","picUrl":"https://img.example/a.jpg","size":2,"artists":[{"name":"Aimer"}]}]}"""
-                    url.contains("artist/introduction?id=16152") -> {
-                        synchronized(pendingIntro) {
-                            while (!releaseIntro) {
-                                pendingIntro.wait(20)
-                            }
-                        }
-                        """{"introduction":[{"ti":"详细介绍","txt":"Full bio"}]}"""
-                    }
-                    else -> error("Unexpected URL $url")
-                }
-            }
-        )
-        val listener = FakeListener()
-        val controller = LibraryGroupsStateReducer(
-            LibraryViewModel(),
-            listener,
-            repository,
-            LibraryGroupsUiDispatcher { it.run() }
-        )
-
-        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(1L, "花の唄", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
-
-        waitUntil { listener.trackListRequest?.footerAlbums?.isNotEmpty() == true }
-        assertTrue(listener.artistIntro().contains("Preview bio"))
-        assertTrue(!listener.artistIntro().contains("Full bio"))
-
-        synchronized(pendingIntro) {
-            releaseIntro = true
-            pendingIntro.notifyAll()
+        viewModel.dataOwner().bindArtistIdentityProvider {
+            listOf(LibraryArtistGroupIdentity("artist-aimer", "Aimer"))
         }
-        waitUntil { listener.artistIntro().contains("Full bio") }
-        assertTrue(listener.artistIntro().contains("Full bio"))
+        val listener = FakeListener()
+        val controller = LibraryGroupsStateReducer(
+            viewModel,
+            listener,
+            LibraryGroupsUiDispatcher { it.run() },
+            ArtistLocalInfoSource { _, artistId, _ ->
+                localLoadCount++
+                ArtistInfo("Aimer", "本地身份数据库", "$artistId 已关联稳定的本地艺人身份。")
+            }
+        )
+        val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
+        val groupKey = "artist:artist-aimer\u001fAimer"
+
+        controller.reduce(
+            AppLanguage.MODE_CHINESE,
+            tracks,
+            LibraryGrouping.ARTISTS,
+            groupKey,
+            "Aimer",
+            emptyList()
+        )
+        waitUntil { listener.artistIntro().contains("稳定的本地艺人身份") }
+
+        controller.reduce(
+            AppLanguage.MODE_CHINESE,
+            tracks,
+            LibraryGrouping.ARTISTS,
+            groupKey,
+            "Aimer",
+            emptyList()
+        )
+
+        assertTrue(listener.artistIntro().contains("稳定的本地艺人身份"))
+        assertEquals("本地身份数据库", listener.headerMetric("资料来源"))
+        listener.trackListRequest?.headerActions
+            ?.first { it.label == "管理艺人身份" }
+            ?.onClick
+            ?.run()
+        assertEquals("artist-aimer", listener.managedArtistId)
+        assertEquals(1, localLoadCount)
     }
 
     @Test
-    fun ignoresStaleArtistInfoWhenAnotherArtistIsOpened() {
-        val pending = ArrayList<Runnable>()
-        val repository = ArtistInfoRepository(
-            textFetcher = { url ->
-                when {
-                    url.contains("api/cloudsearch/pc") && url.contains("Aimer") -> """{"result":{"artists":[{"id":1,"name":"Aimer"}]}}"""
-                    url.contains("api/cloudsearch/pc") && url.contains("LiSA") -> """{"result":{"artists":[{"id":2,"name":"LiSA"}]}}"""
-                    url.contains("artist/head/info/get?id=1") -> """{"code":200,"data":{"artist":{"id":1,"name":"Aimer","briefDesc":"Aimer online"}}}"""
-                    url.contains("artist/head/info/get?id=2") -> """{"code":200,"data":{"artist":{"id":2,"name":"LiSA","briefDesc":"LiSA online"}}}"""
-                    url.contains("artist/introduction") -> """{"introduction":[]}"""
-                    url.contains("api/artist/albums/") -> """{"hotAlbums":[]}"""
-                    else -> error("Unexpected URL $url")
-                }
-            }
-        )
+    fun plainArtistGroupDoesNotStartIdentityOrNetworkLookup() {
+        var localLoadCount = 0
+        val viewModel = LibraryViewModel()
         val listener = FakeListener()
         val controller = LibraryGroupsStateReducer(
-            LibraryViewModel(),
+            viewModel,
             listener,
-            repository,
+            LibraryGroupsUiDispatcher { it.run() },
+            ArtistLocalInfoSource { _, _, _ ->
+                localLoadCount++
+                error("Unexpected local identity lookup")
+            }
+        )
+        val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
+
+        controller.reduce(
+            AppLanguage.MODE_CHINESE,
+            tracks,
+            LibraryGrouping.ARTISTS,
+            "Aimer",
+            "Aimer",
+            emptyList()
+        )
+        assertEquals(0, localLoadCount)
+        assertTrue(listener.artistIntro().contains("后台增强"))
+    }
+
+    @Test
+    fun ignoresStaleLocalArtistInfoWhenAnotherArtistIsOpened() {
+        val pending = ArrayList<Runnable>()
+        val viewModel = LibraryViewModel()
+        viewModel.dataOwner().bindArtistIdentityProvider { track ->
+            val artistId = if (track.id == 1L) "artist-aimer" else "artist-lisa"
+            listOf(LibraryArtistGroupIdentity(artistId, track.artist))
+        }
+        val listener = FakeListener()
+        val controller = LibraryGroupsStateReducer(
+            viewModel,
+            listener,
             LibraryGroupsUiDispatcher {
                 synchronized(pending) {
                     pending += it
                 }
+            },
+            ArtistLocalInfoSource { _, artistId, _ ->
+                ArtistInfo(artistId, "local", "$artistId local")
             }
         )
 
-        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(1L, "A", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "Aimer", "Aimer", emptyList())
-        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(2L, "B", "LiSA", "TWO")), LibraryGrouping.ARTISTS, "LiSA", "LiSA", emptyList())
+        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(1L, "A", "Aimer", "ONE")), LibraryGrouping.ARTISTS, "artist:artist-aimer\u001fAimer", "Aimer", emptyList())
+        controller.reduce(AppLanguage.MODE_CHINESE, listOf(track(2L, "B", "LiSA", "TWO")), LibraryGrouping.ARTISTS, "artist:artist-lisa\u001fLiSA", "LiSA", emptyList())
 
         waitUntil {
             val callbacks = synchronized(pending) {
                 pending.toList().also { pending.clear() }
             }
             callbacks.forEach { it.run() }
-            listener.trackListRequest?.title == "LiSA" && listener.artistIntro().contains("LiSA online")
+            listener.trackListRequest?.title == "LiSA" && listener.artistIntro().contains("artist-lisa local")
         }
 
         assertEquals("LiSA", listener.trackListRequest?.title)
-        assertTrue(listener.artistIntro().contains("LiSA online"))
-        assertTrue(!listener.artistIntro().contains("Aimer online"))
+        assertTrue(listener.artistIntro().contains("artist-lisa local"))
+        assertTrue(!listener.artistIntro().contains("artist-aimer local"))
     }
 
     private fun waitUntil(predicate: () -> Boolean) {
@@ -273,6 +208,7 @@ class LibraryGroupsStateReducerTest {
         var chromeState: LibraryGroupsChromeState? = null
         var trackListRequest: LibraryGroupTrackListRequest? = null
         var playedTracks: List<Track> = emptyList()
+        var managedArtistId: String = ""
 
         override fun selectLibraryGroup(key: String, title: String) = Unit
 
@@ -287,6 +223,10 @@ class LibraryGroupsStateReducerTest {
         }
 
         override fun confirmDeleteGroup(title: String, tracks: List<Track>) = Unit
+
+        override fun manageArtistIdentity(artistId: String, title: String) {
+            managedArtistId = artistId
+        }
 
         override fun publishLibraryGroupsChrome(
             actions: List<LibraryGroupActions>,

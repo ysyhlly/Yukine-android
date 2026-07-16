@@ -20,6 +20,7 @@ class TrackListActionAdapterTest {
         listener.downloadTracks(tracks)
         listener.showEditStream(track)
         listener.confirmDeleteTrack(track)
+        listener.showRecordingMatch(track)
 
         assertEquals(
             listOf(
@@ -29,7 +30,8 @@ class TrackListActionAdapterTest {
                 "download:1",
                 "download-list:1",
                 "edit:1",
-                "delete:1"
+                "delete:1",
+                "match:1"
             ),
             calls
         )
@@ -45,7 +47,8 @@ class TrackListActionAdapterTest {
             TrackListActionAdapter.TrackDownloader { calls += "download:${it.id}" },
             TrackListActionAdapter.TracksDownloader { calls += "download-list:${it.size}" },
             TrackListActionAdapter.StreamEditor { calls += "edit:${it.id}" },
-            TrackListActionAdapter.TrackDeleteConfirmer { calls += "delete:${it.id}" }
+            TrackListActionAdapter.TrackDeleteConfirmer { calls += "delete:${it.id}" },
+            TrackListActionAdapter.RecordingMatchOpener { calls += "match:${it.id}" }
         )
 
         listener.playTrackList(listOf(track(2L)), 0)
@@ -63,7 +66,8 @@ class TrackListActionAdapterTest {
             trackDownloader = TrackListActionAdapter.TrackDownloader { calls += "download:${it.id}" },
             tracksDownloader = TrackListActionAdapter.TracksDownloader { calls += "download-list:${it.size}" },
             streamEditor = TrackListActionAdapter.StreamEditor { calls += "edit:${it.id}" },
-            trackDeleteConfirmer = TrackListActionAdapter.TrackDeleteConfirmer { calls += "delete:${it.id}" }
+            trackDeleteConfirmer = TrackListActionAdapter.TrackDeleteConfirmer { calls += "delete:${it.id}" },
+            recordingMatchOpener = TrackListActionAdapter.RecordingMatchOpener { calls += "match:${it.id}" }
         )
 
     private fun track(id: Long): Track =

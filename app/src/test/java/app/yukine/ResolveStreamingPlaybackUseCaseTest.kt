@@ -28,15 +28,15 @@ class ResolveStreamingPlaybackUseCaseTest {
     }
 
     @Test
-    fun prepareIgnoresNonStreamingTracksAndRefreshesResolvedStreamingTracks() {
+    fun prepareIgnoresNonStreamingAndAlreadyResolvedStreamingTracks() {
         val useCase = ResolveStreamingPlaybackUseCase()
+        val alreadyResolvedUseCase = ResolveStreamingPlaybackUseCase(
+            unresolvedStreamingTrack = { false }
+        )
 
         assertNull(useCase.prepare(emptyList(), 0))
         assertNull(useCase.prepare(listOf(localTrack(1)), 0))
-        assertEquals(
-            "resolved",
-            useCase.prepare(listOf(resolvedStreamingTrack("resolved")), 0)?.providerTrackId
-        )
+        assertNull(alreadyResolvedUseCase.prepare(listOf(resolvedStreamingTrack("resolved")), 0))
     }
 
     @Test
@@ -49,7 +49,10 @@ class ResolveStreamingPlaybackUseCaseTest {
 
         val replaced = useCase.replaceResolvedTrack(request, resolved)
 
-        assertEquals(listOf(1L, 3L), replaced.map { it.id })
+        assertEquals(listOf(first.id, placeholder.id), replaced.map { it.id })
+        assertEquals(placeholder.title, replaced[1].title)
+        assertEquals(resolved.contentUri, replaced[1].contentUri)
+        assertEquals(resolved.dataPath, replaced[1].dataPath)
     }
 
     @Test
@@ -71,6 +74,7 @@ class ResolveStreamingPlaybackUseCaseTest {
         requireNotNull(request)
         assertEquals("netease:next", request.key)
         assertEquals(next.id, request.oldTrackId)
+        assertEquals(next, request.logicalTrack)
         assertNull(duplicate)
         assertNull(cooledDownDuplicate)
         assertEquals("next", retried?.providerTrackId)
@@ -100,6 +104,7 @@ class ResolveStreamingPlaybackUseCaseTest {
 
         requireNotNull(request)
         assertEquals(current.id, request.expectedTrackId)
+        assertEquals(current, request.logicalTrack)
         assertEquals(StreamingAudioQuality.LOSSLESS, request.quality)
         assertEquals("netease:song-1:LOSSLESS", request.key)
         assertNull(duplicate)
@@ -297,7 +302,7 @@ class ResolveStreamingPlaybackUseCaseTest {
             "Artist",
             "Album",
             1000L,
-            Uri.EMPTY,
+            Uri.parse("https://example.test/$id.mp3"),
             "streaming:netease:$id"
         )
 

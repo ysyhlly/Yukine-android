@@ -11,6 +11,7 @@ import app.yukine.streaming.StreamingCapabilityResolver
 import app.yukine.streaming.StreamingGatewayDiagnostics
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingPlaybackSource
+import app.yukine.streaming.StreamingPlaybackResolutionPath
 import app.yukine.streaming.StreamingProviderCapability
 import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderHealth
@@ -53,7 +54,8 @@ data class StreamingPlaylistImportStartRequest(
 
 data class ResolvedStreamingTrackList(
     val tracks: List<Track> = emptyList(),
-    val index: Int = 0
+    val index: Int = 0,
+    val resolutionPath: StreamingPlaybackResolutionPath? = null
 )
 
 data class StreamingQueueResolveTarget(

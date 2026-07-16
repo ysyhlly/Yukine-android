@@ -304,6 +304,7 @@ class NetworkSettingsStateOwner internal constructor(private val context: Settin
     fun importLuoxueSource() = context.emit(SettingsEffect.ImportLuoxueSource)
     fun applyStreamingGatewayEndpoint(endpoint: String) =
         context.emit(SettingsEffect.ApplyStreamingGatewayEndpoint(endpoint))
+    fun editMusicBrainzProxy() = context.emit(SettingsEffect.EditMusicBrainzProxy)
 }
 
 class PlatformSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {

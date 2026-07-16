@@ -1,0 +1,28 @@
+# ninja log v5
+564	5518	8058550812677510	CMakeFiles/echo_chromaprint_jni.dir/echo_chromaprint_jni.cpp.o	d73107e3898b4349
+497	5790	8058550815783445	CMakeFiles/chromaprint.dir/vendor/chromaprint/utils/base64.cpp.o	58c76707a6e58909
+471	1088	8058550986738985	CMakeFiles/chromaprint.dir/vendor/chromaprint/kissfft/kiss_fftr.c.o	fcf5750fda5dafc2
+493	1825	8058550994329628	CMakeFiles/chromaprint.dir/vendor/chromaprint/kissfft/kiss_fft.c.o	84c985ed31db2cbb
+40	5436	8058551028246771	CMakeFiles/chromaprint.dir/vendor/chromaprint/chroma_filter.cpp.o	d564930df3edb3f9
+15	5585	8058551030376186	CMakeFiles/chromaprint.dir/vendor/chromaprint/audio_processor.cpp.o	4ce8bba7a1262a62
+28	5617	8058551031986172	CMakeFiles/chromaprint.dir/vendor/chromaprint/chroma.cpp.o	dcc279971556fdc0
+67	5802	8058551033778951	CMakeFiles/chromaprint.dir/vendor/chromaprint/fft.cpp.o	59305e24e35ffc8d
+81	5839	8058551034070582	CMakeFiles/chromaprint.dir/vendor/chromaprint/spectrum.cpp.o	8c121b88d4bb564d
+133	5872	8058551034553017	CMakeFiles/chromaprint.dir/vendor/chromaprint/image_builder.cpp.o	cdedfe78068e2847
+98	5970	8058551035562229	CMakeFiles/chromaprint.dir/vendor/chromaprint/fft_lib_kissfft.cpp.o	51bb5734629e09aa
+54	6209	8058551037752565	CMakeFiles/chromaprint.dir/vendor/chromaprint/chroma_resampler.cpp.o	38a63ff9305ef6a8
+179	6229	8058551038249791	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprint_calculator.cpp.o	93d701373f962440
+158	6232	8058551038018582	CMakeFiles/chromaprint.dir/vendor/chromaprint/simhash.cpp.o	113c6f36d79eebbd
+196	6254	8058551038661909	CMakeFiles/chromaprint.dir/vendor/chromaprint/silence_remover.cpp.o	1a7086022157d871
+113	6276	8058551038923172	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprinter.cpp.o	1df364a68f188ef9
+254	6312	8058551039269459	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprinter_configuration.cpp.o	3274e36b3c85f411
+213	6651	8058551042691265	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprint_decompressor.cpp.o	171c504291c78293
+273	6681	8058551042912226	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprint_compressor.cpp.o	fb142582f769757a
+393	6931	8058551045479260	CMakeFiles/chromaprint.dir/vendor/chromaprint/chromaprint.cpp.o	edfbb6e49fc3594b
+317	7590	8058551052010934	CMakeFiles/chromaprint.dir/vendor/chromaprint/fingerprint_matcher.cpp.o	277f92bd0c984c82
+7591	8046	8058551056565136	E:/ECHO andriod/echo-android/app/build/intermediates/cxx/Debug/184q4g1k/obj/arm64-v8a/libchromaprint.so	dc583ecd503be19a
+8046	8417	8058551060390576	E:/ECHO andriod/echo-android/app/build/intermediates/cxx/Debug/184q4g1k/obj/arm64-v8a/libecho_chromaprint_jni.so	b1ce3c9565bd6373
+29	2489	8058815530292955	CMakeFiles/echo_chromaprint_jni.dir/echo_chromaprint_jni.cpp.o	d73107e3898b4349
+2491	3025	8058815535696267	E:/ECHO andriod/echo-android/app/build/intermediates/cxx/Debug/184q4g1k/obj/arm64-v8a/libecho_chromaprint_jni.so	b1ce3c9565bd6373
+31	2081	8058825359301916	CMakeFiles/echo_chromaprint_jni.dir/echo_chromaprint_jni.cpp.o	d73107e3898b4349
+2082	2432	8058825362808066	E:/ECHO andriod/echo-android/app/build/intermediates/cxx/Debug/184q4g1k/obj/arm64-v8a/libecho_chromaprint_jni.so	b1ce3c9565bd6373

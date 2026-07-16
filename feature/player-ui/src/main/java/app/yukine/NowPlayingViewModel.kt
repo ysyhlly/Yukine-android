@@ -6,6 +6,7 @@ import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
+import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.LuoxueTrackMetadataResolver
@@ -497,6 +498,9 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         if (tracks.isNullOrEmpty()) {
             return statusOnly("No tracks to play")
         }
+        PlaybackStreamingDiagnostics.process().recordPlaybackRequested(
+            tracks[index.coerceIn(0, tracks.lastIndex)]
+        )
         player.playQueue(tracks, index)
         return PlaybackActionResultUi(null)
     }

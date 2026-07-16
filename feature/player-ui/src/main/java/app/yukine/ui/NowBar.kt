@@ -37,7 +37,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -122,24 +121,13 @@ fun NowBar(
     var previousBottomDockName by rememberSaveable {
         mutableStateOf(NowBarDockPosition.BottomRight.name)
     }
-    var previousTopCloudName by rememberSaveable {
-        mutableStateOf(NowBarDockPosition.TopCloud.name)
-    }
     val dockPosition = NowBarDockPosition.entries.firstOrNull { it.name == dockName }
         ?: NowBarDockPosition.Expanded
     val docked = dockPosition != NowBarDockPosition.Expanded
     val topCloud = dockPosition == NowBarDockPosition.TopCloud
     val topCloudExpanded = dockPosition == NowBarDockPosition.TopCloudExpanded
-    val topCloudCollapsed = dockPosition == NowBarDockPosition.TopCloudCollapsed
     val topCloudVisible = topCloud || topCloudExpanded
-    val topCloudPosition = topCloudVisible || topCloudCollapsed
-    var cloudFoldPreview by remember { mutableStateOf<Float?>(null) }
-    val settledCloudFoldProgress by animateFloatAsState(
-        targetValue = if (topCloudCollapsed) 1f else 0f,
-        animationSpec = tween(240, easing = FastOutSlowInEasing),
-        label = "topCloudSettledFold"
-    )
-    val cloudFoldProgress = cloudFoldPreview ?: settledCloudFoldProgress
+    val topCloudPosition = topCloudVisible
     val compactProgress = if (docked) 0f else LocalEchoNowBarCompactProgress.current.coerceIn(0f, 1f)
     val scrollProgress = if (topCloudPosition) 0f else LocalEchoNowBarScrollProgress.current.coerceIn(-1f, 1f)
     val scrollCompactProgress = scrollProgress.coerceIn(0f, 1f)
@@ -152,7 +140,6 @@ fun NowBar(
             when {
                 topCloudExpanded -> EchoMobileLayoutMetrics.nowBarTopCloudExpandedContentClearance
                 topCloud -> EchoMobileLayoutMetrics.nowBarTopCloudContentClearance
-                topCloudCollapsed -> EchoMobileLayoutMetrics.nowBarTopCloudCollapsedContentClearance
                 else -> 0.dp
             }
         )
@@ -172,19 +159,12 @@ fun NowBar(
         ) {
             previousBottomDockName = dockPosition.name
         }
-        dockName = NowBarDockPosition.TopCloud.name
+        dockName = NowBarDockPosition.TopCloudExpanded.name
     }
-    val collapseTopCloud = {
-        if (topCloudVisible) {
-            previousTopCloudName = dockPosition.name
+    val compactTopCloud = {
+        if (topCloudExpanded) {
+            dockName = NowBarDockPosition.TopCloud.name
         }
-        dockName = NowBarDockPosition.TopCloudCollapsed.name
-    }
-    val showTopCloud = {
-        dockName = NowBarDockPosition.entries.firstOrNull {
-            it.name == previousTopCloudName &&
-                (it == NowBarDockPosition.TopCloud || it == NowBarDockPosition.TopCloudExpanded)
-        }?.name ?: NowBarDockPosition.TopCloud.name
     }
     val toggleTopCloudExpansion = {
         dockName = if (topCloudExpanded) {
@@ -192,9 +172,6 @@ fun NowBar(
         } else {
             NowBarDockPosition.TopCloudExpanded.name
         }
-    }
-    val previewTopCloudFold: (Float?) -> Unit = { progress ->
-        cloudFoldPreview = progress?.coerceIn(0f, 1f)
     }
     val restoreBottom = {
         val restored = NowBarDockPosition.entries.firstOrNull {
@@ -211,8 +188,8 @@ fun NowBar(
         acknowledgedPageScrollEvent = pageScrollEvent
         if (pageScrolled) {
             when {
-                pageScrollEvent < 0 && topCloudVisible -> collapseTopCloud()
-                pageScrollEvent > 0 && topCloudCollapsed -> showTopCloud()
+                pageScrollEvent < 0 && topCloudExpanded -> compactTopCloud()
+                pageScrollEvent > 0 && topCloud -> toggleTopCloudExpansion()
             }
         }
     }
@@ -283,24 +260,18 @@ fun NowBar(
             NowBarDockPosition.BottomLeft,
             NowBarDockPosition.BottomRight -> EchoMobileLayoutMetrics.nowBarDockedWidth
             NowBarDockPosition.TopCloud,
-            NowBarDockPosition.TopCloudExpanded,
-            NowBarDockPosition.TopCloudCollapsed -> topCloudBaseWidth +
-                (EchoMobileLayoutMetrics.nowBarTopCloudCollapsedWidth -
-                    topCloudBaseWidth) * cloudFoldProgress
+            NowBarDockPosition.TopCloudExpanded -> topCloudBaseWidth
         }
         val targetSurfaceHeight = when (dockPosition) {
             NowBarDockPosition.Expanded -> barHeight
             NowBarDockPosition.BottomLeft,
             NowBarDockPosition.BottomRight -> EchoMobileLayoutMetrics.nowBarDockedHeight
             NowBarDockPosition.TopCloud,
-            NowBarDockPosition.TopCloudExpanded,
-            NowBarDockPosition.TopCloudCollapsed -> topCloudBaseHeight +
-                (EchoMobileLayoutMetrics.nowBarTopCloudCollapsedHeight -
-                    topCloudBaseHeight) * cloudFoldProgress
+            NowBarDockPosition.TopCloudExpanded -> topCloudBaseHeight
         }
         val surfaceWidth by animateDpAsState(
             targetValue = targetSurfaceWidth,
-            animationSpec = if (cloudFoldPreview != null) snap() else tween(
+            animationSpec = tween(
                 durationMillis = EchoMobileLayoutMetrics.nowBarDockSizeDurationMs,
                 easing = FastOutSlowInEasing
             ),
@@ -308,7 +279,7 @@ fun NowBar(
         )
         val surfaceHeight by animateDpAsState(
             targetValue = targetSurfaceHeight,
-            animationSpec = if (cloudFoldPreview != null) snap() else tween(
+            animationSpec = tween(
                 durationMillis = EchoMobileLayoutMetrics.nowBarDockSizeDurationMs,
                 easing = FastOutSlowInEasing
             ),
@@ -322,8 +293,7 @@ fun NowBar(
                 NowBarDockPosition.BottomRight -> dockTravel
                 NowBarDockPosition.Expanded,
                 NowBarDockPosition.TopCloud,
-                NowBarDockPosition.TopCloudExpanded,
-                NowBarDockPosition.TopCloudCollapsed -> 0.dp
+                NowBarDockPosition.TopCloudExpanded -> 0.dp
             },
             animationSpec = tween(
                 durationMillis = EchoMobileLayoutMetrics.nowBarDockMoveDurationMs,
@@ -332,11 +302,7 @@ fun NowBar(
             label = "nowBarDockHorizontalOffset"
         )
         val topCloudY = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-            if (topCloudCollapsed) {
-                EchoMobileLayoutMetrics.nowBarTopCloudCollapsedOffset
-            } else {
-                EchoMobileLayoutMetrics.nowBarTopCloudOffset
-            }
+            EchoMobileLayoutMetrics.nowBarTopCloudOffset
         val bottomY = (maxHeight - bottomInset - targetSurfaceHeight -
             if (docked) EchoMobileLayoutMetrics.nowBarDockedBottomPadding else 0.dp)
             .coerceAtLeast(0.dp)
@@ -366,22 +332,7 @@ fun NowBar(
                         (EchoMobileLayoutMetrics.nowBarScrollStretchScale - 1f) * scrollStretchProgress
                 }
                 .semantics {
-                    customActions = if (topCloudCollapsed) {
-                        listOf(
-                            CustomAccessibilityAction(
-                                state.labels.showTopCloud.ifBlank { "显示流体云" }
-                            ) {
-                                showTopCloud()
-                                true
-                            },
-                            CustomAccessibilityAction(
-                                state.labels.restoreBottom.ifBlank { "恢复到底部" }
-                            ) {
-                                restoreBottom()
-                                true
-                            }
-                        )
-                    } else if (topCloudVisible) {
+                    customActions = if (topCloudVisible) {
                         listOf(
                             CustomAccessibilityAction(
                                 if (topCloudExpanded) {
@@ -403,12 +354,6 @@ fun NowBar(
                                 state.labels.restoreBottom.ifBlank { "恢复到底部" }
                             ) {
                                 restoreBottom()
-                                true
-                            },
-                            CustomAccessibilityAction(
-                                state.labels.collapseTopCloud.ifBlank { "折叠流体云" }
-                            ) {
-                                collapseTopCloud()
                                 true
                             },
                             CustomAccessibilityAction(
@@ -570,27 +515,12 @@ fun NowBar(
                             onDockRight = dockBottomRight,
                             onDockTop = dockTop,
                             onRestoreBottom = restoreNowBar,
-                            onCollapseTopCloud = collapseTopCloud,
-                            onPreviewTopCloudFold = previewTopCloudFold,
+                            onCompactTopCloud = compactTopCloud,
                             onPlayPause = onPlayPause,
-                            interactive = !topCloudCollapsed,
+                            interactive = true,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer {
-                                    alpha = dockMorphProgress * (1f - cloudFoldProgress)
-                                }
-                        )
-                        CollapsedTopCloudHandle(
-                            state = state,
-                            onShowTopCloud = showTopCloud,
-                            onRestoreBottom = restoreBottom,
-                            onPreviewTopCloudFold = previewTopCloudFold,
-                            interactive = topCloudCollapsed,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    alpha = dockMorphProgress * cloudFoldProgress
-                                }
+                                .graphicsLayer { alpha = dockMorphProgress }
                         )
                     } else {
                         DockedNowBarCapsule(
@@ -602,8 +532,7 @@ fun NowBar(
                             onDockRight = dockBottomRight,
                             onDockTop = dockTop,
                             onRestoreBottom = restoreBottom,
-                            onCollapseTopCloud = collapseTopCloud,
-                            onPreviewTopCloudFold = previewTopCloudFold,
+                            onCompactTopCloud = {},
                             onPlayPause = onPlayPause,
                             interactive = docked,
                             modifier = Modifier

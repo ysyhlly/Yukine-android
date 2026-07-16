@@ -28,11 +28,11 @@ import app.yukine.StreamingSearchState
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.LibraryActionHandler
 import app.yukine.common.StreamingDataPathMetadata
-import app.yukine.collections.CollectionsDestination
 import app.yukine.downloads.DownloadsDestination
 import app.yukine.home.HomeDestination
 import app.yukine.library.LibraryGroupsDestination
 import app.yukine.library.LibraryTrackListDestination
+import app.yukine.library.RecordingMatchDestination
 import app.yukine.network.NetworkDestination
 import app.yukine.now.NowPlayingDestination
 import app.yukine.queue.QueueDestination
@@ -66,7 +66,7 @@ fun EchoNavGraph(
     val route by hostState.routeState.collectAsState()
     val playbackQuality = StreamingDataPathMetadata.quality(playbackState.currentTrack?.dataPath)
     val pagerTabs = tabs.map { it.tab }
-    val selectedTab = route.selectedTab
+    val selectedTab = if (route.selectedTab == CollectionsTab) LibraryTab else route.selectedTab
     val selectedPagerIndex = pagerTabs.indexOf(selectedTab)
     val selectedIndex = selectedPagerIndex.coerceAtLeast(0)
     val selectedInPager = selectedPagerIndex >= 0
@@ -116,6 +116,7 @@ fun EchoNavGraph(
     )
     val nowBarState by hostState.player.nowPlayingStateProvider.nowBarState.collectAsState()
     val settingsChromeState by hostState.settings.settingsChromeState.collectAsState()
+    val streamingState by hostState.streaming.streamingState.collectAsState()
     var activeDownload by remember(hostState.player.trackDownloadController) {
         mutableStateOf<TrackDownloadItem?>(null)
     }
@@ -202,12 +203,11 @@ fun EchoNavGraph(
         glassSurfaceOpacity = settingsChromeState.glassSurfaceOpacity
     ) { contentModifier ->
         if (!selectedInPager) {
-            // Routes that live outside the 4-tab pager (Collections / Network / Now),
+            // Routes that live outside the 4-tab pager (Network / Search / Now),
             // reachable via in-app navigation rather than the bottom bar. Render each
             // directly so navigating to them never leaves the pager showing a stale page.
             Box(modifier = contentModifier) {
                 when (selectedTab) {
-                    CollectionsTab -> CollectionsDestination(hostState.library.collectionsStateProvider)
                     NetworkTab -> {
                         val networkMenuState by hostState.settings.networkMenuState.collectAsState()
                         NetworkDestination(
@@ -260,6 +260,8 @@ fun EchoNavGraph(
                         sourceCandidates = { track ->
                             hostState.player.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
+                        streamingProviders = streamingState.providers,
+                        playbackSourcePolicy = streamingState.playbackSourcePolicy,
                         onSwitchLocalSource = { current, replacement ->
                             nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
                         },
@@ -286,7 +288,8 @@ fun EchoNavGraph(
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion,
-                        actionHandler = hostState.library.libraryActionHandler
+                        actionHandler = hostState.library.libraryActionHandler,
+                        recordingMatchStateProvider = hostState.library.recordingMatchStateProvider
                     )
                     QueueTab -> NowPlayingDestination(
                         state = hostState.player.nowPlayingStateProvider.uiState,
@@ -303,6 +306,8 @@ fun EchoNavGraph(
                         sourceCandidates = { track ->
                             hostState.player.nowPlayingStateProvider.sourceCandidatesFor(track)
                         },
+                        streamingProviders = streamingState.providers,
+                        playbackSourcePolicy = streamingState.playbackSourcePolicy,
                         onSwitchLocalSource = { current, replacement ->
                             nowPlayingEventHandler(NowPlayingEvent.SwitchLibrarySource(current, replacement))
                         },
@@ -346,8 +351,14 @@ private fun LibraryDestination(
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion,
-    actionHandler: LibraryActionHandler
+    actionHandler: LibraryActionHandler,
+    recordingMatchStateProvider: app.yukine.RecordingMatchDestinationStateProvider?
 ) {
+    val recordingMatchState = recordingMatchStateProvider?.uiState?.collectAsState()
+    if (recordingMatchState?.value?.visible == true) {
+        RecordingMatchDestination(recordingMatchState.value, recordingMatchStateProvider)
+        return
+    }
     // The child destinations own full list collection. The parent only needs to know which
     // destination is active, so row/action updates in a large list do not recompose this branch.
     val hasGroups by remember(groupsState) {

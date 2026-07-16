@@ -37,7 +37,10 @@ class SettingsEffectOwnerTest {
                 Runnable { calls += "backup-export" },
                 Runnable { calls += "backup-import" }
             ),
-            SettingsStreamingEffectActions { calls += "gateway:$it" }
+            SettingsStreamingEffectActions(
+                Consumer { calls += "gateway:$it" },
+                Runnable { calls += "musicbrainz-proxy" }
+            )
         )
 
         listOf(
@@ -60,7 +63,8 @@ class SettingsEffectOwnerTest {
             SettingsEffect.ChoosePageBackground(PageBackgrounds.PAGE_SETTINGS),
             SettingsEffect.ExportBackup,
             SettingsEffect.ImportBackup,
-            SettingsEffect.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990")
+            SettingsEffect.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990"),
+            SettingsEffect.EditMusicBrainzProxy
         ).forEach(owner::onEffect)
 
         assertEquals(
@@ -84,7 +88,8 @@ class SettingsEffectOwnerTest {
                 "background:${PageBackgrounds.PAGE_SETTINGS}",
                 "backup-export",
                 "backup-import",
-                "gateway:http://127.0.0.1:43990"
+                "gateway:http://127.0.0.1:43990",
+                "musicbrainz-proxy"
             ),
             calls
         )

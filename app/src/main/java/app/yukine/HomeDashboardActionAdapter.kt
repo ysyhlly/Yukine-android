@@ -11,7 +11,6 @@ internal class HomeDashboardActionAdapter(
     private val libraryRefresher: LibraryRefresher,
     private val queueOpener: QueueOpener,
     private val streamingOpener: StreamingOpener,
-    private val collectionsOpener: CollectionsOpener,
     private val searchOpener: SearchOpener,
     private val dailyRecommendationsPlayer: DailyRecommendationsPlayer,
     private val heartbeatRecommendationsPlayer: HeartbeatRecommendationsPlayer
@@ -42,10 +41,6 @@ internal class HomeDashboardActionAdapter(
 
     fun interface StreamingOpener {
         fun openStreaming()
-    }
-
-    fun interface CollectionsOpener {
-        fun openCollections()
     }
 
     fun interface SearchOpener {
@@ -93,10 +88,6 @@ internal class HomeDashboardActionAdapter(
 
     override fun openStreaming() {
         streamingOpener.openStreaming()
-    }
-
-    override fun openCollections() {
-        collectionsOpener.openCollections()
     }
 
     override fun openSearch() {

@@ -80,20 +80,21 @@ data class TrackRowActions(
     val onDownload: Runnable,
     val onEdit: Runnable?,
     val onDelete: Runnable?,
-    val onLongPress: Runnable?
+    val onLongPress: Runnable?,
+    val onMatchManagement: Runnable? = null
 ) {
     constructor(
         onPlay: Runnable,
         onFavorite: Runnable,
         onAddToPlaylist: Runnable
-    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, null, null, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, null, null, null, null)
 
     constructor(
         onPlay: Runnable,
         onFavorite: Runnable,
         onAddToPlaylist: Runnable,
         onDownload: Runnable
-    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, null, null, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, null, null, null, null)
 
     constructor(
         onPlay: Runnable,
@@ -101,7 +102,7 @@ data class TrackRowActions(
         onAddToPlaylist: Runnable,
         onEdit: Runnable?,
         onDelete: Runnable?
-    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, onEdit, onDelete, onDelete)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, onEdit, onDelete, onDelete, null)
 
     constructor(
         onPlay: Runnable,
@@ -110,7 +111,7 @@ data class TrackRowActions(
         onDownload: Runnable,
         onEdit: Runnable?,
         onDelete: Runnable?
-    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, onEdit, onDelete, onDelete)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, onDownload, onEdit, onDelete, onDelete, null)
 }
 
 data class TrackListHeaderMetric(val label: String, val value: String)
@@ -145,7 +146,8 @@ data class TrackListLabels(
     val downloadCurrentListLabel: String = "\u4e0b\u8f7d\u5f53\u524d\u5217\u8868",
     val allAlbumsLabel: String = "\u5168\u90e8\u4e13\u8f91",
     val playAllLabel: String = "\u64ad\u653e\u5168\u90e8",
-    val shuffleLabel: String = "\u968f\u673a\u64ad\u653e"
+    val shuffleLabel: String = "\u968f\u673a\u64ad\u653e",
+    val matchManagementLabel: String = "\u7ba1\u7406\u6b4c\u66f2\u5339\u914d"
 )
 
 private data class TrackActionSheetState(
@@ -325,6 +327,7 @@ private fun LibraryTrackControls(
             placeholder = { Text(state.labels.search, color = p.muted) },
             shape = EchoShapes.medium
         )
+        LibrarySyncControls(state, actionHandler)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -602,6 +605,12 @@ private fun TrackActionSheet(
         TrackActionSheetRow(EchoIconKind.Import, labels.downloadLabel) {
             onDismiss()
             actions.onDownload.run()
+        }
+        actions.onMatchManagement?.let { onMatchManagement ->
+            TrackActionSheetRow(EchoIconKind.Info, labels.matchManagementLabel) {
+                onDismiss()
+                onMatchManagement.run()
+            }
         }
         actions.onEdit?.let { onEdit ->
             TrackActionSheetRow(EchoIconKind.Edit, labels.editLabel) {
@@ -1033,6 +1042,16 @@ private fun TrackMoreMenuContent(
                     actions.onDownload.run()
                 }
             )
+            actions.onMatchManagement?.let { onMatchManagement ->
+                DropdownMenuItem(
+                    text = { Text(labels.matchManagementLabel) },
+                    leadingIcon = { EchoIcon(EchoIconKind.Info, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                    onClick = {
+                        onExpandedChange(false)
+                        onMatchManagement.run()
+                    }
+                )
+            }
             actions.onEdit?.let { onEdit ->
                 DropdownMenuItem(
                     text = { Text(labels.editLabel) },
@@ -1069,7 +1088,8 @@ private fun TrackArtwork(uri: Uri?, title: String, subtitle: String) {
         fallbackTextSize = 16.sp,
         targetSize = 46.dp,
         backgroundColor = p.surfaceVariant,
-        fallbackResId = R.drawable.ic_stat_echo
+        fallbackResId = R.drawable.ic_stat_echo,
+        crossfadeEnabled = false
     )
 }
 

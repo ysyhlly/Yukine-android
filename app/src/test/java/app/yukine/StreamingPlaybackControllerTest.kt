@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.util.ArrayList
@@ -24,6 +25,32 @@ import java.util.ArrayList
 class StreamingPlaybackControllerTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun canonicalPhysicalSourceBypassesPlatformUrlResolution() = runTest {
+        val placeholder = streamingPlaceholderTrack(91L)
+        val local = track(92L)
+        val listener = CountingListener(emptyList())
+        val planner = RecordingPlanner()
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
+        viewModel.playbackResolution.bindPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
+        val controller = StreamingPlaybackController(
+            viewModel,
+            NowPlayingViewModel(),
+            listener,
+            CanonicalPlaybackSourceResolver { _, callback ->
+                callback.onResolved(local)
+                true
+            }
+        )
+
+        assertTrue(controller.resolveAndPlayStreamingTrack(listOf(placeholder), 0))
+
+        assertEquals(1, listener.playbackResultsApplied)
+        assertEquals(0, planner.prepareCalls)
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
+    }
 
     @Test
     fun preResolveUsesBoundedQueueReadsWithoutFullSnapshot() = runTest {
@@ -138,6 +165,8 @@ class StreamingPlaybackControllerTest {
         var queueSnapshotReads: Int = 0
             private set
         val trackAtReads = mutableListOf<Int>()
+        var playbackResultsApplied: Int = 0
+            private set
 
         override fun languageMode(): String = "en"
 
@@ -161,12 +190,16 @@ class StreamingPlaybackControllerTest {
 
         override fun maybeAppendHeartbeatRecommendations(snapshot: PlaybackStateSnapshot) {}
 
-        override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {}
+        override fun applyPlaybackActionResult(result: PlaybackActionResultUi?) {
+            playbackResultsApplied += 1
+        }
 
         override fun setStatus(status: String) {}
     }
 
     private class RecordingPlanner : StreamingPlaybackResolvePlanner {
+        var prepareCalls: Int = 0
+            private set
         var snapshot: PlaybackStateSnapshot? = null
             private set
         var queue: List<Track>? = null
@@ -183,7 +216,10 @@ class StreamingPlaybackControllerTest {
 
         override fun clearPreResolve(key: String?) {}
 
-        override fun prepare(tracks: List<Track>?, index: Int): ResolveStreamingPlaybackRequest? = null
+        override fun prepare(tracks: List<Track>?, index: Int): ResolveStreamingPlaybackRequest? {
+            prepareCalls += 1
+            return null
+        }
 
         override fun replaceResolvedTrack(
             request: ResolveStreamingPlaybackRequest,

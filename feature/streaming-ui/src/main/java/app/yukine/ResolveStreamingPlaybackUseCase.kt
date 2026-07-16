@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.model.PlaybackTrackSourceOverlay
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingLyricSource
@@ -21,6 +22,7 @@ data class ResolveStreamingPlaybackRequest(
 data class StreamingPreResolveRequest(
     val key: String,
     val oldTrackId: Long,
+    val logicalTrack: Track,
     val provider: StreamingProviderName,
     val providerTrackId: String,
     val metadata: StreamingTrack?
@@ -29,6 +31,7 @@ data class StreamingPreResolveRequest(
 data class StreamingRecoveryRequest(
     val key: String,
     val expectedTrackId: Long,
+    val logicalTrack: Track,
     val provider: StreamingProviderName,
     val providerTrackId: String,
     val quality: StreamingAudioQuality,
@@ -105,7 +108,7 @@ class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         }
         val safeIndex = index.coerceIn(0, tracks.size - 1)
         val selected = tracks[safeIndex]
-        if (!StreamingPlaybackAdapter.isStreamingTrack(selected)) {
+        if (!unresolvedStreamingTrack(selected)) {
             return null
         }
         val provider = StreamingPlaybackAdapter.streamingProviderName(selected.dataPath) ?: return null
@@ -174,6 +177,7 @@ class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         return StreamingPreResolveRequest(
             key = key,
             oldTrackId = next.id,
+            logicalTrack = next,
             provider = provider,
             providerTrackId = providerTrackId,
             metadata = metadataFor(next, provider, providerTrackId)
@@ -230,6 +234,7 @@ class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
         return StreamingRecoveryRequest(
             key = key,
             expectedTrackId = current.id,
+            logicalTrack = current,
             provider = provider,
             providerTrackId = providerTrackId,
             quality = recoveryQuality,
@@ -254,12 +259,17 @@ class ResolveStreamingPlaybackUseCase @JvmOverloads constructor(
 
     override fun replaceResolvedTrack(request: ResolveStreamingPlaybackRequest, resolved: Track): ArrayList<Track> {
         val resolvedTracks = ArrayList(request.tracks)
-        resolvedTracks[request.index] = resolved
+        resolvedTracks[request.index] = PlaybackTrackSourceOverlay.merge(
+            request.tracks[request.index],
+            resolved
+        )
         return resolvedTracks
     }
 
     override fun prepareDownload(track: Track?): StreamingDownloadResolveRequest? {
-        if (!unresolvedStreamingTrack(track)) {
+        // Always re-resolve streaming downloads through the current PlaybackSourcePolicy. A
+        // previously resolved/cached URL may belong to a provider the user has since disabled.
+        if (!StreamingPlaybackAdapter.isStreamingTrack(track)) {
             return null
         }
         val selected = track ?: return null

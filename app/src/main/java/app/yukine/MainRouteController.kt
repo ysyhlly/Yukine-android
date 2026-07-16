@@ -1,6 +1,8 @@
 package app.yukine
 
+import app.yukine.navigation.CollectionsTab
 import app.yukine.navigation.HomeTab
+import app.yukine.navigation.LibraryTab
 import app.yukine.navigation.NowTab
 import app.yukine.navigation.TabRoute
 
@@ -370,7 +372,11 @@ internal class MainRouteController(
     }
 
     private fun normalizeTab(tab: TabRoute): TabRoute {
-        return if (tab == NowTab) HomeTab else tab
+        return when (tab) {
+            NowTab -> HomeTab
+            CollectionsTab -> LibraryTab
+            else -> tab
+        }
     }
 
     private fun normalizeTabKey(tabKey: String): String {

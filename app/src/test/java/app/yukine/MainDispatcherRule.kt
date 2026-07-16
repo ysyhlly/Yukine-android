@@ -12,10 +12,14 @@ import org.junit.runners.model.Statement
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule : TestRule {
+    lateinit var testScheduler: TestCoroutineScheduler
+        private set
+
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
             override fun evaluate() {
-                val dispatcher = UnconfinedTestDispatcher(TestCoroutineScheduler())
+                testScheduler = TestCoroutineScheduler()
+                val dispatcher = UnconfinedTestDispatcher(testScheduler)
                 Dispatchers.setMain(dispatcher)
                 try {
                     base.evaluate()

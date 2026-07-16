@@ -37,7 +37,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -124,9 +123,7 @@ internal fun Modifier.nowBarDockGesture(
     onDockRight: () -> Unit,
     onDockTop: () -> Unit = {},
     onRestoreBottom: () -> Unit = {},
-    onCollapseTopCloud: () -> Unit = {},
-    onShowTopCloud: () -> Unit = {},
-    onPreviewTopCloudFold: (Float?) -> Unit = {},
+    onCompactTopCloud: () -> Unit = {},
     onTap: () -> Unit = {}
 ): Modifier = composed {
     if (!enabled) return@composed this
@@ -152,9 +149,7 @@ internal fun Modifier.nowBarDockGesture(
         onDockRight,
         onDockTop,
         onRestoreBottom,
-        onCollapseTopCloud,
-        onShowTopCloud,
-        onPreviewTopCloudFold,
+        onCompactTopCloud,
         onTap,
         distanceThresholdPx,
         topCloudEnterDistanceThresholdPx,
@@ -193,20 +188,6 @@ internal fun Modifier.nowBarDockGesture(
                     }
                 }
                 if (gestureAxis != 0) change.consume()
-                if (gestureAxis == 2) {
-                    when {
-                        (dockPosition == NowBarDockPosition.TopCloud ||
-                            dockPosition == NowBarDockPosition.TopCloudExpanded) && deltaY < 0f ->
-                            onPreviewTopCloudFold(
-                                (abs(deltaY) / topCloudEnterDistanceThresholdPx).coerceIn(0f, 1f)
-                            )
-                        dockPosition == NowBarDockPosition.TopCloudCollapsed && deltaY > 0f ->
-                            onPreviewTopCloudFold(
-                                (1f - abs(deltaY) / restoreDistanceThresholdPx).coerceIn(0f, 1f)
-                            )
-                    }
-                }
-
                 if (!change.pressed) {
                     val velocity = velocityTracker.calculateVelocity()
                     val horizontalDominant =
@@ -217,7 +198,6 @@ internal fun Modifier.nowBarDockGesture(
                         abs(deltaX) >= distanceThresholdPx || abs(velocity.x) >= velocityThresholdPx
                     if (dockPosition != NowBarDockPosition.TopCloud &&
                         dockPosition != NowBarDockPosition.TopCloudExpanded &&
-                        dockPosition != NowBarDockPosition.TopCloudCollapsed &&
                         horizontalDominant && horizontalThreshold
                     ) {
                         val direction = if (abs(deltaX) >= distanceThresholdPx) deltaX else velocity.x
@@ -229,9 +209,8 @@ internal fun Modifier.nowBarDockGesture(
                             velocity.y
                         }
                         val verticalDistance = if (
-                            dockPosition == NowBarDockPosition.TopCloudCollapsed ||
-                            ((dockPosition == NowBarDockPosition.TopCloud ||
-                                dockPosition == NowBarDockPosition.TopCloudExpanded) && direction > 0f)
+                            (dockPosition == NowBarDockPosition.TopCloud ||
+                                dockPosition == NowBarDockPosition.TopCloudExpanded) && direction > 0f
                         ) {
                             restoreDistanceThresholdPx
                         } else {
@@ -255,11 +234,8 @@ internal fun Modifier.nowBarDockGesture(
                                         else -> onRestoreBottom()
                                     }
                                 }
-                                (dockPosition == NowBarDockPosition.TopCloud ||
-                                    dockPosition == NowBarDockPosition.TopCloudExpanded) && resolvedDirection < 0f ->
-                                    onCollapseTopCloud()
-                                dockPosition == NowBarDockPosition.TopCloudCollapsed && resolvedDirection > 0f ->
-                                    onShowTopCloud()
+                                dockPosition == NowBarDockPosition.TopCloudExpanded && resolvedDirection < 0f ->
+                                    onCompactTopCloud()
                                 (dockPosition == NowBarDockPosition.BottomLeft ||
                                     dockPosition == NowBarDockPosition.BottomRight) && resolvedDirection < 0f ->
                                     onDockTop()
@@ -270,12 +246,6 @@ internal fun Modifier.nowBarDockGesture(
                         abs(deltaY) <= viewConfiguration.touchSlop
                     ) {
                         onTap()
-                    }
-                    if (dockPosition == NowBarDockPosition.TopCloud ||
-                        dockPosition == NowBarDockPosition.TopCloudExpanded ||
-                        dockPosition == NowBarDockPosition.TopCloudCollapsed
-                    ) {
-                        onPreviewTopCloudFold(null)
                     }
                     break
                 }

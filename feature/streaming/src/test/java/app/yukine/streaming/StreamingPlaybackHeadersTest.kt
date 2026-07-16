@@ -30,7 +30,7 @@ class StreamingPlaybackHeadersTest {
     }
 
     @Test
-    fun qqPlaybackHeadersAddCurrentCredentialAtRuntime() {
+    fun qqPlaybackHeadersAreDiscardedEvenWithCurrentCredential() {
         val sourceHeaders = mapOf("Referer" to "https://y.qq.com/")
         val cookie = "uin=o12345; qqmusic_key=local-key"
 
@@ -40,8 +40,7 @@ class StreamingPlaybackHeadersTest {
             localAuthStore = FakeAuthStore(cookie)
         )
 
-        assertEquals("https://y.qq.com/", runtimeHeaders["Referer"])
-        assertEquals(cookie, runtimeHeaders["Cookie"])
+        assertTrue(runtimeHeaders.isEmpty())
         assertEquals(null, sourceHeaders["Cookie"])
     }
 

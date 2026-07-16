@@ -88,4 +88,14 @@ class StreamingViewModel @JvmOverloads constructor(
         }
     }
 
+    fun setPlaybackProviderEnabled(provider: app.yukine.streaming.StreamingProviderName, enabled: Boolean) {
+        streamingRepository.setPlaybackProviderEnabled(provider, enabled)
+        auth.refreshProviders()
+    }
+
+    fun setPlaybackProviderPriority(providers: List<app.yukine.streaming.StreamingProviderName>) {
+        streamingRepository.setPlaybackProviderPriority(providers)
+        auth.refreshProviders()
+    }
+
 }

@@ -9,14 +9,17 @@ internal interface FavoriteOperations {
 }
 
 internal class MusicLibraryFavoriteOperations(
-    private val repository: MusicLibraryRepository
+    private val repository: MusicLibraryRepository,
+    private val syncEvents: FavoriteSyncEventBus? = null
 ) : FavoriteOperations {
     override fun isFavorite(trackId: Long): Boolean {
         return repository.isFavorite(trackId)
     }
 
     override fun setFavorite(track: Track, favorite: Boolean) {
+        val changed = repository.isFavorite(track.id) != favorite
         repository.setFavorite(track, favorite)
+        if (changed) syncEvents?.publish(track, favorite)
     }
 }
 

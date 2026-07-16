@@ -64,7 +64,9 @@ data class StreamingTrack(
      * Source-specific LX musicInfo object, serialized as a JSON object. It is retained only for
      * LX tracks so imported JS sources can receive the original fields after cache/queue restore.
      */
-    val luoxueMusicInfoJson: String? = null
+    val luoxueMusicInfoJson: String? = null,
+    /** International recording code used as the strongest cross-provider identity signal. */
+    val isrc: String? = null
 ) {
     val stableKey: String = "streaming:${provider.wireName}:$providerTrackId"
 

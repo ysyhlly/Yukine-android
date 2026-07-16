@@ -11,14 +11,17 @@ import java.io.IOException;
 import java.util.Locale;
 
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
 
 final class AudioSpecParser {
     private final Context context;
     private final ReplayGainParser replayGainParser;
+    private final PortableAudioMetadataReader portableMetadataReader;
 
     AudioSpecParser(Context context) {
         this.context = context.getApplicationContext();
         this.replayGainParser = new ReplayGainParser(this.context);
+        this.portableMetadataReader = new PortableAudioMetadataReader(this.context);
     }
 
     Track enrich(Track track) {
@@ -39,7 +42,16 @@ final class AudioSpecParser {
                 || ReplayGainParser.hasGain(track.replayGainAlbumDb)
                 ? new ReplayGainParser.ReplayGain(track.replayGainTrackDb, track.replayGainAlbumDb)
                 : replayGainParser.read(track.contentUri);
-        if (!spec.hasAudioSpec() && !replayGain.hasValue()) {
+        TrackIdentityTags identityTags = track.identityTags;
+        if (identityTags == null || identityTags.isEmpty()) {
+            identityTags = portableMetadataReader.read(
+                    track.contentUri,
+                    displayName(track.dataPath),
+                    track.dataPath,
+                    false
+            ).identityTags;
+        }
+        if (!spec.hasAudioSpec() && !replayGain.hasValue() && identityTags.isEmpty()) {
             return track;
         }
         return new Track(
@@ -58,8 +70,17 @@ final class AudioSpecParser {
                 spec.bitsPerSample,
                 spec.channelCount,
                 replayGain.trackDb,
-                replayGain.albumDb
+                replayGain.albumDb,
+                identityTags
         );
+    }
+
+    private static String displayName(String path) {
+        if (path == null || path.isEmpty()) {
+            return "";
+        }
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash < 0 ? path : path.substring(slash + 1);
     }
 
     private boolean isStreamingTrack(Track track) {

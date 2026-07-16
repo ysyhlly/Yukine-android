@@ -18,6 +18,10 @@ fun interface LibraryGroupsUiDispatcher {
     fun dispatch(action: Runnable)
 }
 
+fun interface ArtistLocalInfoSource {
+    fun load(languageMode: String, artistId: String, tracks: List<Track>): ArtistInfo?
+}
+
 data class LibraryGroupsChromeState(
     val actions: List<LibraryGroupActions>,
     val emptyText: String,
@@ -32,17 +36,16 @@ data class LibraryGroupTrackListRequest(
     val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
 )
 
-class LibraryGroupsStateReducer(
+class LibraryGroupsStateReducer @JvmOverloads constructor(
     private val viewModel: LibraryViewModel,
     private val listener: Listener,
-    private val artistInfoRepository: ArtistInfoRepository = ArtistInfoRepository(),
-    private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() }
+    private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() },
+    private val artistLocalInfoSource: ArtistLocalInfoSource? = null
 ) {
     private val artistInfoCache = object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistInfo>?): Boolean = size > 24
     }
     private val artistInfoRequests = HashSet<String>()
-    private val artistPreviewRequests = HashSet<String>()
     private var activeArtistInfoKey: String = ""
     private var artistInfoRequestSerial = 0
 
@@ -58,6 +61,8 @@ class LibraryGroupsStateReducer(
         fun playTrackList(tracks: List<Track>, index: Int)
 
         fun confirmDeleteGroup(title: String, tracks: List<Track>)
+
+        fun manageArtistIdentity(artistId: String, title: String) = Unit
 
         fun publishLibraryGroupsChrome(
             actions: List<LibraryGroupActions>,
@@ -108,18 +113,27 @@ class LibraryGroupsStateReducer(
             viewModel.libraryUi.value,
             favoriteIds
         ).map { it.track }
-        val groups = LibraryGrouping.groupTracks(filteredTracks, libraryMode)
+        val groups = LibraryGrouping.groupTracks(
+            filteredTracks,
+            libraryMode,
+            viewModel.dataOwner()::artistIdentitiesFor
+        )
         if (selectedLibraryGroupKey.isNotEmpty()) {
             val selectedTracks = groups[selectedLibraryGroupKey]
             if (selectedTracks != null) {
-                reduceGroupDetail(languageMode, selectedLibraryGroupTitle, selectedTracks, libraryMode)
+                reduceGroupDetail(
+                    languageMode,
+                    selectedLibraryGroupTitle,
+                    selectedTracks,
+                    libraryMode,
+                    selectedLibraryGroupKey
+                )
                 return
             }
         }
 
         activeArtistInfoKey = ""
         artistInfoRequestSerial++
-        artistPreviewRequests.clear()
         listener.clearLibraryGroupSelection()
         val groupRows = ArrayList<LibraryGroupUiState>()
         val groupActions = ArrayList<LibraryGroupActions>()
@@ -176,10 +190,12 @@ class LibraryGroupsStateReducer(
         languageMode: String,
         selectedLibraryGroupTitle: String,
         tracks: ArrayList<Track>,
-        libraryMode: String
+        libraryMode: String,
+        selectedLibraryGroupKey: String
     ) {
+        val artistId = LibraryGrouping.artistIdFromGroupKey(selectedLibraryGroupKey)
         val cachedInfo = if (libraryMode == LibraryGrouping.ARTISTS) {
-            val lookupKey = artistInfoLookupKey(selectedLibraryGroupTitle)
+            val lookupKey = artistInfoLookupKey(artistId ?: selectedLibraryGroupTitle)
             activeArtistInfoKey = lookupKey
             artistInfoCache[lookupKey]
         } else {
@@ -213,6 +229,15 @@ class LibraryGroupsStateReducer(
                 listener.playTrackList(tracks, 0)
             }, icon = EchoIconKind.Play)
         )
+        if (libraryMode == LibraryGrouping.ARTISTS && artistId != null) {
+            headerActions.add(
+                TrackListHeaderAction(
+                    AppLanguage.text(languageMode, "artist.identity.manage"),
+                    Runnable { listener.manageArtistIdentity(artistId, selectedLibraryGroupTitle) },
+                    icon = EchoIconKind.Edit
+                )
+            )
+        }
         listener.publishTrackList(
             selectedLibraryGroupTitle,
             tracks,
@@ -221,88 +246,43 @@ class LibraryGroupsStateReducer(
             artistAlbumCards(languageMode, cachedInfo)
         )
         if (libraryMode == LibraryGrouping.ARTISTS) {
-            loadOnlineArtistInfo(languageMode, selectedLibraryGroupTitle, tracks, headerActions, cachedInfo)
+            loadLocalArtistInfo(
+                languageMode,
+                artistId,
+                selectedLibraryGroupTitle,
+                tracks,
+                headerActions,
+                cachedInfo
+            )
         }
     }
 
-    private fun loadOnlineArtistInfo(
+    private fun loadLocalArtistInfo(
         languageMode: String,
+        artistId: String?,
         artist: String,
         tracks: ArrayList<Track>,
         headerActions: ArrayList<TrackListHeaderAction>,
         cachedInfo: ArtistInfo?
     ) {
-        val lookupKey = artistInfoLookupKey(artist)
-        if (cachedInfo != null && !cachedInfo.preview) {
-            return
-        }
+        val stableArtistId = artistId?.takeIf { it.isNotBlank() } ?: return
+        if (cachedInfo != null) return
+        val source = artistLocalInfoSource ?: return
+        val lookupKey = artistInfoLookupKey(stableArtistId)
+        if (!artistInfoRequests.add(lookupKey)) return
         val requestSerial = ++artistInfoRequestSerial
-        if (cachedInfo?.preview == true) {
-            loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
-            return
-        }
-        loadOnlineArtistPreview(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
-    }
-
-    private fun loadFullOnlineArtistInfo(
-        languageMode: String,
-        artist: String,
-        tracks: ArrayList<Track>,
-        headerActions: ArrayList<TrackListHeaderAction>,
-        lookupKey: String,
-        requestSerial: Int
-    ) {
-        if (!artistInfoRequests.add(lookupKey)) {
-            return
-        }
         Thread {
-            val info = runCatching { artistInfoRepository.loadArtistInfo(artist, tracks) }.getOrNull()
+            val info = runCatching { source.load(languageMode, stableArtistId, tracks) }.getOrNull()
             uiDispatcher.dispatch(Runnable {
                 artistInfoRequests.remove(lookupKey)
-                if (info != null) {
-                    artistInfoCache[lookupKey] = info
-                }
-                if (activeArtistInfoKey != lookupKey || requestSerial != artistInfoRequestSerial) {
-                    return@Runnable
-                }
-                publishArtistTrackList(languageMode, artist, tracks, headerActions, info)
-            })
-        }.apply {
-            name = "ArtistInfo-$artist"
-            isDaemon = true
-            start()
-        }
-    }
-
-    private fun loadOnlineArtistPreview(
-        languageMode: String,
-        artist: String,
-        tracks: ArrayList<Track>,
-        headerActions: ArrayList<TrackListHeaderAction>,
-        lookupKey: String,
-        requestSerial: Int
-    ) {
-        if (!artistPreviewRequests.add(lookupKey)) {
-            return
-        }
-        Thread {
-            val info = runCatching { artistInfoRepository.loadArtistInfoPreview(artist, tracks) }.getOrNull()
-            uiDispatcher.dispatch(Runnable {
-                artistPreviewRequests.remove(lookupKey)
-                if (info != null) {
-                    artistInfoCache[lookupKey] = info
-                }
+                if (info != null) artistInfoCache[lookupKey] = info
                 if (info == null || activeArtistInfoKey != lookupKey || requestSerial != artistInfoRequestSerial) {
-                    if (info == null && activeArtistInfoKey == lookupKey && requestSerial == artistInfoRequestSerial) {
-                        loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
-                    }
                     return@Runnable
                 }
                 publishArtistTrackList(languageMode, artist, tracks, headerActions, info)
-                loadFullOnlineArtistInfo(languageMode, artist, tracks, headerActions, lookupKey, requestSerial)
             })
         }.apply {
-            name = "ArtistPreview-$artist"
+            name = "LocalArtistInfo-$stableArtistId"
             isDaemon = true
             start()
         }
@@ -317,7 +297,7 @@ class LibraryGroupsStateReducer(
     ) {
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "artist.info"), artistIntro(languageMode, artist, tracks, info)))
-        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "online.info.not.found")))
+        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "local.identity.pending")))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
         listener.publishTrackList(artist, tracks, headerMetrics, headerActions, artistAlbumCards(languageMode, info))
@@ -347,22 +327,6 @@ class LibraryGroupsStateReducer(
         val immediateTracks = album.tracks.map(StreamingPlaybackAdapter::placeholderTrack)
         if (immediateTracks.isNotEmpty()) {
             listener.playTrackList(immediateTracks, 0)
-            return
-        }
-        Thread {
-            val tracks = runCatching { artistInfoRepository.loadAlbumTracks(album) }
-                .getOrDefault(emptyList())
-                .map(StreamingPlaybackAdapter::placeholderTrack)
-            if (tracks.isEmpty()) {
-                return@Thread
-            }
-            uiDispatcher.dispatch(Runnable {
-                listener.playTrackList(tracks, 0)
-            })
-        }.apply {
-            name = "ArtistAlbum-${album.providerAlbumId}"
-            isDaemon = true
-            start()
         }
     }
 
@@ -418,7 +382,7 @@ class LibraryGroupsStateReducer(
                     append(spec)
                     append(" audio specs")
                 }
-                append(". No reliable online bio was found yet.")
+                append(". Verified metadata can be added later by background enrichment.")
             } else {
                 append(displayArtist)
                 append(" 收录在你的本地曲库中。")
@@ -439,7 +403,7 @@ class LibraryGroupsStateReducer(
                     append(spec)
                     append(" 等音频规格")
                 }
-                append("。暂未从在线资料源找到可靠简介。")
+                append("。后台增强可在后续补充已验证资料。")
             }
         }
     }

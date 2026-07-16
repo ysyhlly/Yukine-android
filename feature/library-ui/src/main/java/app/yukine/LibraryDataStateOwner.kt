@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +52,18 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     private var searchJob: Job? = null
     private var libraryRevision = 0L
 
+    @Volatile
+    private var mergeIdentityProvider: ((Track) -> String?)? = null
+
+    @Volatile
+    private var mergeIdentitySnapshotProvider: (() -> Map<Long, String>)? = null
+
+    @Volatile
+    private var recordingIdentitySnapshotProvider: (() -> Map<Long, Long>)? = null
+
+    @Volatile
+    private var artistIdentityProvider: ((Track) -> List<LibraryArtistGroupIdentity>)? = null
+
     /**
      * Search is normally entered from the main thread, while a fresh MediaStore result can still
      * be grouping on Default. Keeping the latest normalized query lets that result publish the
@@ -62,6 +75,32 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     fun allTracks(): ArrayList<Track> {
         return ArrayList(state().allTracks)
     }
+
+    /** Binds the optional catalog identity used to merge rows across local and remote metadata. */
+    fun bindMergeIdentityProvider(provider: ((Track) -> String?)?) {
+        mergeIdentityProvider = provider
+    }
+
+    /**
+     * Binds the authoritative Room-backed identity snapshot used by an async library replacement.
+     * The provider is invoked once on [preparationDispatcher], so a scan/sync commit cannot be
+     * hidden by an older process cache and the display path still performs no per-track queries.
+     */
+    fun bindMergeIdentitySnapshotProvider(provider: (() -> Map<Long, String>)?) {
+        mergeIdentitySnapshotProvider = provider
+    }
+
+    /** Binds the integer recording snapshot used by the production library hot path. */
+    fun bindRecordingIdentitySnapshotProvider(provider: (() -> Map<Long, Long>)?) {
+        recordingIdentitySnapshotProvider = provider
+    }
+
+    fun bindArtistIdentityProvider(provider: ((Track) -> List<LibraryArtistGroupIdentity>)?) {
+        artistIdentityProvider = provider
+    }
+
+    fun artistIdentitiesFor(track: Track): List<LibraryArtistGroupIdentity> =
+        artistIdentityProvider?.invoke(track).orEmpty()
 
     fun sourceCandidatesFor(track: Track?): ArrayList<Track> {
         val trackId = track?.id ?: return ArrayList()
@@ -149,9 +188,33 @@ class LibraryDataStateOwner @JvmOverloads constructor(
         favorites: Set<Long>
     ): PreparedLibraryBase {
         val sourceTracks = tracks.toList()
+        val recordingSnapshotProvider = recordingIdentitySnapshotProvider
+        val recordingIdentities = recordingSnapshotProvider?.invoke().orEmpty()
+        val snapshotProvider = mergeIdentitySnapshotProvider
+        val identitySnapshot = snapshotProvider?.invoke().orEmpty()
+        val fallbackIdentityProvider = mergeIdentityProvider ?: { _: Track -> null }
+        val librarySnapshot = if (recordingSnapshotProvider != null) {
+            LibraryTrackMergePolicy.persistedRecordingSnapshot(sourceTracks) { track ->
+                recordingIdentities[track.id]
+            }
+        } else {
+            val mergeIdentitiesByTrackId = sourceTracks.associate { track ->
+                val persistedIdentity = identitySnapshot[track.id]
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { "recording:$it" }
+                track.id to if (snapshotProvider != null) {
+                    persistedIdentity
+                } else {
+                    fallbackIdentityProvider(track)
+                }
+            }
+            LibraryTrackMergePolicy.persistedSnapshot(sourceTracks) { track ->
+                mergeIdentitiesByTrackId[track.id]
+            }
+        }
         return PreparedLibraryBase(
-            sourceTracks = sourceTracks,
-            librarySnapshot = LibraryTrackMergePolicy.snapshot(sourceTracks),
+            librarySnapshot = librarySnapshot,
             favoriteTrackIds = HashSet(favorites)
         )
     }
@@ -187,11 +250,14 @@ class LibraryDataStateOwner @JvmOverloads constructor(
         updateVisibleTracks(searchVisibleTracks(state(), latestSearchQuery))
     }
 
-    /** Keeps per-keystroke filtering and duplicate merging off the UI thread. */
+    /** Debounces per-keystroke filtering and keeps it off the UI thread. */
     fun applySearchAsync(query: String?, onApplied: Runnable) {
         latestSearchQuery = normalizedSearchQuery(query)
         searchJob?.cancel()
         searchJob = scope.launch {
+            if (latestSearchQuery.isNotEmpty()) {
+                delay(SEARCH_DEBOUNCE_MS)
+            }
             while (true) {
                 val queryForSearch = latestSearchQuery
                 val source = state()
@@ -312,7 +378,24 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             return current.allTracks
         }
         val searchedTracks = search(current.allTracks, query) + search(current.selectedPlaylistTracks, query)
-        return LibraryTrackMergePolicy.merge(searchedTracks)
+        return persistedRepresentatives(searchedTracks, current.sourceCandidatesByTrackId)
+    }
+
+    /**
+     * Search consumes the canonical grouping prepared during library replacement. It must not
+     * rebuild clusters on every keystroke. A playlist alias is redirected to the representative
+     * already selected for its persisted recording, then duplicate representatives are removed.
+     */
+    private fun persistedRepresentatives(
+        tracks: List<Track>,
+        sourceCandidatesByTrackId: Map<Long, List<Track>>
+    ): List<Track> {
+        val representatives = LinkedHashMap<Long, Track>(tracks.size)
+        tracks.forEach { track ->
+            val representative = sourceCandidatesByTrackId[track.id]?.firstOrNull() ?: track
+            representatives.putIfAbsent(representative.id, representative)
+        }
+        return representatives.values.toList()
     }
 
     private fun search(source: List<Track>, query: String): List<Track> {
@@ -340,7 +423,6 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     }
 
     private data class PreparedLibraryBase(
-        val sourceTracks: List<Track>,
         val librarySnapshot: LibraryTrackMergePolicy.Snapshot,
         val favoriteTrackIds: Set<Long>
     )
@@ -349,7 +431,7 @@ class LibraryDataStateOwner @JvmOverloads constructor(
         val visibleTracks = if (searchQuery.isEmpty()) {
             librarySnapshot.mergedTracks
         } else {
-            LibraryTrackMergePolicy.merge(search(sourceTracks, searchQuery))
+            search(librarySnapshot.mergedTracks, searchQuery)
         }
         return PreparedLibraryReplacement(
             sourceCandidatesByTrackId = librarySnapshot.sourceCandidatesByTrackId,
@@ -357,5 +439,9 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             visibleTracks = visibleTracks,
             favoriteTrackIds = favoriteTrackIds
         )
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 200L
     }
 }

@@ -27,6 +27,7 @@ data class LibraryUiState(
     val selectedTrackKeys: Set<String> = emptySet(),
     val selectedGroupKeys: Set<String> = emptySet(),
     val operationInProgress: Boolean = false,
+    val autoSyncEnabled: Boolean = false,
     val message: String = "",
     val labels: LibraryUiLabels = LibraryUiLabels()
 ) {
@@ -56,7 +57,11 @@ data class LibraryUiLabels(
     val sortArtist: String = "歌手",
     val sortAlbum: String = "专辑",
     val sortDurationAscending: String = "时长升序",
-    val sortDurationDescending: String = "时长降序"
+    val sortDurationDescending: String = "时长降序",
+    val syncLibrary: String = "同步曲库",
+    val syncLibraryDescription: String = "更新 WebDAV 歌曲、标签和封面",
+    val syncingLibrary: String = "正在同步曲库",
+    val autoSync: String = "启动时自动同步"
 )
 
 sealed interface LibraryAction {
@@ -76,6 +81,8 @@ sealed interface LibraryAction {
     data object DeleteSelected : LibraryAction
     data object ScanLibrary : LibraryAction
     data object ImportFiles : LibraryAction
+    data object SyncLibrary : LibraryAction
+    data class SetAutoSyncEnabled(val enabled: Boolean) : LibraryAction
 }
 
 fun interface LibraryActionHandler {

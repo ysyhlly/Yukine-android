@@ -54,7 +54,9 @@ internal class SyncStreamingPlaylistUseCase(
         }
         val placeholders = streamingTracks
             .orEmpty()
-            .mapNotNull { track -> track?.let { StreamingPlaybackAdapter.placeholderTrack(it) } }
+            .mapNotNull { track ->
+                track?.playableLibraryTrackOrNull()?.let(StreamingPlaybackAdapter::placeholderTrack)
+            }
         if (placeholders.isEmpty()) {
             operations.markSynced(link.localPlaylistId)
             return SyncStreamingPlaylistResult(link.localPlaylistId, 0, true)

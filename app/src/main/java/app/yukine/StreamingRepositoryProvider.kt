@@ -14,14 +14,18 @@ class StreamingRepositoryProvider @Inject constructor(
     private val cacheRepository: StreamingCacheRepository,
     private val gatewayFactory: StreamingGatewayFactory,
     private val playbackTrackAdapter: StreamingPlaybackTrackAdapter,
-    private val cachePolicy: StreamingCachePolicy
+    private val cachePolicy: StreamingCachePolicy,
+    private val playbackSourcePolicy: PersistentPlaybackSourcePolicy,
+    private val playbackTelemetry: PlaybackResolutionTelemetry
 ) : StreamingRepositorySource {
     override fun current(): StreamingRepository {
         return StreamingRepository(
             gatewayFactory.remote(settingsStore.endpoint()),
             cacheRepository,
             playbackTrackAdapter,
-            cachePolicy
+            cachePolicy,
+            playbackSourcePolicy,
+            playbackTelemetry = playbackTelemetry
         )
     }
 }

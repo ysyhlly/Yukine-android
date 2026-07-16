@@ -5,6 +5,7 @@ import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -19,6 +20,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.Executors
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LyricsViewModelTest {
@@ -135,6 +137,38 @@ class LyricsViewModelTest {
         viewModel.loadPlaybackTrack(track(13L)).join()
 
         assertEquals(listOf("load:13:true:provider:13"), operations.events)
+    }
+
+    @Test
+    fun playbackTrackProviderResolverRunsOffMainThread() = runTest {
+        val resolverExecutor = Executors.newSingleThreadExecutor { task ->
+            Thread(task, "lyrics-provider-io")
+        }
+        val resolverDispatcher = resolverExecutor.asCoroutineDispatcher()
+        try {
+            val operations = FakeLyricsLoader().apply {
+                result = listOf(LyricsLine(1000L, "hello"))
+            }
+            val viewModel = LyricsViewModel(resolverDispatcher)
+            var resolverThread = ""
+            viewModel.configure(operations, onlineEnabled = true, offsetMs = 0L)
+            viewModel.bindReloadGateway(
+                CurrentLyricsTrackProvider { null },
+                LyricsProviderTrackIdResolver { nextTrack ->
+                    resolverThread = Thread.currentThread().name
+                    "provider:${nextTrack?.id}"
+                },
+                null
+            )
+
+            viewModel.loadPlaybackTrack(track(15L)).join()
+
+            assertTrue(resolverThread.startsWith("lyrics-provider-io"))
+            assertEquals(listOf("load:15:true:provider:15"), operations.events)
+        } finally {
+            resolverDispatcher.close()
+            resolverExecutor.shutdownNow()
+        }
     }
 
     @Test

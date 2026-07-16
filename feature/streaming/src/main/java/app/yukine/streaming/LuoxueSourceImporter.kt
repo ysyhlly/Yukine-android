@@ -143,7 +143,7 @@ class LuoxueSourceStore(context: Context) : LuoxueSourceStoreManager {
         val to = (from + offset).takeIf { it in current.indices } ?: return false
         val source = current.removeAt(from)
         current.add(to, source)
-        return writeMetadata(normalizeOrder(current))
+        return writeMetadata(current.mapIndexed { index, item -> item.copy(order = index) })
     }
 
     @Synchronized

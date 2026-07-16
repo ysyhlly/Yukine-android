@@ -40,16 +40,28 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.common.EmbeddedArtwork
+import app.yukine.common.ApplicationNetworkClient
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.File
+import java.io.InputStream
+import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import okhttp3.Request
 
 object ArtworkLoader {
     private const val BYTES_PER_KIB = 1024
-    private const val FALLBACK_CACHE_KIB = 8 * 1024
+    private const val FALLBACK_CACHE_KIB = 16 * 1024
+    private const val MAX_CACHE_KIB = 24 * 1024
+    private const val NETWORK_ARTWORK_CACHE_BYTES = 96L * 1024L * 1024L
+    private const val MAX_NETWORK_ARTWORK_BYTES = 16L * 1024L * 1024L
+    private const val NETWORK_ARTWORK_MAX_AGE_MS = 14L * 24L * 60L * 60L * 1000L
 
     /** Hard ceiling on decoded edge length so a huge source image can never blow the heap. */
     const val MAX_TARGET_PX = 1536
@@ -59,25 +71,58 @@ object ArtworkLoader {
             return (value.byteCount / BYTES_PER_KIB).coerceAtLeast(1)
         }
     }
+    private val inFlight = ConcurrentHashMap<String, CompletableDeferred<Bitmap?>>()
+    private val networkFileInFlight = ConcurrentHashMap<String, CompletableFuture<File?>>()
+    private val artworkHttpClient = ApplicationNetworkClient.httpClient.newBuilder()
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .callTimeout(15, TimeUnit.SECONDS)
+        .build()
 
     suspend fun load(context: Context, albumArtUri: Uri, targetPx: Int): Bitmap? {
         val safeTargetPx = targetPx.coerceIn(1, MAX_TARGET_PX)
         val key = albumArtUri.toString() + "#" + safeTargetPx
-        cache.get(key)?.let { return it }
-        return withContext(Dispatchers.IO) {
-            decodeSampledBitmap(context, albumArtUri, safeTargetPx)?.also { bitmap ->
-                cache.put(key, bitmap)
+        return loadDeduplicated(key) {
+            withContext(Dispatchers.IO) {
+                decodeSampledBitmap(context, albumArtUri, safeTargetPx)
             }
         }
     }
 
     suspend fun loadOriginal(context: Context, albumArtUri: Uri): Bitmap? {
         val key = albumArtUri.toString() + "#original"
-        cache.get(key)?.let { return it }
-        return withContext(Dispatchers.IO) {
-            decodeOriginalBitmap(context, albumArtUri)?.also { bitmap ->
-                cache.put(key, bitmap)
+        return loadDeduplicated(key) {
+            withContext(Dispatchers.IO) {
+                decodeOriginalBitmap(context, albumArtUri)
             }
+        }
+    }
+
+    private suspend fun loadDeduplicated(
+        key: String,
+        decode: suspend () -> Bitmap?
+    ): Bitmap? {
+        cache.get(key)?.let { return it }
+        val pending = CompletableDeferred<Bitmap?>()
+        val existing = inFlight.putIfAbsent(key, pending)
+        if (existing != null) return existing.await()
+        try {
+            cache.get(key)?.let {
+                pending.complete(it)
+                return it
+            }
+            val bitmap = decode()
+            bitmap?.let { cache.put(key, it) }
+            pending.complete(bitmap)
+            return bitmap
+        } catch (cancelled: CancellationException) {
+            pending.cancel(cancelled)
+            throw cancelled
+        } catch (error: Throwable) {
+            pending.completeExceptionally(error)
+            throw error
+        } finally {
+            inFlight.remove(key, pending)
         }
     }
 
@@ -164,24 +209,84 @@ object ArtworkLoader {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
-    private fun openArtworkStream(context: Context, uri: Uri): java.io.InputStream? {
+    private fun openArtworkStream(context: Context, uri: Uri): InputStream? {
         val scheme = uri.scheme?.lowercase()
         if (scheme != "http" && scheme != "https") {
             return context.contentResolver.openInputStream(uri)
         }
-        val connection = URL(uri.toString()).openConnection() as HttpURLConnection
-        connection.connectTimeout = 8000
-        connection.readTimeout = 12000
-        connection.instanceFollowRedirects = true
-        connection.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 Yukine-Android")
-        connection.setRequestProperty("Referer", "https://music.163.com/")
-        val code = connection.responseCode
-        if (code !in 200..299) {
-            connection.disconnect()
-            return null
+        return cachedNetworkArtwork(context.applicationContext, uri)?.inputStream()
+    }
+
+    private fun cachedNetworkArtwork(context: Context, uri: Uri): File? {
+        val rawUrl = uri.toString()
+        val cacheDir = File(context.cacheDir, "artwork-originals").apply { mkdirs() }
+        val cacheFile = File(cacheDir, ArtworkDiskCachePolicy.fileName(rawUrl))
+        val now = System.currentTimeMillis()
+        if (ArtworkDiskCachePolicy.isFresh(cacheFile, now, NETWORK_ARTWORK_MAX_AGE_MS)) {
+            cacheFile.setLastModified(now)
+            return cacheFile
         }
-        return connection.inputStream
+
+        val pending = CompletableFuture<File?>()
+        val existing = networkFileInFlight.putIfAbsent(rawUrl, pending)
+        if (existing != null) {
+            return runCatching { existing.get() }.getOrNull()
+        }
+        try {
+            val downloaded = downloadArtwork(rawUrl, cacheDir, cacheFile)
+            val result = downloaded ?: cacheFile.takeIf { it.isFile && it.length() > 0L }
+            pending.complete(result)
+            return result
+        } catch (error: Throwable) {
+            pending.completeExceptionally(error)
+            return cacheFile.takeIf { it.isFile && it.length() > 0L }
+        } finally {
+            networkFileInFlight.remove(rawUrl, pending)
+        }
+    }
+
+    private fun downloadArtwork(rawUrl: String, cacheDir: File, destination: File): File? {
+        val request = Request.Builder()
+            .url(rawUrl)
+            .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+            .header("User-Agent", "Mozilla/5.0 Yukine-Android")
+            .header("Referer", "https://music.163.com/")
+            .build()
+        return artworkHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use null
+            val body = response.body ?: return@use null
+            val declaredLength = body.contentLength()
+            if (declaredLength > MAX_NETWORK_ARTWORK_BYTES) return@use null
+            val temporary = File.createTempFile("artwork-", ".part", cacheDir)
+            try {
+                if (!copyArtworkBody(body.byteStream(), temporary)) return@use null
+                if (temporary.length() <= 0L) return@use null
+                if (destination.exists() && !destination.delete()) return@use null
+                if (!temporary.renameTo(destination)) return@use null
+                destination.setLastModified(System.currentTimeMillis())
+                ArtworkDiskCachePolicy.trim(cacheDir, NETWORK_ARTWORK_CACHE_BYTES, destination)
+                destination
+            } finally {
+                if (temporary.exists()) temporary.delete()
+            }
+        }
+    }
+
+    private fun copyArtworkBody(input: InputStream, destination: File): Boolean {
+        return input.use { source ->
+            destination.outputStream().buffered().use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0L
+                while (true) {
+                    val count = source.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > MAX_NETWORK_ARTWORK_BYTES) return false
+                    output.write(buffer, 0, count)
+                }
+                true
+            }
+        }
     }
 
     private fun sampleSize(width: Int, height: Int, targetPx: Int): Int {
@@ -195,7 +300,7 @@ object ArtworkLoader {
 
     private fun cacheSizeKib(): Int {
         val runtimeKib = (Runtime.getRuntime().maxMemory() / BYTES_PER_KIB).toInt()
-        return (runtimeKib / 8).coerceAtLeast(FALLBACK_CACHE_KIB)
+        return (runtimeKib / 8).coerceIn(FALLBACK_CACHE_KIB, MAX_CACHE_KIB)
     }
 }
 
@@ -209,7 +314,8 @@ fun AsyncArtwork(
     fallbackTextSize: TextUnit,
     targetSize: Dp,
     backgroundColor: Color,
-    @DrawableRes fallbackResId: Int? = null
+    @DrawableRes fallbackResId: Int? = null,
+    crossfadeEnabled: Boolean = true
 ) {
     val context = LocalContext.current
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -247,30 +353,92 @@ fun AsyncArtwork(
         // Crossfade between fallback/placeholder and the resolved cover so a new cover fades in
         // rather than snapping. Keyed on the bitmap identity so re-feeding the same bitmap
         // (e.g. on a progress tick) does not re-trigger the animation.
-        Crossfade(
-            targetState = loadedBitmap,
-            animationSpec = tween(durationMillis = 220),
-            label = "artwork"
-        ) { current ->
-            if (current != null) {
-                Image(
-                    bitmap = current.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+        if (crossfadeEnabled) {
+            Crossfade(
+                targetState = loadedBitmap,
+                animationSpec = tween(durationMillis = 220),
+                label = "artwork"
+            ) { current ->
+                ArtworkFrame(
+                    current,
+                    uri,
+                    title,
+                    subtitle,
+                    cornerRadius,
+                    fallbackTextSize,
+                    targetSize,
+                    fallbackPainter
                 )
-            } else if (uri == null) {
-                InlineArtworkFallback(title, subtitle, Modifier.fillMaxSize(), cornerRadius, fallbackTextSize)
-            } else if (fallbackPainter != null) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Image(
-                        painter = fallbackPainter,
-                        contentDescription = null,
-                        modifier = Modifier.size((targetSize.value / 2).dp),
-                        contentScale = ContentScale.Fit
-                    )
-                }
             }
+        } else {
+            ArtworkFrame(
+                loadedBitmap,
+                uri,
+                title,
+                subtitle,
+                cornerRadius,
+                fallbackTextSize,
+                targetSize,
+                fallbackPainter
+            )
+        }
+    }
+
+}
+
+internal object ArtworkDiskCachePolicy {
+    fun fileName(rawUrl: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(rawUrl.toByteArray(Charsets.UTF_8))
+        return digest.joinToString(separator = "") { byte -> "%02x".format(byte) } + ".img"
+    }
+
+    fun isFresh(file: File, now: Long, maxAgeMs: Long): Boolean {
+        return file.isFile && file.length() > 0L && now - file.lastModified() in 0..maxAgeMs
+    }
+
+    fun trim(directory: File, maxBytes: Long, protectedFile: File? = null) {
+        val files = directory.listFiles { file -> file.isFile && file.extension == "img" }
+            ?.sortedBy(File::lastModified)
+            .orEmpty()
+        var total = files.sumOf(File::length)
+        if (total <= maxBytes) return
+        for (file in files) {
+            if (file == protectedFile) continue
+            val length = file.length()
+            if (file.delete()) total -= length
+            if (total <= maxBytes) break
+        }
+    }
+}
+
+@Composable
+private fun ArtworkFrame(
+    bitmap: Bitmap?,
+    uri: Uri?,
+    title: String,
+    subtitle: String,
+    cornerRadius: Dp,
+    fallbackTextSize: TextUnit,
+    targetSize: Dp,
+    fallbackPainter: Painter?
+) {
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    } else if (uri == null) {
+        InlineArtworkFallback(title, subtitle, Modifier.fillMaxSize(), cornerRadius, fallbackTextSize)
+    } else if (fallbackPainter != null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Image(
+                painter = fallbackPainter,
+                contentDescription = null,
+                modifier = Modifier.size((targetSize.value / 2).dp),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 }

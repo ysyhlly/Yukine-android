@@ -27,6 +27,7 @@ public final class Track implements Parcelable {
     public final int channelCount;
     public final float replayGainTrackDb;
     public final float replayGainAlbumDb;
+    public final TrackIdentityTags identityTags;
 
     public Track(
             long id,
@@ -108,6 +109,46 @@ public final class Track implements Parcelable {
             float replayGainTrackDb,
             float replayGainAlbumDb
     ) {
+        this(
+                id,
+                title,
+                artist,
+                album,
+                durationMs,
+                contentUri,
+                dataPath,
+                albumId,
+                albumArtUri,
+                codec,
+                bitrateKbps,
+                sampleRateHz,
+                bitsPerSample,
+                channelCount,
+                replayGainTrackDb,
+                replayGainAlbumDb,
+                TrackIdentityTags.EMPTY
+        );
+    }
+
+    public Track(
+            long id,
+            String title,
+            String artist,
+            String album,
+            long durationMs,
+            Uri contentUri,
+            String dataPath,
+            long albumId,
+            Uri albumArtUri,
+            String codec,
+            int bitrateKbps,
+            int sampleRateHz,
+            int bitsPerSample,
+            int channelCount,
+            float replayGainTrackDb,
+            float replayGainAlbumDb,
+            TrackIdentityTags identityTags
+    ) {
         this.id = id;
         this.title = clean(title, UNKNOWN_TITLE);
         this.artist = clean(artist, UNKNOWN_ARTIST);
@@ -124,6 +165,7 @@ public final class Track implements Parcelable {
         this.channelCount = Math.max(channelCount, 0);
         this.replayGainTrackDb = sanitizeReplayGain(replayGainTrackDb);
         this.replayGainAlbumDb = sanitizeReplayGain(replayGainAlbumDb);
+        this.identityTags = identityTags == null ? TrackIdentityTags.EMPTY : identityTags;
     }
 
     private Track(Parcel in) {
@@ -146,6 +188,13 @@ public final class Track implements Parcelable {
         channelCount = Math.max(in.readInt(), 0);
         replayGainTrackDb = sanitizeReplayGain(in.readFloat());
         replayGainAlbumDb = sanitizeReplayGain(in.readFloat());
+        identityTags = new TrackIdentityTags(
+                in.readString(),
+                in.readString(),
+                in.readString(),
+                in.readString(),
+                in.createStringArrayList()
+        );
     }
 
     public String subtitle() {
@@ -226,6 +275,11 @@ public final class Track implements Parcelable {
         dest.writeInt(channelCount);
         dest.writeFloat(replayGainTrackDb);
         dest.writeFloat(replayGainAlbumDb);
+        dest.writeString(identityTags.recordingMusicBrainzId);
+        dest.writeString(identityTags.workMusicBrainzId);
+        dest.writeString(identityTags.isrc);
+        dest.writeString(identityTags.acoustId);
+        dest.writeStringList(identityTags.artistMusicBrainzIds);
     }
 
     public static final Creator<Track> CREATOR = new Creator<Track>() {

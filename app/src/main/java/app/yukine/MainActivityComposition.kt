@@ -49,7 +49,8 @@ internal class MainActivityComposition @Inject constructor(
             deps.resolveStreamingPlaybackUseCase,
             deps.streamingTrackMatchUseCase,
             deps.streamingLocalPlaylistOperations,
-            deps.luoxueTrackMetadataResolver
+            deps.luoxueTrackMetadataResolver,
+            deps.repository
         )
         val library = LibraryFeatureBinding(
             activity,
@@ -68,7 +69,22 @@ internal class MainActivityComposition @Inject constructor(
             deps.libraryPlaylistActionGateway,
             deps.homeDashboardRepository,
             deps.mainHandler,
-            deps.artistInfoRepository
+            deps.recordingMatchRepository,
+            LibraryMultiSourceSyncCoordinator(
+                MusicLibraryMultiSourceSyncOperations(
+                    deps.repository,
+                    deps.streamingRepositorySource,
+                    deps.streamingTrackMatchUseCase
+                )
+            ),
+            FavoriteSyncCoordinator(
+                SharedPreferencesFavoriteSyncRepository(activity),
+                StreamingFavoriteProviderAdapter(deps.streamingRepositorySource),
+                MusicLibraryUnifiedFavoriteLibrary(deps.repository),
+                deps.streamingTrackMatchUseCase,
+                deps.favoriteSyncEventBus,
+                AndroidFavoriteSyncNetworkPolicy(activity)
+            )
         )
         val playback = PlaybackFeatureBinding(
             activity,

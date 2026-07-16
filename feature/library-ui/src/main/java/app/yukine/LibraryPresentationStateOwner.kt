@@ -5,6 +5,7 @@ import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.LibraryMode
+import app.yukine.ui.LibraryPlaylistFolderUiState
 import app.yukine.ui.LibraryUiLabels
 import app.yukine.ui.LibraryUiState
 import app.yukine.ui.TrackListAlbumCardUiState
@@ -86,7 +87,21 @@ class LibraryPresentationStateOwner internal constructor(
                 ?.let { gateway()?.requestDeleteTracks(it) }
             LibraryAction.ScanLibrary -> gateway()?.scanLibrary()
             LibraryAction.ImportFiles -> gateway()?.importFiles()
+            LibraryAction.SyncLibrary -> gateway()?.syncWebDavLibrary()
+            is LibraryAction.SetAutoSyncEnabled -> gateway()?.setAutomaticSyncEnabled(action.enabled)
         }
+    }
+
+    fun updateSyncInProgress(inProgress: Boolean) {
+        if (uiState.value.operationInProgress == inProgress) return
+        uiState.value = uiState.value.copy(operationInProgress = inProgress)
+        publishInteractionState()
+    }
+
+    fun updateAutoSyncEnabled(enabled: Boolean) {
+        if (uiState.value.autoSyncEnabled == enabled) return
+        uiState.value = uiState.value.copy(autoSyncEnabled = enabled)
+        publishInteractionState()
     }
 
     fun updateVisibleTrackTargets(tracks: List<Track>, keys: List<String>) {
@@ -246,8 +261,18 @@ class LibraryPresentationStateOwner internal constructor(
         trackListState.value = LibraryTrackListDestinationState()
     }
 
-    fun updateLibraryGroups(title: String, rows: List<LibraryGroupUiState>) {
-        groupsState.value = groupsState.value.copy(title = title, rows = rows.toList(), libraryUi = uiState.value)
+    @JvmOverloads
+    fun updateLibraryGroups(
+        title: String,
+        rows: List<LibraryGroupUiState>,
+        playlistFolders: List<LibraryPlaylistFolderUiState> = emptyList()
+    ) {
+        groupsState.value = groupsState.value.copy(
+            title = title,
+            rows = rows.toList(),
+            libraryUi = uiState.value,
+            playlistFolders = playlistFolders.toList()
+        )
     }
 
     fun clearLibraryGroups() {

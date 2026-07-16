@@ -47,6 +47,47 @@ class StreamingTrackMatchUseCaseTest {
     }
 
     @Test
+    fun providerTrackIdReadsPrimaryIdFromStoredLxVersionSet() {
+        val operations = FakeStreamingTrackMatchOperations()
+        operations.loaded = StoredStreamingSourceMatchCodec.encode(
+            primary = StreamingTrack(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "wy:main",
+                title = "Song",
+                artist = "Artist"
+            ),
+            orderedCandidates = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = "tx:live",
+                    title = "Song (Live)",
+                    artist = "Artist"
+                )
+            )
+        )
+
+        val result = StreamingTrackMatchUseCase(operations).providerTrackIdFor(
+            localTrack(),
+            StreamingProviderName.LUOXUE
+        )
+
+        assertEquals("wy:main", result)
+    }
+
+    @Test
+    fun noSourceStatusIsNotReturnedAsAPlayableTrackId() {
+        val operations = FakeStreamingTrackMatchOperations()
+        operations.loaded = STREAMING_NO_SOURCE_MATCH
+
+        val result = StreamingTrackMatchUseCase(operations).providerTrackIdFor(
+            localTrack(),
+            StreamingProviderName.NETEASE
+        )
+
+        assertEquals("", result)
+    }
+
+    @Test
     fun providerTrackIdCanBeReadFromNeteaseLocations() {
         val useCase = StreamingTrackMatchUseCase(FakeStreamingTrackMatchOperations())
         val marker = localTrack(dataPath = "streaming:netease:12345")

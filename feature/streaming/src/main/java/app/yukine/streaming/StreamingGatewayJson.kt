@@ -286,7 +286,27 @@ internal object StreamingGatewayJson {
 
     private fun providerDescriptor(value: JSONObject): StreamingProviderDescriptor? {
         val provider = providerName(value.optString("name")) ?: return null
-        val capabilities = capabilities(value.optJSONObject("capabilities") ?: value)
+        val capabilities = capabilities(value.optJSONObject("capabilities") ?: value).let { parsed ->
+            if (provider == StreamingProviderName.QQ_MUSIC) parsed.copy(
+                supportsSearch = true,
+                supportsPlayback = false,
+                supportsFavorites = true,
+                supportsPlaylists = true,
+                supportsPlaylistImport = true,
+                supportsPlaylistReadSync = true,
+                supportsPlaylistCreate = true,
+                supportsPlaylistWrite = true,
+                supportsPlaylistDelete = true,
+                supportsPlaylistRename = true,
+                supportsPlaylistReorder = true,
+                supportsFavoritesRead = true,
+                supportsFavoritesWrite = true,
+                supportsAudioResolve = false,
+                supportsAudioFallback = false,
+                supportsAudioDownload = false,
+                supportsAudioCache = false
+            ) else parsed
+        }
         val auth = authState(value.optJSONObject("auth") ?: JSONObject(), provider)
         return StreamingProviderDescriptor(
             name = provider,
@@ -352,7 +372,8 @@ internal object StreamingGatewayJson {
             ?: derived?.supportsMv
             ?: false
         val supportsSearch = enabled && rawSupportsSearch
-        val supportsPlayback = enabled && rawSupportsPlayback
+        val supportsPlayback = enabled && rawSupportsPlayback &&
+            !StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(provider)
         val supportsAuth = enabled && rawSupportsAuth
         val supportsFavorites = enabled && rawSupportsFavorites
         val supportsPlaylists = enabled && rawSupportsPlaylists
@@ -374,33 +395,76 @@ internal object StreamingGatewayJson {
                 "playlists".takeIf { supportsPlaylists }
             )
         }
+        val qqDataEnabled = enabled && provider == StreamingProviderName.QQ_MUSIC
         return StreamingProviderCapability(
             provider = provider,
             displayName = value.optionalString("displayName") ?: derived?.displayName ?: provider.wireName,
             enabled = enabled,
             status = providerStatus(value.optString("status")) ?: derived?.status ?: StreamingProviderStatus.READY,
-            supportsSearch = supportsSearch,
+            supportsSearch = supportsSearch || qqDataEnabled,
             supportsPlayback = supportsPlayback,
             supportsAuth = supportsAuth,
-            supportsFavorites = supportsFavorites,
-            supportsPlaylists = supportsPlaylists,
+            supportsFavorites = supportsFavorites || qqDataEnabled,
+            supportsPlaylists = supportsPlaylists || qqDataEnabled,
             supportsLyrics = supportsLyrics,
             supportsMv = supportsMv,
             supportedSearchMediaTypes = supportedMediaTypes,
-            actions = actions
+            actions = actions,
+            supportsPlaylistImport = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistImport")
+                ?: derived?.supportsPlaylistImport ?: supportsPlaylists),
+            supportsPlaylistReadSync = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistReadSync")
+                ?: derived?.supportsPlaylistReadSync ?: supportsPlaylists),
+            supportsPlaylistCreate = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistCreate")
+                ?: derived?.supportsPlaylistCreate ?: false),
+            supportsPlaylistWrite = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistWrite")
+                ?: derived?.supportsPlaylistWrite ?: false),
+            supportsPlaylistDelete = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistDelete")
+                ?: derived?.supportsPlaylistDelete ?: false),
+            supportsPlaylistRename = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistRename")
+                ?: derived?.supportsPlaylistRename ?: false),
+            supportsPlaylistReorder = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsPlaylistReorder")
+                ?: derived?.supportsPlaylistReorder ?: false),
+            supportsFavoritesRead = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsFavoritesRead")
+                ?: derived?.supportsFavoritesRead ?: supportsFavorites),
+            supportsFavoritesWrite = qqDataEnabled || enabled && (rawCapabilities.optionalBoolean("supportsFavoritesWrite")
+                ?: derived?.supportsFavoritesWrite ?: supportsFavorites),
+            supportsAudioResolve = supportsPlayback && (rawCapabilities.optionalBoolean("supportsAudioResolve")
+                ?: derived?.supportsAudioResolve ?: supportsPlayback),
+            supportsAudioFallback = supportsPlayback && (rawCapabilities.optionalBoolean("supportsAudioFallback")
+                ?: derived?.supportsAudioFallback ?: supportsPlayback),
+            supportsAudioDownload = supportsPlayback && (rawCapabilities.optionalBoolean("supportsAudioDownload")
+                ?: derived?.supportsAudioDownload ?: supportsPlayback),
+            supportsAudioCache = supportsPlayback && (rawCapabilities.optionalBoolean("supportsAudioCache")
+                ?: derived?.supportsAudioCache ?: supportsPlayback)
         )
     }
 
     private fun capabilities(value: JSONObject): StreamingProviderCapabilities {
+        val provider = providerName(value.optString("provider", value.optString("name")))
+        val playbackAllowed = provider != StreamingProviderName.QQ_MUSIC
+        val supportsPlayback = value.optBoolean("supportsPlayback", false) && playbackAllowed
         return StreamingProviderCapabilities(
             supportsSearch = value.optBoolean("supportsSearch", false),
-            supportsPlayback = value.optBoolean("supportsPlayback", false),
+            supportsPlayback = supportsPlayback,
             supportsLyrics = value.optBoolean("supportsLyrics", false),
             supportsMv = value.optBoolean("supportsMv", false),
             supportsAuth = value.optBoolean("supportsAuth", value.optBoolean("requiresAccount", false)),
             supportsFavorites = value.optBoolean("supportsFavorites", false),
             supportsPlaylists = value.optBoolean("supportsPlaylists", true),
-            supportedMediaTypes = mediaTypes(value.optJSONArray("supportedMediaTypes"))
+            supportedMediaTypes = mediaTypes(value.optJSONArray("supportedMediaTypes")),
+            supportsPlaylistImport = value.optBoolean("supportsPlaylistImport", value.optBoolean("supportsPlaylists", true)),
+            supportsPlaylistReadSync = value.optBoolean("supportsPlaylistReadSync", value.optBoolean("supportsPlaylists", true)),
+            supportsPlaylistCreate = value.optBoolean("supportsPlaylistCreate", false),
+            supportsPlaylistWrite = value.optBoolean("supportsPlaylistWrite", false),
+            supportsPlaylistDelete = value.optBoolean("supportsPlaylistDelete", false),
+            supportsPlaylistRename = value.optBoolean("supportsPlaylistRename", false),
+            supportsPlaylistReorder = value.optBoolean("supportsPlaylistReorder", false),
+            supportsFavoritesRead = value.optBoolean("supportsFavoritesRead", value.optBoolean("supportsFavorites", false)),
+            supportsFavoritesWrite = value.optBoolean("supportsFavoritesWrite", value.optBoolean("supportsFavorites", false)),
+            supportsAudioResolve = supportsPlayback && value.optBoolean("supportsAudioResolve", supportsPlayback),
+            supportsAudioFallback = supportsPlayback && value.optBoolean("supportsAudioFallback", supportsPlayback),
+            supportsAudioDownload = supportsPlayback && value.optBoolean("supportsAudioDownload", supportsPlayback),
+            supportsAudioCache = supportsPlayback && value.optBoolean("supportsAudioCache", supportsPlayback)
         )
     }
 
@@ -449,7 +513,8 @@ internal object StreamingGatewayJson {
                     ?: value.optionalString("summary"),
                 lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
                 playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider),
-                luoxueMusicInfoJson = luoxueMusicInfoJson(value)
+                luoxueMusicInfoJson = luoxueMusicInfoJson(value),
+                isrc = value.optionalString("isrc") ?: value.optionalString("ISRC")
             )
         }
     }
@@ -544,7 +609,8 @@ internal object StreamingGatewayJson {
                             ?: value.optionalString("summary"),
                         lyricSources = lyricSources(value.optJSONArray("lyricSources"), provider),
                         playbackCandidates = playbackCandidates(value.optJSONArray("playbackCandidates"), provider),
-                        luoxueMusicInfoJson = luoxueMusicInfoJson(value)
+                        luoxueMusicInfoJson = luoxueMusicInfoJson(value),
+                        isrc = value.optionalString("isrc") ?: value.optionalString("ISRC")
                     )
                 StreamingSearchItem.fromTrack(track).copy(
                     title = value.optionalString("title") ?: track.title,
@@ -781,6 +847,7 @@ internal object StreamingGatewayJson {
             .put("playable", track.playable)
             .put("unavailableReason", track.unavailableReason)
             .put("description", track.description)
+            .put("isrc", track.isrc)
             .put("lyricSources", JSONArray(track.lyricSources.map { lyricSourceJson(it) }))
             .put("playbackCandidates", JSONArray(track.playbackCandidates.map { playbackCandidateJson(it) }))
         normalizeLuoxueMusicInfoJson(track.luoxueMusicInfoJson)?.let { musicInfo ->

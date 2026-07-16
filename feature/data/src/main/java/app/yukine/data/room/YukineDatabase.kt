@@ -9,16 +9,38 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         TrackEntity::class,
-        FavoriteEntity::class,
+        RecordingFavoriteEntity::class,
         PlayHistoryEntity::class,
         PlayEventEntity::class,
+        RecordingPlayHistoryEntity::class,
+        RecordingPlayEventEntity::class,
         PlaylistEntity::class,
         PlaylistTrackEntity::class,
+        PlaylistRecordingItemEntity::class,
         SettingEntity::class,
         RemoteSourceEntity::class,
         PlaybackQueueEntity::class,
+        PlaybackQueueIdentityEntity::class,
         StreamingTrackMatchEntity::class,
-        LibraryExclusionEntity::class
+        LibraryExclusionEntity::class,
+        CanonicalWorkEntity::class,
+        CanonicalRecordingEntity::class,
+        CanonicalArtistEntity::class,
+        ArtistAliasEntity::class,
+        ArtistSourceMappingEntity::class,
+        RecordingArtistCreditEntity::class,
+        TrackSourceMappingEntity::class,
+        AudioFeatureEntity::class,
+        SourceMatchFeatureEntity::class,
+        SourceRecordingCandidateEntity::class,
+        RecordingRelationEntity::class,
+        RecordingIdentifierEntity::class,
+        RecordingVariantEntity::class,
+        IdentityCandidateEntity::class,
+        IdentityResolutionJobEntity::class,
+        ProviderResponseCacheEntity::class,
+        LyricBindingEntity::class,
+        IdentityOperationEntity::class
     ],
     version = YukineMigrations.TARGET_VERSION,
     exportSchema = true
@@ -31,6 +53,7 @@ abstract class YukineDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
     abstract fun remoteSourceDao(): RemoteSourceDao
     abstract fun streamingTrackMatchDao(): StreamingTrackMatchDao
+    abstract fun musicIdentityDao(): MusicIdentityDao
 
     companion object {
         const val DATABASE_NAME: String = "echo_next.db"

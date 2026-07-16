@@ -40,6 +40,7 @@ fun LibraryGroupsDestination(
         audioMotion,
         uiState.libraryUi,
         actionHandler,
-        libraryControlsEnabled
+        libraryControlsEnabled,
+        uiState.playlistFolders
     )
 }

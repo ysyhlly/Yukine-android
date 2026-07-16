@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.YukineDatabase
 import app.yukine.model.Track
+import app.yukine.model.TrackIdentityTags
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
@@ -69,6 +70,24 @@ class PlaybackPersistenceRepositoryTest {
         assertEquals(0, repository.loadQueueIndex())
     }
 
+    @Test
+    fun restoredQueueFallsBackWithinCanonicalRecordingWhenPreferredSourceIsUnavailable() {
+        val mbid = "123e4567-e89b-12d3-a456-426614174011"
+        val webDav = identifiedTrack(21L, "webdav:1:/queue.flac", mbid)
+        val local = identifiedTrack(22L, "/music/queue.flac", mbid)
+        LibraryRepository(database).upsertTracks(listOf(webDav, local))
+        repository.saveQueue(listOf(webDav), 0)
+        val preferred = checkNotNull(database.musicIdentityDao().sourceForLocalTrack(webDav.id))
+
+        database.musicIdentityDao().markSourceUnavailable(checkNotNull(preferred.sourceId), 100L)
+        database.musicIdentityDao().refreshActiveSource(preferred.recordingId)
+
+        assertEquals(listOf(local.id), repository.loadQueue().map(Track::id))
+        val identity = database.playbackPersistenceDao().loadQueueIdentities().single()
+        assertEquals(preferred.recordingId, identity.recordingId)
+        assertEquals(preferred.sourceId, identity.preferredSourceId)
+    }
+
     private fun track(id: Long) = Track(
         id,
         "Track $id",
@@ -87,4 +106,27 @@ class PlaybackPersistenceRepositoryTest {
         -4.5f,
         -3.0f
     )
+
+    private fun identifiedTrack(id: Long, dataPath: String, mbid: String): Track {
+        val base = track(id)
+        return Track(
+            base.id,
+            base.title,
+            base.artist,
+            base.album,
+            base.durationMs,
+            base.contentUri,
+            dataPath,
+            base.albumId,
+            base.albumArtUri,
+            base.codec,
+            base.bitrateKbps,
+            base.sampleRateHz,
+            base.bitsPerSample,
+            base.channelCount,
+            base.replayGainTrackDb,
+            base.replayGainAlbumDb,
+            TrackIdentityTags(mbid, "", "", "", emptyList())
+        )
+    }
 }

@@ -11,6 +11,9 @@ import dagger.hilt.android.components.ServiceComponent
 @InstallIn(ActivityComponent::class, ServiceComponent::class)
 internal object ToggleFavoriteModule {
     @Provides
-    fun provideToggleFavoriteUseCase(repository: MusicLibraryRepository): ToggleFavoriteUseCase =
-        ToggleFavoriteUseCase(MusicLibraryFavoriteOperations(repository))
+    fun provideToggleFavoriteUseCase(
+        repository: MusicLibraryRepository,
+        syncEvents: FavoriteSyncEventBus
+    ): ToggleFavoriteUseCase =
+        ToggleFavoriteUseCase(MusicLibraryFavoriteOperations(repository, syncEvents))
 }
