@@ -13,10 +13,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.service.PlaybackServiceActions
 import java.io.InputStream
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,6 +48,11 @@ class LiveLyricsNotificationService : Service() {
         private const val EXTRA_LYRIC_ALBUM_ART_URI = "app.yukine.extra.LYRIC_ALBUM_ART_URI"
         private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         private const val ARTWORK_TARGET_PX = 320
+        private val mainHandler = Handler(Looper.getMainLooper())
+        private val startPosted = AtomicBoolean(false)
+        private val pendingStart = AtomicReference<StartRequest?>()
+
+        private data class StartRequest(val context: Context, val intent: Intent)
 
         @JvmStatic
         fun start(context: Context) {
@@ -55,16 +64,37 @@ class LiveLyricsNotificationService : Service() {
                 .putExtra(EXTRA_SHORT_TEXT, shortCriticalText(state.activeLine))
                 .putExtra(EXTRA_SHOW_CLOSE_ACTION, false)
                 .putExtra(EXTRA_SHOW_NOTIFICATION_ICON, true)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+            val appContext = context.applicationContext
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                startNow(context, intent)
             } else {
-                context.startService(intent)
+                pendingStart.set(StartRequest(appContext, intent))
+                postPendingStart()
             }
         }
 
         @JvmStatic
         fun stop(context: Context) {
+            pendingStart.set(null)
             context.stopService(Intent(context, LiveLyricsNotificationService::class.java))
+        }
+
+        private fun postPendingStart() {
+            if (!startPosted.compareAndSet(false, true)) return
+            mainHandler.post {
+                val request = pendingStart.getAndSet(null)
+                startPosted.set(false)
+                request?.let { runCatching { startNow(it.context, it.intent) } }
+                if (pendingStart.get() != null) postPendingStart()
+            }
+        }
+
+        private fun startNow(context: Context, intent: Intent) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         private fun notificationState(state: FloatingLyricsState): FloatingLyricsState =
@@ -141,6 +171,7 @@ class LiveLyricsNotificationService : Service() {
             stopSelf()
             return
         }
+        publishFullNotification(lastState)
         observeLyrics()
     }
 
@@ -150,7 +181,7 @@ class LiveLyricsNotificationService : Service() {
             return START_NOT_STICKY
         }
         updateFromIntentOrSnapshot(intent)
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -198,11 +229,41 @@ class LiveLyricsNotificationService : Service() {
 
     private fun startForegroundSafely(state: FloatingLyricsState): Boolean =
         try {
-            startForeground(NOTIFICATION_ID, buildNotification(state))
+            startForeground(NOTIFICATION_ID, buildBootstrapNotification(state))
             true
         } catch (_: RuntimeException) {
             false
         }
+
+    private fun publishFullNotification(state: FloatingLyricsState) {
+        try {
+            getSystemService(NotificationManager::class.java)
+                ?.notify(NOTIFICATION_ID, buildNotification(state))
+        } catch (_: RuntimeException) {
+        }
+    }
+
+    private fun buildBootstrapNotification(state: FloatingLyricsState): Notification {
+        val text = state.activeLine.ifBlank { "等待歌词" }
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        builder
+            .setSmallIcon(R.drawable.ic_stat_echo)
+            .setContentTitle("Yukine")
+            .setContentText(text)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setShowWhen(false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+        return builder.build()
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

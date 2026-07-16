@@ -22,11 +22,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Single offline canonical-ingestion path for local, WebDAV and confirmed provider sources.
+ * Single offline canonical-ingestion path for every source that has entered the user's library.
  *
- * Candidate generation uses a persisted Top20 metadata snapshot. Only CONFIRMED sources become
- * identity anchors. Search Top1 and other unverified candidates remain outside the merge index and
- * therefore cannot cause an auto merge.
+ * Candidate generation uses a persisted Top20 metadata snapshot. Library-resident sources and
+ * CONFIRMED provider sources become identity anchors. Search Top1 and other unverified candidates
+ * without a local track remain outside the merge index and therefore cannot cause an auto merge.
  * Every anchor in both recordings must pass the V2 evaluator, so a bridge match cannot
  * transitively pull a conflicting Live/Remix/Cover source into the group.
  */
@@ -44,10 +44,26 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         dao.identityAnchorSources().mapNotNull(TrackSourceMappingEntity::localTrackId)
     )
 
-    fun ingestLocalTracks(localTrackIds: List<Long>): Int {
+    /**
+     * One-time/backward-compatible ingestion for databases created before persisted clustering.
+     * Fully processed sources are excluded in SQL, keeping ordinary app startup off the full-library
+     * scoring path.
+     */
+    fun ingestPendingConfirmedSources(): Int = ingestLocalTracks(
+        dao.pendingLibraryIdentityTrackIds(
+            SourceMatchFeaturePolicy.ALGORITHM_VERSION,
+            SourceRecordingCandidateGenerator.ALGORITHM_VERSION
+        )
+    )
+
+    fun ingestLocalTracks(localTrackIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
+        ingestLocalTracksLocked(localTrackIds)
+    }
+
+    private fun ingestLocalTracksLocked(localTrackIds: List<Long>): Int {
         val totalStartedAt = diagnostics.startNanos()
         val pendingTrackIds = localTrackIds.asSequence()
-            .filter { it > 0L }
+            .filter { it != 0L }
             .distinct()
             .toList()
         if (pendingTrackIds.isEmpty()) {
@@ -57,7 +73,9 @@ class SourceIdentityIngestor @JvmOverloads constructor(
 
         val snapshotStartedAt = diagnostics.startNanos()
         val featureSources = dao.matchFeatureSources()
-        val identityAnchors = featureSources.filter { it.matchStatus == "CONFIRMED" }
+        val identityAnchors = featureSources.filter { source ->
+            source.matchStatus == "CONFIRMED" || source.localTrackId != null
+        }
         val audioEvidenceBySourceId = featureSources.mapNotNull(TrackSourceMappingEntity::sourceId)
             .distinct()
             .chunked(SQLITE_IN_BATCH_SIZE)
@@ -225,12 +243,18 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 )
 
                 val best = candidateGroups.firstOrNull() ?: break
-                val runnerUpScore = candidateGroups.getOrNull(1)?.score ?: 0.0
-                if (best.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE ||
-                    best.score - runnerUpScore < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN
-                ) {
+                if (best.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE) {
                     break
                 }
+                val ambiguousCandidates = candidateGroups.takeWhile { candidate ->
+                    best.score - candidate.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN
+                }
+                if (ambiguousCandidates.size > 1 && !sameRecordingClique(
+                        ambiguousCandidates,
+                        candidateIndex,
+                        audioEvidenceBySourceId
+                    )
+                ) break
 
                 val sourceId = maxOf(currentRecordingId, best.recordingId)
                 val targetId = minOf(currentRecordingId, best.recordingId)
@@ -280,6 +304,43 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         return mergedCount
     }
 
+    /**
+     * A near-tied runner-up is not ambiguous when every near-tied recording is mutually the same
+     * recording. This preserves the margin for competing matches while allowing A/B/C duplicate
+     * copies to collapse without depending on ingestion order.
+     */
+    private fun sameRecordingClique(
+        candidates: List<RankedRecording>,
+        candidateIndex: SourceIdentityCandidateIndex,
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>
+    ): Boolean {
+        candidates.indices.forEach { leftIndex ->
+            val leftId = candidates[leftIndex].recordingId
+            val leftRecording = dao.recording(leftId) ?: return false
+            val leftSources = candidateIndex.sources(leftId)
+            for (rightIndex in leftIndex + 1 until candidates.size) {
+                val rightId = candidates[rightIndex].recordingId
+                val rightRecording = dao.recording(rightId) ?: return false
+                val rightSources = candidateIndex.sources(rightId)
+                if (manualRelationship(leftId, leftSources, rightId, rightSources) != null) {
+                    return false
+                }
+                val evaluation = completeLinkEvaluation(
+                    leftRecording,
+                    leftSources,
+                    rightRecording,
+                    rightSources,
+                    audioEvidenceBySourceId
+                ) ?: return false
+                if (evaluation.relationship != RecordingRelationship.SAME_RECORDING ||
+                    evaluation.sameRecordingProbability <
+                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE
+                ) return false
+            }
+        }
+        return true
+    }
+
     private fun replaceCandidateSnapshot(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
@@ -287,9 +348,19 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     ): SourceCandidateGenerationResult {
         val generated = candidateGenerator.generate(sources, featuresBySourceId, generatedAt)
         val sourceIds = sources.mapNotNull(TrackSourceMappingEntity::sourceId).distinct()
+        var validCandidates = generated.candidates
         database.runInTransaction {
+            val existingRecordingIds = generated.candidates
+                .map(SourceRecordingCandidateEntity::candidateRecordingId)
+                .distinct()
+                .chunked(SQLITE_IN_BATCH_SIZE)
+                .flatMap(dao::existingRecordingIds)
+                .toHashSet()
+            validCandidates = generated.candidates.filter { candidate ->
+                candidate.candidateRecordingId in existingRecordingIds
+            }
             dao.clearSourceRecordingCandidates()
-            generated.candidates.chunked(CANDIDATE_WRITE_BATCH_SIZE).forEach { candidates ->
+            validCandidates.chunked(CANDIDATE_WRITE_BATCH_SIZE).forEach { candidates ->
                 dao.upsertSourceRecordingCandidates(candidates)
             }
             sourceIds.chunked(SQLITE_IN_BATCH_SIZE).forEach { ids ->
@@ -301,7 +372,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 )
             }
         }
-        return generated
+        return generated.copy(candidates = validCandidates)
     }
 
     private fun eligibleGroup(
@@ -515,6 +586,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     }
 
     private companion object {
+        val INGESTION_LOCK = Any()
         const val TARGET_RECORDING = "RECORDING"
         const val SQLITE_IN_BATCH_SIZE = 500
         const val CANDIDATE_WRITE_BATCH_SIZE = 1_000
@@ -535,7 +607,7 @@ class OfflinePhysicalSourceClusterer @JvmOverloads constructor(
 }
 
 /**
- * Immutable-metadata candidate index for strict physical-source clustering.
+ * Immutable-metadata candidate index for strict library-source clustering.
  *
  * Production uses persisted Top20 candidates; the exact title/artist/duration bucket remains a
  * compatibility fallback for isolated tests and old callers. Complete-link V2 remains final.
@@ -545,7 +617,7 @@ internal class SourceIdentityCandidateIndex(
     private val featuresBySourceId: Map<Long, SourceMatchFeatureEntity> = emptyMap(),
     precomputedCandidatesBySourceId: Map<Long, List<Long>>? = null,
     private val sourceEligibility: (TrackSourceMappingEntity) -> Boolean = {
-        it.matchStatus == "CONFIRMED"
+        it.matchStatus == "CONFIRMED" || it.localTrackId != null
     }
 ) {
     private val sourcesByRecording = HashMap<Long, MutableList<TrackSourceMappingEntity>>()

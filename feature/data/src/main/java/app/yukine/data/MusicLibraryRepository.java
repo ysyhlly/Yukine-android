@@ -1593,8 +1593,28 @@ public final class MusicLibraryRepository {
         );
     }
 
+    public boolean confirmDirectProviderSourceWithoutIdentityIngest(
+            long localTrackId,
+            String provider,
+            String providerTrackId
+    ) {
+        return libraryRepository.confirmDirectProviderSourceWithoutIdentityIngest(
+                localTrackId,
+                provider,
+                providerTrackId
+        );
+    }
+
     public int ingestConfirmedIdentitySources() {
         return libraryRepository.ingestConfirmedIdentitySources();
+    }
+
+    public int ingestConfirmedIdentitySources(List<Long> localTrackIds) {
+        return libraryRepository.ingestConfirmedIdentitySources(localTrackIds);
+    }
+
+    public int ingestPendingConfirmedIdentitySources() {
+        return libraryRepository.ingestPendingConfirmedIdentitySources();
     }
 
     public void updateFavoriteSyncState(long recordingId, String syncState) {

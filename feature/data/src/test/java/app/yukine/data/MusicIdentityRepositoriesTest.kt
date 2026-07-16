@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.ArtistSourceMappingEntity
+import app.yukine.data.room.ArtistAliasEntity
 import app.yukine.data.room.IdentityResolutionJobEntity
 import app.yukine.data.room.PlaybackQueueIdentityEntity
 import app.yukine.data.room.RecordingFavoriteEntity
@@ -164,6 +165,90 @@ class MusicIdentityRepositoriesTest {
 
         assertThrows(IllegalArgumentException::class.java) {
             recordings.mergeRecordings(first.recordingId, second.recordingId)
+        }
+    }
+
+    @Test
+    fun mergeAcceptsUnresolvedParentheticalArtistAliasAndCollapsesPrimaryCredit() {
+        val source = recordings.ensureCanonicalForTrack(track(201L, "Re:Call", "霜月はるか"))
+        val target = recordings.ensureCanonicalForTrack(track(202L, "Re:Call", "temporary artist identity"))
+        val dao = database.musicIdentityDao()
+        val sourceArtist = artists.creditsForRecording(source.recordingId).single()
+        val targetArtist = artists.creditsForRecording(target.recordingId).single()
+        assertNotEquals(sourceArtist.artistKey, targetArtist.artistKey)
+        dao.update(
+            requireNotNull(dao.artist(targetArtist.artistKey)).copy(
+                displayName = "霜月遥 (霜月はるか)",
+                sortName = "霜月遥 (霜月はるか)"
+            )
+        )
+        dao.upsert(
+            ArtistAliasEntity(
+                artistId = targetArtist.artistKey,
+                alias = "霜月遥 (霜月はるか)",
+                normalizedAlias = "霜月遥 (霜月はるか)",
+                locale = "",
+                script = "",
+                aliasType = "PRIMARY",
+                source = "TEST_LEGACY",
+                confidence = 0.75,
+                verifiedAt = 1L
+            )
+        )
+        RecordingRelationStore(database).upsert(
+            listOf(
+                RecordingRelationDraft(
+                    leftRecordingId = source.recordingId,
+                    rightRecordingId = target.recordingId,
+                    relationship = RecordingRelationship.SAME_RECORDING,
+                    sameRecordingProbability = 0.93,
+                    sameWorkProbability = 0.95,
+                    confidence = 0.93,
+                    origin = "TEST_REEVALUATION",
+                    algorithmVersion = Int.MAX_VALUE,
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        )
+
+        recordings.mergeRecordings(source.recordingId, target.recordingId)
+
+        val credits = artists.creditsForRecording(target.recordingId)
+        assertEquals(1, credits.size)
+        assertEquals(targetArtist.artistKey, credits.single().artistKey)
+    }
+
+    @Test
+    fun mergeRejectsDistinctConfirmedArtistsEvenWhenNamesLookLikeAliases() {
+        val source = recordings.ensureCanonicalForTrack(track(203L, "Re:Call", "霜月はるか"))
+        val target = recordings.ensureCanonicalForTrack(track(204L, "Re:Call", "temporary confirmed identity"))
+        val dao = database.musicIdentityDao()
+        val sourceArtistId = artists.creditsForRecording(source.recordingId).single().artistKey
+        val targetArtistId = artists.creditsForRecording(target.recordingId).single().artistKey
+        dao.update(requireNotNull(dao.artist(sourceArtistId)).copy(matchStatus = "CONFIRMED"))
+        dao.update(
+            requireNotNull(dao.artist(targetArtistId)).copy(
+                displayName = "霜月遥 (霜月はるか)",
+                sortName = "霜月遥 (霜月はるか)",
+                matchStatus = "CONFIRMED"
+            )
+        )
+        dao.upsert(
+            ArtistAliasEntity(
+                artistId = targetArtistId,
+                alias = "霜月遥 (霜月はるか)",
+                normalizedAlias = "霜月遥 (霜月はるか)",
+                locale = "",
+                script = "",
+                aliasType = "PRIMARY",
+                source = "TEST_CONFIRMED",
+                confidence = 1.0,
+                verifiedAt = 1L
+            )
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            recordings.mergeRecordings(source.recordingId, target.recordingId)
         }
     }
 

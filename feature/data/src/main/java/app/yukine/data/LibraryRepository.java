@@ -627,6 +627,23 @@ public final class LibraryRepository {
             String provider,
             String providerTrackId
     ) {
+        return confirmDirectProviderSource(localTrackId, provider, providerTrackId, true);
+    }
+
+    public boolean confirmDirectProviderSourceWithoutIdentityIngest(
+            long localTrackId,
+            String provider,
+            String providerTrackId
+    ) {
+        return confirmDirectProviderSource(localTrackId, provider, providerTrackId, false);
+    }
+
+    private boolean confirmDirectProviderSource(
+            long localTrackId,
+            String provider,
+            String providerTrackId,
+            boolean ingestIdentity
+    ) {
         String cleanProvider = provider == null
                 ? ""
                 : provider.trim().toLowerCase(java.util.Locale.ROOT);
@@ -650,7 +667,7 @@ public final class LibraryRepository {
                 confirmed.set(true);
             }
         });
-        if (confirmed.get() && confirmedRecordingId.get() > 0L) {
+        if (ingestIdentity && confirmed.get() && confirmedRecordingId.get() > 0L) {
             new SourceIdentityIngestor(database).ingestLocalTracks(List.of(localTrackId));
         }
         return confirmed.get();
@@ -659,6 +676,16 @@ public final class LibraryRepository {
     /** Runs only from explicit/background synchronization, never while opening the library. */
     public int ingestConfirmedIdentitySources() {
         return new SourceIdentityIngestor(database).ingestAllConfirmedSources();
+    }
+
+    public int ingestConfirmedIdentitySources(List<Long> localTrackIds) {
+        if (localTrackIds == null || localTrackIds.isEmpty()) return 0;
+        return new SourceIdentityIngestor(database).ingestLocalTracks(localTrackIds);
+    }
+
+    /** Backfills only legacy or algorithm-stale confirmed sources; safe for background startup. */
+    public int ingestPendingConfirmedIdentitySources() {
+        return new SourceIdentityIngestor(database).ingestPendingConfirmedSources();
     }
 
     public void updateFavoriteSyncState(long recordingId, String syncState) {

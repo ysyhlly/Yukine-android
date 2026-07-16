@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import app.yukine.data.MusicLibraryRepository;
@@ -207,12 +208,14 @@ final class LibraryFeatureBinding {
                 () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming),
                 audioVerificationOwner::schedule
         );
-        recordingMatchViewModel.bindIdentityChangedListener(() -> mainHandler.post(() -> {
-            multiSourceSync.refreshIdentitySnapshot();
-            navigation.getRouteController().clearLibraryGroup();
-            importOwner.loadLibrary(false);
-            collectionsOwner.load();
-        }));
+        recordingMatchViewModel.bindIdentityChangedListener(() ->
+                CompletableFuture.runAsync(multiSourceSync::refreshIdentitySnapshot)
+                        .whenComplete((ignored, error) -> mainHandler.post(() -> {
+                            navigation.getRouteController().clearLibraryGroup();
+                            importOwner.loadLibrary(false);
+                            collectionsOwner.load();
+                        }))
+        );
         deletionCompletionOwner = new LibraryDeletionCompletionOwner(
                 playback.getNowPlayingViewModel()::removeQueueTracks,
                 () -> viewModel.presentationOwner().onAction(app.yukine.ui.LibraryAction.ClearSelection.INSTANCE),

@@ -727,6 +727,9 @@ interface MusicIdentityDao {
     @Query("SELECT * FROM recordings WHERE id = :recordingId LIMIT 1")
     fun recording(recordingId: Long): CanonicalRecordingEntity?
 
+    @Query("SELECT id FROM recordings WHERE id IN (:recordingIds)")
+    fun existingRecordingIds(recordingIds: List<Long>): List<Long>
+
     @Query(
         "SELECT r.id AS recordingId, r.canonical_uuid AS canonicalUuid, r.title AS title, " +
             "r.primary_artist_display AS primaryArtistDisplay, r.duration_ms AS durationMs, " +
@@ -866,6 +869,19 @@ interface MusicIdentityDao {
             "ORDER BY recording_id, source_id"
     )
     fun identityAnchorSources(): List<TrackSourceMappingEntity>
+
+    @Query(
+        "SELECT DISTINCT s.local_track_id FROM track_sources s " +
+            "LEFT JOIN source_match_features f ON f.source_id = s.source_id " +
+        "WHERE s.match_status != 'REJECTED' AND s.local_track_id IS NOT NULL AND (" +
+            "f.source_id IS NULL OR f.algorithm_version != :featureAlgorithmVersion OR " +
+            "f.candidate_algorithm_version != :candidateAlgorithmVersion) " +
+            "ORDER BY s.local_track_id"
+    )
+    fun pendingLibraryIdentityTrackIds(
+        featureAlgorithmVersion: Int,
+        candidateAlgorithmVersion: Int
+    ): List<Long>
 
     @Query(
         "SELECT * FROM track_sources WHERE match_status != 'REJECTED' " +

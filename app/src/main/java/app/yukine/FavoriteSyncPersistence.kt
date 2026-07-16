@@ -249,6 +249,7 @@ internal class StreamingFavoriteProviderAdapter(
 internal class MusicLibraryUnifiedFavoriteLibrary(
     private val repository: MusicLibraryRepository
 ) : UnifiedFavoriteLibrary {
+    private val pendingConfirmedTrackIds = linkedSetOf<Long>()
     override fun importExternalFavorite(track: StreamingTrack): Track =
         StreamingPlaybackAdapter.placeholderTrack(track).also { repository.setFavorite(it, true) }
 
@@ -270,11 +271,24 @@ internal class MusicLibraryUnifiedFavoriteLibrary(
         localTrackId: Long,
         provider: StreamingProviderName,
         providerTrackId: String
-    ): Boolean = repository.confirmDirectProviderSource(
-        localTrackId,
-        provider.wireName,
-        providerTrackId
-    )
+    ): Boolean {
+        val confirmed = repository.confirmDirectProviderSourceWithoutIdentityIngest(
+            localTrackId,
+            provider.wireName,
+            providerTrackId
+        )
+        if (confirmed) synchronized(pendingConfirmedTrackIds) {
+            pendingConfirmedTrackIds += localTrackId
+        }
+        return confirmed
+    }
+
+    override fun flushConfirmedSources(): Int {
+        val trackIds = synchronized(pendingConfirmedTrackIds) {
+            pendingConfirmedTrackIds.toList().also { pendingConfirmedTrackIds.clear() }
+        }
+        return repository.ingestConfirmedIdentitySources(trackIds)
+    }
 
     override fun favoriteTracks(): List<Track> = repository.loadFavoriteTracks()
 

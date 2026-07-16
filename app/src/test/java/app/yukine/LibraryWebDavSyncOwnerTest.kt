@@ -97,7 +97,39 @@ class LibraryWebDavSyncOwnerTest {
         advanceUntilIdle()
 
         assertEquals(0, matchOperations.batchLoadCount)
+        assertEquals(1, matchOperations.pendingBackfillCount)
+        assertEquals(1, matchOperations.identityRefreshCount)
         assertEquals(0, invalidations)
+        assertEquals(0, operations.syncCount)
+        owner.release()
+    }
+
+    @Test
+    fun initializationPublishesLibraryAfterLegacyIdentityBackfill() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val operations = FakeOperations(autoSyncEnabled = false)
+        val matchOperations = KnownMatchOperations(pendingMergeCount = 1)
+        val viewModel = LibraryViewModel(dispatcher, dispatcher)
+        var invalidations = 0
+        val owner = LibraryWebDavSyncOwner(
+            operations,
+            viewModel.presentationOwner(),
+            { },
+            { AppLanguage.MODE_ENGLISH },
+            { },
+            CoroutineScope(dispatcher + Job()),
+            dispatcher,
+            LibraryMultiSourceSyncCoordinator(matchOperations),
+            Runnable { invalidations++ }
+        )
+
+        owner.initialize()
+        advanceUntilIdle()
+
+        assertEquals(1, matchOperations.pendingBackfillCount)
+        assertEquals(1, matchOperations.identityRefreshCount)
+        assertEquals(0, matchOperations.batchLoadCount)
+        assertEquals(1, invalidations)
         assertEquals(0, operations.syncCount)
         owner.release()
     }
@@ -126,8 +158,12 @@ class LibraryWebDavSyncOwnerTest {
         }
     }
 
-    private class KnownMatchOperations : LibraryMultiSourceSyncOperations {
+    private class KnownMatchOperations(
+        private val pendingMergeCount: Int = 0
+    ) : LibraryMultiSourceSyncOperations {
         var batchLoadCount = 0
+        var pendingBackfillCount = 0
+        var identityRefreshCount = 0
 
         override suspend fun addedProviders(): List<StreamingProviderDescriptor> = emptyList()
 
@@ -148,6 +184,16 @@ class LibraryWebDavSyncOwnerTest {
             provider: StreamingProviderName,
             providerTrackId: String
         ) = Unit
+
+        override fun ingestPendingConfirmedSources(): Int {
+            pendingBackfillCount++
+            return pendingMergeCount
+        }
+
+        override fun refreshIdentitySnapshot(): Long {
+            identityRefreshCount++
+            return identityRefreshCount.toLong()
+        }
 
         override suspend fun search(
             provider: StreamingProviderName,

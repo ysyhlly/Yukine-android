@@ -277,7 +277,7 @@ internal class SourceRecordingCandidateGenerator(
     }
 
     internal companion object {
-        const val ALGORITHM_VERSION = 1
+        const val ALGORITHM_VERSION = 6
         const val DEFAULT_TOP_K = 20
         const val MAX_TOP_K = 20
         private const val FEATURE_SEPARATOR = '\u001F'

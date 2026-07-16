@@ -1,6 +1,7 @@
 package app.yukine.data
 
 import app.yukine.data.room.CanonicalRecordingEntity
+import app.yukine.data.room.MusicIdentityDao
 import app.yukine.data.room.RecordingArtistCreditEntity
 import app.yukine.data.room.RecordingVariantEntity
 import app.yukine.identity.CanonicalRecording
@@ -8,6 +9,7 @@ import app.yukine.identity.RecordingIdentifier
 import app.yukine.identity.RecordingVariantRecognizer
 import app.yukine.identity.RecordingVariantType
 import app.yukine.identity.TrackSourceMapping
+import app.yukine.streaming.StreamingTrackMatchPolicy
 import java.util.Locale
 import kotlin.math.abs
 
@@ -51,6 +53,40 @@ data class RecordingMergeWarning(
     val code: RecordingMergeWarningCode,
     val blocking: Boolean
 )
+
+internal data class RecordingPrimaryArtistEvidence(
+    val artistId: Long,
+    val artistUuid: String,
+    val matchStatus: String,
+    val musicBrainzArtistId: String,
+    val aliases: Set<String>
+)
+
+internal fun loadPrimaryArtistEvidence(
+    dao: MusicIdentityDao,
+    credits: List<RecordingArtistCreditEntity>
+): List<RecordingPrimaryArtistEvidence> = credits
+    .asSequence()
+    .filter { it.role == "PRIMARY" || it.role == "UNKNOWN" }
+    .distinctBy(RecordingArtistCreditEntity::artistId)
+    .map { credit ->
+        val artist = dao.artist(credit.artistId)
+        val names = buildList {
+            add(credit.creditedName)
+            artist?.displayName?.let(::add)
+            addAll(dao.aliases(credit.artistId).map { it.alias })
+        }
+        RecordingPrimaryArtistEvidence(
+            artistId = credit.artistId,
+            artistUuid = artist?.artistUuid.orEmpty(),
+            matchStatus = artist?.matchStatus.orEmpty(),
+            musicBrainzArtistId = artist?.musicBrainzArtistId.orEmpty(),
+            aliases = StreamingTrackMatchPolicy.canonicalArtistKey(names)
+                .split('\u0001')
+                .filterTo(linkedSetOf(), String::isNotBlank)
+        )
+    }
+    .toList()
 
 data class RecordingMergePreview(
     val source: RecordingMergeSummary,
@@ -102,6 +138,8 @@ internal object RecordingMergePolicy {
         target: CanonicalRecordingEntity,
         sourceCredits: List<RecordingArtistCreditEntity>,
         targetCredits: List<RecordingArtistCreditEntity>,
+        sourceArtistEvidence: List<RecordingPrimaryArtistEvidence>,
+        targetArtistEvidence: List<RecordingPrimaryArtistEvidence>,
         sourceVariants: List<RecordingVariantEntity>,
         targetVariants: List<RecordingVariantEntity>
     ): List<RecordingMergeWarning> = buildList {
@@ -114,7 +152,12 @@ internal object RecordingMergePolicy {
 
         val sourceArtists = primaryArtists(sourceCredits)
         val targetArtists = primaryArtists(targetCredits)
-        if (sourceArtists.isNotEmpty() && targetArtists.isNotEmpty() && sourceArtists.none(targetArtists::contains)) {
+        if (sourceArtists.isNotEmpty() && targetArtists.isNotEmpty() &&
+            sourceArtists.none(targetArtists::contains) &&
+            sourceArtistEvidence.none { sourceArtist ->
+                targetArtistEvidence.any { targetArtist -> compatiblePrimaryArtist(sourceArtist, targetArtist) }
+            }
+        ) {
             add(RecordingMergeWarning(RecordingMergeWarningCode.PRIMARY_ARTIST_CONFLICT, true))
         }
 
@@ -152,6 +195,8 @@ internal object RecordingMergePolicy {
         target: CanonicalRecordingEntity,
         sourceCredits: List<RecordingArtistCreditEntity>,
         targetCredits: List<RecordingArtistCreditEntity>,
+        sourceArtistEvidence: List<RecordingPrimaryArtistEvidence>,
+        targetArtistEvidence: List<RecordingPrimaryArtistEvidence>,
         sourceVariants: List<RecordingVariantEntity>,
         targetVariants: List<RecordingVariantEntity>
     ) {
@@ -160,12 +205,31 @@ internal object RecordingMergePolicy {
             target,
             sourceCredits,
             targetCredits,
+            sourceArtistEvidence,
+            targetArtistEvidence,
             sourceVariants,
             targetVariants
         ).filter(RecordingMergeWarning::blocking)
         require(blocking.isEmpty()) {
             "Recording merge blocked: ${blocking.joinToString { it.code.name }}"
         }
+    }
+
+    fun compatiblePrimaryArtist(
+        source: RecordingPrimaryArtistEvidence,
+        target: RecordingPrimaryArtistEvidence
+    ): Boolean {
+        if (source.artistId == target.artistId) return true
+        if (source.artistUuid.isNotBlank() && source.artistUuid == target.artistUuid) return true
+
+        val sourceMbid = source.musicBrainzArtistId.trim()
+        val targetMbid = target.musicBrainzArtistId.trim()
+        if (sourceMbid.isNotBlank() && targetMbid.isNotBlank()) {
+            return sourceMbid.equals(targetMbid, ignoreCase = true)
+        }
+        if (source.matchStatus == "CONFIRMED" && target.matchStatus == "CONFIRMED") return false
+        return source.aliases.isNotEmpty() && target.aliases.isNotEmpty() &&
+            source.aliases.any(target.aliases::contains)
     }
 
     private fun primaryArtists(credits: List<RecordingArtistCreditEntity>): Set<Long> = credits

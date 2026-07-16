@@ -235,6 +235,8 @@ class RecordingMatchRepository internal constructor(
                 target = targetEntity,
                 sourceCredits = sourceCredits,
                 targetCredits = targetCredits,
+                sourceArtistEvidence = loadPrimaryArtistEvidence(identityDao, sourceCredits),
+                targetArtistEvidence = loadPrimaryArtistEvidence(identityDao, targetCredits),
                 sourceVariants = sourceVariants,
                 targetVariants = targetVariants
             )

@@ -250,6 +250,8 @@ class RoomRecordingIdentityRepository(
     ) {
         val sourceId = requireNotNull(source.id)
         val targetId = requireNotNull(target.id)
+        val sourceCredits = dao.credits(sourceId)
+        val targetCredits = dao.credits(targetId)
         RecordingRelationStore(database).relation(sourceId, targetId)?.let { relation ->
             require(
                 relation.relationType != RecordingRelationship.CANNOT_LINK.name &&
@@ -261,28 +263,44 @@ class RoomRecordingIdentityRepository(
         RecordingMergePolicy.requireMergeAllowed(
             source = source,
             target = target,
-            sourceCredits = dao.credits(sourceId),
-            targetCredits = dao.credits(targetId),
+            sourceCredits = sourceCredits,
+            targetCredits = targetCredits,
+            sourceArtistEvidence = loadPrimaryArtistEvidence(dao, sourceCredits),
+            targetArtistEvidence = loadPrimaryArtistEvidence(dao, targetCredits),
             sourceVariants = dao.variants(sourceId),
             targetVariants = dao.variants(targetId)
         )
     }
 
     private fun moveCredits(sourceId: Long, targetId: Long) {
-        val targetCredits = dao.credits(targetId).associateBy { Triple(it.artistId, it.role, it.position) }
-        dao.credits(sourceId).forEach { sourceCredit ->
-            val existing = targetCredits[Triple(sourceCredit.artistId, sourceCredit.role, sourceCredit.position)]
-            dao.upsert(
-                if (existing == null) {
-                    sourceCredit.copy(recordingId = targetId)
-                } else {
-                    existing.copy(
-                        creditedName = existing.creditedName.ifBlank { sourceCredit.creditedName },
-                        joinPhrase = existing.joinPhrase.ifBlank { sourceCredit.joinPhrase },
-                        confidence = max(existing.confidence, sourceCredit.confidence)
-                    )
+        val sourceCredits = dao.credits(sourceId)
+        val targetCredits = dao.credits(targetId)
+        val sourceArtistEvidence = loadPrimaryArtistEvidence(dao, sourceCredits).associateBy { it.artistId }
+        val targetArtistEvidence = loadPrimaryArtistEvidence(dao, targetCredits)
+        val targetCreditsByKey = targetCredits
+            .associateByTo(linkedMapOf()) { Triple(it.artistId, it.role, it.position) }
+        sourceCredits.forEach { sourceCredit ->
+            val mergedArtistId = sourceArtistEvidence[sourceCredit.artistId]
+                ?.takeIf { sourceCredit.role == "PRIMARY" || sourceCredit.role == "UNKNOWN" }
+                ?.let { sourceArtist ->
+                    targetArtistEvidence.firstOrNull { targetArtist ->
+                        RecordingMergePolicy.compatiblePrimaryArtist(sourceArtist, targetArtist)
+                    }?.artistId
                 }
-            )
+                ?: sourceCredit.artistId
+            val key = Triple(mergedArtistId, sourceCredit.role, sourceCredit.position)
+            val existing = targetCreditsByKey[key]
+            val mergedCredit = if (existing == null) {
+                sourceCredit.copy(recordingId = targetId, artistId = mergedArtistId)
+            } else {
+                existing.copy(
+                    creditedName = existing.creditedName.ifBlank { sourceCredit.creditedName },
+                    joinPhrase = existing.joinPhrase.ifBlank { sourceCredit.joinPhrase },
+                    confidence = max(existing.confidence, sourceCredit.confidence)
+                )
+            }
+            dao.upsert(mergedCredit)
+            targetCreditsByKey[key] = mergedCredit
         }
         dao.deleteCredits(sourceId)
     }

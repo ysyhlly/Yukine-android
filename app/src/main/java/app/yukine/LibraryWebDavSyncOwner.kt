@@ -104,6 +104,14 @@ internal class LibraryWebDavSyncOwner @JvmOverloads constructor(
     fun initialize() {
         if (released) return
         scope.launch {
+            val backfilled = runCatching {
+                withContext(ioDispatcher) {
+                    multiSourceSync?.backfillPendingConfirmedSources() ?: 0
+                }
+            }.getOrDefault(0)
+            if (backfilled > 0 && !released) {
+                matchesChanged.run()
+            }
             val enabled = runCatching {
                 withContext(ioDispatcher) { operations.loadAutoSyncEnabled() }
             }.getOrDefault(false)

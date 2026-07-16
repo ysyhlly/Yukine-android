@@ -53,6 +53,7 @@ internal interface LibraryMultiSourceSyncOperations {
     fun artistIdentities(track: Track): List<TrackArtistIdentity> = emptyList()
     fun refreshIdentitySnapshot(): Long = 0L
     fun ingestConfirmedSources(): Int = 0
+    fun ingestPendingConfirmedSources(): Int = 0
 }
 
 internal class MusicLibraryMultiSourceSyncOperations(
@@ -83,12 +84,10 @@ internal class MusicLibraryMultiSourceSyncOperations(
     }
 
     override fun canonicalIdentity(track: Track): String? {
-        ensureIdentitySnapshotLoaded()
         return mergeIdentitiesByTrack[track.id]?.trim()?.takeIf { it.isNotBlank() }
     }
 
     override fun artistIdentities(track: Track): List<TrackArtistIdentity> {
-        ensureIdentitySnapshotLoaded()
         return artistIdentitiesByTrack[track.id].orEmpty()
     }
 
@@ -160,6 +159,9 @@ internal class MusicLibraryMultiSourceSyncOperations(
 
     override fun ingestConfirmedSources(): Int = library.ingestConfirmedIdentitySources()
 
+    override fun ingestPendingConfirmedSources(): Int =
+        library.ingestPendingConfirmedIdentitySources()
+
     private fun ensureIdentitySnapshotLoaded() {
         if (mergeIdentitySnapshotLoaded && artistIdentitySnapshotLoaded) return
         synchronized(identitySnapshotLock) {
@@ -195,6 +197,13 @@ internal class LibraryMultiSourceSyncCoordinator(
     private val providersByName = ConcurrentHashMap<StreamingProviderName, StreamingProviderDescriptor>()
     private val matchesByTrack =
         ConcurrentHashMap<String, Map<StreamingProviderName, StoredStreamingSourceMatch>>()
+
+    /** Runs only for legacy/stale identity rows and refreshes snapshots after a real merge. */
+    fun backfillPendingConfirmedSources(): Int {
+        val merged = operations.ingestPendingConfirmedSources()
+        operations.refreshIdentitySnapshot()
+        return merged
+    }
 
     suspend fun refreshKnownMatches(): Int {
         val providers = loadProviders()

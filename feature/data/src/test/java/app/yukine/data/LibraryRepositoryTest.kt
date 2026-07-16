@@ -418,6 +418,47 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun startupBackfillClustersLegacyPendingSourcesOnlyOnce() {
+        val local = track(419L, "Legacy duplicate", "/music/legacy-duplicate.flac")
+        val webDav = track(420L, "Legacy duplicate", "webdav:2:/legacy-duplicate.flac")
+        val entities = listOf(local, webDav).map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        // DAO-only construction reproduces a pre-ingestion database upgraded in place.
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
+
+        assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(webDav.id))
+        assertEquals(1, repository.ingestPendingConfirmedIdentitySources())
+        assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(webDav.id))
+        assertEquals(0, repository.ingestPendingConfirmedIdentitySources())
+    }
+
+    @Test
+    fun negativeWebDavTrackIdsEnterCanonicalIngestion() {
+        val first = track(-419L, "Negative WebDAV duplicate", "webdav:2:/negative-a.flac")
+        val second = track(-420L, "Negative WebDAV duplicate", "webdav:2:/negative-b.flac")
+        val entities = listOf(first, second).map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
+
+        assertEquals(1, SourceIdentityIngestor(database).ingestLocalTracks(listOf(first.id, second.id)))
+        assertEquals(repository.loadRecordingId(first.id), repository.loadRecordingId(second.id))
+    }
+
+    @Test
+    fun mutuallyEquivalentRunnerUpsMergeAsOneClique() {
+        val local = track(421L, "Three-way duplicate", "/music/three-way.flac")
+        val firstWebDav = track(-421L, "Three-way duplicate", "webdav:2:/three-way-a.flac")
+        val secondWebDav = track(-422L, "Three-way duplicate", "webdav:2:/three-way-b.flac")
+        val tracks = listOf(local, firstWebDav, secondWebDav)
+        val entities = tracks.map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
+
+        assertEquals(2, SourceIdentityIngestor(database).ingestLocalTracks(tracks.map { it.id }))
+        assertEquals(1, tracks.map { track -> repository.loadRecordingId(track.id) }.distinct().size)
+    }
+
+    @Test
     fun exactPcmEvidenceRefinesSubThresholdMetadataOnlyOnColdClusteringPath() {
         val local = track(415L, "Audio verified", "/music/audio-verified.flac")
         val webDavBase = track(416L, "Audio verified", "webdav:2:/audio-verified.flac")
@@ -685,7 +726,11 @@ class LibraryRepositoryTest {
 
         val localRecordingBefore = repository.loadRecordingId(local.id)
         val providerRecordingBefore = repository.loadRecordingId(netease.id)
-        assertFalse(localRecordingBefore == providerRecordingBefore)
+        assertEquals(localRecordingBefore, providerRecordingBefore)
+        assertEquals(
+            "UNRESOLVED",
+            database.musicIdentityDao().sourceForLocalTrack(netease.id)?.matchStatus
+        )
 
         assertTrue(
             repository.confirmDirectProviderSource(
@@ -706,7 +751,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun unresolvedPlatformSourceCannotTriggerCanonicalAutoMerge() {
+    fun highConfidenceLibraryResidentPlatformSourceJoinsCanonicalRecording() {
         val local = track(527L, "Unresolved source", "/music/unresolved-source.flac")
         val qq = track(
             528L,
@@ -716,16 +761,49 @@ class LibraryRepositoryTest {
         repository.upsertTracks(listOf(local, qq))
 
         assertEquals("UNRESOLVED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
-        assertEquals(0, SourceIdentityIngestor(database).ingestLocalTracks(listOf(local.id, qq.id)))
-        assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(qq.id))
+        assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(qq.id))
         assertEquals(2, database.musicIdentityDao().sourceMatchFeatures().size)
-        val localSourceId = checkNotNull(database.musicIdentityDao().sourceForLocalTrack(local.id)?.sourceId)
-        assertTrue(
-            database.musicIdentityDao().sourceRecordingCandidates().any { candidate ->
-                candidate.sourceId == localSourceId &&
-                    candidate.candidateRecordingId == repository.loadRecordingId(qq.id)
-            }
+        assertEquals(2, database.musicIdentityDao().sourceCount(repository.loadRecordingId(local.id)))
+    }
+
+    @Test
+    fun unresolvedLibrarySourceWithDifferentArtistDoesNotAutoMerge() {
+        val local = track(529L, "Shared title", "/music/shared-title.flac")
+        val qqBase = track(530L, "Shared title", "streaming:qqmusic:different-artist")
+        val qq = Track(
+            qqBase.id,
+            qqBase.title,
+            "Different artist",
+            qqBase.album,
+            qqBase.durationMs,
+            qqBase.contentUri,
+            qqBase.dataPath,
+            qqBase.albumId,
+            qqBase.albumArtUri
         )
+
+        repository.upsertTracks(listOf(local, qq))
+
+        assertEquals("UNRESOLVED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
+        assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(qq.id))
+    }
+
+    @Test
+    fun startupBackfillMergesLegacyUnresolvedLibraryProviderSourceOnlyOnce() {
+        val local = track(531L, "Legacy provider duplicate", "/music/legacy-provider.flac")
+        val netease = track(
+            532L,
+            "Legacy provider duplicate",
+            "streaming:netease:legacy-provider-duplicate"
+        )
+        val entities = listOf(local, netease).map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
+
+        assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(netease.id))
+        assertEquals(1, repository.ingestPendingConfirmedIdentitySources())
+        assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(netease.id))
+        assertEquals(0, repository.ingestPendingConfirmedIdentitySources())
     }
 
     @Test
@@ -736,7 +814,9 @@ class LibraryRepositoryTest {
             "Backfill source",
             "streaming:qqmusic:provider-backfill-source"
         )
-        repository.upsertTracks(listOf(local, qq))
+        val entities = listOf(local, qq).map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
         val dao = database.musicIdentityDao()
         val providerSource = checkNotNull(dao.sourceForLocalTrack(qq.id))
         assertEquals(1, dao.confirmDirectProviderSource(checkNotNull(providerSource.sourceId)))

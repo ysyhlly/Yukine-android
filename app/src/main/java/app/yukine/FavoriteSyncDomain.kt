@@ -204,6 +204,7 @@ internal interface UnifiedFavoriteLibrary {
         provider: StreamingProviderName,
         providerTrackId: String
     ): Boolean = false
+    fun flushConfirmedSources(): Int = 0
     fun favoriteTracks(): List<Track> = emptyList()
     fun updateFavoriteSyncState(recordingId: Long, syncState: String) = Unit
 }
@@ -273,6 +274,7 @@ internal class FavoriteSyncCoordinator(
                 library.favoriteTracks().forEach { track ->
                     upsertLocalFavorite(track, true, "bootstrap")
                 }
+                library.flushConfirmedSources()
                 refreshDashboard(false)
             }
         }
@@ -315,6 +317,7 @@ internal class FavoriteSyncCoordinator(
             retryPendingOperations(capabilities, batchId)
             finishSync()
         } finally {
+            library.flushConfirmedSources()
             repository.endBatch()
         }
     }
@@ -322,6 +325,7 @@ internal class FavoriteSyncCoordinator(
     suspend fun onLocalFavoriteChanged(track: Track, favorite: Boolean) = syncMutex.withLock {
         val batchId = batchId()
         val unified = upsertLocalFavorite(track, favorite, batchId)
+        library.flushConfirmedSources()
         if (favorite) {
             library.updateFavoriteSyncState(unified.recordingId, FavoriteRecordSyncState.PENDING)
         }
