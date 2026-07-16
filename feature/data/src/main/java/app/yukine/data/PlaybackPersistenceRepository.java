@@ -18,6 +18,8 @@ import app.yukine.data.room.TrackEntity;
 import app.yukine.data.room.TrackEntityMapper;
 import app.yukine.data.room.YukineDatabase;
 import app.yukine.model.Track;
+import app.yukine.streaming.DefaultPlaybackSourcePolicy;
+import app.yukine.streaming.PlaybackSourcePolicy;
 
 /** Atomic queue, current-index and playback-position persistence. */
 public final class PlaybackPersistenceRepository {
@@ -31,13 +33,22 @@ public final class PlaybackPersistenceRepository {
     private final SettingsDao settingsDao;
     private final LibraryDao libraryDao;
     private final MusicIdentityDao identityDao;
+    private final PolicyAwarePlaybackSourceSelector playbackSourceSelector;
 
     public PlaybackPersistenceRepository(YukineDatabase database) {
+        this(database, DefaultPlaybackSourcePolicy.INSTANCE);
+    }
+
+    public PlaybackPersistenceRepository(
+            YukineDatabase database,
+            PlaybackSourcePolicy playbackSourcePolicy
+    ) {
         this.database = database;
         playbackDao = database.playbackPersistenceDao();
         settingsDao = database.settingsDao();
         libraryDao = database.libraryDao();
         identityDao = database.musicIdentityDao();
+        playbackSourceSelector = new PolicyAwarePlaybackSourceSelector(database, playbackSourcePolicy);
     }
 
     public List<Track> loadQueue() {
@@ -45,6 +56,45 @@ public final class PlaybackPersistenceRepository {
         if (rows.isEmpty()) {
             return Collections.emptyList();
         }
+        Map<Long, TrackEntity> fallbacks = loadQueueFallbacks(rows);
+        ArrayList<Track> tracks = new ArrayList<>(rows.size());
+        Map<Integer, PlaybackQueueIdentityEntity> identities = new HashMap<>();
+        for (PlaybackQueueIdentityEntity identity : playbackDao.loadQueueIdentities()) {
+            identities.put(identity.getPosition(), identity);
+        }
+        for (PlaybackQueueEntity row : rows) {
+            Track track = null;
+            PlaybackQueueIdentityEntity identity = identities.get(row.getPosition());
+            if (identity != null) {
+                TrackSourceMappingEntity source = playbackSourceSelector.select(identity.getRecordingId());
+                if (source != null && source.getLocalTrackId() != null) {
+                    track = TrackEntityMapper.track(libraryDao.loadTrack(source.getLocalTrackId()));
+                }
+            }
+            if (track == null) {
+                track = TrackEntityMapper.queueTrack(row, fallbacks.get(row.getTrackId()));
+            }
+            if (track != null) {
+                tracks.add(track);
+            }
+        }
+        return tracks;
+    }
+
+    /** Raw queue snapshots for reference migration; does not overlay canonical active sources. */
+    List<Track> loadQueueSnapshots() {
+        List<PlaybackQueueEntity> rows = playbackDao.loadQueue();
+        if (rows.isEmpty()) return Collections.emptyList();
+        Map<Long, TrackEntity> fallbacks = loadQueueFallbacks(rows);
+        ArrayList<Track> tracks = new ArrayList<>(rows.size());
+        for (PlaybackQueueEntity row : rows) {
+            Track track = TrackEntityMapper.queueTrack(row, fallbacks.get(row.getTrackId()));
+            if (track != null) tracks.add(track);
+        }
+        return tracks;
+    }
+
+    private Map<Long, TrackEntity> loadQueueFallbacks(List<PlaybackQueueEntity> rows) {
         ArrayList<Long> ids = new ArrayList<>(rows.size());
         for (PlaybackQueueEntity row : rows) {
             ids.add(row.getTrackId());
@@ -58,34 +108,7 @@ public final class PlaybackPersistenceRepository {
                 }
             }
         }
-        ArrayList<Track> tracks = new ArrayList<>(rows.size());
-        Map<Integer, PlaybackQueueIdentityEntity> identities = new HashMap<>();
-        for (PlaybackQueueIdentityEntity identity : playbackDao.loadQueueIdentities()) {
-            identities.put(identity.getPosition(), identity);
-        }
-        for (PlaybackQueueEntity row : rows) {
-            Track track = null;
-            PlaybackQueueIdentityEntity identity = identities.get(row.getPosition());
-            if (identity != null) {
-                TrackSourceMappingEntity source = identity.getPreferredSourceId() == null
-                        ? null
-                        : identityDao.source(identity.getPreferredSourceId());
-                if (source == null || source.getRecordingId() != identity.getRecordingId()
-                        || !source.getPlayable() || !"CONFIRMED".equals(source.getMatchStatus())) {
-                    source = identityDao.activeSource(identity.getRecordingId());
-                }
-                if (source != null && source.getLocalTrackId() != null) {
-                    track = TrackEntityMapper.track(libraryDao.loadTrack(source.getLocalTrackId()));
-                }
-            }
-            if (track == null) {
-                track = TrackEntityMapper.queueTrack(row, fallbacks.get(row.getTrackId()));
-            }
-            if (track != null) {
-                tracks.add(track);
-            }
-        }
-        return tracks;
+        return fallbacks;
     }
 
     public void saveQueue(List<Track> tracks, int currentIndex) {

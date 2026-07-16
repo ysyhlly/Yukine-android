@@ -104,6 +104,18 @@ final class SettingsFeatureBinding {
                         () -> library.loadLibrary(false),
                         documentPickerController::openAudioFilePicker,
                         documentPickerController::openAudioFolderPicker,
+                        () -> executors.io(() -> {
+                            IdentityBackfillScheduler.INSTANCE.rebuildOrReuseBlocking(activity);
+                            mainHandler.post(() -> {
+                                statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.started"));
+                                viewModel.refreshSettingsContext();
+                            });
+                        }),
+                        () -> {
+                            IdentityBackfillScheduler.INSTANCE.cancel(activity);
+                            statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.cancelled"));
+                            viewModel.refreshSettingsContext();
+                        },
                         luoxueSourceImportDialogController::showSourceManager,
                         luoxueSourceImportDialogController::showImportDialog,
                         library::restoreHidden,
@@ -141,6 +153,7 @@ final class SettingsFeatureBinding {
         );
         viewModel.bindRuntimeEffectListener(runtimeApplier::apply);
         contextProvider = new SettingsContextProvider(
+                activity,
                 settingsStore,
                 library.store(),
                 permissionController,

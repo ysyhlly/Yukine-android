@@ -10,7 +10,8 @@ import app.yukine.streaming.StreamingTrack
 
 internal class DefaultStreamingSearchActionHandler(
     private val streamingViewModel: StreamingViewModel,
-    private val actionGateway: MainActivityStreamingActionGateway
+    private val actionGateway: MainActivityStreamingActionGateway,
+    private val onPlaybackPolicyChanged: () -> Unit = {}
 ) : StreamingSearchActionHandler {
     override fun selectProvider(provider: StreamingProviderName) {
         streamingViewModel.auth.selectProvider(provider)
@@ -87,6 +88,7 @@ internal class DefaultStreamingSearchActionHandler(
     override fun setPlaybackProviderEnabled(provider: StreamingProviderName, enabled: Boolean) {
         if (provider == StreamingProviderName.QQ_MUSIC) return
         streamingViewModel.setPlaybackProviderEnabled(provider, enabled)
+        onPlaybackPolicyChanged()
     }
 
     override fun movePlaybackProvider(provider: StreamingProviderName, direction: Int) {

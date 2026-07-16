@@ -17,9 +17,28 @@ import org.json.JSONObject;
  * same provider item to different recordings or from accidentally changing source health.</p>
  */
 final class ProviderSourceIdentityWriter {
-    enum CandidateWriteResult {
-        STORED,
-        OWNED_BY_ANOTHER_RECORDING
+    static final class CandidateWriteResult {
+        private final Long ownerRecordingId;
+
+        private CandidateWriteResult(Long ownerRecordingId) {
+            this.ownerRecordingId = ownerRecordingId;
+        }
+
+        static CandidateWriteResult stored() {
+            return new CandidateWriteResult(null);
+        }
+
+        static CandidateWriteResult ownedByRecording(long ownerRecordingId) {
+            return new CandidateWriteResult(ownerRecordingId);
+        }
+
+        boolean isStored() {
+            return ownerRecordingId == null;
+        }
+
+        Long getOwnerRecordingId() {
+            return ownerRecordingId;
+        }
     }
 
     private final MusicIdentityDao dao;
@@ -53,10 +72,10 @@ final class ProviderSourceIdentityWriter {
                     durationMs,
                     confidence,
                     "PENDING",
-                    true,
+                    false,
                     existing.getRecordingId()
             );
-            return CandidateWriteResult.OWNED_BY_ANOTHER_RECORDING;
+            return CandidateWriteResult.ownedByRecording(existing.getRecordingId());
         }
         String matchStatus = existing != null
                 && ("CONFIRMED".equals(existing.getMatchStatus())
@@ -90,9 +109,9 @@ final class ProviderSourceIdentityWriter {
                 "CONFIRMED".equals(matchStatus) ? "USER_CONFIRMED"
                         : "REJECTED".equals(matchStatus) ? "REJECTED" : "PENDING",
                 false,
-                recordingId
+                0L
         );
-        return CandidateWriteResult.STORED;
+        return CandidateWriteResult.stored();
     }
 
     void saveUserConfirmedSource(
@@ -201,11 +220,15 @@ final class ProviderSourceIdentityWriter {
             long ownerRecordingId
     ) {
         try {
+            boolean ownedByAnotherRecording = ownerRecordingId > 0L;
             JSONObject evidence = existingCandidateEvidence(existingEvidence)
                     .put("source", "RUNTIME_MATCH")
-                    .put("hardConflict", hardConflict || existingHardConflict(existingEvidence));
-            if (hardConflict) {
-                evidence.put("conflict", "provider_source_owned_by_another_recording")
+                    .put(
+                            "hardConflict",
+                            hardConflict || (!ownedByAnotherRecording && existingHardConflict(existingEvidence))
+                    );
+            if (ownedByAnotherRecording) {
+                evidence.put("conflict", "provider_source_owned_by_recording")
                         .put("ownerRecordingId", ownerRecordingId);
             }
             return evidence.toString();

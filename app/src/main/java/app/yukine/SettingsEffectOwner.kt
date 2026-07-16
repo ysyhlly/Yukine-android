@@ -15,6 +15,8 @@ internal data class SettingsLibraryEffectActions(
     val loadLibrary: Runnable,
     val openAudioFilePicker: Runnable,
     val openAudioFolderPicker: Runnable,
+    val rebuildSongIdentity: Runnable,
+    val cancelIdentityBackfill: Runnable,
     val openLuoxueSourceManager: Runnable,
     val importLuoxueSource: Runnable,
     val restoreHiddenLibraryItem: Consumer<String>,
@@ -57,6 +59,8 @@ internal class SettingsEffectOwner(
             SettingsEffect.LoadLibrary -> library.loadLibrary.run()
             SettingsEffect.OpenAudioFilePicker -> library.openAudioFilePicker.run()
             SettingsEffect.OpenAudioFolderPicker -> library.openAudioFolderPicker.run()
+            SettingsEffect.RebuildSongIdentity -> library.rebuildSongIdentity.run()
+            SettingsEffect.CancelIdentityBackfill -> library.cancelIdentityBackfill.run()
             SettingsEffect.OpenLuoxueSourceManager -> library.openLuoxueSourceManager.run()
             SettingsEffect.ImportLuoxueSource -> library.importLuoxueSource.run()
             is SettingsEffect.RestoreHiddenLibraryItem ->

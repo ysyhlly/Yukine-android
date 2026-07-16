@@ -53,7 +53,7 @@ class StreamingPlaybackControllerTest {
     }
 
     @Test
-    fun preResolveUsesBoundedQueueReadsWithoutFullSnapshot() = runTest {
+    fun preResolveReadsOnlyImmediateNextTrackWithoutFullSnapshot() = runTest {
         val currentIndex = 250
         val queue = (0 until 500).map { index ->
             if (index in 252..254) {
@@ -92,23 +92,20 @@ class StreamingPlaybackControllerTest {
         )
 
         assertEquals(0, listener.queueSnapshotReads)
-        assertEquals(listOf(251, 252, 253, 254), listener.trackAtReads)
+        assertEquals(listOf(251), listener.trackAtReads)
         val plannedQueue = planner.queue.orEmpty()
-        assertEquals(5, plannedQueue.size)
+        assertEquals(2, plannedQueue.size)
         assertSame(queue[250], plannedQueue[0])
         assertSame(queue[251], plannedQueue[1])
-        assertSame(queue[252], plannedQueue[2])
-        assertSame(queue[253], plannedQueue[3])
-        assertSame(queue[254], plannedQueue[4])
         assertEquals(0, planner.snapshot?.currentIndex)
-        assertEquals(5, planner.snapshot?.queueSize)
+        assertEquals(2, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
         advanceUntilIdle()
         viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     @Test
-    fun preResolveSkipsResolvedLookaheadTracksForStreamingCandidatesWithoutFullSnapshot() = runTest {
+    fun preResolveDoesNotScanLaterStreamingCandidates() = runTest {
         val currentIndex = 10
         val queue = (0 until 100).map { index -> track(index.toLong()) }.toMutableList()
         queue[15] = streamingPlaceholderTrack(15L)
@@ -144,16 +141,13 @@ class StreamingPlaybackControllerTest {
         )
 
         assertEquals(0, listener.queueSnapshotReads)
-        assertEquals((11..20).toList(), listener.trackAtReads)
+        assertEquals(listOf(11), listener.trackAtReads)
         val plannedQueue = planner.queue.orEmpty()
-        assertEquals(5, plannedQueue.size)
+        assertEquals(2, plannedQueue.size)
         assertSame(queue[10], plannedQueue[0])
         assertSame(queue[11], plannedQueue[1])
-        assertSame(queue[15], plannedQueue[2])
-        assertSame(queue[18], plannedQueue[3])
-        assertSame(queue[20], plannedQueue[4])
         assertEquals(0, planner.snapshot?.currentIndex)
-        assertEquals(5, planner.snapshot?.queueSize)
+        assertEquals(2, planner.snapshot?.queueSize)
         assertSame(queue[currentIndex], planner.snapshot?.currentTrack)
         advanceUntilIdle()
         viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()

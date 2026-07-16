@@ -8,6 +8,7 @@ import app.yukine.model.Track
 import app.yukine.streaming.StreamingCapabilityResolver
 import app.yukine.streaming.StreamingMediaType
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.ProviderRolePolicy
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingRepository
 import app.yukine.streaming.StreamingTrack
@@ -209,9 +210,12 @@ internal class StreamingFavoriteProviderAdapter(
                 enabled = descriptor.enabled,
                 loggedIn = !descriptor.capabilities.supportsAuth || auth.connected,
                 authorized = !descriptor.capabilities.supportsAuth || auth.connected,
-                canPullFavorites = capability.supportsFavoritesRead,
-                canAddFavorite = capability.supportsFavoritesWrite,
-                canRemoveFavorite = capability.supportsFavoritesWrite
+                canPullFavorites = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
+                    capability.supportsFavoritesRead,
+                canAddFavorite = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
+                    capability.supportsFavoritesWrite,
+                canRemoveFavorite = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
+                    capability.supportsFavoritesWrite
             )
         }
     }

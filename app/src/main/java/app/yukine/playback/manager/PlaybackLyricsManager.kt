@@ -189,7 +189,7 @@ internal class PlaybackLyricsManager(
         if (!statusBarLyricsEnabled ||
             stateProvider.isAppVisible() ||
             stateProvider.currentTrack() == null ||
-            (!stateProvider.isPlaying() && !stateProvider.isPreparing())
+            !stateProvider.isPlaying()
         ) {
             LiveLyricsNotificationService.stop(context)
             return

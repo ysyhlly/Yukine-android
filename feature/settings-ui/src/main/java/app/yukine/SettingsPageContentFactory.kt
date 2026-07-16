@@ -79,10 +79,13 @@ internal object SettingsPageContentFactory {
                     runtime.libraryAlbumCount,
                     runtime.libraryArtistCount,
                     runtime.audioPermissionGranted,
+                    identityBackfill = runtime.identityBackfill,
                     onNavigate = { nextPage -> onNavigate(nextPage) },
                     onLoadLibrary = { library.loadLibrary() },
                     onOpenAudioFilePicker = { library.openAudioFilePicker() },
                     onOpenAudioFolderPicker = { library.openAudioFolderPicker() },
+                    onRebuildSongIdentity = { library.rebuildSongIdentity() },
+                    onCancelIdentityBackfill = { library.cancelIdentityBackfill() },
                     hiddenItems = runtime.hiddenLibraryItems,
                     onRestoreHidden = { sourceKey -> library.restoreHiddenItem(sourceKey) },
                     onRestoreAllHidden = { library.restoreAllHiddenItems() }

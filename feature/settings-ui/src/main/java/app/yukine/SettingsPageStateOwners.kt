@@ -294,6 +294,8 @@ class LibrarySettingsStateOwner internal constructor(private val context: Settin
     fun loadLibrary() = context.emit(SettingsEffect.LoadLibrary)
     fun openAudioFilePicker() = context.emit(SettingsEffect.OpenAudioFilePicker)
     fun openAudioFolderPicker() = context.emit(SettingsEffect.OpenAudioFolderPicker)
+    fun rebuildSongIdentity() = context.emit(SettingsEffect.RebuildSongIdentity)
+    fun cancelIdentityBackfill() = context.emit(SettingsEffect.CancelIdentityBackfill)
     fun restoreHiddenItem(sourceKey: String) = context.emit(SettingsEffect.RestoreHiddenLibraryItem(sourceKey))
     fun restoreAllHiddenItems() = context.emit(SettingsEffect.RestoreAllHiddenLibraryItems)
 }

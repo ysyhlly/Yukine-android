@@ -332,23 +332,23 @@ class StreamingRepositoryTest {
     }
 
     @Test
-    fun resolvePlaybackTrackRanksSearchResultsAfterKnownIdFails() = runTest {
+    fun resolvePlaybackTrackRanksLuoxueSearchResultsAfterConfirmedNeteaseIdFails() = runTest {
         val telemetryEvents = mutableListOf<StreamingPlaybackTelemetryEvent>()
         val firstResult = StreamingTrack(
-            provider = StreamingProviderName.NETEASE,
+            provider = StreamingProviderName.LUOXUE,
             providerTrackId = "priority-first",
             title = "Completely different title",
             artist = "Different artist"
         )
         val preciseResult = StreamingTrack(
-            provider = StreamingProviderName.NETEASE,
+            provider = StreamingProviderName.LUOXUE,
             providerTrackId = "precise-second",
             title = "Echo",
             artist = "Tester"
         )
         val gateway = FakeStreamingGateway(
             searchResult = StreamingSearchResult(
-                provider = StreamingProviderName.NETEASE,
+                provider = StreamingProviderName.LUOXUE,
                 query = "Echo",
                 page = 1,
                 pageSize = 8,
@@ -390,10 +390,11 @@ class StreamingRepositoryTest {
         assertEquals("adapter-precise-second", result.track.title)
         assertEquals(listOf("precise-second"), adapter.sourceTrackIds)
         assertEquals(
-            listOf(metadata.copy(providerTrackId = "precise-second")),
+            listOf(metadata.copy(provider = StreamingProviderName.LUOXUE, providerTrackId = "precise-second")),
             adapter.metadataRequests
         )
         assertEquals("Echo", gateway.searchRequests.single().query)
+        assertEquals(StreamingProviderName.LUOXUE, gateway.searchRequests.single().provider)
         assertEquals(setOf(StreamingMediaType.TRACK), gateway.searchRequests.single().mediaTypes)
         assertEquals(5, gateway.searchRequests.single().pageSize)
         assertEquals(
@@ -419,23 +420,67 @@ class StreamingRepositoryTest {
     }
 
     @Test
-    fun resolvePlaybackTrackRanksOriginalAheadOfEarlierLiveResult() = runTest {
+    fun resolvePlaybackTrackAllowsLuoxueTxCandidateWithoutDirectQqRequest() = runTest {
         val gateway = FakeStreamingGateway(
             searchResult = StreamingSearchResult(
-                provider = StreamingProviderName.NETEASE,
+                provider = StreamingProviderName.LUOXUE,
                 query = "Echo",
                 page = 1,
                 pageSize = 5,
                 tracks = listOf(
                     StreamingTrack(
-                        provider = StreamingProviderName.NETEASE,
+                        provider = StreamingProviderName.LUOXUE,
+                        providerTrackId = "tx:qq-song-mid",
+                        title = "Echo",
+                        artist = "Artist"
+                    ),
+                    StreamingTrack(
+                        provider = StreamingProviderName.LUOXUE,
+                        providerTrackId = "kg:kugou-hash.1.0",
+                        title = "Different song",
+                        artist = "Different artist"
+                    )
+                )
+            ),
+            playbackSource = playbackSource("https://stream.example.test/echo.flac")
+        )
+        val repository = StreamingRepository(gateway = gateway)
+
+        val result = repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerTrackId = "qq-identity-only",
+            metadata = StreamingTrack(
+                provider = StreamingProviderName.QQ_MUSIC,
+                providerTrackId = "qq-identity-only",
+                title = "Echo",
+                artist = "Artist"
+            )
+        )
+
+        assertEquals("tx:qq-song-mid", result.source.providerTrackId)
+        assertEquals(1, gateway.playbackRequests.size)
+        assertEquals(StreamingProviderName.LUOXUE, gateway.playbackRequests.single().provider)
+        assertEquals("tx:qq-song-mid", gateway.playbackRequests.single().providerTrackId)
+    }
+
+    @Test
+    fun resolvePlaybackTrackRanksOriginalAheadOfEarlierLiveLuoxueResult() = runTest {
+        val gateway = FakeStreamingGateway(
+            searchResult = StreamingSearchResult(
+                provider = StreamingProviderName.LUOXUE,
+                query = "Echo",
+                page = 1,
+                pageSize = 5,
+                tracks = listOf(
+                    StreamingTrack(
+                        provider = StreamingProviderName.LUOXUE,
                         providerTrackId = "echo-live",
                         title = "Echo (Live)",
                         artist = "Tester",
                         durationMs = 240_000L
                     ),
                     StreamingTrack(
-                        provider = StreamingProviderName.NETEASE,
+                        provider = StreamingProviderName.LUOXUE,
                         providerTrackId = "echo-original",
                         title = "Echo",
                         artist = "Tester",
@@ -573,16 +618,13 @@ class StreamingRepositoryTest {
     }
 
     @Test
-    fun resolvePlaybackTrackTimesOutSlowSearchThenUsesNextProviderReliableResult() = runTest {
+    fun resolvePlaybackTrackNeverTitleSearchesNeteaseAndUsesLuoxueFallback() = runTest {
         val telemetryEvents = mutableListOf<StreamingPlaybackTelemetryEvent>()
         val gateway = object : StreamingGateway by FakeStreamingGateway() {
             val searchedProviders = mutableListOf<StreamingProviderName>()
 
             override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
                 searchedProviders += request.provider
-                if (request.provider == StreamingProviderName.NETEASE) {
-                    delay(Long.MAX_VALUE)
-                }
                 return StreamingSearchResult(
                     provider = request.provider,
                     query = request.query,
@@ -616,7 +658,7 @@ class StreamingRepositoryTest {
             gateway = gateway,
             playbackSourcePolicy = playbackPolicy(
                 StreamingProviderName.NETEASE,
-                StreamingProviderName.MOCK
+                StreamingProviderName.LUOXUE
             ),
             titleSearchTimeoutMs = 100L,
             playbackTelemetry = StreamingPlaybackTelemetry(telemetryEvents::add)
@@ -633,18 +675,16 @@ class StreamingRepositoryTest {
             )
         )
 
-        assertEquals(StreamingProviderName.MOCK, result.source.provider)
+        assertEquals(StreamingProviderName.LUOXUE, result.source.provider)
         assertEquals(StreamingPlaybackResolutionPath.TITLE_SEARCH, result.resolutionPath)
         assertEquals(
-            listOf(StreamingProviderName.NETEASE, StreamingProviderName.MOCK),
+            listOf(StreamingProviderName.LUOXUE),
             gateway.searchedProviders
         )
-        val timedOutSearch = telemetryEvents.first {
+        assertTrue(telemetryEvents.none {
             it.stage == StreamingPlaybackTelemetryStage.TITLE_SEARCH &&
                 it.provider == StreamingProviderName.NETEASE
-        }
-        assertTrue(timedOutSearch.timedOut)
-        assertFalse(timedOutSearch.success)
+        })
     }
 
     @Test
@@ -699,7 +739,7 @@ class StreamingRepositoryTest {
     }
 
     @Test
-    fun resolvePlaybackTrackUsesLuoxueCandidateBeforeOriginProvider() = runTest {
+    fun resolvePlaybackTrackUsesConfirmedNeteaseBeforeLuoxueCandidate() = runTest {
         val gateway = object : StreamingGateway by FakeStreamingGateway() {
             val requestedProviders = mutableListOf<StreamingProviderName>()
             override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
@@ -730,19 +770,19 @@ class StreamingRepositoryTest {
         )
 
         assertEquals("https://stream.example.test/lx-echo.flac", result.source.url)
-        assertEquals(StreamingProviderName.LUOXUE, result.source.provider)
-        assertEquals(listOf(StreamingProviderName.LUOXUE), gateway.requestedProviders)
+        assertEquals(StreamingProviderName.NETEASE, result.source.provider)
+        assertEquals(listOf(StreamingProviderName.NETEASE), gateway.requestedProviders)
     }
 
     @Test
-    fun resolvePlaybackTrackStartsSecondKnownSourceAfterStaggerAndCancelsSlowPrimary() = runTest {
+    fun resolvePlaybackTrackTriesLuoxueOnlyAfterConfirmedNeteaseFails() = runTest {
         val requestedProviders = mutableListOf<StreamingProviderName>()
         val telemetryEvents = mutableListOf<StreamingPlaybackTelemetryEvent>()
         val gateway = object : StreamingGateway by FakeStreamingGateway() {
             override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
                 requestedProviders += request.provider
-                if (request.provider == StreamingProviderName.LUOXUE) {
-                    delay(2_000L)
+                if (request.provider == StreamingProviderName.NETEASE) {
+                    throw StreamingGatewayException("stale", code = StreamingErrorCode.SOURCE_UNAVAILABLE)
                 }
                 return playbackSource("https://stream.example.test/${request.provider.wireName}.flac")
                     .copy(provider = request.provider, providerTrackId = request.providerTrackId)
@@ -775,19 +815,19 @@ class StreamingRepositoryTest {
             metadata = metadata
         )
 
-        assertEquals(StreamingProviderName.NETEASE, result.source.provider)
+        assertEquals(StreamingProviderName.LUOXUE, result.source.provider)
         assertEquals(
-            listOf(StreamingProviderName.LUOXUE, StreamingProviderName.NETEASE),
+            listOf(StreamingProviderName.NETEASE, StreamingProviderName.LUOXUE),
             requestedProviders
         )
         assertTrue(
             telemetryEvents.any {
-                it.provider == StreamingProviderName.LUOXUE && it.cancelled
+                it.provider == StreamingProviderName.NETEASE && !it.success
             }
         )
         assertTrue(
             telemetryEvents.any {
-                it.provider == StreamingProviderName.NETEASE && it.success
+                it.provider == StreamingProviderName.LUOXUE && it.success
             }
         )
     }
@@ -829,9 +869,10 @@ class StreamingRepositoryTest {
             metadata = metadata
         )
 
-        assertEquals(1, requests.size)
-        assertEquals(StreamingProviderName.LUOXUE, requests.single().provider)
-        assertEquals(musicInfo, requests.single().luoxueMusicInfoJson)
+        assertEquals(2, requests.size)
+        assertEquals(StreamingProviderName.NETEASE, requests[0].provider)
+        assertEquals(StreamingProviderName.LUOXUE, requests[1].provider)
+        assertEquals(musicInfo, requests[1].luoxueMusicInfoJson)
     }
 
     @Test

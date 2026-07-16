@@ -14,11 +14,6 @@ internal class StreamingPlaybackController(
 ) {
     private var foregroundResolveGeneration = 0L
 
-    private companion object {
-    private const val PRE_RESOLVE_WINDOW_TARGETS = 3
-        private const val PRE_RESOLVE_LOOKAHEAD_LIMIT = 32
-    }
-
     interface Listener {
         fun languageMode(): String
 
@@ -180,14 +175,6 @@ internal class StreamingPlaybackController(
             nowPlayingViewModel.replaceQueuedTrack(oldTrackId, resolved)
             nowPlayingViewModel.warmPlaybackTrack(resolved)
         }
-        streamingViewModel.playbackResolution.preResolveStreamingQueueWindowBatch(
-            preResolveSnapshot,
-            queue,
-            quality
-        ) { resolvedTracks ->
-            nowPlayingViewModel.replaceQueuedTracks(resolvedTracks)
-            resolvedTracks.values.forEach(nowPlayingViewModel::warmPlaybackTrack)
-        }
     }
 
     private fun boundedPreResolveQueue(snapshot: PlaybackStateSnapshot): List<Track>? {
@@ -202,22 +189,7 @@ internal class StreamingPlaybackController(
             return null
         }
         val next = listener.queueTrackAt(nextIndex) ?: return null
-        val maxWindowSize = 2 + PRE_RESOLVE_WINDOW_TARGETS
-        val queue = ArrayList<Track>(minOf(queueSize, maxWindowSize))
-        queue += current
-        queue += next
-
-        val maxLookahead = minOf(queueSize - 2, PRE_RESOLVE_LOOKAHEAD_LIMIT)
-        var offset = 2
-        while (offset < 2 + maxLookahead && queue.size < maxWindowSize) {
-            val index = (currentIndex + offset).floorMod(queueSize)
-            val candidate = listener.queueTrackAt(index)
-            if (candidate != null && StreamingPlaybackAdapter.isUnresolvedStreamingTrack(candidate)) {
-                queue += candidate
-            }
-            offset += 1
-        }
-        return queue
+        return listOf(current, next)
     }
 
     private fun preResolveSnapshot(

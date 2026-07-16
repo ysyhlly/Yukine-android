@@ -46,6 +46,7 @@ class StreamingPlaylistSyncStore(context: Context) {
         provider: StreamingProviderName,
         providerPlaylistId: String = ""
     ) {
+        if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) return
         val links = loadLinksMap().toMutableMap()
         links[localPlaylistId.toString()] = JSONObject().apply {
             put("provider", provider.wireName)
@@ -162,6 +163,7 @@ class StreamingPlaylistSyncStore(context: Context) {
             val json = JSONObject(jsonStr)
             val providerWire = json.optString("provider")
             val provider = StreamingProviderName.fromWireName(providerWire) ?: return null
+            if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) return null
             LinkedPlaylist(
                 localPlaylistId = localPlaylistId,
                 provider = provider,

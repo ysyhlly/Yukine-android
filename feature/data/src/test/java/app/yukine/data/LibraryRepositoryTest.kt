@@ -194,7 +194,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun structuredStreamingMatchReplacesDuplicateLookupRowsWithOneCatalogRow() {
+    fun luoxueStructuredStreamingMatchNeverEntersCanonicalIdentityTables() {
         val selected = track(401L, "Catalog song", "webdav:1:catalog.flac")
         repository.upsertTracks(listOf(selected))
         val provider = "luoxue"
@@ -213,12 +213,9 @@ class LibraryRepositoryTest {
         assertEquals("", repository.loadStreamingTrackMatch(keys[0], provider))
         assertEquals("", repository.loadStreamingTrackMatch(keys[1], provider))
         assertEquals("", repository.loadStreamingTrackMatch(keys[2], provider))
-        assertEquals(encoded, repository.loadStreamingTrackMatch(selected, provider, keys))
+        assertEquals("", repository.loadStreamingTrackMatch(selected, provider, keys))
         val recordingId = database.musicIdentityDao().recordingIdForLocalTrack(selected.id)
-        assertEquals(
-            "__stored_match__",
-            database.musicIdentityDao().candidates("RECORDING", checkNotNull(recordingId)).single().providerItemId
-        )
+        assertTrue(database.musicIdentityDao().candidates("RECORDING", checkNotNull(recordingId)).isEmpty())
         assertTrue(
             RoomIdentityCandidateRepository(database)
                 .pendingCandidates(app.yukine.identity.IdentityTargetType.RECORDING, recordingId)
@@ -297,7 +294,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun rankedStreamingCatalogPersistsReviewableVersionsWithoutConfirmingTopOne() {
+    fun luoxueRankedCatalogRemainsMemoryOnly() {
         val selected = track(410L, "夜空", "webdav:1:ranked.flac").let {
             Track(
                 it.id,
@@ -333,26 +330,18 @@ class LibraryRepositoryTest {
         val dao = database.musicIdentityDao()
         val recordingId = checkNotNull(dao.recordingIdForLocalTrack(selected.id))
         val pending = dao.candidatePage("RECORDING", recordingId, "PENDING", 20, 0)
-        assertEquals(listOf("wy:original", "tx:live"), pending.map { it.providerItemId })
-        val originalEvidence = org.json.JSONObject(pending.first().evidenceJson)
-        assertEquals(0, originalEvidence.getInt("rank"))
-        assertTrue(originalEvidence.getBoolean("primaryPlaybackCandidate"))
-        assertFalse(originalEvidence.getBoolean("hardConflict"))
-        assertTrue(org.json.JSONObject(pending.last().evidenceJson).getBoolean("hardConflict"))
+        assertTrue(pending.isEmpty())
         assertNull(dao.source("luoxue", "wy:original"))
 
         repository.saveStreamingTrackMatch("id:${selected.id}", "luoxue", "wy:original", selected)
 
-        val storedEvidence = org.json.JSONObject(
-            checkNotNull(dao.candidate("RECORDING", recordingId, "luoxue", "wy:original")).evidenceJson
-        )
-        assertTrue(storedEvidence.getBoolean("catalogManaged"))
-        assertEquals("CANDIDATE", dao.source("luoxue", "wy:original")?.matchStatus)
+        assertNull(dao.candidate("RECORDING", recordingId, "luoxue", "wy:original"))
+        assertNull(dao.source("luoxue", "wy:original"))
 
         store.replace(selected, "luoxue", listOf(original))
 
         assertNull(dao.candidate("RECORDING", recordingId, "luoxue", "tx:live"))
-        assertEquals("PENDING", dao.candidate("RECORDING", recordingId, "luoxue", "wy:original")?.status)
+        assertNull(dao.candidate("RECORDING", recordingId, "luoxue", "wy:original"))
     }
 
     @Test
@@ -541,14 +530,120 @@ class LibraryRepositoryTest {
 
         assertEquals(ownerRecordingId, dao.source("netease", "shared-id")?.recordingId)
         val pending = dao.candidates("RECORDING", contenderRecordingId)
-        assertEquals("PENDING", pending.single { it.providerItemId == "__stored_match__" }.status)
         val collision = pending.single { it.providerItemId == "shared-id" }
         assertEquals("PENDING", collision.status)
-        assertTrue(org.json.JSONObject(collision.evidenceJson).getBoolean("hardConflict"))
-        assertEquals(
-            "shared-id",
-            repository.loadStreamingTrackMatch(contender, "netease", listOf("id:${contender.id}"))
+        assertFalse(org.json.JSONObject(collision.evidenceJson).getBoolean("hardConflict"))
+        assertEquals(ownerRecordingId, org.json.JSONObject(collision.evidenceJson).getLong("ownerRecordingId"))
+        assertEquals("", repository.loadStreamingTrackMatch(contender, "netease", listOf("id:${contender.id}")))
+    }
+
+    @Test
+    fun providerOwnerCollisionAutoMergesStrictSameRecording() {
+        val owner = track(740L, "Same Song", "/music/same-song.flac")
+        val contender = track(741L, "Different Before Refresh", "webdav:1:/same-song.flac")
+        repository.upsertTracks(listOf(owner, contender))
+        val dao = database.musicIdentityDao()
+        val ownerRecordingId = checkNotNull(dao.recordingIdForLocalTrack(owner.id))
+        val contenderRecordingId = checkNotNull(dao.recordingIdForLocalTrack(contender.id))
+        assertTrue(ownerRecordingId != contenderRecordingId)
+        dao.upsert(checkNotNull(dao.sourceForLocalTrack(contender.id)).copy(title = owner.title))
+        dao.update(checkNotNull(dao.recording(contenderRecordingId)).copy(title = owner.title))
+
+        repository.saveStreamingTrackMatch("id:${owner.id}", "netease", "same-provider-id", owner)
+        repository.saveStreamingTrackMatch("id:${contender.id}", "netease", "same-provider-id", contender)
+
+        val survivor = minOf(ownerRecordingId, contenderRecordingId)
+        assertEquals(survivor, dao.recordingIdForLocalTrack(owner.id))
+        assertEquals(survivor, dao.recordingIdForLocalTrack(contender.id))
+        assertEquals(survivor, dao.source("netease", "same-provider-id")?.recordingId)
+    }
+
+    @Test
+    fun confirmingOwnerCollisionImmediatelyMergesRecordings() {
+        val owner = track(743L, "Manual owner", "/music/manual-owner.flac")
+        val contender = track(744L, "Manual contender", "webdav:1:/manual-contender.flac")
+        repository.upsertTracks(listOf(owner, contender))
+        val dao = database.musicIdentityDao()
+        val ownerRecordingId = checkNotNull(dao.recordingIdForLocalTrack(owner.id))
+        val contenderRecordingId = checkNotNull(dao.recordingIdForLocalTrack(contender.id))
+        repository.saveStreamingTrackMatch("id:${owner.id}", "qqmusic", "manual-owner-id", owner)
+        repository.saveStreamingTrackMatch("id:${contender.id}", "qqmusic", "manual-owner-id", contender)
+        val candidate = dao.candidates("RECORDING", contenderRecordingId)
+            .single { it.providerItemId == "manual-owner-id" }
+
+        RoomIdentityCandidateRepository(database).confirmCandidate(candidate.candidateId)
+
+        val survivor = minOf(ownerRecordingId, contenderRecordingId)
+        assertEquals(survivor, dao.recordingIdForLocalTrack(owner.id))
+        assertEquals(survivor, dao.recordingIdForLocalTrack(contender.id))
+        assertEquals("CONFIRMED", dao.source("qqmusic", "manual-owner-id")?.matchStatus)
+    }
+
+    @Test
+    fun identityBackfillDeletesLegacyLuoxueOnlyRecordingAndIsIdempotent() {
+        val seed = track(742L, "Legacy LX", "/music/legacy-lx-placeholder.flac")
+        val legacy = track(742L, "Legacy LX", "streaming:luoxue:wy:legacy")
+        repository.upsertTracks(listOf(seed))
+        val dao = database.musicIdentityDao()
+        database.libraryDao().upsertTracks(listOf(TrackEntityMapper.entity(legacy, 2L)))
+        dao.upsert(
+            checkNotNull(dao.sourceForLocalTrack(seed.id)).copy(
+                provider = "luoxue",
+                providerTrackId = "wy:legacy",
+                dataPath = legacy.dataPath
+            )
         )
+        assertEquals(1, database.musicIdentityDao().sourcesForProvider("luoxue").size)
+
+        val coordinator = IdentityBackfillCoordinator(database)
+        val first = coordinator.runBatch(IdentityBackfillCheckpoint())
+
+        assertTrue(first.complete)
+        assertEquals(1, first.checkpoint.progress.lxDeleted)
+        assertTrue(repository.loadTracks().isEmpty())
+        assertTrue(database.musicIdentityDao().sourcesForProvider("luoxue").isEmpty())
+
+        val repeated = coordinator.runBatch(first.checkpoint)
+        assertTrue(repeated.complete)
+        assertEquals(first.checkpoint.progress, repeated.checkpoint.progress)
+    }
+
+    @Test
+    fun identityBackfillRemovesSharedLuoxueCarrierWithoutDeletingCanonicalRecording() {
+        val physical = track(746L, "Shared recording", "webdav:1:/shared-recording.flac")
+        val legacy = track(747L, "Shared recording", "streaming:luoxue:wy:shared-recording")
+        repository.upsertTracks(listOf(physical))
+        repository.setFavorite(physical.id, true)
+        val dao = database.musicIdentityDao()
+        val physicalSource = checkNotNull(dao.sourceForLocalTrack(physical.id))
+        database.libraryDao().upsertTracks(listOf(TrackEntityMapper.entity(legacy, 2L)))
+        dao.upsert(
+            physicalSource.copy(
+                sourceId = null,
+                provider = "luoxue",
+                providerTrackId = "wy:shared-recording",
+                localTrackId = legacy.id,
+                dataPath = legacy.dataPath
+            )
+        )
+
+        val result = IdentityBackfillCoordinator(database).runBatch(IdentityBackfillCheckpoint())
+
+        assertTrue(result.complete)
+        assertEquals(1, result.checkpoint.progress.lxDeleted)
+        assertEquals(physicalSource.recordingId, repository.loadRecordingId(physical.id))
+        assertTrue(repository.loadTrack(physical.id) != null)
+        assertNull(repository.loadTrack(legacy.id))
+        assertTrue(repository.isFavorite(physical.id))
+        assertTrue(dao.sourcesForProvider("luoxue").isEmpty())
+    }
+
+    @Test
+    fun newLuoxueLibraryTracksAreRejectedBeforePersistence() {
+        repository.upsertTracks(listOf(track(745L, "Transient LX", "streaming:luoxue:wy:transient")))
+
+        assertNull(repository.loadTrack(745L))
+        assertTrue(database.musicIdentityDao().sourcesForProvider("luoxue").isEmpty())
     }
 
     @Test
@@ -601,7 +696,7 @@ class LibraryRepositoryTest {
             val workId = checkNotNull(recording.workId)
             val work = checkNotNull(database.musicIdentityDao().work(workId))
             assertEquals(canonicalUuid, work.canonicalUuid)
-            if (source.matchStatus == "CONFIRMED") {
+            if (source.matchStatus == "CONFIRMED" && source.provider in setOf("local", "document", "webdav")) {
                 assertEquals(source.sourceId, recording.activeSourceId)
             } else {
                 assertNull(recording.activeSourceId)
@@ -728,7 +823,7 @@ class LibraryRepositoryTest {
         val providerRecordingBefore = repository.loadRecordingId(netease.id)
         assertEquals(localRecordingBefore, providerRecordingBefore)
         assertEquals(
-            "UNRESOLVED",
+            "CONFIRMED",
             database.musicIdentityDao().sourceForLocalTrack(netease.id)?.matchStatus
         )
 
@@ -760,7 +855,7 @@ class LibraryRepositoryTest {
         )
         repository.upsertTracks(listOf(local, qq))
 
-        assertEquals("UNRESOLVED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
+        assertEquals("CONFIRMED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
         assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(qq.id))
         assertEquals(2, database.musicIdentityDao().sourceMatchFeatures().size)
         assertEquals(2, database.musicIdentityDao().sourceCount(repository.loadRecordingId(local.id)))
@@ -804,7 +899,7 @@ class LibraryRepositoryTest {
 
         repository.upsertTracks(listOf(local, qq))
 
-        assertEquals("UNRESOLVED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
+        assertEquals("CONFIRMED", database.musicIdentityDao().sourceForLocalTrack(qq.id)?.matchStatus)
         assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(qq.id))
     }
 
@@ -875,14 +970,14 @@ class LibraryRepositoryTest {
         val live = track(
             530L,
             "Separate version (Live)",
-            "streaming:luoxue:provider-live-version"
+            "streaming:qqmusic:provider-live-version"
         )
         repository.upsertTracks(listOf(original, live))
 
         assertTrue(
             repository.confirmDirectProviderSource(
                 live.id,
-                "luoxue",
+                "qqmusic",
                 "provider-live-version"
             )
         )
@@ -890,7 +985,7 @@ class LibraryRepositoryTest {
         assertFalse(repository.loadRecordingId(original.id) == repository.loadRecordingId(live.id))
         assertEquals(
             "CONFIRMED",
-            database.musicIdentityDao().source("luoxue", "provider-live-version")?.matchStatus
+            database.musicIdentityDao().source("qqmusic", "provider-live-version")?.matchStatus
         )
     }
 
@@ -1020,7 +1115,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun activeConfirmedPlatformSourcePreservesLogicalTrackIdentity() {
+    fun physicalSourceOverridesHistoricalNeteaseActiveSource() {
         val logical = track(718L, "Canonical stream", "/music/canonical-stream.flac")
         repository.upsertTracks(listOf(logical))
         val dao = database.musicIdentityDao()
@@ -1056,9 +1151,8 @@ class LibraryRepositoryTest {
 
         assertEquals(logical.id, resolved.id)
         assertEquals(logical.title, resolved.title)
-        assertEquals(Uri.EMPTY, resolved.contentUri)
-        assertEquals("streaming:netease:active-718", resolved.dataPath)
-        assertEquals("flac", resolved.codec)
+        assertEquals(logical.contentUri, resolved.contentUri)
+        assertEquals(logical.dataPath, resolved.dataPath)
         assertEquals(recordingId, repository.loadRecordingId(resolved.id))
     }
 
@@ -1072,7 +1166,7 @@ class LibraryRepositoryTest {
         repository.upsertTracks(listOf(track))
         val dao = database.musicIdentityDao()
         val initial = checkNotNull(dao.sourceForLocalTrack(track.id))
-        assertEquals("UNRESOLVED", initial.matchStatus)
+        assertEquals("CONFIRMED", initial.matchStatus)
 
         assertFalse(repository.confirmDirectProviderSource(track.id, "qqmusic", "favorite-717"))
         assertFalse(repository.confirmDirectProviderSource(track.id, "netease", "other-id"))
@@ -1128,7 +1222,7 @@ class LibraryRepositoryTest {
                 "confirmed-713"
             )
         )
-        assertTrue(
+        assertFalse(
             repository.recordSuccessfulPlayback(
                 candidateTrack,
                 "qqmusic",
@@ -1144,8 +1238,8 @@ class LibraryRepositoryTest {
 
         val refreshedCandidate = checkNotNull(dao.sourceForLocalTrack(candidateTrack.id))
         val candidateRecording = checkNotNull(dao.recording(refreshedCandidate.recordingId))
-        assertTrue(refreshedCandidate.playable)
-        assertTrue(refreshedCandidate.lastSuccessfulAt > 0L)
+        assertFalse(refreshedCandidate.playable)
+        assertEquals(0L, refreshedCandidate.lastSuccessfulAt)
         assertEquals("CANDIDATE", refreshedCandidate.matchStatus)
         assertNull(candidateRecording.activeSourceId)
     }

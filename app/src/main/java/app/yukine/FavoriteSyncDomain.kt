@@ -1,5 +1,7 @@
 package app.yukine
 
+import app.yukine.streaming.ProviderRolePolicy
+
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingErrorCode
@@ -572,6 +574,7 @@ internal class FavoriteSyncCoordinator(
         capabilities: List<ProviderCapability>,
         batchId: String
     ) {
+        if (!ProviderRolePolicy.canSyncFavorites(targetProvider.wireName)) return
         val capability = capabilities.firstOrNull { it.provider == targetProvider } ?: return
         val existing = mapping(unified, targetProvider)
         val confirmedTargetProviderTrackId = library.confirmedProviderTrackId(

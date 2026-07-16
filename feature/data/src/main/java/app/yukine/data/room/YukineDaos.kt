@@ -638,6 +638,9 @@ interface StreamingTrackMatchDao {
 
     @Query("SELECT * FROM streaming_track_matches")
     fun allMatches(): List<StreamingTrackMatchEntity>
+
+    @Query("DELETE FROM streaming_track_matches WHERE provider = :provider")
+    fun deleteProvider(provider: String): Int
 }
 
 @Dao
@@ -729,6 +732,12 @@ interface MusicIdentityDao {
 
     @Query("SELECT id FROM recordings WHERE id IN (:recordingIds)")
     fun existingRecordingIds(recordingIds: List<Long>): List<Long>
+
+    @Query("SELECT COUNT(*) FROM recordings")
+    fun recordingCount(): Int
+
+    @Query("SELECT id FROM recordings WHERE id > :afterId ORDER BY id LIMIT :limit")
+    fun recordingIdsAfter(afterId: Long, limit: Int): List<Long>
 
     @Query(
         "SELECT r.id AS recordingId, r.canonical_uuid AS canonicalUuid, r.title AS title, " +
@@ -856,6 +865,21 @@ interface MusicIdentityDao {
 
     @Query("SELECT * FROM track_sources WHERE recording_id = :recordingId")
     fun sources(recordingId: Long): List<TrackSourceMappingEntity>
+
+    @Query("SELECT * FROM track_sources WHERE provider = :provider ORDER BY recording_id, source_id")
+    fun sourcesForProvider(provider: String): List<TrackSourceMappingEntity>
+
+    @Query("DELETE FROM track_sources WHERE provider = :provider")
+    fun deleteSourcesForProvider(provider: String): Int
+
+    @Query("DELETE FROM identity_candidates WHERE provider = :provider")
+    fun deleteCandidatesForProvider(provider: String): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM identity_candidates WHERE target_type = 'RECORDING' " +
+            "AND status = 'PENDING'"
+    )
+    fun pendingRecordingCandidateCount(): Int
 
     @Query(
         "SELECT t.* FROM tracks t LEFT JOIN track_sources s ON s.local_track_id = t.id " +

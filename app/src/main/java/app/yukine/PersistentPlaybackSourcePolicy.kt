@@ -24,6 +24,7 @@ class PersistentPlaybackSourcePolicy @Inject constructor(
         val enabled = preferences.getStringSet(KEY_ENABLED, null)
             ?.mapNotNull(StreamingProviderName::fromWireName)
             ?.filterNot(StreamingAudioCapabilityPolicy::isPermanentlyMetadataOnly)
+            ?.filter { it == StreamingProviderName.LUOXUE || it == StreamingProviderName.NETEASE }
             ?.toSet()
             ?: setOf(StreamingProviderName.LUOXUE)
         val priority = preferences.getString(KEY_PRIORITY, null)
@@ -39,27 +40,31 @@ class PersistentPlaybackSourcePolicy @Inject constructor(
     }
 
     override fun setEnabled(provider: StreamingProviderName, enabled: Boolean) = synchronized(lock) {
-        if (provider == StreamingProviderName.QQ_MUSIC || provider == StreamingProviderName.LUOXUE && !enabled) return@synchronized
+        if (provider != StreamingProviderName.NETEASE) return@synchronized
         val current = snapshot().enabledRemoteProviders.toMutableSet()
         if (enabled) current += provider else current -= provider
         preferences.edit().putStringSet(KEY_ENABLED, current.mapTo(linkedSetOf()) { it.wireName }).apply()
     }
 
     override fun setPriority(providers: List<StreamingProviderName>) = synchronized(lock) {
-        val enabled = snapshot().enabledRemoteProviders
-        val normalized = (listOf(StreamingProviderName.LUOXUE) + providers)
-            .filter { it in enabled && it != StreamingProviderName.QQ_MUSIC }
-            .distinct()
-        preferences.edit().putString(KEY_PRIORITY, normalized.joinToString(",") { it.wireName }).apply()
+        preferences.edit().putString(KEY_PRIORITY, StreamingProviderName.LUOXUE.wireName).apply()
     }
 
     private fun migrateIfNeeded() = synchronized(lock) {
         if (preferences.getInt(KEY_VERSION, 0) >= VERSION) return@synchronized
+        val neteaseEnabled = preferences.getStringSet(KEY_ENABLED, emptySet())
+            ?.contains(StreamingProviderName.NETEASE.wireName) == true
         // Migration only creates playback policy keys. Account cookies and all sync stores live in
         // separate preferences/databases and are intentionally untouched.
         preferences.edit()
             .putInt(KEY_VERSION, VERSION)
-            .putStringSet(KEY_ENABLED, setOf(StreamingProviderName.LUOXUE.wireName))
+            .putStringSet(
+                KEY_ENABLED,
+                buildSet {
+                    add(StreamingProviderName.LUOXUE.wireName)
+                    if (neteaseEnabled) add(StreamingProviderName.NETEASE.wireName)
+                }
+            )
             .putString(KEY_PRIORITY, StreamingProviderName.LUOXUE.wireName)
             .apply()
     }
@@ -69,6 +74,6 @@ class PersistentPlaybackSourcePolicy @Inject constructor(
         const val KEY_VERSION = "version"
         const val KEY_ENABLED = "enabled_remote_providers"
         const val KEY_PRIORITY = "remote_priority"
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }

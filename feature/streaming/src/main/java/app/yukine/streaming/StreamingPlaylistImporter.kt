@@ -24,6 +24,15 @@ class StreamingPlaylistImporter(
         playlistName: String,
         localTracks: List<Track>
     ): StreamingPlaylistImportSummary {
+        if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) {
+            return StreamingPlaylistImportSummary(
+                provider = provider,
+                playlistName = playlistName,
+                matchedTracks = emptyList(),
+                unresolvedTracks = localTracks,
+                errors = listOf("Provider ${provider.wireName} is not an identity playlist source")
+            )
+        }
         val matched = ArrayList<StreamingTrack>()
         val unresolved = ArrayList<Track>()
         val errors = ArrayList<String>()
@@ -64,6 +73,7 @@ class StreamingPlaylistImporter(
     }
 
     suspend fun createRemotePlaylist(summary: StreamingPlaylistImportSummary): StreamingPlaylistImportSummary {
+        if (!ProviderRolePolicy.canSyncPlaylists(summary.provider.wireName)) return summary
         if (summary.matchedTracks.isEmpty()) return summary
         val capability = repository.providerCapabilities().firstOrNull { it.provider == summary.provider }
         if (capability?.supportsPlaylistCreate != true || capability.supportsPlaylistWrite.not()) return summary
@@ -84,6 +94,7 @@ class StreamingPlaylistImporter(
         title: String,
         desiredTracks: List<StreamingTrack>
     ) {
+        if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) return
         val existing = repository.playlist(provider, providerPlaylistId, pageSize = 2_000, useCache = false)
         val existingIds = existing.tracks.map { it.providerTrackId }
         val desiredIds = desiredTracks.map { it.providerTrackId }.filter { it.isNotBlank() }.distinct()

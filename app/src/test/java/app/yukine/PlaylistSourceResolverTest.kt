@@ -55,6 +55,17 @@ class PlaylistSourceResolverTest {
     }
 
     @Test
+    fun luoxueCannotCreatePersistentPlaylistLink() {
+        StreamingPlaylistSyncStore(context).linkPlaylist(
+            localPlaylistId = 42L,
+            provider = StreamingProviderName.LUOXUE,
+            providerPlaylistId = "lx-list-42"
+        )
+
+        assertNull(StreamingPlaylistSyncStore(context).getLink(42L))
+    }
+
+    @Test
     fun legacyImportedPlaylistUsesItsTrackProvider() {
         val source = PlaylistSourceResolver.resolve(
             linkedProvider = null,

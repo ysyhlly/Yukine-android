@@ -34,6 +34,7 @@ import app.yukine.data.room.StreamingTrackMatchEntity;
 import app.yukine.data.room.IdentityCandidateEntity;
 import app.yukine.data.room.MusicIdentityDao;
 import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.TrackSourceIdentity;
 import app.yukine.data.room.TrackStreamingMatchRow;
 import app.yukine.data.room.TrackEntity;
 import app.yukine.data.room.TrackEntityMapper;
@@ -41,6 +42,13 @@ import app.yukine.data.room.YukineDatabase;
 import app.yukine.model.PlaybackTrackSourceOverlay;
 import app.yukine.model.Track;
 import app.yukine.model.TrackIdentityTags;
+import app.yukine.streaming.DefaultPlaybackSourcePolicy;
+import app.yukine.streaming.PlaybackSourcePolicy;
+import app.yukine.streaming.PlaybackSourceSelectionEvaluation;
+import app.yukine.streaming.PlaybackSourceSelectionEvaluator;
+import app.yukine.streaming.PlaybackSourceSelectionFeatures;
+import app.yukine.streaming.ProviderRolePolicy;
+import app.yukine.streaming.StreamingProviderName;
 import org.json.JSONObject;
 
 /**
@@ -77,10 +85,19 @@ public final class LibraryRepository {
     private final ProviderSourceIdentityWriter providerSourceIdentityWriter;
     private final PlaybackPersistenceRepository playbackPersistence;
     private final OfflineMusicIdentityStore musicIdentityStore;
+    private final PlaybackSourcePolicy playbackSourcePolicy;
+    private final PolicyAwarePlaybackSourceSelector playbackSourceSelector;
     private final AtomicLong legacyMatchComparisons = new AtomicLong();
     private final AtomicLong legacyMatchDivergences = new AtomicLong();
 
     public LibraryRepository(YukineDatabase database) {
+        this(database, DefaultPlaybackSourcePolicy.INSTANCE);
+    }
+
+    public LibraryRepository(
+            YukineDatabase database,
+            PlaybackSourcePolicy playbackSourcePolicy
+    ) {
         this.database = database;
         libraryDao = database.libraryDao();
         historyDao = database.historyDao();
@@ -90,8 +107,12 @@ public final class LibraryRepository {
         streamingMatchDao = database.streamingTrackMatchDao();
         musicIdentityDao = database.musicIdentityDao();
         providerSourceIdentityWriter = new ProviderSourceIdentityWriter(musicIdentityDao);
-        playbackPersistence = new PlaybackPersistenceRepository(database);
+        this.playbackSourcePolicy = playbackSourcePolicy == null
+                ? DefaultPlaybackSourcePolicy.INSTANCE
+                : playbackSourcePolicy;
+        playbackPersistence = new PlaybackPersistenceRepository(database, this.playbackSourcePolicy);
         musicIdentityStore = new OfflineMusicIdentityStore(database);
+        playbackSourceSelector = new PolicyAwarePlaybackSourceSelector(database, this.playbackSourcePolicy);
     }
 
     public List<Track> loadTracks() {
@@ -126,11 +147,7 @@ public final class LibraryRepository {
             return requested;
         }
         app.yukine.data.room.MusicIdentityDao identityDao = database.musicIdentityDao();
-        app.yukine.data.room.TrackSourceMappingEntity source = identityDao.activeSource(recordingId);
-        if (source == null || !source.getPlayable() || !"CONFIRMED".equals(source.getMatchStatus())) {
-            identityDao.refreshActiveSource(recordingId);
-            source = identityDao.activeSource(recordingId);
-        }
+        app.yukine.data.room.TrackSourceMappingEntity source = selectActivePlaybackSource(recordingId);
         if (source == null) {
             return requested;
         }
@@ -144,8 +161,7 @@ public final class LibraryRepository {
         }
         if (source.getSourceId() != null) {
             identityDao.markSourceUnavailable(source.getSourceId(), System.currentTimeMillis());
-            identityDao.refreshActiveSource(recordingId);
-            app.yukine.data.room.TrackSourceMappingEntity fallback = identityDao.activeSource(recordingId);
+            app.yukine.data.room.TrackSourceMappingEntity fallback = selectActivePlaybackSource(recordingId);
             if (fallback != null) {
                 if (fallback.getLocalTrackId() != null) {
                     TrackEntity fallbackEntity = libraryDao.loadTrack(fallback.getLocalTrackId());
@@ -166,6 +182,23 @@ public final class LibraryRepository {
         return requested;
     }
 
+    private TrackSourceMappingEntity selectActivePlaybackSource(long recordingId) {
+        return playbackSourceSelector.select(recordingId);
+    }
+
+    public int refreshActivePlaybackSources() {
+        java.util.LinkedHashSet<Long> recordingIds = new java.util.LinkedHashSet<>();
+        for (TrackSourceMappingEntity source : musicIdentityDao.identityAnchorSources()) {
+            recordingIds.add(source.getRecordingId());
+        }
+        int refreshed = 0;
+        for (Long recordingId : recordingIds) {
+            selectActivePlaybackSource(recordingId);
+            refreshed++;
+        }
+        return refreshed;
+    }
+
     private static Track platformPlaybackTrack(Track logical, TrackSourceMappingEntity source) {
         String provider = source.getProvider() == null
                 ? ""
@@ -173,7 +206,7 @@ public final class LibraryRepository {
         String providerTrackId = source.getProviderTrackId() == null
                 ? ""
                 : source.getProviderTrackId().trim();
-        if (!("netease".equals(provider) || "qqmusic".equals(provider) || "luoxue".equals(provider))
+        if (!"netease".equals(provider)
                 || providerTrackId.isEmpty()) {
             return null;
         }
@@ -235,6 +268,9 @@ public final class LibraryRepository {
             if (source == null || source.getSourceId() == null) {
                 return;
             }
+            if (!ProviderRolePolicy.canEverBecomeActive(source.getProvider())) {
+                return;
+            }
             long now = System.currentTimeMillis();
             int updated = musicIdentityDao.markSourceVerifiedSuccess(
                     source.getSourceId(),
@@ -246,7 +282,7 @@ public final class LibraryRepository {
                 return;
             }
             if ("CONFIRMED".equals(source.getMatchStatus())) {
-                musicIdentityDao.setActiveSource(source.getRecordingId(), source.getSourceId());
+                selectActivePlaybackSource(source.getRecordingId());
             }
             recorded.set(true);
         });
@@ -294,7 +330,7 @@ public final class LibraryRepository {
                     disableSource
             );
             if (updated > 0 && disableSource) {
-                musicIdentityDao.refreshActiveSource(source.getRecordingId());
+                selectActivePlaybackSource(source.getRecordingId());
             }
             recorded.set(updated > 0);
         });
@@ -360,7 +396,7 @@ public final class LibraryRepository {
         database.runInTransaction(() -> {
             throwIfInterrupted();
             LinkedHashSet<Long> removedIds = new LinkedHashSet<>(libraryDao.loadScanManagedTrackIds());
-            List<Track> queueBefore = playbackPersistence.loadQueue();
+            List<Track> queueBefore = playbackPersistence.loadQueueSnapshots();
             int queueIndexBefore = playbackPersistence.loadQueueIndex();
             Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
             List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
@@ -581,6 +617,21 @@ public final class LibraryRepository {
         });
     }
 
+    public int deleteTracks(List<Long> trackIds) {
+        if (trackIds == null || trackIds.isEmpty()) return 0;
+        AtomicInteger removed = new AtomicInteger();
+        database.runInTransaction(() -> {
+            removed.set(deleteTracksInCurrentTransaction(trackIds));
+            musicIdentityStore.pruneMissingTracks();
+        });
+        return removed.get();
+    }
+
+    /** Package-private transaction primitive for callers that already own the Room transaction. */
+    int deleteTracksInCurrentTransaction(List<Long> trackIds) {
+        return deleteTrackIdsInCurrentTransaction(trackIds);
+    }
+
     public boolean isFavorite(long trackId) {
         return libraryDao.recordingFavoriteCountForTrack(trackId) > 0;
     }
@@ -660,6 +711,11 @@ public final class LibraryRepository {
                     || !cleanProviderTrackId.equals(source.getProviderTrackId())) {
                 return;
             }
+            if ("CONFIRMED".equals(source.getMatchStatus())) {
+                confirmedRecordingId.set(source.getRecordingId());
+                confirmed.set(true);
+                return;
+            }
             int updated = musicIdentityDao.confirmDirectProviderSource(source.getSourceId());
             if (updated > 0) {
                 musicIdentityDao.refreshActiveSource(source.getRecordingId());
@@ -681,6 +737,11 @@ public final class LibraryRepository {
     public int ingestConfirmedIdentitySources(List<Long> localTrackIds) {
         if (localTrackIds == null || localTrackIds.isEmpty()) return 0;
         return new SourceIdentityIngestor(database).ingestLocalTracks(localTrackIds);
+    }
+
+    public int ingestIdentityRecordings(List<Long> recordingIds) {
+        if (recordingIds == null || recordingIds.isEmpty()) return 0;
+        return new SourceIdentityIngestor(database).ingestRecordings(recordingIds);
     }
 
     /** Backfills only legacy or algorithm-stale confirmed sources; safe for background startup. */
@@ -802,6 +863,10 @@ public final class LibraryRepository {
         if (track == null) {
             return;
         }
+        if (!ProviderRolePolicy.canPersistCanonicalSource(provider)) {
+            Log.d(TAG, "Ignoring resolver-only provider identity provider=" + provider);
+            return;
+        }
         long recordingId = musicIdentityStore.recordingIdForTrack(track.id);
         if (recordingId <= 0L) {
             Log.w(TAG, "Skipping streaming match without canonical recording trackId=" + track.id);
@@ -818,10 +883,14 @@ public final class LibraryRepository {
                     cleanMatch,
                     track
             );
-            if (result == ProviderSourceIdentityWriter.CandidateWriteResult.STORED) {
+            if (result.isStored()) {
                 musicIdentityDao.deleteCandidate(storedMatchCandidateId(recordingId, cleanProvider));
             } else {
-                saveStoredMatchCandidate(recordingId, cleanProvider, cleanMatch, track);
+                musicIdentityDao.deleteCandidate(storedMatchCandidateId(recordingId, cleanProvider));
+                Long ownerRecordingId = result.getOwnerRecordingId();
+                if (ownerRecordingId != null && ownerRecordingId > 0L) {
+                    ingestIdentityRecordings(java.util.Arrays.asList(recordingId, ownerRecordingId));
+                }
             }
         }
     }
@@ -1071,7 +1140,7 @@ public final class LibraryRepository {
         if (ids == null || ids.isEmpty()) {
             return 0;
         }
-        List<Track> queueBefore = playbackPersistence.loadQueue();
+        List<Track> queueBefore = playbackPersistence.loadQueueSnapshots();
         int queueIndexBefore = playbackPersistence.loadQueueIndex();
         int existing = 0;
         for (List<Long> batch : batches(ids)) {
@@ -1157,7 +1226,7 @@ public final class LibraryRepository {
     }
 
     private void migrateQueueReferences(long oldTrackId, long newTrackId, Track replacement) {
-        List<Track> queue = playbackPersistence.loadQueue();
+        List<Track> queue = playbackPersistence.loadQueueSnapshots();
         int currentIndex = playbackPersistence.loadQueueIndex();
         boolean hasOld = false;
         boolean hasNew = false;
@@ -1230,7 +1299,13 @@ public final class LibraryRepository {
             if ((index++ & 63) == 0) {
                 throwIfInterrupted();
             }
-            if (exclusions.contains(librarySourceKey(track))) {
+            TrackSourceIdentity identity = TrackSourceIdentity.from(
+                    track.id,
+                    track.contentUri == null ? "" : track.contentUri.toString(),
+                    track.dataPath
+            );
+            if (ProviderRolePolicy.isPlaybackResolver(identity.provider)
+                    || exclusions.contains(librarySourceKey(track))) {
                 continue;
             }
             rows.add(TrackEntityMapper.entity(track, updatedAt));

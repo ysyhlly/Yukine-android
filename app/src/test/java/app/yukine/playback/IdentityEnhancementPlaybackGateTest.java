@@ -24,6 +24,16 @@ public final class IdentityEnhancementPlaybackGateTest {
         assertFalse(IdentityEnhancementPlaybackGate.shouldDefer());
     }
 
+    @Test
+    public void visibleAppDefersEnhancementWithoutPlayback() {
+        IdentityEnhancementPlaybackGate.update(snapshot(false, false));
+        IdentityEnhancementPlaybackGate.setAppVisible(true);
+        assertTrue(IdentityEnhancementPlaybackGate.shouldDefer());
+
+        IdentityEnhancementPlaybackGate.setAppVisible(false);
+        assertFalse(IdentityEnhancementPlaybackGate.shouldDefer());
+    }
+
     private static PlaybackStateSnapshot snapshot(boolean playing, boolean preparing) {
         return new PlaybackStateSnapshot(
                 null,

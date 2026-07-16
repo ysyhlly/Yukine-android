@@ -884,7 +884,8 @@ class SettingsPageStateBuilderTest {
             onNavigate = { page -> navigated += page },
             onLoadLibrary = { calls += "load" },
             onOpenAudioFilePicker = { calls += "files" },
-            onOpenAudioFolderPicker = { calls += "folder" }
+            onOpenAudioFolderPicker = { calls += "folder" },
+            onRebuildSongIdentity = { calls += "identity" }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "library"), content.uiState.title)
@@ -893,15 +894,16 @@ class SettingsPageStateBuilderTest {
         assertEquals("3", content.uiState.metrics[1].value)
         assertEquals("5", content.uiState.metrics[2].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[3].value)
-        assertEquals(4, content.actions.size)
+        assertEquals(5, content.actions.size)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[4].onClick.run()
 
         assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
-        assertEquals(listOf("load", "files", "folder"), calls)
+        assertEquals(listOf("load", "files", "folder", "identity"), calls)
     }
 
     @Test

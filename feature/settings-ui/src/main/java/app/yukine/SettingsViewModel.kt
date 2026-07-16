@@ -77,8 +77,20 @@ data class RuntimeSettingsStatus(
     val streamingGatewayConfigured: Boolean = false,
     val luoxueImportedSourceCount: Int = 0,
     val luoxueEnabledSourceCount: Int = 0,
+    val identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
     val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
 )
+
+data class IdentityBackfillStatusUi(
+    val total: Int = 0,
+    val processed: Int = 0,
+    val merged: Int = 0,
+    val pending: Int = 0,
+    val lxMigrated: Int = 0,
+    val lxDeleted: Int = 0
+) {
+    val running: Boolean get() = total > 0 && processed < total
+}
 
 data class HiddenLibraryItemUi(val sourceKey: String, val label: String)
 
@@ -140,6 +152,8 @@ sealed interface SettingsEffect {
     data object LoadLibrary : SettingsEffect
     data object OpenAudioFilePicker : SettingsEffect
     data object OpenAudioFolderPicker : SettingsEffect
+    data object RebuildSongIdentity : SettingsEffect
+    data object CancelIdentityBackfill : SettingsEffect
     data object OpenLuoxueSourceManager : SettingsEffect
     data object ImportLuoxueSource : SettingsEffect
     data object ReloadCurrentLyrics : SettingsEffect

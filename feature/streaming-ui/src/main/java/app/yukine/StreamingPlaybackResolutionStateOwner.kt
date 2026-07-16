@@ -159,7 +159,7 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
         val request = planner.prepareNextPreResolve(snapshot, queue) ?: return false
         taskQueue.scheduleNextUrlResolve(
             StreamingPlaybackTask { onComplete ->
-                val job = resolveStreamingTrackForPlayback(
+                val job = preResolveStreamingTrackForPlayback(
                     request.provider,
                     request.providerTrackId,
                     request.metadata,
@@ -179,6 +179,35 @@ class StreamingPlaybackResolutionStateOwner internal constructor(
             }
         )
         return true
+    }
+
+    /**
+     * Resolves a queued track without mutating the foreground streaming request state. A failed
+     * prefetch must not clear the current source, show a loading indicator, or surface a playback
+     * error while the current physical source keeps playing.
+     */
+    private fun preResolveStreamingTrackForPlayback(
+        provider: StreamingProviderName,
+        providerTrackId: String,
+        metadata: StreamingTrack?,
+        quality: StreamingAudioQuality,
+        onResolved: StreamingCallback<Track?>
+    ): Job = scope.launch {
+        try {
+            val result = resolvePlaybackTrackWithFallback(
+                provider,
+                providerTrackId,
+                quality,
+                metadata
+            )
+            updateDiagnostics(repository().diagnostics())
+            onResolved.onResult(result.track)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            updateDiagnostics(repository().diagnostics())
+            onResolved.onResult(null)
+        }
     }
 
     fun preResolveStreamingQueueWindow(

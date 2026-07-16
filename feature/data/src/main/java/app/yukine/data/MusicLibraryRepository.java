@@ -33,6 +33,8 @@ import app.yukine.LibraryRefreshProgressListener;
 import app.yukine.playback.AudioEffectSettings;
 import app.yukine.streaming.StreamingQualityPreference;
 import app.yukine.streaming.StreamingTrack;
+import app.yukine.streaming.DefaultPlaybackSourcePolicy;
+import app.yukine.streaming.PlaybackSourcePolicy;
 import app.yukine.TrackShareStyle;
 import app.yukine.common.StreamingDataPathParser;
 import app.yukine.data.room.YukineDatabase;
@@ -93,8 +95,26 @@ public final class MusicLibraryRepository {
     private final StreamingCandidateCatalogStore streamingCandidateCatalogStore;
 
     @Inject
-    public MusicLibraryRepository(@ApplicationContext Context context, StreamingDataPathParser streamingDataPathParser) {
-        this(context, streamingDataPathParser, YukineDatabase.getInstance(context.getApplicationContext()));
+    public MusicLibraryRepository(
+            @ApplicationContext Context context,
+            StreamingDataPathParser streamingDataPathParser,
+            PlaybackSourcePolicy playbackSourcePolicy
+    ) {
+        this(
+                context,
+                streamingDataPathParser,
+                YukineDatabase.getInstance(context.getApplicationContext()),
+                playbackSourcePolicy
+        );
+    }
+
+    public MusicLibraryRepository(Context context, StreamingDataPathParser streamingDataPathParser) {
+        this(
+                context,
+                streamingDataPathParser,
+                YukineDatabase.getInstance(context.getApplicationContext()),
+                DefaultPlaybackSourcePolicy.INSTANCE
+        );
     }
 
     MusicLibraryRepository(
@@ -102,11 +122,20 @@ public final class MusicLibraryRepository {
             StreamingDataPathParser streamingDataPathParser,
             YukineDatabase database
     ) {
+        this(context, streamingDataPathParser, database, DefaultPlaybackSourcePolicy.INSTANCE);
+    }
+
+    MusicLibraryRepository(
+            Context context,
+            StreamingDataPathParser streamingDataPathParser,
+            YukineDatabase database,
+            PlaybackSourcePolicy playbackSourcePolicy
+    ) {
         Context appContext = context.getApplicationContext();
         this.appContext = appContext;
         this.database = database;
-        libraryRepository = new LibraryRepository(database);
-        playbackPersistenceRepository = new PlaybackPersistenceRepository(database);
+        libraryRepository = new LibraryRepository(database, playbackSourcePolicy);
+        playbackPersistenceRepository = new PlaybackPersistenceRepository(database, playbackSourcePolicy);
         settingsRepository = new SettingsRepository(database.settingsDao());
         historyRepository = new HistoryRepository(database);
         playlistRepository = new PlaylistRepository(database);
@@ -128,6 +157,10 @@ public final class MusicLibraryRepository {
     /** Off-main-thread, network-free lookup of the canonical recording's preferred source. */
     public Track loadActivePlaybackSource(Track requested) {
         return libraryRepository.loadActivePlaybackSource(requested);
+    }
+
+    public int refreshActivePlaybackSources() {
+        return libraryRepository.refreshActivePlaybackSources();
     }
 
     /** Off-main-thread feedback from the playback service after the first decoded PCM buffer. */
@@ -632,6 +665,15 @@ public final class MusicLibraryRepository {
             List<Track> tracks = incremental.tracks;
             WebDavSyncResult result = syncResult(oldTracks, tracks);
             remoteSourceRepository.applyIncrementalTracks(oldTracks, tracks);
+            ArrayList<Long> syncedTrackIds = new ArrayList<>(tracks.size());
+            for (Track track : tracks) {
+                if (track != null && track.id != 0L) {
+                    syncedTrackIds.add(track.id);
+                }
+            }
+            if (!syncedTrackIds.isEmpty()) {
+                libraryRepository.ingestConfirmedIdentitySources(syncedTrackIds);
+            }
             settingsRepository.saveWebDavSyncManifest(sourceId, incremental.manifest);
             remoteSourceRepository.updateStatus(sourceId, "已同步 WebDAV：" + result.summary());
             return result;
@@ -1611,6 +1653,10 @@ public final class MusicLibraryRepository {
 
     public int ingestConfirmedIdentitySources(List<Long> localTrackIds) {
         return libraryRepository.ingestConfirmedIdentitySources(localTrackIds);
+    }
+
+    public int ingestIdentityRecordings(List<Long> recordingIds) {
+        return libraryRepository.ingestIdentityRecordings(recordingIds);
     }
 
     public int ingestPendingConfirmedIdentitySources() {

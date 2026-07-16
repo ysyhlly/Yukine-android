@@ -29,6 +29,7 @@ import app.yukine.identity.RecordingVariantRecognizer;
 import app.yukine.identity.RecordingVariantType;
 import app.yukine.identity.IdentityTextNormalizer;
 import app.yukine.model.TrackIdentityTags;
+import app.yukine.streaming.ProviderRolePolicy;
 
 /**
  * Creates recording/source/artist identities in the caller's track persistence transaction.
@@ -114,6 +115,9 @@ final class OfflineMusicIdentityStore {
                 track.getContentUri(),
                 track.getDataPath()
         );
+        if (!ProviderRolePolicy.canPersistCanonicalSource(identity.provider)) {
+            return -1L;
+        }
         TrackSourceMappingEntity localSource = dao.sourceForLocalTrack(trackId);
         TrackSourceMappingEntity keyedSource = dao.source(identity.provider, identity.providerTrackId);
         Long relocatedRecordingId = null;
@@ -591,6 +595,8 @@ final class OfflineMusicIdentityStore {
                 ? existing == null ? "" : existing.getQuality()
                 : clean(track.getCodec());
         boolean physicalSource = isPhysicalProvider(identity.provider);
+        boolean directProviderIdentity = "netease".equals(identity.provider)
+                || "qqmusic".equals(identity.provider);
         return new TrackSourceMappingEntity(
                 existing == null ? null : existing.getSourceId(),
                 recordingId,
@@ -605,10 +611,12 @@ final class OfflineMusicIdentityStore {
                 quality,
                 qualityScore(quality),
                 existing == null || existing.getPlayable(),
-                physicalSource ? "CONFIRMED" : existing == null
+                physicalSource || directProviderIdentity ? "CONFIRMED" : existing == null
                         ? STATUS_UNRESOLVED
                         : existing.getMatchStatus(),
-                physicalSource ? 1.0d : existing == null ? 0.0d : existing.getConfidence(),
+                physicalSource || directProviderIdentity
+                        ? 1.0d
+                        : existing == null ? 0.0d : existing.getConfidence(),
                 existing == null ? 0L : existing.getLastSuccessfulAt(),
                 existing == null ? 0L : existing.getLastVerifiedAt(),
                 existing == null ? "" : existing.getLegacyLocalKey(),

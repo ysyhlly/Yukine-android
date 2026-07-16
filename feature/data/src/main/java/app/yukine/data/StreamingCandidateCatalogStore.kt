@@ -3,6 +3,7 @@ package app.yukine.data
 import app.yukine.data.room.IdentityCandidateEntity
 import app.yukine.data.room.YukineDatabase
 import app.yukine.model.Track
+import app.yukine.streaming.ProviderRolePolicy
 import app.yukine.streaming.StreamingTrack
 import app.yukine.streaming.StreamingTrackMatchPolicy
 import java.util.Locale
@@ -31,6 +32,7 @@ class StreamingCandidateCatalogStore(
     fun replace(track: Track, provider: String, candidates: List<StreamingTrack>) {
         val recordingId = dao.recordingIdForLocalTrack(track.id) ?: return
         val cleanProvider = provider.trim().lowercase(Locale.ROOT).takeIf(String::isNotBlank) ?: return
+        if (!ProviderRolePolicy.canPersistCanonicalSource(cleanProvider)) return
         val ranked = StreamingTrackMatchPolicy.rankCandidates(
             StreamingTrackMatchPolicy.reference(track),
             candidates.asSequence()
@@ -38,6 +40,7 @@ class StreamingCandidateCatalogStore(
                 .distinctBy { it.providerTrackId.trim() }
                 .toList()
         ).take(MAX_CANDIDATES)
+        val ownerRecordingIds = linkedSetOf<Long>()
         database.runInTransaction {
             val activeIds = ranked.mapTo(linkedSetOf()) { it.track.providerTrackId.trim() }
             ranked.forEachIndexed { rank, match ->
@@ -46,7 +49,7 @@ class StreamingCandidateCatalogStore(
                 val existing = dao.candidate(TARGET_TYPE, recordingId, cleanProvider, providerTrackId)
                 val ownedSource = dao.source(cleanProvider, providerTrackId)
                 val sourceOwnerConflict = ownedSource != null && ownedSource.recordingId != recordingId
-                val hardConflict = sourceOwnerConflict || match.evaluation.hasHardConflict
+                if (sourceOwnerConflict) ownerRecordingIds += ownedSource!!.recordingId
                 val status = when {
                     ownedSource?.recordingId == recordingId && ownedSource.matchStatus == "CONFIRMED" ->
                         "USER_CONFIRMED"
@@ -94,6 +97,9 @@ class StreamingCandidateCatalogStore(
                 .filter { it.status == "PENDING" && isCatalogManaged(it.evidenceJson) }
                 .forEach { dao.deleteCandidate(it.candidateId) }
         }
+        if (ownerRecordingIds.isNotEmpty()) {
+            SourceIdentityIngestor(database).ingestRecordings((ownerRecordingIds + recordingId).toList())
+        }
     }
 
     private fun evidence(
@@ -119,10 +125,9 @@ class StreamingCandidateCatalogStore(
         .put("versionScore", evaluation.versionScore)
         .put("albumScore", evaluation.albumScore)
         .put("variantType", evaluation.versionType.name)
-        .put("hardConflict", sourceOwnerConflict || evaluation.hasHardConflict)
+        .put("hardConflict", evaluation.hasHardConflict)
         .put("hardConflicts", JSONArray().apply {
             evaluation.hardConflicts.forEach { put(it.name) }
-            if (sourceOwnerConflict) put("PROVIDER_SOURCE_OWNER")
         })
         .put("identifierEvidence", JSONArray().apply {
             evaluation.identifierEvidence.forEach(::put)

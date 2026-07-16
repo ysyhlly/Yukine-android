@@ -43,7 +43,7 @@ class IdentityEnhancementWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         if (IdentityEnhancementPlaybackGate.shouldDefer()) {
-            Log.i(TAG, "Deferring identity enhancement while playback is active")
+            Log.i(TAG, "Deferring identity enhancement while the app is visible or playback is active")
             return@withContext Result.retry()
         }
         val context = applicationContext

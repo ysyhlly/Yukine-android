@@ -24,20 +24,21 @@ data class PlaybackSourceSelectionEvaluation(
 
 object PlaybackSourceSelectionEvaluator {
     private const val RECENCY_WINDOW_MS = 30L * 24L * 60L * 60L * 1_000L
-    private val physicalProviders = setOf("local", "document", "webdav")
 
     fun evaluate(
         source: PlaybackSourceSelectionFeatures,
         now: Long = System.currentTimeMillis()
     ): PlaybackSourceSelectionEvaluation {
-        val provider = source.provider.trim().lowercase(Locale.ROOT)
-        val physical = provider in physicalProviders
+        val provider = ProviderRolePolicy.normalize(source.provider)
+        val physical = ProviderRolePolicy.isPhysical(provider)
         val verified = source.lastVerifiedAt > 0L || source.lastSuccessfulAt > 0L
         val reasons = linkedSetOf<String>()
         if (!source.playable) reasons += "unplayable"
         if (!source.confirmed) reasons += "unconfirmed"
         if (!physical && !verified) reasons += "remote_unverified"
-        val eligible = source.playable && source.confirmed && (physical || verified)
+        if (!ProviderRolePolicy.canEverBecomeActive(provider)) reasons += "provider_not_active"
+        val eligible = source.playable && source.confirmed && (physical || verified) &&
+            ProviderRolePolicy.canEverBecomeActive(provider)
         if (!eligible) {
             return PlaybackSourceSelectionEvaluation(source, 0.0, false, reasons)
         }
@@ -61,10 +62,22 @@ object PlaybackSourceSelectionEvaluator {
 
     fun rank(
         sources: List<PlaybackSourceSelectionFeatures>,
-        now: Long = System.currentTimeMillis()
-    ): List<PlaybackSourceSelectionEvaluation> = sources.asSequence()
-        .map { source -> evaluate(source, now) }
-        .filter(PlaybackSourceSelectionEvaluation::eligible)
+        now: Long = System.currentTimeMillis(),
+        neteasePlaybackEnabled: Boolean = true
+    ): List<PlaybackSourceSelectionEvaluation> {
+        val evaluated = sources.asSequence()
+            .map { source -> evaluate(source, now) }
+            .filter(PlaybackSourceSelectionEvaluation::eligible)
+            .toList()
+        val hasPhysical = evaluated.any { ProviderRolePolicy.isPhysical(it.source.provider) }
+        return evaluated.asSequence()
+            .filter { evaluation ->
+                ProviderRolePolicy.canBecomeActive(
+                    evaluation.source.provider,
+                    neteasePlaybackEnabled,
+                    hasPhysical
+                )
+            }
         .sortedWith(
             compareByDescending<PlaybackSourceSelectionEvaluation> { it.sourceSelectionScore }
                 .thenByDescending { it.source.lastSuccessfulAt }
@@ -73,6 +86,7 @@ object PlaybackSourceSelectionEvaluator {
                 .thenBy { it.source.sourceId }
         )
         .toList()
+    }
 
     private fun recencyScore(
         source: PlaybackSourceSelectionFeatures,

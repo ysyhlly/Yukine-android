@@ -284,9 +284,58 @@ public final class PlaylistRepository {
     }
 
     public List<Track> loadTracks(long playlistId) {
-        List<TrackEntity> rows = dao.playlistRecordingTracks(playlistId);
-        if (rows.isEmpty()) {
-            rows = dao.playlistTracks(playlistId);
+        List<TrackEntity> canonicalTracks = dao.playlistRecordingTracks(playlistId);
+        List<PlaylistRecordingItemEntity> canonicalItems = dao.playlistRecordingRows(playlistId);
+        List<TrackEntity> legacyTracks = dao.playlistTracks(playlistId);
+        List<TrackEntity> rows;
+        if (canonicalTracks.isEmpty()) {
+            rows = legacyTracks;
+        } else if (legacyTracks.isEmpty()) {
+            rows = canonicalTracks;
+        } else {
+            Map<Long, TrackEntity> canonicalByRecording = new HashMap<>();
+            int paired = Math.min(canonicalItems.size(), canonicalTracks.size());
+            for (int index = 0; index < paired; index++) {
+                canonicalByRecording.put(canonicalItems.get(index).getRecordingId(), canonicalTracks.get(index));
+            }
+            Map<Long, TrackSourceMappingEntity> sourceByTrack = new HashMap<>();
+            ArrayList<Long> legacyIds = new ArrayList<>(legacyTracks.size());
+            for (TrackEntity legacy : legacyTracks) {
+                if (legacy.getId() != null) {
+                    legacyIds.add(legacy.getId());
+                }
+            }
+            for (int start = 0; start < legacyIds.size(); start += IDENTITY_QUERY_CHUNK_SIZE) {
+                int end = Math.min(start + IDENTITY_QUERY_CHUNK_SIZE, legacyIds.size());
+                for (TrackSourceMappingEntity source : identityDao.sourcesForLocalTracks(
+                        legacyIds.subList(start, end))) {
+                    if (source.getLocalTrackId() != null) {
+                        sourceByTrack.put(source.getLocalTrackId(), source);
+                    }
+                }
+            }
+            ArrayList<TrackEntity> mixed = new ArrayList<>(legacyTracks.size());
+            Set<Long> emittedRecordings = new HashSet<>();
+            for (TrackEntity legacy : legacyTracks) {
+                TrackSourceMappingEntity source = legacy.getId() == null
+                        ? null
+                        : sourceByTrack.get(legacy.getId());
+                TrackEntity canonical = source == null
+                        ? null
+                        : canonicalByRecording.get(source.getRecordingId());
+                if (canonical == null) {
+                    mixed.add(legacy);
+                } else if (emittedRecordings.add(source.getRecordingId())) {
+                    mixed.add(canonical);
+                }
+            }
+            for (PlaylistRecordingItemEntity item : canonicalItems) {
+                TrackEntity canonical = canonicalByRecording.get(item.getRecordingId());
+                if (canonical != null && emittedRecordings.add(item.getRecordingId())) {
+                    mixed.add(canonical);
+                }
+            }
+            rows = mixed;
         }
         if (rows.isEmpty()) {
             return Collections.emptyList();

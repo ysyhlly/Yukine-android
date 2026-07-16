@@ -20,6 +20,7 @@ import app.yukine.streaming.StreamingWebCookieSessionSource
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import app.yukine.streaming.StreamingPlaybackTrackAdapter
+import app.yukine.streaming.PlaybackSourcePolicy
 import app.yukine.streaming.cache.StreamingCachePolicy
 import app.yukine.streaming.cache.StreamingCacheDao
 import app.yukine.streaming.cache.StreamingCacheDatabase
@@ -133,6 +134,12 @@ object StreamingDataModule {
     fun provideStreamingRepositorySource(provider: StreamingRepositoryProvider): StreamingRepositorySource {
         return provider
     }
+
+    @Provides
+    @Singleton
+    fun providePlaybackSourcePolicy(
+        policy: app.yukine.PersistentPlaybackSourcePolicy
+    ): PlaybackSourcePolicy = policy
 
     @Provides
     fun provideRecordingSourceVerificationGateway(

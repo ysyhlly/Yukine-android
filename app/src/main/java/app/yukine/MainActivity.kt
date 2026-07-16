@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
+import app.yukine.playback.IdentityEnhancementPlaybackGate
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -17,6 +18,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        IdentityEnhancementPlaybackGate.setAppVisible(true)
         features = composition.create(this)
         features.settings.initialize {
             features.onboarding.initialize {
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        IdentityEnhancementPlaybackGate.setAppVisible(true)
         if (::features.isInitialized) {
             features.playback.setAppVisible(true)
             features.streaming.onResume()
@@ -54,6 +57,11 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         if (::features.isInitialized) features.playback.setAppVisible(false)
         super.onPause()
+    }
+
+    override fun onStop() {
+        IdentityEnhancementPlaybackGate.setAppVisible(false)
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {

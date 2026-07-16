@@ -328,7 +328,14 @@ final class StreamingFeatureBinding {
             NavigationFeatureBinding navigation,
             LuoxueSourceImportDialogController luoxueSourceImportDialogController
     ) {
-        searchActionHandler = new DefaultStreamingSearchActionHandler(viewModel, actionGateway);
+        searchActionHandler = new DefaultStreamingSearchActionHandler(
+                viewModel,
+                actionGateway,
+                () -> {
+                    executors.io(musicLibraryRepository::refreshActivePlaybackSources);
+                    return kotlin.Unit.INSTANCE;
+                }
+        );
         return new StreamingSearchStateReducer(
                 this::languageMode,
                 new StreamingSearchActionAdapter(

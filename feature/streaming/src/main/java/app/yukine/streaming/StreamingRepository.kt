@@ -278,19 +278,6 @@ class StreamingRepository(
             var lastError: Throwable? = null
             val searchedProviders = linkedSetOf<StreamingProviderName>()
             var index = 0
-            if (attempts.size >= 2) {
-                val raced = raceKnownPlaybackAttempts(
-                    attempts[0],
-                    attempts[1],
-                    quality,
-                    forceRefresh
-                )
-                raced.source?.let {
-                    return@withContext resolvedPlayback(raced, metadata)
-                }
-                lastError = raced.error
-                index = 2
-            }
             while (true) {
                 if (index >= attempts.size) {
                     val fallback = playbackNextSearchFallbackAttempt(
@@ -507,15 +494,20 @@ class StreamingRepository(
             ?.luoxueMusicInfoJson
         val attempts = mutableListOf<PlaybackResolveAttempt>()
         val seen = linkedSetOf<String>()
-        if (provider == StreamingProviderName.LUOXUE && playbackSourcePolicy.isEnabled(provider)) {
+        if (provider == StreamingProviderName.NETEASE && playbackSourcePolicy.isEnabled(provider)) {
             attempts += PlaybackResolveAttempt(provider, providerTrackId, primaryPayload)
             seen += "${provider.wireName}:$providerTrackId"
         }
-        val priority = playbackSourcePolicy.orderedEnabledProviders().withIndex().associate { it.value to it.index }
         val candidates = metadata?.playbackCandidates.orEmpty()
-            .filterNot { StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(it.provider) }
-            .filter { playbackSourcePolicy.isEnabled(it.provider) }
-            .sortedBy { candidate -> priority[candidate.provider] ?: Int.MAX_VALUE }
+            .filter {
+                it.provider == StreamingProviderName.NETEASE ||
+                    it.provider == StreamingProviderName.LUOXUE
+            }
+            .filter {
+                it.provider == StreamingProviderName.LUOXUE ||
+                    playbackSourcePolicy.isEnabled(it.provider)
+            }
+            .sortedBy { if (it.provider == StreamingProviderName.NETEASE) 0 else 1 }
         candidates.forEach { candidate ->
             val candidateTrackId = candidate.providerTrackId?.takeIf { it.isNotBlank() }
                 ?: providerTrackId.takeIf { candidate.provider == provider }
@@ -533,8 +525,8 @@ class StreamingRepository(
                 attempts += PlaybackResolveAttempt(candidate.provider, candidateTrackId, candidatePayload)
             }
         }
-        if (playbackSourcePolicy.isEnabled(provider) &&
-            !StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(provider) &&
+        if (provider == StreamingProviderName.LUOXUE &&
+            playbackEnabled(provider) &&
             seen.add("${provider.wireName}:$providerTrackId")) {
             attempts += PlaybackResolveAttempt(provider, providerTrackId, primaryPayload)
         }
@@ -557,9 +549,8 @@ class StreamingRepository(
         }
         val seen = existingAttempts
             .mapTo(linkedSetOf()) { "${it.provider.wireName}:${it.providerTrackId}" }
-        val providers = playbackSourcePolicy.orderedEnabledProviders().filter { target ->
-            target !in searchedProviders &&
-                !StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(target)
+        val providers = listOf(StreamingProviderName.LUOXUE).filter { target ->
+            target !in searchedProviders
         }
         providers.forEach { target ->
             searchedProviders += target
@@ -754,7 +745,7 @@ class StreamingRepository(
     }
 
     private suspend fun audioCacheAllowed(provider: StreamingProviderName): Boolean {
-        if (!playbackSourcePolicy.isEnabled(provider) ||
+        if (!playbackEnabled(provider) ||
             StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(provider)) return false
         return runCatching {
             providerCapabilities().firstOrNull { it.provider == provider }?.supportsAudioCache
@@ -763,7 +754,7 @@ class StreamingRepository(
 
     private fun requireAudioResolveAllowed(provider: StreamingProviderName) {
         if (StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(provider) ||
-            !playbackSourcePolicy.isEnabled(provider)) {
+            !playbackEnabled(provider)) {
             throw StreamingGatewayException(
                 "${provider.wireName} is metadata-only; audio resolve and playback are disabled",
                 code = StreamingErrorCode.UNSUPPORTED_OPERATION
@@ -772,7 +763,7 @@ class StreamingRepository(
     }
 
     private fun effectiveCapability(value: StreamingProviderCapability): StreamingProviderCapability {
-        val enabledForPlayback = playbackSourcePolicy.isEnabled(value.provider) &&
+        val enabledForPlayback = playbackEnabled(value.provider) &&
             !StreamingAudioCapabilityPolicy.isPermanentlyMetadataOnly(value.provider)
         return value.copy(
             supportsPlayback = value.supportsPlayback && enabledForPlayback,
@@ -782,6 +773,9 @@ class StreamingRepository(
             supportsAudioCache = value.supportsAudioCache && enabledForPlayback
         )
     }
+
+    private fun playbackEnabled(provider: StreamingProviderName): Boolean =
+        provider == StreamingProviderName.LUOXUE || playbackSourcePolicy.isEnabled(provider)
 
     private data class PlaybackResolveAttempt(
         val provider: StreamingProviderName,

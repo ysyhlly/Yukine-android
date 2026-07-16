@@ -718,6 +718,33 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun failedNextTrackPreResolveDoesNotPublishForegroundError() = runTest {
+        val provider = FakeProvider().apply {
+            playbackResolveError = IllegalStateException("LX prefetch failed")
+        }
+        val viewModel = StreamingViewModel()
+        val taskQueue = FakeStreamingPlaybackTaskQueue()
+        val local = localTrack(id = 1L)
+        val next = streamingPlaceholderTrack(id = 2L, providerTrackId = "next-2")
+        val resolved = mutableListOf<Pair<Long, Track?>>()
+        viewModel.bindStreamingRepository(repository(provider))
+        viewModel.playbackResolution.bindPlaybackCoordinator(ResolveStreamingPlaybackUseCase(), taskQueue)
+
+        val scheduled = viewModel.playbackResolution.preResolveNextStreamingTrack(
+            snapshot = playbackSnapshot(currentTrack = local, currentIndex = 0, queueSize = 2, playing = true),
+            queue = listOf(local, next),
+            quality = StreamingAudioQuality.HIGH
+        ) { oldTrackId, track -> resolved += oldTrackId to track }
+
+        assertTrue(scheduled)
+        advanceUntilIdle()
+        waitUntil { resolved.isNotEmpty() }
+        assertEquals(listOf(2L to null), resolved)
+        assertFalse(viewModel.streaming.value.loading)
+        assertNull(viewModel.streaming.value.errorMessage)
+    }
+
+    @Test
     fun newForegroundTrackCancelsPreviousInFlightResolve() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
@@ -1440,6 +1467,7 @@ class StreamingViewModelTest {
         val completeAuthCalls: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
         val signOutCalls = java.util.concurrent.atomic.AtomicInteger(0)
         var playbackResolveGate: CompletableDeferred<Unit>? = null
+        var playbackResolveError: Throwable? = null
         var startAuthResult: StreamingAuthResult = StreamingAuthResult(
             StreamingProviderName.NETEASE,
             StreamingAuthState()
@@ -1456,6 +1484,7 @@ class StreamingViewModelTest {
         override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
             playbackRequests += request
             playbackResolveGate?.await()
+            playbackResolveError?.let { throw it }
             return StreamingPlaybackSource(
                 provider = request.provider,
                 providerTrackId = request.providerTrackId,

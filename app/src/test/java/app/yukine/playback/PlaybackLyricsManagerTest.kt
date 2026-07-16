@@ -178,6 +178,30 @@ class PlaybackLyricsManagerTest {
     }
 
     @Test
+    fun liveLyricsCloudDoesNotStartForBackgroundPreparationAlone() {
+        val context = FakeContext(ApplicationProvider.getApplicationContext())
+        val provider = FakeStateProvider(
+            appVisible = false,
+            currentTrack = track(),
+            playing = false,
+            preparing = true
+        )
+        val manager = PlaybackLyricsManager(context, provider, FakeNotificationBridge())
+
+        manager.setStatusBarLyricsEnabled(false)
+        manager.setStatusBarLyricsEnabled(true)
+
+        assertEquals(emptyList<String>(), context.startedServices)
+        assertEquals(
+            listOf(
+                LiveLyricsNotificationService::class.java.name,
+                LiveLyricsNotificationService::class.java.name
+            ),
+            context.stoppedServices
+        )
+    }
+
+    @Test
     fun floatingLyricsNotificationRefreshUsesNotificationBridgeWorthiness() {
         FloatingLyricsPublisher.clear()
         val provider = FakeStateProvider()

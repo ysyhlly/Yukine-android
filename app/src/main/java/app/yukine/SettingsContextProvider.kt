@@ -1,7 +1,9 @@
 package app.yukine
 
+import android.content.Context
 
 internal class SettingsContextProvider(
+    context: Context,
     private val settingsStore: MainSettingsStore,
     private val libraryStore: LibraryDataStateOwner,
     private val permissionController: MainPermissionController,
@@ -12,6 +14,7 @@ internal class SettingsContextProvider(
     private val luoxueSourceStore: app.yukine.streaming.LuoxueSourceStoreManager,
     private val repository: app.yukine.data.MusicLibraryRepository
 ) : SettingsContextLoader {
+    private val identityBackfillStore = IdentityBackfillCheckpointStore(context)
     override fun load(): SettingsContextSnapshot = SettingsContextSnapshot(
         preferences = preferencesSnapshot(),
         runtime = runtimeStatus()
@@ -22,6 +25,7 @@ internal class SettingsContextProvider(
     fun runtimeStatus(): RuntimeSettingsStatus {
         val allTracks = libraryStore.allTracks()
         val luoxueSources = luoxueSourceStore.load()
+        val identityBackfill = identityBackfillStore.load().progress
         return RuntimeSettingsStatus(
             appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
@@ -38,6 +42,14 @@ internal class SettingsContextProvider(
             streamingGatewayConfigured = streamingGatewaySettingsStore.configured(),
             luoxueImportedSourceCount = luoxueSources.size,
             luoxueEnabledSourceCount = luoxueSources.count { it.enabled && it.script.isNotBlank() },
+            identityBackfill = IdentityBackfillStatusUi(
+                total = identityBackfill.total,
+                processed = identityBackfill.processed,
+                merged = identityBackfill.merged,
+                pending = identityBackfill.pending,
+                lxMigrated = identityBackfill.lxMigrated,
+                lxDeleted = identityBackfill.lxDeleted
+            ),
             hiddenLibraryItems = repository.loadLibraryExclusions().map { exclusion ->
                 HiddenLibraryItemUi(exclusion.sourceKey, exclusion.displayName())
             }

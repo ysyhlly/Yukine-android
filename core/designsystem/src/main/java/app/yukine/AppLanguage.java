@@ -382,6 +382,14 @@ public final class AppLanguage {
         put("track.count.prefix", "", "");
         put("track.count.suffix", " tracks", " \u9996\u6b4c\u66f2");
         put("scan.library", "Scan library", "\u626b\u63cf\u66f2\u5e93");
+        put("identity.backfill.rebuild", "Rebuild song identity", "\u91cd\u5efa\u6b4c\u66f2\u8eab\u4efd");
+        put("identity.backfill.cancel", "Cancel identity rebuild", "\u53d6\u6d88\u8eab\u4efd\u91cd\u5efa");
+        put("identity.backfill.progress", "Identity rebuild", "\u8eab\u4efd\u91cd\u5efa");
+        put("identity.backfill.merged", "merged", "\u5df2\u5408\u5e76");
+        put("identity.backfill.pending", "pending", "\u5f85\u786e\u8ba4");
+        put("identity.backfill.lx", "LX migrated/deleted", "LX \u8fc1\u79fb/\u5220\u9664");
+        put("identity.backfill.started", "Song identity rebuild started", "\u5df2\u5f00\u59cb\u91cd\u5efa\u6b4c\u66f2\u8eab\u4efd");
+        put("identity.backfill.cancelled", "Song identity rebuild cancelled", "\u5df2\u53d6\u6d88\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa");
         put("import.audio.files", "Import audio files", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6");
         put("import.audio.folder", "Import audio folder", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6\u5939");
         put("offset", "Offset", "\u504f\u79fb");

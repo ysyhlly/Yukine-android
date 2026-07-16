@@ -12,6 +12,7 @@ import app.yukine.fingerprint.ChromaprintAlignment
 import app.yukine.fingerprint.ChromaprintSegmentAligner
 import app.yukine.fingerprint.TraditionalAudioEvidence
 import app.yukine.streaming.MatchEvaluation
+import app.yukine.streaming.ProviderRolePolicy
 import app.yukine.streaming.RecordingMatchFeatureExtractor
 import app.yukine.streaming.RecordingMatchEvaluatorV2
 import app.yukine.streaming.RecordingRelationship
@@ -32,7 +33,8 @@ import org.json.JSONObject
  */
 class SourceIdentityIngestor @JvmOverloads constructor(
     private val database: YukineDatabase,
-    private val diagnostics: MusicIdentityDiagnostics = MusicIdentityDiagnostics.process()
+    private val diagnostics: MusicIdentityDiagnostics = MusicIdentityDiagnostics.process(),
+    private val includeLegacyLuoxue: Boolean = false
 ) {
     private val dao = database.musicIdentityDao()
     private val recordings = RoomRecordingIdentityRepository(database)
@@ -40,8 +42,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     private val candidateGenerator = SourceRecordingCandidateGenerator()
 
     /** Explicit/background backfill for existing databases; never belongs to the library-open path. */
-    fun ingestAllConfirmedSources(): Int = ingestLocalTracks(
-        dao.identityAnchorSources().mapNotNull(TrackSourceMappingEntity::localTrackId)
+    fun ingestAllConfirmedSources(): Int = ingestRecordings(
+        dao.identityAnchorSources().map(TrackSourceMappingEntity::recordingId)
     )
 
     /**
@@ -68,16 +70,28 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     }
 
     fun ingestLocalTracks(localTrackIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
-        ingestLocalTracksLocked(localTrackIds)
+        ingestSourcesLocked(localTrackIds, emptyList())
     }
 
-    private fun ingestLocalTracksLocked(localTrackIds: List<Long>): Int {
+    /** Incremental entry used after a provider owner collision or a manual candidate decision. */
+    fun ingestRecordings(recordingIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
+        ingestSourcesLocked(emptyList(), recordingIds)
+    }
+
+    private fun ingestSourcesLocked(
+        localTrackIds: List<Long>,
+        recordingIds: List<Long>
+    ): Int {
         val totalStartedAt = diagnostics.startNanos()
         val pendingTrackIds = localTrackIds.asSequence()
             .filter { it != 0L }
             .distinct()
             .toList()
-        if (pendingTrackIds.isEmpty()) {
+        val requestedRecordingIds = recordingIds.asSequence()
+            .filter { it != 0L }
+            .distinct()
+            .toList()
+        if (pendingTrackIds.isEmpty() && requestedRecordingIds.isEmpty()) {
             diagnostics.recordElapsed(OPERATION, MusicIdentityDiagnostics.Stage.TOTAL, totalStartedAt)
             return 0
         }
@@ -85,7 +99,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val snapshotStartedAt = diagnostics.startNanos()
         val featureSources = dao.matchFeatureSources()
         val identityAnchors = featureSources.filter { source ->
-            source.matchStatus == "CONFIRMED" || source.localTrackId != null
+            (includeLegacyLuoxue || ProviderRolePolicy.contributesIdentity(source.provider)) &&
+                (source.matchStatus == "CONFIRMED" || source.localTrackId != null)
         }
         val audioEvidenceBySourceId = featureSources.mapNotNull(TrackSourceMappingEntity::sourceId)
             .distinct()
@@ -94,11 +109,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             .associate { feature -> feature.sourceId to StoredAudioEvidenceCodec.decode(feature) }
         val storedFeatures = dao.sourceMatchFeatures().associateBy(SourceMatchFeatureEntity::sourceId)
         val storedCandidates = dao.sourceRecordingCandidates()
-        val pendingRecordingIds = pendingTrackIds
-            .chunked(SQLITE_IN_BATCH_SIZE)
-            .flatMap(dao::sourcesForLocalTracks)
-            .map(TrackSourceMappingEntity::recordingId)
+        val pendingRecordingIds = (
+            pendingTrackIds
+                .chunked(SQLITE_IN_BATCH_SIZE)
+                .flatMap(dao::sourcesForLocalTracks)
+                .map(TrackSourceMappingEntity::recordingId) + requestedRecordingIds
+            )
+            .asSequence()
+            .filter { recordingId -> dao.recording(recordingId) != null }
             .distinct()
+            .toList()
         diagnostics.recordElapsed(
             OPERATION,
             MusicIdentityDiagnostics.Stage.SNAPSHOT_LOAD,
@@ -309,7 +329,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             OPERATION,
             MusicIdentityDiagnostics.Stage.TOTAL,
             totalStartedAt,
-            pendingTrackIds.size.toLong()
+            (pendingTrackIds.size + requestedRecordingIds.size).toLong()
         )
         logDiagnostics()
         return mergedCount

@@ -102,7 +102,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun replaceTracksWritesCompletePlaylistAndDeduplicatesCanonicalSources() {
+    fun replaceTracksPreservesLegacyTracksAndDeduplicatesCanonicalSources() {
         val sharedMbid = "123e4567-e89b-12d3-a456-426614174099"
         val firstSource = identifiedTrack(41L, "webdav:1:/bulk.flac", sharedMbid)
         val secondSource = identifiedTrack(42L, "/music/bulk.flac", sharedMbid)
@@ -117,7 +117,7 @@ class PlaylistRepositoryTest {
         ))
 
         assertEquals(listOf(secondSource.id, independent.id), repository.loadTracks(playlist).map { it.id })
-        assertEquals(2, database.playlistDao().playlistRecordingRows(playlist).size)
+        assertEquals(1, database.playlistDao().playlistRecordingRows(playlist).size)
         assertEquals(2, database.playlistDao().playlistTrackRows(playlist).size)
     }
 

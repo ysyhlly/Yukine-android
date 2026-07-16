@@ -64,9 +64,9 @@ class RoomIdentityCandidateRepository(
         }
         .map(IdentityCandidateEntity::toModel)
 
-    override fun confirmCandidate(candidateId: String): IdentityCandidate =
-        database.runInTransaction(Callable {
-            val candidate = requireCandidate(candidateId)
+    override fun confirmCandidate(candidateId: String): IdentityCandidate {
+        val confirmed = database.runInTransaction(Callable {
+            var candidate = requireCandidate(candidateId)
             require(candidate.status == IdentityCandidateStatus.PENDING.name) {
                 "Only pending candidates can be confirmed"
             }
@@ -74,6 +74,33 @@ class RoomIdentityCandidateRepository(
                 "Candidate has a hard identity conflict"
             }
             requireTarget(IdentityTargetType.valueOf(candidate.targetType), candidate.targetId)
+            if (candidate.targetType == IdentityTargetType.RECORDING.name) {
+                val ownerRecordingId = dao.source(candidate.provider, candidate.providerItemId)
+                    ?.recordingId
+                    ?.takeIf { it != candidate.targetId }
+                if (ownerRecordingId != null) {
+                    val sourceRecordingId = maxOf(candidate.targetId, ownerRecordingId)
+                    val targetRecordingId = minOf(candidate.targetId, ownerRecordingId)
+                    RoomRecordingIdentityRepository(database).mergeRecordings(
+                        sourceRecordingId,
+                        targetRecordingId
+                    )
+                    candidate = dao.candidate(
+                        IdentityTargetType.RECORDING.name,
+                        targetRecordingId,
+                        candidate.provider,
+                        candidate.providerItemId
+                    ) ?: candidate.copy(
+                        candidateId = ProviderSourceIdentityWriter.candidateId(
+                            targetRecordingId,
+                            candidate.provider,
+                            candidate.providerItemId
+                        ),
+                        targetId = targetRecordingId,
+                        updatedAt = System.currentTimeMillis()
+                    ).also(dao::upsert)
+                }
+            }
             when (candidate.targetType) {
                 IdentityTargetType.RECORDING.name -> confirmRecordingCandidate(candidate)
                 IdentityTargetType.ARTIST.name -> confirmArtistCandidate(candidate)
@@ -87,10 +114,15 @@ class RoomIdentityCandidateRepository(
                     now
                 ) == 1
             ) { "Candidate disappeared during confirmation" }
-            val confirmed = requireCandidate(candidateId)
+            val confirmed = requireCandidate(candidate.candidateId)
             recordCandidateOperation(IdentityOperationType.CONFIRM_CANDIDATE, candidate, confirmed)
             confirmed.toModel()
         })
+        if (confirmed.targetType == IdentityTargetType.RECORDING) {
+            SourceIdentityIngestor(database).ingestRecordings(listOf(confirmed.targetId))
+        }
+        return confirmed
+    }
 
     override fun rejectCandidate(candidateId: String): IdentityCandidate =
         database.runInTransaction(Callable {

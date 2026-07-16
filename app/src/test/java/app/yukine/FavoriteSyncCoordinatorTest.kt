@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -306,7 +307,7 @@ class FavoriteSyncCoordinatorTest {
     }
 
     @Test
-    fun oneProviderFailureDoesNotBlockOtherTargetsOrExistingFavorites() = runTest {
+    fun providerFailurePreservesFavoritesAndUnsupportedTargetIsSkipped() = runTest {
         val fixture = fixture(
             capabilities = listOf(source(NETEASE), target(QQ), target(KUGOU)),
             remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
@@ -325,7 +326,7 @@ class FavoriteSyncCoordinatorTest {
         fixture.coordinator.syncIncremental()
 
         assertEquals(FavoriteSyncStatus.RETRYABLE_ERROR, fixture.mapping(QQ)?.status)
-        assertEquals(FavoriteSyncStatus.SYNCED, fixture.mapping(KUGOU)?.status)
+        assertNull(fixture.mapping(KUGOU))
         assertTrue(fixture.library.isFavorite(99L))
         assertTrue(fixture.library.isFavorite(1L))
         assertNotNull(fixture.repository.state.value.favorites.singleOrNull { it.localTrackId == 1L })

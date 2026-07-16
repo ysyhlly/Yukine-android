@@ -139,6 +139,26 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         )
     )
 
+    fun recordSnapshotAudit(
+        operationType: String,
+        recordingIds: Collection<Long>,
+        before: IdentityStateSnapshot
+    ): Long {
+        val ids = recordingIds.filter { it > 0L }.distinct()
+        return dao.insert(
+            IdentityOperationEntity(
+                id = null,
+                operationType = operationType,
+                sourceRecordingId = ids.firstOrNull(),
+                targetRecordingId = ids.drop(1).firstOrNull(),
+                beforePayload = IdentityStateSnapshotCodec.encode(before),
+                afterPayload = IdentityStateSnapshotCodec.encode(capture(ids)),
+                createdAt = System.currentTimeMillis(),
+                revertedAt = null
+            )
+        )
+    }
+
     fun recent(recordingId: Long, limit: Int = 10): List<IdentityOperation> =
         dao.identityOperations(recordingId, limit.coerceIn(1, 50)).mapIndexed { index, entity ->
             entity.toModel(allowUndo = index == 0)

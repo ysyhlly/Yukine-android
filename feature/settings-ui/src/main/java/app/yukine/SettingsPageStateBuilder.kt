@@ -1009,20 +1009,37 @@ object SettingsPageStateBuilder {
         albumCount: Int,
         artistCount: Int,
         audioPermissionGranted: Boolean,
+        identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
         onNavigate: (SettingsPage) -> Unit,
         onLoadLibrary: () -> Unit,
         onOpenAudioFilePicker: () -> Unit,
         onOpenAudioFolderPicker: () -> Unit,
+        onRebuildSongIdentity: () -> Unit = {},
+        onCancelIdentityBackfill: () -> Unit = {},
         hiddenItems: List<HiddenLibraryItemUi> = emptyList(),
         onRestoreHidden: (String) -> Unit = {},
         onRestoreAllHidden: () -> Unit = {}
     ): SettingsPageStateContent {
-        val metrics = listOf(
+        val metrics = buildList {
+            addAll(listOf(
             SettingsMetric(text(languageMode, "songs"), songCount.toString()),
             SettingsMetric(text(languageMode, "albums"), albumCount.toString()),
             SettingsMetric(text(languageMode, "artists"), artistCount.toString()),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode))
-        )
+            ))
+            if (identityBackfill.total > 0 || identityBackfill.lxDeleted > 0) {
+                add(SettingsMetric(
+                    text(languageMode, "identity.backfill.progress"),
+                    "${identityBackfill.processed}/${identityBackfill.total} · " +
+                        "${text(languageMode, "identity.backfill.merged")} ${identityBackfill.merged} · " +
+                        "${text(languageMode, "identity.backfill.pending")} ${identityBackfill.pending}"
+                ))
+                add(SettingsMetric(
+                    text(languageMode, "identity.backfill.lx"),
+                    "${identityBackfill.lxMigrated}/${identityBackfill.lxDeleted}"
+                ))
+            }
+        }
         val actions = buildList {
             add(backNavigationAction(text(languageMode, "back"), backPage, onNavigate))
             add(SettingsAction(
@@ -1040,6 +1057,18 @@ object SettingsPageStateBuilder {
                 onClick = Runnable { onOpenAudioFolderPicker() },
                 icon = EchoIconKind.Folder
             ))
+            add(SettingsAction(
+                label = text(languageMode, "identity.backfill.rebuild"),
+                onClick = Runnable { onRebuildSongIdentity() },
+                icon = EchoIconKind.Refresh
+            ))
+            if (identityBackfill.running) {
+                add(SettingsAction(
+                    label = text(languageMode, "identity.backfill.cancel"),
+                    onClick = Runnable { onCancelIdentityBackfill() },
+                    icon = EchoIconKind.Remove
+                ))
+            }
             if (hiddenItems.isNotEmpty()) {
                 add(SettingsAction(
                     text(languageMode, "library.hidden.restore.all") + " (${hiddenItems.size})",
