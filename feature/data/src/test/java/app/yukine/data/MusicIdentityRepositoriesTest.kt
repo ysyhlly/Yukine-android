@@ -121,6 +121,14 @@ class MusicIdentityRepositoriesTest {
                 providerItemId = "wy:alternate"
             )
         )
+        candidates.saveCandidate(
+            candidate(
+                targetType = IdentityTargetType.RECORDING,
+                targetId = target.recordingId,
+                provider = "local",
+                providerItemId = "/music/10.flac"
+            )
+        )
 
         val merged = recordings.mergeRecordings(source.recordingId, target.recordingId)
 
@@ -136,6 +144,10 @@ class MusicIdentityRepositoriesTest {
             candidates.pendingCandidates(IdentityTargetType.RECORDING, target.recordingId)
                 .single { it.providerItemId == "wy:alternate" }
                 .targetId
+        )
+        assertTrue(
+            candidates.pendingCandidates(IdentityTargetType.RECORDING, target.recordingId)
+                .none { it.provider == "local" && it.providerItemId == "/music/10.flac" }
         )
 
         val sourceToSplit = checkNotNull(

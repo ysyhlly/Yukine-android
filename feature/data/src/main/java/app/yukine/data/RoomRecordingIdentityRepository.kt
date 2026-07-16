@@ -133,6 +133,7 @@ class RoomRecordingIdentityRepository(
         dao.deleteLyricBindings(sourceRecordingId)
         moveCanonicalBusinessReferences(sourceRecordingId, targetRecordingId)
         moveCandidates("RECORDING", sourceRecordingId, targetRecordingId)
+        dao.deleteSelfOwnedPendingRecordingCandidates()
         dao.deleteJobs("RECORDING", sourceRecordingId)
         enqueueJob("RECORDING", targetRecordingId, "RECORDINGS_MERGED")
         RecordingRelationStore(database).rewriteAfterMerge(sourceRecordingId, targetRecordingId)

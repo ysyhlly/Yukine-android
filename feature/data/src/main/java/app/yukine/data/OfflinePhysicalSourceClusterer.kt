@@ -49,12 +49,23 @@ class SourceIdentityIngestor @JvmOverloads constructor(
      * Fully processed sources are excluded in SQL, keeping ordinary app startup off the full-library
      * scoring path.
      */
-    fun ingestPendingConfirmedSources(): Int = ingestLocalTracks(
-        dao.pendingLibraryIdentityTrackIds(
+    fun ingestPendingConfirmedSources(): Int {
+        val missingSources = dao.tracksWithoutIdentitySource()
+        if (missingSources.isNotEmpty()) {
+            database.runInTransaction {
+                OfflineMusicIdentityStore(dao).ensureTracks(missingSources, System.currentTimeMillis())
+            }
+        }
+        val pendingTrackIds = dao.pendingLibraryIdentityTrackIds(
             SourceMatchFeaturePolicy.ALGORITHM_VERSION,
             SourceRecordingCandidateGenerator.ALGORITHM_VERSION
         )
-    )
+        val mergedCount = ingestLocalTracks(
+            missingSources.mapNotNull { track -> track.id } + pendingTrackIds
+        )
+        val removedSelfOwnedCandidates = dao.deleteSelfOwnedPendingRecordingCandidates()
+        return maxOf(mergedCount, missingSources.size, removedSelfOwnedCandidates)
+    }
 
     fun ingestLocalTracks(localTrackIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
         ingestLocalTracksLocked(localTrackIds)

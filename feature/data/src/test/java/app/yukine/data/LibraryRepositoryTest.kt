@@ -767,6 +767,26 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun translatedTitleAndRomanizedArtistSuffixJoinTheOriginalRecording() {
+        val original = track(
+            537L,
+            "10年後の私になら",
+            "/music/kohana-original.flac",
+            artist = "こはならむ"
+        )
+        val translated = track(
+            538L,
+            "10年後の私になら (如果是10年后的我)",
+            "streaming:qqmusic:kohana-translated",
+            artist = "こはならむ (Kohana Lam)"
+        )
+
+        repository.upsertTracks(listOf(original, translated))
+
+        assertEquals(repository.loadRecordingId(original.id), repository.loadRecordingId(translated.id))
+    }
+
+    @Test
     fun unresolvedLibrarySourceWithDifferentArtistDoesNotAutoMerge() {
         val local = track(529L, "Shared title", "/music/shared-title.flac")
         val qqBase = track(530L, "Shared title", "streaming:qqmusic:different-artist")
@@ -803,6 +823,28 @@ class LibraryRepositoryTest {
         assertFalse(repository.loadRecordingId(local.id) == repository.loadRecordingId(netease.id))
         assertEquals(1, repository.ingestPendingConfirmedIdentitySources())
         assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(netease.id))
+        assertEquals(0, repository.ingestPendingConfirmedIdentitySources())
+    }
+
+    @Test
+    fun startupBackfillRepairsTrackWhoseProviderCandidateLostItsLocalMapping() {
+        val local = track(535L, "Legacy candidate mapping", "/music/legacy-candidate.flac")
+        val qq = track(
+            536L,
+            "Legacy candidate mapping",
+            "streaming:qqmusic:legacy-candidate-mapping"
+        )
+        val entities = listOf(local, qq).map { TrackEntityMapper.entity(it, 1L) }
+        database.libraryDao().upsertTracks(entities)
+        OfflineMusicIdentityStore(database.musicIdentityDao()).ensureTracks(entities, 1L)
+        val dao = database.musicIdentityDao()
+        val qqSource = checkNotNull(dao.sourceForLocalTrack(qq.id))
+        dao.upsert(qqSource.copy(localTrackId = null, matchStatus = "CANDIDATE", confidence = 0.95))
+
+        assertNull(dao.sourceForLocalTrack(qq.id))
+        assertEquals(1, repository.ingestPendingConfirmedIdentitySources())
+        assertEquals(qq.id, dao.source("qqmusic", "legacy-candidate-mapping")?.localTrackId)
+        assertEquals(repository.loadRecordingId(local.id), repository.loadRecordingId(qq.id))
         assertEquals(0, repository.ingestPendingConfirmedIdentitySources())
     }
 

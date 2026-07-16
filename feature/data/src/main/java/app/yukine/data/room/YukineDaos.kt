@@ -858,6 +858,12 @@ interface MusicIdentityDao {
     fun sources(recordingId: Long): List<TrackSourceMappingEntity>
 
     @Query(
+        "SELECT t.* FROM tracks t LEFT JOIN track_sources s ON s.local_track_id = t.id " +
+            "WHERE s.source_id IS NULL ORDER BY t.id"
+    )
+    fun tracksWithoutIdentitySource(): List<TrackEntity>
+
+    @Query(
         "SELECT * FROM track_sources WHERE local_track_id IS NOT NULL " +
             "AND provider IN ('local', 'document', 'webdav') " +
             "ORDER BY recording_id, source_id"
@@ -977,6 +983,15 @@ interface MusicIdentityDao {
             "AND target_id = :targetId ORDER BY score DESC, updated_at DESC"
     )
     fun candidates(targetType: String, targetId: Long): List<IdentityCandidateEntity>
+
+    @Query(
+        "DELETE FROM identity_candidates WHERE target_type = 'RECORDING' AND status = 'PENDING' " +
+            "AND EXISTS (SELECT 1 FROM track_sources s " +
+            "WHERE s.recording_id = identity_candidates.target_id " +
+            "AND s.provider = identity_candidates.provider " +
+            "AND s.provider_track_id = identity_candidates.provider_item_id)"
+    )
+    fun deleteSelfOwnedPendingRecordingCandidates(): Int
 
     @Query(
         "SELECT * FROM identity_candidates WHERE target_type = :targetType AND target_id = :targetId " +
