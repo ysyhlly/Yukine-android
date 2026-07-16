@@ -105,11 +105,36 @@ class RoomRecordingIdentityRepository(
     override fun mergeRecordings(
         sourceRecordingId: Long,
         targetRecordingId: Long
-    ): CanonicalRecording = database.runInTransaction(Callable {
+    ): CanonicalRecording {
+        val preflightSource = requireRecording(sourceRecordingId)
+        val preflightTarget = requireRecording(targetRecordingId)
+        if (differentStrongWork(preflightSource, preflightTarget)) {
+            database.runInTransaction {
+                RecordingRelationStore(database).upsert(
+                    listOf(
+                        RecordingRelationDraft(
+                            leftRecordingId = sourceRecordingId,
+                            rightRecordingId = targetRecordingId,
+                            relationship = app.yukine.streaming.RecordingRelationship.CANNOT_LINK,
+                            sameRecordingProbability = 0.0,
+                            sameWorkProbability = 0.0,
+                            confidence = 1.0,
+                            origin = "WORK_ID_CONFLICT",
+                            evidenceJson = "{\"hardConflict\":\"WORK_MBID\"}"
+                        )
+                    )
+                )
+            }
+            throw IllegalArgumentException("Work MBID conflict")
+        }
+        return database.runInTransaction(Callable {
         require(sourceRecordingId != targetRecordingId) { "Source and target recording are identical" }
         val source = requireRecording(sourceRecordingId)
         val target = requireRecording(targetRecordingId)
         requireMergeCompatible(source, target)
+        val affectedSourceIds = (dao.sources(sourceRecordingId) + dao.sources(targetRecordingId))
+            .mapNotNull { it.sourceId }
+            .distinct()
         val operationStore = IdentityOperationStore(database)
         val before = operationStore.capture(listOf(sourceRecordingId, targetRecordingId))
 
@@ -137,6 +162,13 @@ class RoomRecordingIdentityRepository(
         dao.deleteJobs("RECORDING", sourceRecordingId)
         enqueueJob("RECORDING", targetRecordingId, "RECORDINGS_MERGED")
         RecordingRelationStore(database).rewriteAfterMerge(sourceRecordingId, targetRecordingId)
+        dao.deleteSourceRecordingCandidates(
+            recordingIds = listOf(sourceRecordingId, targetRecordingId),
+            sourceIds = affectedSourceIds
+        )
+        if (affectedSourceIds.isNotEmpty()) {
+            dao.invalidateSourceCandidateGeneration(affectedSourceIds)
+        }
         check(dao.deleteRecording(sourceRecordingId) == 1) { "Source recording still owns dependent rows" }
         dao.deleteOrphanWorks()
         dao.refreshActiveSource(targetRecordingId)
@@ -147,7 +179,8 @@ class RoomRecordingIdentityRepository(
             before
         )
         requireRecording(targetRecordingId).toModel()
-    })
+        })
+    }
 
     override fun splitSource(sourceId: Long): CanonicalRecording =
         splitSources(setOf(sourceId), RecordingSplitOptions())
@@ -271,6 +304,7 @@ class RoomRecordingIdentityRepository(
             sourceVariants = dao.variants(sourceId),
             targetVariants = dao.variants(targetId)
         )
+        requireCompatible("Work MBID", source.musicBrainzWorkId, target.musicBrainzWorkId)
     }
 
     private fun moveCredits(sourceId: Long, targetId: Long) {
@@ -536,6 +570,7 @@ class RoomRecordingIdentityRepository(
         val preferred = if (source.confidence > target.confidence) source else target
         val fallback = if (preferred === source) target else source
         return target.copy(
+            workId = mergedWorkId(source, target),
             musicBrainzRecordingId = target.musicBrainzRecordingId.ifBlank { source.musicBrainzRecordingId },
             musicBrainzWorkId = target.musicBrainzWorkId.ifBlank { source.musicBrainzWorkId },
             title = preferred.title.ifBlank { fallback.title },
@@ -548,6 +583,22 @@ class RoomRecordingIdentityRepository(
             updatedAt = maxOf(System.currentTimeMillis(), target.updatedAt, source.updatedAt)
         )
     }
+
+    private fun mergedWorkId(
+        source: CanonicalRecordingEntity,
+        target: CanonicalRecordingEntity
+    ): Long? = when {
+        source.musicBrainzWorkId.isNotBlank() && target.musicBrainzWorkId.isBlank() ->
+            source.workId ?: target.workId
+        else -> target.workId ?: source.workId
+    }
+
+    private fun differentStrongWork(
+        source: CanonicalRecordingEntity,
+        target: CanonicalRecordingEntity
+    ): Boolean = source.musicBrainzWorkId.isNotBlank() &&
+        target.musicBrainzWorkId.isNotBlank() &&
+        !source.musicBrainzWorkId.equals(target.musicBrainzWorkId, ignoreCase = true)
 
     private fun compatibleValue(label: String, current: String, incoming: String): String {
         requireCompatible(label, current, incoming)

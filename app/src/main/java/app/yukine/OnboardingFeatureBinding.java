@@ -74,10 +74,11 @@ final class OnboardingFeatureBinding {
     void startLibrary() {
         if (!owner.showOnboarding()) {
             permissionController.requestNeededPermissions();
-            library.loadLibrary(!permissionController.hasAudioPermission());
-        } else {
-            library.loadLibrary(true);
         }
+        // Always publish the persisted Room snapshot before an optional device refresh. A full
+        // MediaStore scan can take long enough for the library to look empty even though hundreds
+        // of cached WebDAV/provider tracks are already available.
+        library.loadLibrary(true);
         library.loadCollections();
     }
 

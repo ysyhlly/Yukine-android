@@ -165,6 +165,80 @@ internal interface FavoriteSyncRepository {
     fun endBatch() = Unit
 }
 
+/** Re-keys the persisted external favorite state after canonical merge/undo operations. */
+internal class FavoriteSyncCanonicalReconciler(
+    private val repository: FavoriteSyncRepository,
+    private val library: UnifiedFavoriteLibrary
+) {
+    fun reconcile(): Int {
+        var changed = 0
+        repository.update { state ->
+            val replacements = state.favorites.mapNotNull { favorite ->
+                val track = library.localTrack(favorite.localTrackId) ?: return@mapNotNull null
+                val recordingId = library.recordingId(track.id)
+                val canonicalUuid = library.canonicalId(track.id)?.trim().orEmpty()
+                if (recordingId <= 0L && canonicalUuid.isBlank()) return@mapNotNull null
+                val unifiedId = canonicalUuid.takeIf { it.isNotBlank() }
+                    ?.let { "recording:$it" }
+                    ?: favorite.unifiedId
+                if (favorite.recordingId == recordingId &&
+                    favorite.canonicalUuid == canonicalUuid &&
+                    favorite.unifiedId == unifiedId
+                ) return@mapNotNull null
+                favorite to favorite.copy(
+                    unifiedId = unifiedId,
+                    localTrackId = track.id,
+                    recordingId = recordingId,
+                    canonicalUuid = canonicalUuid
+                )
+            }
+            if (replacements.isEmpty()) return@update state
+            changed = replacements.size
+            val byOldIdentity = replacements.associate { (old, new) ->
+                favoriteIdentityKey(old.recordingId, old.unifiedId) to new
+            }
+            fun replacement(recordingId: Long, unifiedId: String): UnifiedFavorite? =
+                byOldIdentity[favoriteIdentityKey(recordingId, unifiedId)]
+            state.copy(
+                favorites = state.favorites.map { favorite ->
+                    replacement(favorite.recordingId, favorite.unifiedId) ?: favorite
+                }.groupBy { favoriteIdentityKey(it.recordingId, it.unifiedId) }
+                    .values.map { values -> values.maxBy { it.updatedAtMs } },
+                mappings = state.mappings.map { mapping ->
+                    replacement(mapping.recordingId, mapping.unifiedId)?.let { new ->
+                        mapping.copy(unifiedId = new.unifiedId, recordingId = new.recordingId)
+                    } ?: mapping
+                }.groupBy { "${it.provider.wireName}:${favoriteIdentityKey(it.recordingId, it.unifiedId)}" }
+                    .values.map { values -> values.maxBy { it.updatedAtMs } },
+                operations = state.operations.map { operation ->
+                    replacement(operation.recordingId, operation.unifiedId)?.let { new ->
+                        operation.copy(
+                            operationId = favoriteOperationId(
+                                operation.action,
+                                new.recordingId,
+                                new.unifiedId,
+                                operation.targetProvider
+                            ),
+                            unifiedId = new.unifiedId,
+                            recordingId = new.recordingId
+                        )
+                    } ?: operation
+                }.groupBy { it.operationId }.values.map { values -> values.maxBy { it.updatedAtMs } },
+                conflicts = state.conflicts.map { conflict ->
+                    replacement(conflict.recordingId, conflict.unifiedId)?.let { new ->
+                        conflict.copy(
+                            conflictId = favoriteConflictId(new.recordingId, new.unifiedId, conflict.provider),
+                            unifiedId = new.unifiedId,
+                            recordingId = new.recordingId
+                        )
+                    } ?: conflict
+                }.groupBy { it.conflictId }.values.map { values -> values.maxBy { it.createdAtMs } }
+            )
+        }
+        return changed
+    }
+}
+
 internal class InMemoryFavoriteSyncRepository(
     initial: FavoriteSyncStoreState = FavoriteSyncStoreState()
 ) : FavoriteSyncRepository {
@@ -253,6 +327,7 @@ internal class FavoriteSyncCoordinator(
     private val trackMatches: StreamingTrackMatchUseCase,
     private val eventBus: FavoriteSyncEventBus,
     private val networkPolicy: FavoriteSyncNetworkPolicy = AllowFavoriteSyncNetwork,
+    private val canonicalReconciler: FavoriteSyncCanonicalReconciler? = null,
     private val clockMs: () -> Long = System::currentTimeMillis,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
     syncParallelism: Int = 4
@@ -273,6 +348,7 @@ internal class FavoriteSyncCoordinator(
         refreshDashboard(false)
         scope.launch {
             syncMutex.withLock {
+                canonicalReconciler?.reconcile()
                 library.favoriteTracks().forEach { track ->
                     upsertLocalFavorite(track, true, "bootstrap")
                 }
@@ -287,7 +363,14 @@ internal class FavoriteSyncCoordinator(
         activeJob = scope.launch { syncIncremental() }
     }
 
+    fun reconcileCanonicalState(): Int {
+        val changed = canonicalReconciler?.reconcile() ?: 0
+        if (changed > 0) refreshDashboard(false)
+        return changed
+    }
+
     suspend fun syncIncremental(): FavoriteSyncDashboard = syncMutex.withLock {
+        canonicalReconciler?.reconcile()
         repository.beginBatch()
         try {
             val preferences = repository.state.value.preferences
@@ -785,8 +868,12 @@ internal class FavoriteSyncCoordinator(
     private fun canonicalized(existing: UnifiedFavorite?, track: Track, isrc: String?): UnifiedFavorite {
         val discoveredRecordingId = library.recordingId(track.id)
         val discoveredCanonicalUuid = library.canonicalId(track.id)?.trim().orEmpty()
-        val desiredRecordingId = existing?.recordingId?.takeIf { it > 0L } ?: discoveredRecordingId
-        val desiredCanonicalUuid = existing?.canonicalUuid?.takeIf { it.isNotBlank() } ?: discoveredCanonicalUuid
+        val desiredRecordingId = discoveredRecordingId.takeIf { it > 0L }
+            ?: existing?.recordingId?.takeIf { it > 0L }
+            ?: 0L
+        val desiredCanonicalUuid = discoveredCanonicalUuid.takeIf { it.isNotBlank() }
+            ?: existing?.canonicalUuid?.takeIf { it.isNotBlank() }
+            .orEmpty()
         val desiredId = desiredCanonicalUuid.takeIf { it.isNotBlank() }?.let { "recording:$it" }
             ?: unifiedId(track, isrc)
         val value = existing ?: return unifiedFavorite(track, isrc)

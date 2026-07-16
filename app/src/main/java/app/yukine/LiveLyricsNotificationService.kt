@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -15,6 +16,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.service.PlaybackServiceActions
@@ -48,6 +50,7 @@ class LiveLyricsNotificationService : Service() {
         private const val EXTRA_LYRIC_ALBUM_ART_URI = "app.yukine.extra.LYRIC_ALBUM_ART_URI"
         private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         private const val ARTWORK_TARGET_PX = 320
+        private const val LOG_TAG = "LiveLyricsService"
         private val mainHandler = Handler(Looper.getMainLooper())
         private val startPosted = AtomicBoolean(false)
         private val pendingStart = AtomicReference<StartRequest?>()
@@ -91,7 +94,16 @@ class LiveLyricsNotificationService : Service() {
 
         private fun startNow(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+                // Playback already owns the media foreground service while lyrics are active.
+                // Prefer a normal start so a rejected OEM live-notification promotion can stop
+                // cleanly instead of triggering ForegroundServiceDidNotStartInTimeException.
+                try {
+                    context.startService(intent)
+                } catch (_: IllegalStateException) {
+                    context.startForegroundService(intent)
+                } catch (_: SecurityException) {
+                    context.startForegroundService(intent)
+                }
             } else {
                 context.startService(intent)
             }
@@ -229,9 +241,19 @@ class LiveLyricsNotificationService : Service() {
 
     private fun startForegroundSafely(state: FloatingLyricsState): Boolean =
         try {
-            startForeground(NOTIFICATION_ID, buildBootstrapNotification(state))
+            val notification = buildBootstrapNotification(state)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
             true
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            Log.e(LOG_TAG, "Unable to promote live lyrics notification", error)
             false
         }
 

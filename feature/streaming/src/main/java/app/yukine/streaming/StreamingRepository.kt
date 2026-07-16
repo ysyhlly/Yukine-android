@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 import java.net.URI
 import java.util.Locale
 
@@ -37,6 +38,8 @@ class StreamingRepository(
     private val playbackSourcePolicy: PlaybackSourcePolicy = DefaultPlaybackSourcePolicy,
     private val clockMs: () -> Long = { System.currentTimeMillis() },
     private val playbackAttemptTimeoutMs: Long = DEFAULT_PLAYBACK_ATTEMPT_TIMEOUT_MS,
+    private val luoxuePlaybackAttemptTimeoutMs: Long = DEFAULT_LUOXUE_PLAYBACK_ATTEMPT_TIMEOUT_MS,
+    private val luoxueTxPlaybackAttemptTimeoutMs: Long = DEFAULT_LUOXUE_TX_PLAYBACK_ATTEMPT_TIMEOUT_MS,
     private val titleSearchTimeoutMs: Long = DEFAULT_TITLE_SEARCH_TIMEOUT_MS,
     private val matchScoreV2ShadowEnabled: Boolean = true,
     private val playbackTop1V2Enabled: Boolean = true,
@@ -303,7 +306,7 @@ class StreamingRepository(
                 index += 1
             }
             throw lastError ?: StreamingGatewayException(
-                "No playable source is associated with ${provider.wireName}:$providerTrackId",
+                "No eligible playback source is available",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
             )
         }
@@ -344,7 +347,7 @@ class StreamingRepository(
     ): PlaybackAttemptOutcome {
         val started = clockMs()
         return try {
-            val outcome = withTimeout(playbackAttemptTimeoutMs.coerceAtLeast(1L)) {
+            val outcome = withTimeout(playbackAttemptTimeoutMs(attempt)) {
                 resolvePlaybackAttemptWithinTimeout(attempt, quality, forceRefresh)
             }
             recordPlaybackTelemetry(
@@ -365,7 +368,13 @@ class StreamingRepository(
                 attempt = attempt,
                 resolutionPath = attempt.resolutionPath(),
                 error = StreamingGatewayException(
-                    "Playback resolve timed out for ${attempt.provider.wireName}:${attempt.providerTrackId}",
+                    if (attempt.isLuoxueTx()) {
+                        "LX/TX playback source resolution timed out"
+                    } else if (attempt.provider == StreamingProviderName.LUOXUE) {
+                        "LX playback source resolution timed out"
+                    } else {
+                        "Playback source resolution timed out"
+                    },
                     code = StreamingErrorCode.SOURCE_UNAVAILABLE,
                     cause = timeout
                 )
@@ -489,9 +498,14 @@ class StreamingRepository(
         providerTrackId: String,
         metadata: StreamingTrack?
     ): List<PlaybackResolveAttempt> {
-        val primaryPayload = metadata
+        val storedPrimaryPayload = metadata
             ?.takeIf { it.provider == provider && it.providerTrackId == providerTrackId }
             ?.luoxueMusicInfoJson
+        val primaryPayload = if (provider == StreamingProviderName.LUOXUE) {
+            storedPrimaryPayload ?: fallbackLuoxueMusicInfo(metadata, providerTrackId)
+        } else {
+            storedPrimaryPayload
+        }
         val attempts = mutableListOf<PlaybackResolveAttempt>()
         val seen = linkedSetOf<String>()
         if (provider == StreamingProviderName.NETEASE && playbackSourcePolicy.isEnabled(provider)) {
@@ -516,12 +530,17 @@ class StreamingRepository(
                 return@forEach
             }
             if (seen.add("${candidate.provider.wireName}:$candidateTrackId")) {
-                val candidatePayload = candidate.luoxueMusicInfoJson ?: metadata
+                val storedCandidatePayload = candidate.luoxueMusicInfoJson ?: metadata
                     ?.takeIf {
                         it.provider == candidate.provider &&
                             it.providerTrackId == candidateTrackId
                     }
                     ?.luoxueMusicInfoJson
+                val candidatePayload = if (candidate.provider == StreamingProviderName.LUOXUE) {
+                    storedCandidatePayload ?: fallbackLuoxueMusicInfo(metadata, candidateTrackId)
+                } else {
+                    storedCandidatePayload
+                }
                 attempts += PlaybackResolveAttempt(candidate.provider, candidateTrackId, candidatePayload)
             }
         }
@@ -531,6 +550,56 @@ class StreamingRepository(
             attempts += PlaybackResolveAttempt(provider, providerTrackId, primaryPayload)
         }
         return attempts
+    }
+
+    /**
+     * Canonical tracks can retain a confirmed LX/TX id without retaining an imported script's
+     * opaque musicInfo object. Rebuild the common LX fields from canonical metadata so playback
+     * scripts do not receive an id-only request. This is transient evidence for URL resolution;
+     * it is never written back into track_sources or recording identity.
+     */
+    private fun fallbackLuoxueMusicInfo(
+        metadata: StreamingTrack?,
+        providerTrackId: String
+    ): String? {
+        val track = metadata ?: return null
+        val source = providerTrackId.substringBefore(':', "").trim().lowercase()
+        val sourceTrackId = providerTrackId.substringAfter(':', providerTrackId).trim()
+        if (source.isBlank() || sourceTrackId.isBlank()) return null
+        val title = track.title.trim()
+        val artist = track.artist.trim()
+        if (title.isBlank()) return null
+        val info = JSONObject()
+            .put("id", sourceTrackId)
+            .put("source", source)
+            .put("type", source)
+            .put("name", title)
+            .put("title", title)
+            .put("songName", title)
+        if (artist.isNotBlank()) {
+            info.put("singer", artist)
+            info.put("artist", artist)
+        }
+        track.album?.trim()?.takeIf(String::isNotBlank)?.let { album ->
+            info.put("album", album)
+            info.put("albumName", album)
+        }
+        track.durationMs?.takeIf { it > 0L }?.let { durationMs ->
+            info.put("duration", durationMs)
+            info.put("interval", durationMs / 1_000L)
+        }
+        if (source == "tx") {
+            val songMid = sourceTrackId.substringBefore('|').trim()
+            info.put("id", songMid)
+            info.put("hash", songMid)
+            info.put("songmid", songMid)
+            info.put("mid", songMid)
+            sourceTrackId.substringAfter('|', "").trim().takeIf(String::isNotBlank)?.let { mediaMid ->
+                info.put("mediaMid", mediaMid)
+                info.put("strMediaMid", mediaMid)
+            }
+        }
+        return normalizeLuoxueMusicInfoJson(info.toString())
     }
 
     /**
@@ -1021,6 +1090,17 @@ class StreamingRepository(
 
     private fun elapsedSince(started: Long): Long = (clockMs() - started).coerceAtLeast(0L)
 
+    private fun playbackAttemptTimeoutMs(attempt: PlaybackResolveAttempt): Long = when {
+        attempt.isLuoxueTx() -> luoxueTxPlaybackAttemptTimeoutMs
+        attempt.provider == StreamingProviderName.LUOXUE -> luoxuePlaybackAttemptTimeoutMs
+        else -> playbackAttemptTimeoutMs
+    }.coerceAtLeast(1L)
+
+    private fun PlaybackResolveAttempt.isLuoxueTx(): Boolean {
+        return provider == StreamingProviderName.LUOXUE &&
+            providerTrackId.substringBefore(':').trim().equals("tx", ignoreCase = true)
+    }
+
     private fun streamingErrorCode(error: Throwable?): StreamingErrorCode? = when (error) {
         null -> null
         is StreamingGatewayException -> error.code
@@ -1031,6 +1111,8 @@ class StreamingRepository(
         const val MAX_RECENT_LOGS = 20
         const val SECONDARY_SOURCE_STAGGER_MS = 400L
         const val DEFAULT_PLAYBACK_ATTEMPT_TIMEOUT_MS = 2_500L
+        const val DEFAULT_LUOXUE_PLAYBACK_ATTEMPT_TIMEOUT_MS = 8_000L
+        const val DEFAULT_LUOXUE_TX_PLAYBACK_ATTEMPT_TIMEOUT_MS = 12_000L
         const val DEFAULT_TITLE_SEARCH_TIMEOUT_MS = 2_000L
         const val TAG = "StreamingRepository"
     }

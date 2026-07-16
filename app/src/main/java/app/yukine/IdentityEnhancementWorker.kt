@@ -18,15 +18,12 @@ import app.yukine.data.RoomIdentityJobRepository
 import app.yukine.data.RoomProviderResponseCacheRepository
 import app.yukine.data.RoomRecordingIdentityRepository
 import app.yukine.data.enrichment.IdentityEnhancementEngine
-import app.yukine.data.enrichment.ItunesMetadataClient
-import app.yukine.data.enrichment.ItunesRecordingMetadataProvider
-import app.yukine.data.enrichment.MusicBrainzMetadataClient
-import app.yukine.data.enrichment.MusicBrainzArtistMetadataProvider
-import app.yukine.data.enrichment.MusicBrainzRecordingMetadataProvider
+import app.yukine.data.enrichment.MetadataGatewayArtistProvider
+import app.yukine.data.enrichment.MetadataGatewayClient
+import app.yukine.data.enrichment.MetadataGatewayRecordingProvider
+import app.yukine.data.enrichment.RoomRecordingFingerprintLookup
 import app.yukine.data.enrichment.StreamingSearchRecordingMetadataProvider
 import app.yukine.data.enrichment.UrlConnectionMetadataHttpTransport
-import app.yukine.data.enrichment.WikimediaArtistMetadataClient
-import app.yukine.data.enrichment.WikimediaArtistMetadataProvider
 import app.yukine.data.room.YukineDatabase
 import app.yukine.playback.IdentityEnhancementPlaybackGate
 import app.yukine.streaming.LocalNeteaseStreamingClient
@@ -51,16 +48,24 @@ class IdentityEnhancementWorker(
         val cache = RoomProviderResponseCacheRepository(database)
         val transport = UrlConnectionMetadataHttpTransport()
         val settings = IdentityEnhancementSettingsStore(context)
+        if (settings.mode() == MetadataGatewayMode.OFFLINE) return@withContext Result.success()
+        val metadataEndpoint = settings.effectiveGatewayEndpoint()
+        if (metadataEndpoint.isBlank()) {
+            Log.i(TAG, "Metadata gateway is not configured; identity enhancement remains offline")
+            return@withContext Result.success()
+        }
         val authStore = LocalStreamingAuthStore(context)
-        val musicBrainzClient = MusicBrainzMetadataClient(
+        val metadataGatewayClient = MetadataGatewayClient(
             cache = cache,
             transport = transport,
+            endpoint = metadataEndpoint,
             applicationVersion = BuildConfig.VERSION_NAME,
-            contact = PROJECT_URL,
-            customProxy = settings.musicBrainzProxy()
         )
         val providers = buildList {
-            add(MusicBrainzRecordingMetadataProvider(musicBrainzClient))
+            add(MetadataGatewayRecordingProvider(
+                metadataGatewayClient,
+                RoomRecordingFingerprintLookup(database)
+            ))
             if (authStore.hasStoredCredential(StreamingProviderName.NETEASE)) {
                 val client = LocalNeteaseStreamingClient(authStore)
                 add(StreamingSearchRecordingMetadataProvider(StreamingProviderName.NETEASE, client::search))
@@ -69,19 +74,7 @@ class IdentityEnhancementWorker(
                 val client = LocalQqMusicStreamingClient(authStore)
                 add(StreamingSearchRecordingMetadataProvider(StreamingProviderName.QQ_MUSIC, client::search))
             }
-            add(ItunesRecordingMetadataProvider(ItunesMetadataClient(
-                cache = cache,
-                transport = transport,
-                applicationVersion = BuildConfig.VERSION_NAME,
-                contact = PROJECT_URL
-            )))
         }
-        val wikimediaClient = WikimediaArtistMetadataClient(
-            cache = cache,
-            transport = transport,
-            applicationVersion = BuildConfig.VERSION_NAME,
-            contact = PROJECT_URL
-        )
         val engine = IdentityEnhancementEngine(
             recordings = RoomRecordingIdentityRepository(database),
             artists = RoomArtistIdentityRepository(database),
@@ -89,8 +82,7 @@ class IdentityEnhancementWorker(
             jobs = RoomIdentityJobRepository(database),
             providers = providers,
             artistProviders = listOf(
-                MusicBrainzArtistMetadataProvider(musicBrainzClient),
-                WikimediaArtistMetadataProvider(wikimediaClient)
+                MetadataGatewayArtistProvider(metadataGatewayClient)
             )
         )
         val run = runCatching { engine.runReadyJobs(MAX_JOBS_PER_RUN) }
@@ -107,14 +99,48 @@ class IdentityEnhancementWorker(
 
     private companion object {
         const val TAG = "IdentityEnhancement"
-        const val PROJECT_URL = "https://github.com/ysyhlly/Yukine-android"
         const val MAX_JOBS_PER_RUN = 20
     }
 }
 
+enum class MetadataGatewayMode { SHARED, CUSTOM, OFFLINE }
+
 class IdentityEnhancementSettingsStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    fun mode(): MetadataGatewayMode {
+        val stored = preferences.getString(KEY_GATEWAY_MODE, "").orEmpty()
+        if (stored.isBlank() && musicBrainzProxy().isNotBlank()) return MetadataGatewayMode.CUSTOM
+        val defaultMode = if (normalizeMetadataGatewayEndpoint(BuildConfig.ECHO_METADATA_GATEWAY_URL).isBlank()) {
+            MetadataGatewayMode.OFFLINE
+        } else {
+            MetadataGatewayMode.SHARED
+        }
+        return runCatching { MetadataGatewayMode.valueOf(stored) }.getOrDefault(defaultMode)
+    }
+
+    fun setMode(value: MetadataGatewayMode) {
+        preferences.edit().putString(KEY_GATEWAY_MODE, value.name).apply()
+    }
+
+    fun customGatewayEndpoint(): String = normalizeMetadataGatewayEndpoint(
+        preferences.getString(KEY_CUSTOM_GATEWAY, musicBrainzProxy()).orEmpty()
+    )
+
+    fun setCustomGatewayEndpoint(value: String) {
+        preferences.edit()
+            .putString(KEY_CUSTOM_GATEWAY, normalizeMetadataGatewayEndpoint(value))
+            .putString(KEY_GATEWAY_MODE, MetadataGatewayMode.CUSTOM.name)
+            .apply()
+    }
+
+    fun effectiveGatewayEndpoint(): String = when (mode()) {
+        MetadataGatewayMode.SHARED -> normalizeMetadataGatewayEndpoint(BuildConfig.ECHO_METADATA_GATEWAY_URL)
+        MetadataGatewayMode.CUSTOM -> customGatewayEndpoint()
+        MetadataGatewayMode.OFFLINE -> ""
+    }
+
+    /** Legacy compatibility for installs that already stored the old MusicBrainz-only proxy. */
     fun musicBrainzProxy(): String = normalizeMusicBrainzProxy(
         preferences.getString(KEY_MUSICBRAINZ_PROXY, "").orEmpty()
     )
@@ -132,8 +158,14 @@ class IdentityEnhancementSettingsStore(context: Context) {
             return trimmed.trimEnd('/') + "/"
         }
 
+        @JvmStatic
+        fun normalizeMetadataGatewayEndpoint(value: String?): String =
+            MetadataGatewayClient.normalizeEndpoint(value)
+
         const val PREFS_NAME = "identity_enhancement_settings"
         const val KEY_MUSICBRAINZ_PROXY = "musicbrainz_proxy"
+        const val KEY_GATEWAY_MODE = "metadata_gateway_mode"
+        const val KEY_CUSTOM_GATEWAY = "metadata_gateway_endpoint"
     }
 }
 

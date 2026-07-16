@@ -141,7 +141,9 @@ internal class StreamingPlaybackController(
     }
 
     private fun publishResolveFailure() {
-        val error = streamingViewModel.state.errorMessage?.takeIf { it.isNotBlank() }
+        val error = streamingViewModel.state.errorMessage
+            ?.takeIf { it.isNotBlank() }
+            ?.let { PlaybackErrorMessageLocalizer.localize(it, listener.languageMode()) }
         listener.setStatus(
             error ?: StreamingStatusTextFactory.playback(
                 listener.languageMode(),

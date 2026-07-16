@@ -1,0 +1,15 @@
+{
+  "name": "echo-metadata-gateway",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260716.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.111.0"
+  }
+}

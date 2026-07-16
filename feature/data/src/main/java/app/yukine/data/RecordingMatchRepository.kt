@@ -2,6 +2,10 @@ package app.yukine.data
 
 import android.content.Context
 import app.yukine.data.room.YukineDatabase
+import app.yukine.streaming.DefaultPlaybackSourcePolicy
+import app.yukine.streaming.PlaybackSourcePolicy
+import app.yukine.streaming.ProviderRolePolicy
+import app.yukine.streaming.StreamingProviderName
 import app.yukine.data.room.IdentityResolutionJobEntity
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityCandidate
@@ -81,15 +85,18 @@ class RecordingMatchRepository internal constructor(
     private val database: YukineDatabase,
     private val sourceVerifier: RecordingSourceVerificationGateway = RecordingSourceVerificationGateway {
         RecordingSourceVerification(false, failureReason = "Source verification is unavailable")
-    }
+    },
+    private val playbackSourcePolicy: PlaybackSourcePolicy = DefaultPlaybackSourcePolicy
 ) : RecordingMatchDataSource {
     @Inject
     constructor(
         @ApplicationContext context: Context,
-        sourceVerifier: RecordingSourceVerificationGateway
+        sourceVerifier: RecordingSourceVerificationGateway,
+        playbackSourcePolicy: PlaybackSourcePolicy
     ) : this(
         YukineDatabase.getInstance(context.applicationContext),
-        sourceVerifier
+        sourceVerifier,
+        playbackSourcePolicy
     )
 
     private val recordings = RoomRecordingIdentityRepository(database)
@@ -329,6 +336,17 @@ class RecordingMatchRepository internal constructor(
             require(source.playable && source.matchStatus == "CONFIRMED" && source.isPreferredEligible()) {
                 "Only a verified confirmed source can become preferred"
             }
+            val hasPhysicalSource = identityDao.sources(source.recordingId).any { candidate ->
+                candidate.playable && candidate.matchStatus == "CONFIRMED" &&
+                    ProviderRolePolicy.isPhysical(candidate.provider)
+            }
+            require(
+                ProviderRolePolicy.canBecomeActive(
+                    source.provider,
+                    playbackSourcePolicy.isEnabled(StreamingProviderName.NETEASE),
+                    hasPhysicalSource
+                )
+            ) { "Provider policy prevents this source from becoming preferred" }
             val recording = requireNotNull(identityDao.recording(source.recordingId))
             check(identityDao.setActiveSource(source.recordingId, sourceId) == 1) {
                 "Unable to set preferred source"
@@ -363,7 +381,8 @@ class RecordingMatchRepository internal constructor(
         .ifBlank { "Source verification failed" }
 
     private fun app.yukine.data.room.TrackSourceMappingEntity.isPreferredEligible(): Boolean =
-        provider.lowercase() in PHYSICAL_SOURCE_PROVIDERS || lastVerifiedAt > 0L || lastSuccessfulAt > 0L
+        ProviderRolePolicy.canEverBecomeActive(provider) &&
+            (ProviderRolePolicy.isPhysical(provider) || lastVerifiedAt > 0L || lastSuccessfulAt > 0L)
 
     private fun mergeSummary(
         entity: app.yukine.data.room.CanonicalRecordingEntity,
@@ -380,5 +399,3 @@ class RecordingMatchRepository internal constructor(
         )
     }
 }
-
-private val PHYSICAL_SOURCE_PROVIDERS = setOf("local", "document", "webdav")

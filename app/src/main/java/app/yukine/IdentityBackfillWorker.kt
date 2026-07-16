@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import app.yukine.data.IdentityBackfillCheckpoint
 import app.yukine.data.IdentityBackfillCoordinator
 import app.yukine.data.IdentityBackfillProgress
+import app.yukine.data.IdentityBackfillStage
 import app.yukine.data.room.YukineDatabase
 import app.yukine.playback.IdentityEnhancementPlaybackGate
 import java.util.concurrent.TimeUnit
@@ -34,8 +35,8 @@ class IdentityBackfillWorker(
                 YukineDatabase.getInstance(applicationContext)
             ).runBatch(store.load())
             store.save(result.checkpoint)
-            setProgress(result.checkpoint.progress.toWorkData())
-            if (result.complete) Result.success(result.checkpoint.progress.toWorkData()) else Result.retry()
+            setProgress(result.checkpoint.toWorkData())
+            if (result.complete) Result.success(result.checkpoint.toWorkData()) else Result.retry()
         }.getOrElse { error ->
             Log.w(TAG, "Canonical identity backfill failed", error)
             Result.retry()
@@ -114,54 +115,93 @@ internal class IdentityBackfillCheckpointStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun load(): IdentityBackfillCheckpoint = IdentityBackfillCheckpoint(
+        stage = runCatching {
+            IdentityBackfillStage.valueOf(
+                preferences.getString(KEY_STAGE, IdentityBackfillStage.NORMALIZE.name)
+                    ?: IdentityBackfillStage.NORMALIZE.name
+            )
+        }.getOrDefault(IdentityBackfillStage.NORMALIZE),
+        algorithmVersion = preferences.getInt(
+            KEY_ALGORITHM_VERSION,
+            IdentityBackfillCheckpoint.CURRENT_ALGORITHM_VERSION
+        ),
+        stageCursorId = preferences.getLong(KEY_STAGE_CURSOR_ID, 0L),
         lastRecordingId = preferences.getLong(KEY_LAST_RECORDING_ID, 0L),
         progress = IdentityBackfillProgress(
             total = preferences.getInt(KEY_TOTAL, 0),
             processed = preferences.getInt(KEY_PROCESSED, 0),
+            normalized = preferences.getInt(KEY_NORMALIZED, 0),
+            classified = preferences.getInt(KEY_CLASSIFIED, 0),
             merged = preferences.getInt(KEY_MERGED, 0),
+            relations = preferences.getInt(KEY_RELATIONS, 0),
             pending = preferences.getInt(KEY_PENDING, 0),
             lxMigrated = preferences.getInt(KEY_LX_MIGRATED, 0),
-            lxDeleted = preferences.getInt(KEY_LX_DELETED, 0)
+            lxDeleted = preferences.getInt(KEY_LX_DELETED, 0),
+            deleted = preferences.getInt(KEY_DELETED, 0),
+            errors = preferences.getInt(KEY_ERRORS, 0)
         ),
         legacyLuoxueCleaned = preferences.getBoolean(KEY_LX_CLEANED, false)
     )
 
     fun save(checkpoint: IdentityBackfillCheckpoint) {
         val progress = checkpoint.progress
-        preferences.edit()
+        check(preferences.edit()
+            .putString(KEY_STAGE, checkpoint.stage.name)
+            .putInt(KEY_ALGORITHM_VERSION, checkpoint.algorithmVersion)
+            .putLong(KEY_STAGE_CURSOR_ID, checkpoint.stageCursorId)
             .putLong(KEY_LAST_RECORDING_ID, checkpoint.lastRecordingId)
             .putInt(KEY_TOTAL, progress.total)
             .putInt(KEY_PROCESSED, progress.processed)
+            .putInt(KEY_NORMALIZED, progress.normalized)
+            .putInt(KEY_CLASSIFIED, progress.classified)
             .putInt(KEY_MERGED, progress.merged)
+            .putInt(KEY_RELATIONS, progress.relations)
             .putInt(KEY_PENDING, progress.pending)
             .putInt(KEY_LX_MIGRATED, progress.lxMigrated)
             .putInt(KEY_LX_DELETED, progress.lxDeleted)
+            .putInt(KEY_DELETED, progress.deleted)
+            .putInt(KEY_ERRORS, progress.errors)
             .putBoolean(KEY_LX_CLEANED, checkpoint.legacyLuoxueCleaned)
-            .apply()
+            .commit()) { "Unable to persist identity backfill checkpoint" }
     }
 
     fun reset() {
-        preferences.edit().clear().apply()
+        check(preferences.edit().clear().commit()) { "Unable to reset identity backfill checkpoint" }
     }
 
     private companion object {
         const val PREFS_NAME = "canonical_identity_backfill_v1"
+        const val KEY_STAGE = "stage"
+        const val KEY_ALGORITHM_VERSION = "algorithm_version"
+        const val KEY_STAGE_CURSOR_ID = "stage_cursor_id"
         const val KEY_LAST_RECORDING_ID = "last_recording_id"
         const val KEY_TOTAL = "total"
         const val KEY_PROCESSED = "processed"
+        const val KEY_NORMALIZED = "normalized"
+        const val KEY_CLASSIFIED = "classified"
         const val KEY_MERGED = "merged"
+        const val KEY_RELATIONS = "relations"
         const val KEY_PENDING = "pending"
         const val KEY_LX_MIGRATED = "lx_migrated"
         const val KEY_LX_DELETED = "lx_deleted"
+        const val KEY_DELETED = "deleted"
+        const val KEY_ERRORS = "errors"
         const val KEY_LX_CLEANED = "lx_cleaned"
     }
 }
 
-private fun IdentityBackfillProgress.toWorkData(): Data = Data.Builder()
-    .putInt("total", total)
-    .putInt("processed", processed)
-    .putInt("merged", merged)
-    .putInt("pending", pending)
-    .putInt("lxMigrated", lxMigrated)
-    .putInt("lxDeleted", lxDeleted)
+private fun IdentityBackfillCheckpoint.toWorkData(): Data = Data.Builder()
+    .putString("stage", stage.name)
+    .putInt("algorithmVersion", algorithmVersion)
+    .putInt("total", progress.total)
+    .putInt("processed", progress.processed)
+    .putInt("normalized", progress.normalized)
+    .putInt("classified", progress.classified)
+    .putInt("merged", progress.merged)
+    .putInt("relations", progress.relations)
+    .putInt("pending", progress.pending)
+    .putInt("lxMigrated", progress.lxMigrated)
+    .putInt("lxDeleted", progress.lxDeleted)
+    .putInt("deleted", progress.deleted)
+    .putInt("errors", progress.errors)
     .build()

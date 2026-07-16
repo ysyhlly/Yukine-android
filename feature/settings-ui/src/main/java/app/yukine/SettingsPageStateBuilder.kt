@@ -992,8 +992,8 @@ object SettingsPageStateBuilder {
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.LOCALHOST, "streaming.gateway.localhost", onApplyEndpoint))
             add(streamingGatewayOption(languageMode, endpoint, StreamingGatewayEndpoint.UNCONFIGURED, "disable", onApplyEndpoint))
             add(SettingsAction(
-                label = text(languageMode, "musicbrainz.proxy"),
-                description = text(languageMode, "musicbrainz.proxy.description"),
+                label = text(languageMode, "metadata.gateway"),
+                description = text(languageMode, "metadata.gateway.description"),
                 onClick = Runnable(onEditMusicBrainzProxy),
                 style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Network

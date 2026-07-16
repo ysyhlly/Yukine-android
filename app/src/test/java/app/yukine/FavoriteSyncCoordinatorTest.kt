@@ -454,6 +454,45 @@ class FavoriteSyncCoordinatorTest {
         assertEquals("ADD:recording-id:1:qqmusic", operation.operationId)
     }
 
+    @Test
+    fun canonicalReconcilerRepairsPersistedFavoriteReferencesIdempotently() {
+        val fixture = fixture(capabilities = emptyList(), canonicalId = "current-uuid")
+        fixture.repository.update { state ->
+            state.copy(
+                favorites = listOf(
+                    UnifiedFavorite(
+                        unifiedId = "recording:stale-uuid",
+                        localTrackId = 1L,
+                        title = "夜空",
+                        artist = "歌手",
+                        album = "专辑",
+                        durationMs = 180_000L,
+                        recordingId = 99L,
+                        canonicalUuid = "stale-uuid"
+                    )
+                ),
+                operations = listOf(
+                    FavoriteSyncOperation(
+                        operationId = "ADD:recording-id:99:qqmusic",
+                        unifiedId = "recording:stale-uuid",
+                        action = FavoriteSyncAction.ADD,
+                        targetProvider = QQ,
+                        batchId = "old",
+                        recordingId = 99L
+                    )
+                )
+            )
+        }
+        val reconciler = FavoriteSyncCanonicalReconciler(fixture.repository, fixture.library)
+
+        assertEquals(1, reconciler.reconcile())
+        assertEquals(0, reconciler.reconcile())
+        val favorite = fixture.repository.state.value.favorites.single()
+        assertEquals(1L, favorite.recordingId)
+        assertEquals("recording:current-uuid", favorite.unifiedId)
+        assertEquals("ADD:recording-id:1:qqmusic", fixture.repository.state.value.operations.single().operationId)
+    }
+
     private fun fixture(
         capabilities: List<ProviderCapability>,
         remote: MutableMap<StreamingProviderName, MutableList<StreamingTrack>> = mutableMapOf(),

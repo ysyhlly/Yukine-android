@@ -1,6 +1,7 @@
 package app.yukine.data
 
 import app.yukine.data.room.CanonicalRecordingEntity
+import app.yukine.data.room.CanonicalWorkEntity
 import app.yukine.data.room.IdentityCandidateEntity
 import app.yukine.data.room.IdentityOperationEntity
 import app.yukine.data.room.IdentityResolutionJobEntity
@@ -50,6 +51,10 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
     fun capture(recordingIds: Collection<Long>): IdentityStateSnapshot {
         val ids = recordingIds.filter { it > 0L }.distinct().sorted()
         val recordings = ids.mapNotNull(dao::recording).sortedBy { it.id }
+        val works = recordings.mapNotNull { it.workId }
+            .distinct()
+            .mapNotNull(dao::work)
+            .sortedBy { it.id }
         val sources = ids.flatMap(dao::sources).map(SourceState::from).sortedBy { it.sourceId }
         val identifiers = ids.flatMap(dao::identifiers)
             .sortedWith(compareBy({ it.identifierType }, { it.namespace }, { it.identifierValue }))
@@ -81,6 +86,7 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         val queues = if (ids.isEmpty()) emptyList() else database.playbackPersistenceDao().queueIdentities(ids)
         return IdentityStateSnapshot(
             recordingIds = ids,
+            works = works,
             recordings = recordings,
             sources = sources,
             identifiers = identifiers,
@@ -185,6 +191,13 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
     })
 
     private fun restore(before: IdentityStateSnapshot, affectedIds: List<Long>) {
+        val currentSourceIds = affectedIds.flatMap(dao::sources).mapNotNull { it.sourceId }
+        val affectedSourceIds = (currentSourceIds + before.sources.map { it.sourceId }).distinct()
+        dao.deleteSourceRecordingCandidates(affectedIds, affectedSourceIds)
+        if (affectedSourceIds.isNotEmpty()) {
+            dao.invalidateSourceCandidateGeneration(affectedSourceIds)
+        }
+        before.works.forEach(dao::upsert)
         val beforeIds = before.recordings.mapNotNullTo(linkedSetOf()) { it.id }
         before.recordings.filter { dao.recording(requireNotNull(it.id)) == null }.forEach { recording ->
             check(dao.insert(recording) == recording.id) { "Unable to restore recording ${recording.id}" }
@@ -353,6 +366,7 @@ private val SENSITIVE_SNAPSHOT_KEYS = setOf(
 
 internal data class IdentityStateSnapshot(
     val recordingIds: List<Long>,
+    val works: List<CanonicalWorkEntity>,
     val recordings: List<CanonicalRecordingEntity>,
     val sources: List<SourceState>,
     val identifiers: List<RecordingIdentifierEntity>,
@@ -373,6 +387,7 @@ private object IdentityStateSnapshotCodec {
     fun encode(value: IdentityStateSnapshot): String = JSONObject()
         .put("version", 1)
         .put("recordingIds", array(value.recordingIds) { JSONObject().put("id", it) })
+        .put("works", array(value.works, ::workJson))
         .put("recordings", array(value.recordings, ::recordingJson))
         .put("sources", array(value.sources, ::sourceJson))
         .put("identifiers", array(value.identifiers, ::identifierJson))
@@ -394,6 +409,7 @@ private object IdentityStateSnapshotCodec {
         require(json.optInt("version") == 1) { "Unsupported identity operation snapshot" }
         return IdentityStateSnapshot(
             recordingIds = list(json, "recordingIds") { it.getLong("id") },
+            works = optionalList(json, "works", ::work),
             recordings = list(json, "recordings", ::recording),
             sources = list(json, "sources", ::source),
             identifiers = list(json, "identifiers", ::identifier),
@@ -410,6 +426,23 @@ private object IdentityStateSnapshotCodec {
             queues = list(json, "queues", ::queue)
         )
     }
+
+    private fun workJson(v: CanonicalWorkEntity) = JSONObject()
+        .put("id", v.id)
+        .put("uuid", v.canonicalUuid)
+        .put("title", v.normalizedTitle)
+        .putNullable("creator", v.primaryCreatorId)
+        .put("created", v.createdAt)
+        .put("updated", v.updatedAt)
+
+    private fun work(j: JSONObject) = CanonicalWorkEntity(
+        j.getLong("id"),
+        j.getString("uuid"),
+        j.getString("title"),
+        j.nullableLong("creator"),
+        j.getLong("created"),
+        j.getLong("updated")
+    )
 
     private fun recordingJson(v: CanonicalRecordingEntity) = JSONObject()
         .put("id", v.id).put("uuid", v.canonicalUuid).putNullable("workId", v.workId)

@@ -1,5 +1,6 @@
 package app.yukine.data.room;
 
+import app.yukine.streaming.ProviderRolePolicy;
 import java.util.Locale;
 
 /** Deterministic provider identity for one persisted track row; never performs network work. */
@@ -19,7 +20,9 @@ public final class TrackSourceIdentity {
             String remainder = path.substring("streaming:".length());
             int separator = remainder.indexOf(':');
             if (separator > 0 && separator + 1 < remainder.length()) {
-                String provider = remainder.substring(0, separator).trim().toLowerCase(Locale.ROOT);
+                String provider = ProviderRolePolicy.normalize(
+                        remainder.substring(0, separator).trim().toLowerCase(Locale.ROOT)
+                );
                 String providerTrackId = stripQuery(remainder.substring(separator + 1));
                 if (!provider.isEmpty() && !providerTrackId.isEmpty()) {
                     return new TrackSourceIdentity(provider, providerTrackId);
@@ -46,7 +49,9 @@ public final class TrackSourceIdentity {
     private static String stripQuery(String value) {
         String clean = clean(value);
         int query = clean.indexOf('?');
-        return query < 0 ? clean : clean.substring(0, query).trim();
+        int fragment = clean.indexOf('#');
+        int separator = query < 0 ? fragment : fragment < 0 ? query : Math.min(query, fragment);
+        return separator < 0 ? clean : clean.substring(0, separator).trim();
     }
 
     private static String clean(String value) {

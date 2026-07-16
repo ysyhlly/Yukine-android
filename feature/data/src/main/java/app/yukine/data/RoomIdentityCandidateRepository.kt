@@ -10,6 +10,8 @@ import app.yukine.identity.IdentityCandidateRepository
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityTargetType
 import app.yukine.identity.RecordingVariantType
+import app.yukine.identity.RecordingIdentifier
+import app.yukine.streaming.ProviderRolePolicy
 import java.util.Locale
 import java.util.concurrent.Callable
 import org.json.JSONObject
@@ -216,15 +218,19 @@ class RoomIdentityCandidateRepository(
             "Internal streaming-match cache entries cannot be confirmed as provider sources"
         }
         val recording = requireNotNull(dao.recording(candidate.targetId))
-        providerSourceIdentityWriter.saveUserConfirmedSource(
-            candidate.targetId,
-            candidate.provider,
-            candidate.providerItemId,
-            candidate.title,
-            candidate.artist,
-            candidate.album,
-            candidate.durationMs
-        )
+        if (ProviderRolePolicy.canPersistCanonicalSource(candidate.provider)) {
+            providerSourceIdentityWriter.saveUserConfirmedSource(
+                candidate.targetId,
+                candidate.provider,
+                candidate.providerItemId,
+                candidate.title,
+                candidate.artist,
+                candidate.album,
+                candidate.durationMs
+            )
+        } else {
+            attachMetadataIdentifiers(recording.canonicalUuid, candidate)
+        }
         val isrc = normalizeIsrc(candidate.isrc)
         if (isrc.isNotBlank()) {
             val existingIdentifier = dao.identifier("ISRC", "", isrc)
@@ -247,7 +253,33 @@ class RoomIdentityCandidateRepository(
                 )
             )
         }
-        dao.refreshActiveSource(candidate.targetId)
+        if (ProviderRolePolicy.canPersistCanonicalSource(candidate.provider)) {
+            dao.refreshActiveSource(candidate.targetId)
+        }
+    }
+
+    private fun attachMetadataIdentifiers(canonicalId: String, candidate: IdentityCandidateEntity) {
+        val evidence = runCatching { JSONObject(candidate.evidenceJson) }.getOrDefault(JSONObject())
+        val values = listOf(
+            "MUSICBRAINZ_RECORDING_ID" to evidence.optString("recordingMbid"),
+            "MUSICBRAINZ_WORK_ID" to evidence.optString("workMbid"),
+            "ACOUSTID" to evidence.optString("acoustId")
+        )
+        val repository = RoomRecordingIdentityRepository(database)
+        values.filter { it.second.isNotBlank() }.forEach { (type, value) ->
+            repository.attachIdentifier(
+                candidate.targetId,
+                RecordingIdentifier(
+                    recordingId = candidate.targetId,
+                    canonicalId = canonicalId,
+                    identifierType = type,
+                    identifierValue = value,
+                    source = candidate.provider,
+                    confidence = candidate.score.coerceIn(0.0, 1.0),
+                    verifiedAt = System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     private fun confirmArtistCandidate(candidate: IdentityCandidateEntity) {

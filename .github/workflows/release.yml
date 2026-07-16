@@ -44,6 +44,7 @@ jobs:
         env:
           ECHO_VERSION_NAME: ${{ inputs.version_name }}
           ECHO_VERSION_CODE: ${{ inputs.version_code }}
+          ECHO_METADATA_GATEWAY_URL: ${{ vars.ECHO_METADATA_GATEWAY_URL }}
         #   ECHO_RELEASE_STORE_FILE:     ${{ secrets.ECHO_RELEASE_STORE_FILE }}
         #   ECHO_RELEASE_STORE_PASSWORD: ${{ secrets.ECHO_RELEASE_STORE_PASSWORD }}
         #   ECHO_RELEASE_KEY_ALIAS:      ${{ secrets.ECHO_RELEASE_KEY_ALIAS }}

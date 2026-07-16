@@ -3,8 +3,8 @@ package app.yukine.data;
 import app.yukine.data.room.IdentityCandidateEntity;
 import app.yukine.data.room.MusicIdentityDao;
 import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.streaming.ProviderRolePolicy;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -225,7 +225,7 @@ final class ProviderSourceIdentityWriter {
                     .put("source", "RUNTIME_MATCH")
                     .put(
                             "hardConflict",
-                            hardConflict || (!ownedByAnotherRecording && existingHardConflict(existingEvidence))
+                            hardConflict || existingHardConflict(existingEvidence)
                     );
             if (ownedByAnotherRecording) {
                 evidence.put("conflict", "provider_source_owned_by_recording")
@@ -329,7 +329,7 @@ final class ProviderSourceIdentityWriter {
     }
 
     private static String normalizeProvider(String provider) {
-        return provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        return ProviderRolePolicy.normalize(provider);
     }
 
     private static String normalizeProviderTrackId(String providerTrackId) {

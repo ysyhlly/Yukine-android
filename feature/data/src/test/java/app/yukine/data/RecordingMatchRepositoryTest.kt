@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.room.PlaybackQueueIdentityEntity
+import app.yukine.data.room.CanonicalWorkEntity
 import app.yukine.data.room.PlaylistEntity
 import app.yukine.data.room.PlaylistRecordingItemEntity
 import app.yukine.data.room.RecordingFavoriteEntity
@@ -408,6 +409,63 @@ class RecordingMatchRepositoryTest {
     }
 
     @Test
+    fun mergePreservesStrongWorkAndUndoRestoresItsSnapshot() {
+        val source = recordings.ensureCanonicalForTrack(
+            Track(801L, "Work song source", "Artist", "Album", 180_000L, Uri.EMPTY, "file:801")
+        )
+        val target = recordings.ensureCanonicalForTrack(
+            Track(802L, "Work song target", "Artist", "Album", 180_000L, Uri.EMPTY, "file:802")
+        )
+        val dao = database.musicIdentityDao()
+        val workId = dao.insertWork(
+            CanonicalWorkEntity(null, "work-uuid-801", "work song", null, 1L, 1L)
+        )
+        dao.update(
+            requireNotNull(dao.recording(source.recordingId)).copy(
+                workId = workId,
+                musicBrainzWorkId = "mb-work-801"
+            )
+        )
+
+        repository.mergeRecordings(source.recordingId, target.recordingId)
+
+        assertEquals(workId, dao.recording(target.recordingId)?.workId)
+        assertEquals("work-uuid-801", dao.work(workId)?.canonicalUuid)
+        val operation = dao.identityOperations(target.recordingId, 10)
+            .single { it.operationType == "MERGE_RECORDINGS" }
+        repository.undoIdentityOperation(requireNotNull(operation.id))
+        assertEquals(workId, dao.recording(source.recordingId)?.workId)
+        assertEquals("work-uuid-801", dao.work(workId)?.canonicalUuid)
+    }
+
+    @Test
+    fun conflictingStrongWorksBlockMergeAndPersistCannotLink() {
+        val source = recordings.ensureCanonicalForTrack(
+            Track(803L, "Conflict work source", "Artist", "Album", 180_000L, Uri.EMPTY, "file:803")
+        )
+        val target = recordings.ensureCanonicalForTrack(
+            Track(804L, "Conflict work target", "Artist", "Album", 180_000L, Uri.EMPTY, "file:804")
+        )
+        val dao = database.musicIdentityDao()
+        dao.update(requireNotNull(dao.recording(source.recordingId)).copy(musicBrainzWorkId = "work-a"))
+        dao.update(requireNotNull(dao.recording(target.recordingId)).copy(musicBrainzWorkId = "work-b"))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            repository.mergeRecordings(source.recordingId, target.recordingId)
+        }
+
+        assertEquals(
+            "CANNOT_LINK",
+            dao.recordingRelation(
+                minOf(source.recordingId, target.recordingId),
+                maxOf(source.recordingId, target.recordingId)
+            )?.relationType
+        )
+        assertTrue(dao.recording(source.recordingId) != null)
+        assertTrue(dao.recording(target.recordingId) != null)
+    }
+
+    @Test
     fun previewBlocksOriginalLiveConflictBeforeAnyMergeWrite() {
         val source = recordings.ensureCanonicalForTrack(
             Track(82L, "Versioned song", "Same artist", "Album", 180_000L, Uri.EMPTY, "file:82")
@@ -681,13 +739,11 @@ class RecordingMatchRepositoryTest {
         assertTrue(verified.lastSuccessfulAt > 0L)
         assertEquals(0, verified.failureCount)
 
-        verifyingRepository.setPreferredSource(sourceId)
-
-        assertEquals(sourceId, dao.activeSource(recording.recordingId)?.sourceId)
-        assertEquals(
-            "SET_ACTIVE_SOURCE",
-            dao.identityOperations(recording.recordingId, 10).first().operationType
-        )
+        assertThrows(IllegalArgumentException::class.java) {
+            verifyingRepository.setPreferredSource(sourceId)
+        }
+        assertEquals("local", dao.activeSource(recording.recordingId)?.provider)
+        assertTrue(dao.identityOperations(recording.recordingId, 10).isEmpty())
     }
 
     @Test
@@ -708,7 +764,9 @@ class RecordingMatchRepositoryTest {
                 )
             }
         )
-        verifyingRepository.setPreferredSource(failedSourceId)
+        assertThrows(IllegalArgumentException::class.java) {
+            verifyingRepository.setPreferredSource(failedSourceId)
+        }
 
         val result = verifyingRepository.verifySource(failedSourceId)
         val failed = requireNotNull(dao.source(failedSourceId))

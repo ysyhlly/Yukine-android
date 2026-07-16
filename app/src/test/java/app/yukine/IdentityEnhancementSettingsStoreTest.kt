@@ -14,4 +14,14 @@ class IdentityEnhancementSettingsStoreTest {
         assertEquals("", IdentityEnhancementSettingsStore.normalizeMusicBrainzProxy("file:///tmp/proxy"))
         assertEquals("", IdentityEnhancementSettingsStore.normalizeMusicBrainzProxy(""))
     }
+
+    @Test
+    fun metadataGatewayNormalizationKeepsOnlyCompatibleNetworkEndpoints() {
+        assertEquals(
+            "https://gateway.example/base/",
+            IdentityEnhancementSettingsStore.normalizeMetadataGatewayEndpoint(" https://gateway.example/base/// ")
+        )
+        assertEquals("http://127.0.0.1:8787/", IdentityEnhancementSettingsStore.normalizeMetadataGatewayEndpoint("http://127.0.0.1:8787"))
+        assertEquals("", IdentityEnhancementSettingsStore.normalizeMetadataGatewayEndpoint("content://gateway"))
+    }
 }

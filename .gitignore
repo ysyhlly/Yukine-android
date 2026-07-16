@@ -46,3 +46,7 @@ ui_layout_*.xml
 
 # Generated reports and rendered artifacts
 output/
+
+# Metadata gateway dependencies and local Cloudflare state
+node_modules/
+.wrangler/

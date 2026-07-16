@@ -33,6 +33,21 @@ public final class PlaybackErrorMessageLocalizer {
                 || value.equals("Unable to open this track.")) {
             return "playback.error.unable.to.open";
         }
+        if (value.equals("LX/TX playback source resolution timed out")
+                || value.equals("LX/TX \u97f3\u6e90\u89e3\u6790\u8d85\u65f6")) {
+            return "playback.error.luoxue.tx.timeout";
+        }
+        if (value.equals("LX playback source resolution timed out")
+                || value.equals("LX \u97f3\u6e90\u89e3\u6790\u8d85\u65f6")) {
+            return "playback.error.luoxue.timeout";
+        }
+        if (value.equals("Playback source resolution timed out")
+                || value.equals("\u97f3\u6e90\u89e3\u6790\u8d85\u65f6")) {
+            return "playback.error.source.timeout";
+        }
+        if (value.equals("No eligible playback source is available")) {
+            return "playback.error.no.eligible.source";
+        }
         return null;
     }
 }

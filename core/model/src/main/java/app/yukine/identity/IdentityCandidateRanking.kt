@@ -33,6 +33,8 @@ data class RecordingMatchEvidence(
     val recordingMbid: String = "",
     val workMbid: String = "",
     val acoustId: String = "",
+    val fingerprintVerified: Boolean = false,
+    val providerScore: Double = 0.0,
     val variantType: RecordingVariantType = RecordingVariantType.UNKNOWN,
     val isKnownCover: Boolean = false
 )
@@ -151,9 +153,13 @@ class RecordingCandidateRanker(
             }
         }
         val hardConflict = supplementalConflict || evaluation.hardConflicts.isNotEmpty()
+        val fingerprintScore = candidate.providerScore.coerceIn(0.0, 1.0)
+            .takeIf { candidate.fingerprintVerified && it > 0.0 }
+            ?: 0.0
+        if (fingerprintScore > 0.0) reasons += "acoustid_fingerprint_match"
         return RankedIdentityCandidate(
             candidate = candidate,
-            score = if (hardConflict) 0.0 else evaluation.sameRecordingProbability,
+            score = if (hardConflict) 0.0 else maxOf(evaluation.sameRecordingProbability, fingerprintScore),
             hardConflict = hardConflict,
             reasons = reasons
         )

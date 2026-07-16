@@ -596,7 +596,10 @@ class LibraryRepositoryTest {
         assertEquals(1, database.musicIdentityDao().sourcesForProvider("luoxue").size)
 
         val coordinator = IdentityBackfillCoordinator(database)
-        val first = coordinator.runBatch(IdentityBackfillCheckpoint())
+        var first = coordinator.runBatch(IdentityBackfillCheckpoint())
+        repeat(10) {
+            if (!first.complete) first = coordinator.runBatch(first.checkpoint)
+        }
 
         assertTrue(first.complete)
         assertEquals(1, first.checkpoint.progress.lxDeleted)
@@ -627,7 +630,11 @@ class LibraryRepositoryTest {
             )
         )
 
-        val result = IdentityBackfillCoordinator(database).runBatch(IdentityBackfillCheckpoint())
+        val coordinator = IdentityBackfillCoordinator(database)
+        var result = coordinator.runBatch(IdentityBackfillCheckpoint())
+        repeat(10) {
+            if (!result.complete) result = coordinator.runBatch(result.checkpoint)
+        }
 
         assertTrue(result.complete)
         assertEquals(1, result.checkpoint.progress.lxDeleted)

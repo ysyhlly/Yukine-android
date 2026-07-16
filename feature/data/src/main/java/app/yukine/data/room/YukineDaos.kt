@@ -869,6 +869,19 @@ interface MusicIdentityDao {
     @Query("SELECT * FROM track_sources WHERE provider = :provider ORDER BY recording_id, source_id")
     fun sourcesForProvider(provider: String): List<TrackSourceMappingEntity>
 
+    @Query("SELECT * FROM track_sources WHERE source_id > :afterSourceId ORDER BY source_id LIMIT :limit")
+    fun sourcesAfter(afterSourceId: Long, limit: Int): List<TrackSourceMappingEntity>
+
+    @Query(
+        "UPDATE track_sources SET provider = :normalizedProvider " +
+            "WHERE source_id = :sourceId AND provider = :expectedProvider"
+    )
+    fun normalizeSourceProvider(
+        sourceId: Long,
+        expectedProvider: String,
+        normalizedProvider: String
+    ): Int
+
     @Query("DELETE FROM track_sources WHERE provider = :provider")
     fun deleteSourcesForProvider(provider: String): Int
 
@@ -888,6 +901,12 @@ interface MusicIdentityDao {
     fun tracksWithoutIdentitySource(): List<TrackEntity>
 
     @Query(
+        "SELECT t.* FROM tracks t LEFT JOIN track_sources s ON s.local_track_id = t.id " +
+            "WHERE s.source_id IS NULL ORDER BY t.id LIMIT :limit"
+    )
+    fun tracksWithoutIdentitySource(limit: Int): List<TrackEntity>
+
+    @Query(
         "SELECT * FROM track_sources WHERE local_track_id IS NOT NULL " +
             "AND provider IN ('local', 'document', 'webdav') " +
             "ORDER BY recording_id, source_id"
@@ -896,6 +915,7 @@ interface MusicIdentityDao {
 
     @Query(
         "SELECT * FROM track_sources WHERE match_status = 'CONFIRMED' " +
+            "AND provider IN ('local', 'document', 'webdav', 'netease', 'qqmusic') " +
             "ORDER BY recording_id, source_id"
     )
     fun identityAnchorSources(): List<TrackSourceMappingEntity>
@@ -927,6 +947,15 @@ interface MusicIdentityDao {
             "ORDER BY source_id, coarse_score DESC, candidate_recording_id"
     )
     fun sourceRecordingCandidates(): List<SourceRecordingCandidateEntity>
+
+    @Query(
+        "SELECT * FROM source_recording_candidates WHERE " +
+            "candidate_recording_id IN (:recordingIds) OR source_id IN (:sourceIds)"
+    )
+    fun sourceRecordingCandidates(
+        recordingIds: List<Long>,
+        sourceIds: List<Long>
+    ): List<SourceRecordingCandidateEntity>
 
     @Query(
         "SELECT * FROM recording_relations WHERE left_recording_id = :leftRecordingId " +
@@ -1222,6 +1251,22 @@ interface MusicIdentityDao {
     fun clearSourceRecordingCandidates(): Int
 
     @Query(
+        "DELETE FROM source_recording_candidates WHERE " +
+            "candidate_recording_id IN (:recordingIds) OR source_id IN (:sourceIds)"
+    )
+    fun deleteSourceRecordingCandidates(
+        recordingIds: List<Long>,
+        sourceIds: List<Long>
+    ): Int
+
+    @Query(
+        "UPDATE source_match_features SET candidate_algorithm_version = 0, " +
+            "candidate_snapshot_signature = '', candidate_generated_at = 0 " +
+            "WHERE source_id IN (:sourceIds)"
+    )
+    fun invalidateSourceCandidateGeneration(sourceIds: List<Long>): Int
+
+    @Query(
         "DELETE FROM recording_relations WHERE left_recording_id = :recordingId " +
             "OR right_recording_id = :recordingId"
     )
@@ -1398,6 +1443,7 @@ interface MusicIdentityDao {
     @Query(
         "SELECT * FROM track_sources WHERE recording_id = :recordingId " +
             "AND playable = 1 AND match_status = 'CONFIRMED' " +
+            "AND provider IN ('local', 'document', 'webdav', 'netease') " +
             "AND (provider IN ('local', 'document', 'webdav') OR last_verified_at > 0 OR last_successful_at > 0)"
     )
     fun eligibleActiveSources(recordingId: Long): List<TrackSourceMappingEntity>
@@ -1470,6 +1516,7 @@ interface MusicIdentityDao {
         "UPDATE recordings SET active_source_id = :sourceId WHERE id = :recordingId AND EXISTS (" +
             "SELECT 1 FROM track_sources WHERE source_id = :sourceId AND recording_id = :recordingId " +
             "AND playable = 1 AND match_status = 'CONFIRMED' " +
+            "AND provider IN ('local', 'document', 'webdav', 'netease') " +
             "AND (provider IN ('local', 'document', 'webdav') OR last_verified_at > 0 OR last_successful_at > 0))"
     )
     fun setActiveSource(recordingId: Long, sourceId: Long): Int

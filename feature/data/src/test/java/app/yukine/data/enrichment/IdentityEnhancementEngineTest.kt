@@ -94,6 +94,65 @@ class IdentityEnhancementEngineTest {
         assertTrue(saved.score >= 0.92)
         assertEquals(1, recordings.confirmedSources(recording.recordingId).size)
         assertEquals(canonicalUuid, recordings.canonicalForRecording(recording.recordingId)?.canonicalId)
+        assertEquals("mb-recording", recordings.canonicalForRecording(recording.recordingId)?.musicBrainzRecordingId)
+    }
+
+    @Test
+    fun acoustIdAutoConfirmationPersistsIdentifiersWithoutCreatingSource() {
+        val recording = recordings.ensureCanonicalForTrack(track(6L))
+        val provider = fixedProvider(AnonymousProviderResult(listOf(
+            AnonymousRecordingCandidate(
+                provider = "acoustid",
+                providerItemId = "acoust-result",
+                title = "Song",
+                artists = listOf(ProviderArtistCandidate("mb-artist", "Artist")),
+                album = "Album",
+                durationMs = 180_000L,
+                recordingMbid = "recording-mbid",
+                acoustId = "acoust-result",
+                fingerprintVerified = true,
+                providerScore = 0.99
+            )
+        )))
+
+        val result = engine(provider).runReadyJobs(20)
+
+        assertTrue(result.succeeded >= 1)
+        val updated = checkNotNull(recordings.canonicalForRecording(recording.recordingId))
+        assertEquals("recording-mbid", updated.musicBrainzRecordingId)
+        assertEquals("acoust-result", updated.acoustId)
+        assertEquals(1, recordings.confirmedSources(recording.recordingId).size)
+    }
+
+    @Test
+    fun manualMetadataConfirmationNeverCreatesPlayableTrackSource() {
+        val recording = recordings.ensureCanonicalForTrack(track(7L))
+        val provider = fixedProvider(AnonymousProviderResult(listOf(
+            AnonymousRecordingCandidate(
+                provider = "musicbrainz",
+                providerItemId = "mbid-a",
+                title = "Song",
+                artists = listOf(ProviderArtistCandidate("artist-a", "Artist")),
+                durationMs = 180_000L,
+                recordingMbid = "mbid-a"
+            ),
+            AnonymousRecordingCandidate(
+                provider = "musicbrainz",
+                providerItemId = "mbid-b",
+                title = "Song",
+                artists = listOf(ProviderArtistCandidate("artist-b", "Artist")),
+                durationMs = 180_000L,
+                recordingMbid = "mbid-b"
+            )
+        )))
+        engine(provider).runReadyJobs(20)
+        val pending = candidates.pendingCandidates(IdentityTargetType.RECORDING, recording.recordingId)
+
+        candidates.confirmCandidate(pending.first().candidateId)
+
+        assertEquals(1, recordings.confirmedSources(recording.recordingId).size)
+        assertTrue(recordings.canonicalForRecording(recording.recordingId)?.musicBrainzRecordingId?.isNotBlank() == true)
+        assertTrue(database.musicIdentityDao().sources(recording.recordingId).none { it.provider == "musicbrainz" })
     }
 
     @Test

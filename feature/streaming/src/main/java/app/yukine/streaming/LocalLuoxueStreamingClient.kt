@@ -70,7 +70,8 @@ class LocalLuoxueStreamingClient(
     private val neteaseClient: LocalNeteaseStreamingClient? = null,
     private val qqMusicClient: LocalQqMusicStreamingClient? = null,
     private val scriptRuntime: LuoxueScriptRuntime = QuickJsLuoxueScriptRuntime(),
-    private val importedSourcePlaybackBudgetMs: Long = IMPORTED_SOURCE_PLAYBACK_BUDGET_MS
+    private val importedSourcePlaybackBudgetMs: Long = IMPORTED_SOURCE_PLAYBACK_BUDGET_MS,
+    private val importedTxPlaybackBudgetMs: Long = IMPORTED_TX_PLAYBACK_BUDGET_MS
 ) {
     fun search(request: StreamingSearchRequest): StreamingSearchResult {
         val normalized = request.normalizedLocal()
@@ -197,13 +198,22 @@ class LocalLuoxueStreamingClient(
     ): StreamingPlaybackSource {
         val sourceId = parseLuoxueId(request.providerTrackId)
         val scriptFailures = mutableListOf<String>()
-        var completedWithinBudget = false
-        val resolved = withTimeoutOrNull(importedSourcePlaybackBudgetMs.coerceAtLeast(1L)) {
-            for (imported in importedSources) {
-                if (!imported.enabled) {
-                    continue
-                }
-                for (quality in request.quality.toLuoxueScriptQualityCandidates()) {
+        val enabledSources = importedSources.filter(LuoxueImportedSource::enabled)
+        val scriptStartedAtNanos = System.nanoTime()
+        val totalScriptBudgetMs = if (sourceId.source == "tx") {
+            importedTxPlaybackBudgetMs
+        } else {
+            importedSourcePlaybackBudgetMs
+        }.coerceAtLeast(1L)
+        for ((sourceIndex, imported) in enabledSources.withIndex()) {
+            val remainingSourceCount = enabledSources.size - sourceIndex
+            val elapsedMs = (System.nanoTime() - scriptStartedAtNanos) / 1_000_000L
+            val remainingMs = (totalScriptBudgetMs - elapsedMs).coerceAtLeast(1L)
+            val perSourceBudgetMs = (remainingMs / remainingSourceCount.coerceAtLeast(1))
+                .coerceAtLeast(1L)
+            var completedWithinBudget = false
+            val resolved = withTimeoutOrNull(perSourceBudgetMs) {
+                qualityLoop@ for (quality in request.quality.toLuoxueScriptQualityCandidates()) {
                     for (sourceKey in scriptSourceKeys(imported, sourceId.source)) {
                         val url = try {
                             scriptRuntime.resolveMusicUrl(
@@ -216,6 +226,9 @@ class LocalLuoxueStreamingClient(
                             throw error
                         } catch (error: Throwable) {
                             scriptFailures += "${imported.name}/$sourceKey：${safeScriptFailureMessage(error)}"
+                            if (isTerminalImportedSourceFailure(error)) {
+                                break@qualityLoop
+                            }
                             null
                         }?.trim()
                         if (url.isNullOrBlank()) continue
@@ -234,15 +247,15 @@ class LocalLuoxueStreamingClient(
                         )
                     }
                 }
+                completedWithinBudget = true
+                null
             }
-            completedWithinBudget = true
-            null
-        }
-        if (resolved != null) {
-            return resolved
-        }
-        if (!completedWithinBudget) {
-            scriptFailures += "导入音源总解析超过 ${importedSourcePlaybackBudgetMs.coerceAtLeast(1L)}ms，已切换本机兜底"
+            if (resolved != null) {
+                return resolved
+            }
+            if (!completedWithinBudget) {
+                scriptFailures += "${imported.name} 解析超过 ${perSourceBudgetMs}ms，已尝试下一音源"
+            }
         }
         resolveShiqianjiangCompatibility(request, sourceId, importedSources)?.let { return it }
         return try {
@@ -259,6 +272,16 @@ class LocalLuoxueStreamingClient(
                 retryable = true
             )
         }
+    }
+
+    private fun isTerminalImportedSourceFailure(error: Throwable): Boolean {
+        val messages = generateSequence(error as Throwable?) { it.cause }
+            .mapNotNull(Throwable::message)
+            .joinToString(" ")
+        return TERMINAL_IMPORTED_SOURCE_HTTP_ERROR.containsMatchIn(messages) ||
+            messages.contains("密钥失效") ||
+            messages.contains("Key失效", ignoreCase = true) ||
+            messages.contains("权限不足")
     }
 
     /**
@@ -1110,8 +1133,9 @@ class LocalLuoxueStreamingClient(
         sourceId: SourceId
     ): StreamingPlaybackSource {
         throw StreamingGatewayException(
-            "LX/QQ 子源仅保留元数据关联，不允许请求 QQ 音频 URL",
-            code = StreamingErrorCode.UNSUPPORTED_OPERATION
+            "LX/TX 当前没有可用的导入音源或兼容接口",
+            code = StreamingErrorCode.SOURCE_UNAVAILABLE,
+            retryable = true
         )
     }
 
@@ -1765,13 +1789,15 @@ class LocalLuoxueStreamingClient(
     }
 
     private companion object {
-        private const val IMPORTED_SOURCE_PLAYBACK_BUDGET_MS = 2_500L
+        private const val IMPORTED_SOURCE_PLAYBACK_BUDGET_MS = 7_000L
+        private const val IMPORTED_TX_PLAYBACK_BUDGET_MS = 10_000L
         private const val KUGOU_APP_ID = 1005
         private const val KUGOU_CLIENT_VERSION = 11430
         private const val KUGOU_ANDROID_SECRET = "OIlwieks28dk2k092lksi2UIkp"
         private const val KUGOU_PLAYBACK_KEY_SECRET = "57ae12eb6890223e355ccfcb74edf70d"
         private const val KUGOU_PLAYBACK_USER_AGENT = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi"
         private const val SHIQIANJIANG_SOURCE_HOST = "source.shiqianjiang.cn"
+        private val TERMINAL_IMPORTED_SOURCE_HTTP_ERROR = Regex("(?i)HTTP\\s+(?:4\\d\\d|5\\d\\d)")
         private val BUILT_IN_SEARCH_SOURCE_KEYS = listOf("tx", "wy", "kw", "kg", "mg")
         private val LUOXUE_SCRIPT_SOURCE_KEYS = setOf("kw", "kg", "tx", "wy", "mg", "git", "local")
     }

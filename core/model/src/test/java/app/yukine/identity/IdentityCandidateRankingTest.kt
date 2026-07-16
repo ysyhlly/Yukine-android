@@ -75,6 +75,44 @@ class IdentityCandidateRankingTest {
     }
 
     @Test
+    fun acoustIdFingerprintCanBeStrongEvidenceWithSafeMargin() {
+        val target = recording("local", "1", artistIds = setOf(7L))
+        val strong = recording(
+            "acoustid",
+            "fingerprint-hit",
+            artistIds = setOf(7L),
+            fingerprintVerified = true,
+            providerScore = 0.98
+        )
+        val weak = recording("musicbrainz", "text-only", title = "星空 (Edit)", artistIds = setOf(7L))
+
+        val result = RecordingCandidateRanker().chooseForAutoConfirmation(target, listOf(weak, strong))
+
+        assertTrue(result.eligible)
+        assertEquals("fingerprint-hit", result.winner?.candidate?.providerItemId)
+        assertTrue(result.bestScore >= 0.98)
+        assertTrue(result.margin >= 0.08)
+    }
+
+    @Test
+    fun acoustIdFingerprintNeverOverridesArtistOrVersionConflict() {
+        val target = recording("local", "1", artistIds = setOf(7L))
+        val conflict = recording(
+            "acoustid",
+            "wrong-live",
+            artistIds = setOf(9L),
+            variant = RecordingVariantType.LIVE,
+            fingerprintVerified = true,
+            providerScore = 1.0
+        )
+
+        val ranked = RecordingCandidateRanker().rank(target, listOf(conflict)).single()
+
+        assertTrue(ranked.hardConflict)
+        assertEquals(0.0, ranked.score, 0.0)
+    }
+
+    @Test
     fun artistNeedsRichEvidenceAndSafeMargin() {
         val target = artist("local", "hanser", type = ArtistType.PERSON, country = "CN")
         val strong = artist(
@@ -150,7 +188,9 @@ class IdentityCandidateRankingTest {
         artistIds: Set<Long> = emptySet(),
         isrc: String = "",
         workMbid: String = "",
-        variant: RecordingVariantType = RecordingVariantType.ORIGINAL
+        variant: RecordingVariantType = RecordingVariantType.ORIGINAL,
+        fingerprintVerified: Boolean = false,
+        providerScore: Double = 0.0
     ) = RecordingMatchEvidence(
         provider = provider,
         providerItemId = id,
@@ -161,6 +201,8 @@ class IdentityCandidateRankingTest {
         durationMs = 240_000L,
         isrc = isrc,
         workMbid = workMbid,
+        fingerprintVerified = fingerprintVerified,
+        providerScore = providerScore,
         variantType = variant
     )
 

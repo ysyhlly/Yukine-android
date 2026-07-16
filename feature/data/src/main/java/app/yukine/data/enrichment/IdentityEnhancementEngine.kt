@@ -20,6 +20,7 @@ import app.yukine.identity.IdentityJobRepository
 import app.yukine.identity.IdentityTargetType
 import app.yukine.identity.RecordingCandidateRanker
 import app.yukine.identity.RecordingIdentityRepository
+import app.yukine.identity.RecordingIdentifier
 import app.yukine.identity.RecordingMatchEvidence
 import app.yukine.identity.RecordingVariantRecognizer
 import java.nio.charset.StandardCharsets
@@ -158,6 +159,7 @@ class IdentityEnhancementEngine(
             val autoConfirmed = decision.eligible && decision.winner?.candidate?.let {
                 it.provider == candidate.provider && it.providerItemId == candidate.providerItemId
             } == true
+            if (autoConfirmed) attachStrongIdentifiers(recording, candidate, time)
             candidates.saveCandidate(
                 IdentityCandidate(
                     candidateId = stableCandidateId(recordingId, candidate),
@@ -273,6 +275,9 @@ class IdentityEnhancementEngine(
             isrc = isrc,
             recordingMbid = recordingMbid,
             workMbid = workMbid,
+            acoustId = acoustId,
+            fingerprintVerified = fingerprintVerified,
+            providerScore = providerScore,
             variantType = variantType
         )
     }
@@ -324,7 +329,38 @@ class IdentityEnhancementEngine(
         .put("artistIds", JSONArray(candidate.artists.map { it.providerArtistId }))
         .put("recordingMbid", candidate.recordingMbid)
         .put("workMbid", candidate.workMbid)
+        .put("acoustId", candidate.acoustId)
+        .put("fingerprintVerified", candidate.fingerprintVerified)
         .toString()
+
+    private fun attachStrongIdentifiers(
+        recording: CanonicalRecording,
+        candidate: AnonymousRecordingCandidate,
+        verifiedAt: Long
+    ) {
+        val values = listOf(
+            "MUSICBRAINZ_RECORDING_ID" to candidate.recordingMbid,
+            "MUSICBRAINZ_WORK_ID" to candidate.workMbid,
+            "ISRC" to candidate.isrc,
+            "ACOUSTID" to candidate.acoustId
+        )
+        values.filter { it.second.isNotBlank() }.forEach { (type, value) ->
+            recordings.attachIdentifier(
+                recording.recordingId,
+                RecordingIdentifier(
+                    recordingId = recording.recordingId,
+                    canonicalId = recording.canonicalId,
+                    identifierType = type,
+                    identifierValue = value,
+                    source = candidate.provider,
+                    confidence = if (candidate.fingerprintVerified) {
+                        candidate.providerScore.coerceIn(0.0, 1.0)
+                    } else 1.0,
+                    verifiedAt = verifiedAt
+                )
+            )
+        }
+    }
 
     private fun stableCandidateId(recordingId: Long, candidate: AnonymousRecordingCandidate): String =
         UUID.nameUUIDFromBytes(

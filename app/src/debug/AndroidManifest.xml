@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="app.yukine.streaming.TxPlaybackProbeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+        <receiver
+            android:name="app.yukine.streaming.TxPlaybackProbeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.yukine.DEBUG_TX_PLAYBACK_PROBE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

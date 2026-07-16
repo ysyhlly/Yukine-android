@@ -35,6 +35,7 @@ final class LibraryFeatureBinding {
     private final Handler mainHandler;
     private final LibraryMultiSourceSyncCoordinator multiSourceSync;
     private final FavoriteSyncRuntimeOwner favoriteSyncRuntime;
+    private final FavoriteSyncCoordinator favoriteSyncCoordinator;
     private final RecordingMatchRepository recordingMatchRepository;
 
     private final SearchViewModel searchViewModel;
@@ -98,6 +99,7 @@ final class LibraryFeatureBinding {
         this.importGateway = importGateway;
         this.documentGateway = documentGateway;
         this.playlistActionGateway = playlistActionGateway;
+        this.favoriteSyncCoordinator = favoriteSyncCoordinator;
         this.mainHandler = mainHandler;
         this.recordingMatchRepository = recordingMatchRepository;
         this.recordingMatchViewModel = viewModels.getRecordingMatchViewModel();
@@ -209,7 +211,10 @@ final class LibraryFeatureBinding {
                 audioVerificationOwner::schedule
         );
         recordingMatchViewModel.bindIdentityChangedListener(() ->
-                CompletableFuture.runAsync(multiSourceSync::refreshIdentitySnapshot)
+                CompletableFuture.runAsync(() -> {
+                    multiSourceSync.refreshIdentitySnapshot();
+                    favoriteSyncCoordinator.reconcileCanonicalState();
+                })
                         .whenComplete((ignored, error) -> mainHandler.post(() -> {
                             navigation.getRouteController().clearLibraryGroup();
                             importOwner.loadLibrary(false);

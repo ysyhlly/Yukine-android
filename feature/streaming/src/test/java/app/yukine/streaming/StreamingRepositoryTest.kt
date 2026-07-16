@@ -10,6 +10,7 @@ import app.yukine.streaming.cache.StreamingSearchCacheEntity
 import app.yukine.model.Track
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -461,6 +462,78 @@ class StreamingRepositoryTest {
         assertEquals(1, gateway.playbackRequests.size)
         assertEquals(StreamingProviderName.LUOXUE, gateway.playbackRequests.single().provider)
         assertEquals("tx:qq-song-mid", gateway.playbackRequests.single().providerTrackId)
+    }
+
+    @Test
+    fun resolvePlaybackTrackAllowsSlowLuoxueTxWithinDedicatedBudget() = runTest {
+        val gateway = object : StreamingGateway by FakeStreamingGateway() {
+            override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+                delay(3_000L)
+                return playbackSource("https://stream.example.test/slow-tx.flac").copy(
+                    provider = request.provider,
+                    providerTrackId = request.providerTrackId
+                )
+            }
+        }
+        val repository = StreamingRepository(gateway = gateway)
+
+        val result = repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = "tx:private-song-mid"
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, result.source.provider)
+        assertEquals("tx:private-song-mid", result.source.providerTrackId)
+    }
+
+    @Test
+    fun resolvePlaybackTrackSynthesizesCanonicalMetadataForLuoxueTx() = runTest {
+        val gateway = FakeStreamingGateway(
+            playbackSource = playbackSource("https://stream.example.test/tx-with-metadata.flac")
+        )
+        val repository = StreamingRepository(gateway = gateway)
+
+        repository.resolvePlaybackTrack(
+            provider = StreamingProviderName.LUOXUE,
+            providerTrackId = "tx:001qrnDh07q133|media-mid",
+            metadata = StreamingTrack(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "tx:001qrnDh07q133|media-mid",
+                title = "测试歌曲",
+                artist = "测试歌手",
+                album = "测试专辑",
+                durationMs = 243_000L
+            )
+        )
+
+        val payload = JSONObject(gateway.playbackRequests.single().luoxueMusicInfoJson.orEmpty())
+        assertEquals("测试歌曲", payload.getString("name"))
+        assertEquals("测试歌手", payload.getString("singer"))
+        assertEquals("001qrnDh07q133", payload.getString("songmid"))
+        assertEquals("media-mid", payload.getString("mediaMid"))
+        assertEquals(243L, payload.getLong("interval"))
+    }
+
+    @Test
+    fun ordinaryPlaybackTimeoutDoesNotExposeProviderTrackId() = runTest {
+        val gateway = object : StreamingGateway by FakeStreamingGateway() {
+            override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
+                delay(3_000L)
+                return playbackSource("https://stream.example.test/too-slow.flac")
+            }
+        }
+        val repository = StreamingRepository(gateway = gateway)
+
+        try {
+            repository.resolvePlaybackTrack(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "private-provider-track-id"
+            )
+            fail("Expected playback resolution to time out")
+        } catch (error: StreamingGatewayException) {
+            assertEquals("Playback source resolution timed out", error.message)
+            assertFalse(error.message.orEmpty().contains("private-provider-track-id"))
+        }
     }
 
     @Test

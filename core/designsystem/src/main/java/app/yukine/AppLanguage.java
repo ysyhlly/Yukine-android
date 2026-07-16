@@ -438,6 +438,10 @@ public final class AppLanguage {
         put("playback.error.not.ready", "Playback is not ready.", "\u64ad\u653e\u5c1a\u672a\u5c31\u7eea\u3002");
         put("playback.error.streaming.not.resolved", "Streaming track is still resolving. Tap the track again to play.", "\u6d41\u5a92\u4f53\u6b4c\u66f2\u5c1a\u672a\u89e3\u6790\uff0c\u8bf7\u91cd\u65b0\u70b9\u51fb\u6b4c\u66f2\u64ad\u653e\u3002");
         put("playback.error.unable.to.open", "Unable to open this track.", "\u65e0\u6cd5\u6253\u5f00\u8fd9\u9996\u6b4c\u66f2\u3002");
+        put("playback.error.luoxue.tx.timeout", "LX/TX playback source resolution timed out", "LX/TX \u97f3\u6e90\u89e3\u6790\u8d85\u65f6");
+        put("playback.error.luoxue.timeout", "LX playback source resolution timed out", "LX \u97f3\u6e90\u89e3\u6790\u8d85\u65f6");
+        put("playback.error.source.timeout", "Playback source resolution timed out", "\u97f3\u6e90\u89e3\u6790\u8d85\u65f6");
+        put("playback.error.no.eligible.source", "No eligible playback source is available", "\u6ca1\u6709\u53ef\u7528\u7684\u64ad\u653e\u97f3\u6e90");
         put("retry.playback", "Retry", "\u91cd\u8bd5\u64ad\u653e");
         put("grant.access", "Grant access", "\u6388\u6743\u8bbf\u95ee");
         put("audio.permission.required", "Audio permission required", "\u9700\u8981\u97f3\u9891\u6743\u9650");
@@ -486,6 +490,14 @@ public final class AppLanguage {
         put("musicbrainz.proxy.hint", "https://example.com/ws/2/", "https://example.com/ws/2/");
         put("musicbrainz.proxy.saved", "MusicBrainz proxy saved", "MusicBrainz \u4ee3\u7406\u5df2\u4fdd\u5b58");
         put("musicbrainz.proxy.invalid", "Enter an HTTP or HTTPS URL", "\u8bf7\u8f93\u5165 HTTP \u6216 HTTPS \u5730\u5740");
+        put("metadata.gateway", "Metadata gateway", "\u5143\u6570\u636e\u7f51\u5173");
+        put("metadata.gateway.description", "MusicBrainz, AcoustID, iTunes and Wikidata evidence; never required for library or playback", "MusicBrainz\u3001AcoustID\u3001iTunes \u548c Wikidata \u8bc1\u636e\uff1b\u66f2\u5e93\u4e0e\u64ad\u653e\u4e0d\u4f9d\u8d56\u6b64\u670d\u52a1");
+        put("metadata.gateway.shared", "ECHO shared gateway", "ECHO \u9ed8\u8ba4\u5171\u4eab\u7f51\u5173");
+        put("metadata.gateway.custom", "Custom compatible gateway", "\u81ea\u5b9a\u4e49\u517c\u5bb9\u7f51\u5173");
+        put("metadata.gateway.offline", "Fully offline", "\u5b8c\u5168\u79bb\u7ebf");
+        put("metadata.gateway.hint", "https://metadata.example.com/", "https://metadata.example.com/");
+        put("metadata.gateway.saved", "Metadata gateway mode saved", "\u5143\u6570\u636e\u7f51\u5173\u6a21\u5f0f\u5df2\u4fdd\u5b58");
+        put("metadata.gateway.invalid", "Enter a compatible HTTP or HTTPS gateway URL", "\u8bf7\u8f93\u5165\u517c\u5bb9\u7684 HTTP \u6216 HTTPS \u7f51\u5173\u5730\u5740");
         put("streaming.gateway.localhost", "Local device host (127.0.0.1:43990)", "\u672c\u673a\u8bbe\u5907\u4e3b\u673a\uff08127.0.0.1:43990\uff09");
         put("quality.auto", "Auto", "\u81ea\u52a8");
         put("quality.standard", "Standard", "\u6807\u51c6");

@@ -33,8 +33,7 @@ import org.json.JSONObject
  */
 class SourceIdentityIngestor @JvmOverloads constructor(
     private val database: YukineDatabase,
-    private val diagnostics: MusicIdentityDiagnostics = MusicIdentityDiagnostics.process(),
-    private val includeLegacyLuoxue: Boolean = false
+    private val diagnostics: MusicIdentityDiagnostics = MusicIdentityDiagnostics.process()
 ) {
     private val dao = database.musicIdentityDao()
     private val recordings = RoomRecordingIdentityRepository(database)
@@ -99,7 +98,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val snapshotStartedAt = diagnostics.startNanos()
         val featureSources = dao.matchFeatureSources()
         val identityAnchors = featureSources.filter { source ->
-            (includeLegacyLuoxue || ProviderRolePolicy.contributesIdentity(source.provider)) &&
+            ProviderRolePolicy.contributesIdentity(source.provider) &&
                 (source.matchStatus == "CONFIRMED" || source.localTrackId != null)
         }
         val audioEvidenceBySourceId = featureSources.mapNotNull(TrackSourceMappingEntity::sourceId)

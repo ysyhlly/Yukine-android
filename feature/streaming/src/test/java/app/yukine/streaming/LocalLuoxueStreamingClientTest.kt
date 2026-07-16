@@ -534,7 +534,7 @@ class LocalLuoxueStreamingClientTest {
         )
 
         assertEquals("https://kugou.example.test/fast-fallback.flac", source.url)
-        assertEquals(1, scriptCalls)
+        assertEquals(2, scriptCalls)
     }
 
     @Test
@@ -727,6 +727,114 @@ class LocalLuoxueStreamingClientTest {
         } catch (_: CancellationException) {
             // Expected: a stale playback request must never continue into the native fallback.
         }
+    }
+
+    @Test
+    fun importedSourceTimeoutDoesNotStarveNextSource() = runTest {
+        val attemptedSources = mutableListOf<String>()
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { source, _, _, _ ->
+                attemptedSources += source.id
+                if (source.id == "slow") {
+                    delay(10_000L)
+                    "https://should-not-complete.example.test/tx-song.mp3"
+                } else {
+                    "https://media.example.test/tx-song.mp3"
+                }
+            },
+            importedSourcePlaybackBudgetMs = 50L,
+            importedTxPlaybackBudgetMs = 100L
+        )
+
+        val resolved = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "tx:001xexDg3Hqe8z"
+            ),
+            listOf(
+                LuoxueImportedSource("slow", "超时音源", sourceKinds = listOf("tx")),
+                LuoxueImportedSource("working", "可用音源", sourceKinds = listOf("tx"))
+            )
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, resolved.provider)
+        assertEquals("https://media.example.test/tx-song.mp3", resolved.url)
+        assertEquals(listOf("slow", "working"), attemptedSources)
+    }
+
+    @Test
+    fun txImportedSourceCanResolveAfterLegacyTwoPointFiveSecondBudget() = runTest {
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { _, _, _, _ ->
+                delay(3_000L)
+                "https://media.example.test/delayed-tx-song.mp3"
+            },
+            importedSourcePlaybackBudgetMs = 50L,
+            importedTxPlaybackBudgetMs = 4_000L
+        )
+
+        val resolved = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "tx:001xexDg3Hqe8z"
+            ),
+            listOf(LuoxueImportedSource("delayed", "延迟 TX 音源", sourceKinds = listOf("tx")))
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, resolved.provider)
+        assertEquals("https://media.example.test/delayed-tx-song.mp3", resolved.url)
+    }
+
+    @Test
+    fun ordinaryLuoxueSourceCanUseRepositoryEightSecondWindow() = runTest {
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { _, _, _, _ ->
+                delay(3_000L)
+                "https://media.example.test/delayed-wy-song.mp3"
+            },
+            importedSourcePlaybackBudgetMs = 4_000L
+        )
+
+        val resolved = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "wy:123456"
+            ),
+            listOf(LuoxueImportedSource("delayed", "延迟 LX 音源", sourceKinds = listOf("wy")))
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, resolved.provider)
+        assertEquals("https://media.example.test/delayed-wy-song.mp3", resolved.url)
+    }
+
+    @Test
+    fun terminalServerErrorSkipsRemainingQualitiesAndMovesToNextSource() = runTest {
+        val attemptedSources = mutableListOf<String>()
+        val client = LocalLuoxueStreamingClient(
+            scriptRuntime = FakeScriptRuntime { source, _, _, _ ->
+                attemptedSources += source.id
+                if (source.id == "broken") {
+                    throw IllegalStateException("HTTP 520 返回空响应")
+                }
+                "https://media.example.test/working-tx-song.mp3"
+            },
+            importedTxPlaybackBudgetMs = 4_000L
+        )
+
+        val resolved = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.LUOXUE,
+                providerTrackId = "tx:001xexDg3Hqe8z",
+                quality = StreamingAudioQuality.HIRES
+            ),
+            listOf(
+                LuoxueImportedSource("broken", "故障音源", sourceKinds = listOf("tx")),
+                LuoxueImportedSource("working", "可用音源", sourceKinds = listOf("tx"))
+            )
+        )
+
+        assertEquals("https://media.example.test/working-tx-song.mp3", resolved.url)
+        assertEquals(listOf("broken", "working"), attemptedSources)
     }
 
     @Test

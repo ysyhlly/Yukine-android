@@ -228,6 +228,9 @@ data class AnonymousRecordingCandidate(
     val isrc: String = "",
     val recordingMbid: String = "",
     val workMbid: String = "",
+    val acoustId: String = "",
+    /** True only when the gateway returned this candidate for the uploaded Chromaprint. */
+    val fingerprintVerified: Boolean = false,
     val variantType: RecordingVariantType = RecordingVariantType.UNKNOWN,
     val providerScore: Double = 0.0
 )
