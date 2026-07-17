@@ -50,3 +50,8 @@ output/
 # Metadata gateway dependencies and local Cloudflare state
 node_modules/
 .wrangler/
+metadata-gateway/dist/
+metadata-gateway/data/
+metadata-gateway/*.sqlite
+metadata-gateway/*.sqlite-shm
+metadata-gateway/*.sqlite-wal
