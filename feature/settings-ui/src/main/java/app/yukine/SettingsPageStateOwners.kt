@@ -84,6 +84,11 @@ class AppearanceSettingsStateOwner internal constructor(private val context: Set
         context.save(SettingsPreferenceKey.GlassSurfaceOpacity, normalized)
     }
 
+    fun setCompactSettingsCards(enabled: Boolean) {
+        context.updatePreferences { it.copy(compactSettingsCards = enabled) }
+        context.save(SettingsPreferenceKey.CompactSettingsCards, enabled)
+    }
+
     fun choosePageBackground(page: String) {
         context.emit(SettingsEffect.ChoosePageBackground(page))
     }

@@ -162,6 +162,7 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.GlassBlurEnabled to preferences.glassBlurEnabled,
         SettingsPreferenceKey.GlassBlurRadiusDp to preferences.glassBlurRadiusDp,
         SettingsPreferenceKey.GlassSurfaceOpacity to preferences.glassSurfaceOpacity,
+        SettingsPreferenceKey.CompactSettingsCards to preferences.compactSettingsCards,
         SettingsPreferenceKey.ShareStyle to preferences.shareStyle,
         SettingsPreferenceKey.PageBackgrounds to preferences.pageBackgrounds
     )
@@ -192,6 +193,7 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.GlassBlurEnabled -> state.preferences.glassBlurEnabled
             SettingsPreferenceKey.GlassBlurRadiusDp -> state.preferences.glassBlurRadiusDp
             SettingsPreferenceKey.GlassSurfaceOpacity -> state.preferences.glassSurfaceOpacity
+            SettingsPreferenceKey.CompactSettingsCards -> state.preferences.compactSettingsCards
             SettingsPreferenceKey.ShareStyle -> state.preferences.shareStyle
             SettingsPreferenceKey.PageBackgrounds -> state.preferences.pageBackgrounds
         }
@@ -245,6 +247,8 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.GlassBlurEnabled -> preferences = preferences.copy(glassBlurEnabled = value as Boolean)
             SettingsPreferenceKey.GlassBlurRadiusDp -> preferences = preferences.copy(glassBlurRadiusDp = value as Float)
             SettingsPreferenceKey.GlassSurfaceOpacity -> preferences = preferences.copy(glassSurfaceOpacity = value as Float)
+            SettingsPreferenceKey.CompactSettingsCards ->
+                preferences = preferences.copy(compactSettingsCards = value as Boolean)
             SettingsPreferenceKey.ShareStyle -> preferences = preferences.copy(shareStyle = value as String)
             SettingsPreferenceKey.PageBackgrounds -> preferences = preferences.copy(pageBackgrounds = value as PageBackgrounds)
         }

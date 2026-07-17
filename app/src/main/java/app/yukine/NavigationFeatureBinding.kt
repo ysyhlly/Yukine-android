@@ -123,6 +123,7 @@ internal class NavigationFeatureBinding(
             homeDashboardState = viewModels.homeDashboardViewModel.uiState,
             libraryGroupsState = viewModels.libraryViewModel.libraryGroups,
             libraryTrackListState = viewModels.libraryViewModel.trackList,
+            libraryStoreState = viewModels.libraryViewModel.library,
             collectionsStateProvider = viewModels.collectionsViewModel,
             downloadsState = viewModels.downloadsViewModel.uiState,
             downloadsOpenDirectoryRequests = viewModels.downloadsViewModel.openDirectoryRequests(),
@@ -136,6 +137,7 @@ internal class NavigationFeatureBinding(
             ).actions(),
             searchState = viewModels.searchViewModel.uiState,
             libraryActionHandler = viewModels.libraryViewModel.presentation::onAction,
+            openNetworkSourcesAction = Runnable { navigateToNetworkTabPage(NetworkPage.Sources) },
             recordingMatchStateProvider = viewModels.recordingMatchViewModel
         ),
         settings = SettingsNavBinding(

@@ -26,6 +26,7 @@ internal data class LoadedSettingsPreferences(
     val glassBlurEnabled: Boolean,
     val glassBlurRadiusDp: Float,
     val glassSurfaceOpacity: Float,
+    val compactSettingsCards: Boolean,
     val shareStyle: String,
     val pageBackgrounds: PageBackgrounds
 )
@@ -52,6 +53,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadGlassBlurEnabled(): Boolean
     fun loadGlassBlurRadiusDp(): Float
     fun loadGlassSurfaceOpacity(): Float
+    fun loadCompactSettingsCards(): Boolean
     fun loadShareStyle(): String
     fun loadPageBackgrounds(): PageBackgrounds
 }
@@ -111,6 +113,7 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadGlassBlurRadiusDp(): Float = repository.loadGlassBlurRadiusDp()
     override fun loadGlassSurfaceOpacity(): Float = repository.loadGlassSurfaceOpacity()
+    override fun loadCompactSettingsCards(): Boolean = repository.loadCompactSettingsCards()
 
     override fun loadShareStyle(): String = repository.loadShareStyle()
 
@@ -167,6 +170,7 @@ internal class LoadSettingsPreferencesUseCase(
             glassBlurEnabled = operations.loadGlassBlurEnabled(),
             glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(operations.loadGlassBlurRadiusDp()),
             glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(operations.loadGlassSurfaceOpacity()),
+            compactSettingsCards = operations.loadCompactSettingsCards(),
             shareStyle = TrackShareStyle.normalize(operations.loadShareStyle()),
             pageBackgrounds = operations.loadPageBackgrounds()
         )

@@ -142,7 +142,7 @@ class NowPlayingDestinationTest {
     }
 
     @Test
-    fun sameLxProviderKeepsDifferentSongVersionsAsSeparateSourceRows() {
+    fun onlyClosestOrderedLxSourceRendersAndSwitchesHot() {
         val current = streamingTrack(
             """[
                 {"provider":"luoxue","providerTrackId":"wy:main","label":"洛雪音源 · WY · Streaming Song","available":true},
@@ -178,16 +178,17 @@ class NowPlayingDestinationTest {
         }
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(
-            hasText("洛雪音源 · TX · Streaming Song (Live)")
+            hasText("洛雪音源 · WY · Streaming Song")
         )
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("洛雪音源 · WY · Streaming Song").assertIsDisplayed()
-        composeRule.onNodeWithText("洛雪音源 · TX · Streaming Song (Live)")
+        composeRule.onAllNodesWithText("洛雪音源 · TX · Streaming Song (Live)")
+            .assertCountEquals(0)
+        composeRule.onNodeWithText("洛雪音源 · WY · Streaming Song")
             .assertIsDisplayed()
             .performClick()
 
         assertEquals(
-            StreamingSwitchRequest(StreamingProviderName.LUOXUE, "tx:live", null),
+            StreamingSwitchRequest(StreamingProviderName.LUOXUE, "wy:main", null),
             switchRequest
         )
     }

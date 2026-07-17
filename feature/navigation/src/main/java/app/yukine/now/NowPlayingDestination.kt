@@ -14,6 +14,8 @@ import app.yukine.streaming.StreamingAudioCapabilityPolicy
 import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingProviderStatus
+import app.yukine.streaming.StreamingTrack
+import app.yukine.streaming.StreamingTrackMatchPolicy
 import app.yukine.streaming.PlaybackSourcePolicySnapshot
 import app.yukine.ui.EchoStateCard
 import app.yukine.ui.NowPlayingGestureActions
@@ -213,14 +215,18 @@ private fun streamingSourceOptions(
             sourceTrack = candidateTrack
         )
     }
-    val candidates = (direct + embedded + libraryStreaming)
+    val groupedCandidates = (direct + embedded + libraryStreaming)
         .groupBy { candidate -> candidate.provider to candidate.providerTrackId }
         .mapNotNull { (_, values) ->
-            values.maxWithOrNull(
+            val strongest = values.maxWithOrNull(
                 compareBy<StreamingSourceCandidate> { it.available }
                     .thenBy { it.quality?.ordinal ?: -1 }
             )
+            strongest?.copy(
+                sourceTrack = values.firstNotNullOfOrNull(StreamingSourceCandidate::sourceTrack)
+            )
         }
+    val candidates = closestLuoxueCandidateOnly(track, groupedCandidates)
     val addedProviders = providers
         .filter {
             it.enabled && it.status != StreamingProviderStatus.DISABLED &&
@@ -288,6 +294,48 @@ private fun streamingSourceOptions(
                 )
             )
         }
+    }
+}
+
+private fun closestLuoxueCandidateOnly(
+    track: Track,
+    candidates: List<StreamingSourceCandidate>
+): List<StreamingSourceCandidate> {
+    val luoxueCandidates = candidates.filter { it.provider == StreamingProviderName.LUOXUE }
+    if (luoxueCandidates.size <= 1) return candidates
+
+    val currentProvider = StreamingDataPathMetadata.provider(track.dataPath)
+    val currentTrackId = StreamingDataPathMetadata.providerTrackId(track.dataPath)
+    val current = luoxueCandidates.firstOrNull { candidate ->
+        currentProvider == StreamingProviderName.LUOXUE &&
+            candidate.providerTrackId == currentTrackId
+    }
+    val rankedTrackId = luoxueCandidates
+        .mapNotNull { candidate ->
+            candidate.sourceTrack?.let { sourceTrack ->
+                StreamingTrack(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = candidate.providerTrackId,
+                    title = sourceTrack.title,
+                    artist = sourceTrack.artist,
+                    album = sourceTrack.album,
+                    durationMs = sourceTrack.durationMs.takeIf { it > 0L }
+                )
+            }
+        }
+        .takeIf { it.isNotEmpty() }
+        ?.let { metadataCandidates ->
+            StreamingTrackMatchPolicy.rankCandidates(
+                StreamingTrackMatchPolicy.reference(track),
+                metadataCandidates
+            ).firstOrNull()?.track?.providerTrackId
+        }
+    val closestTrackId = current?.providerTrackId
+        ?: rankedTrackId
+        ?: luoxueCandidates.first().providerTrackId
+    return candidates.filter { candidate ->
+        candidate.provider != StreamingProviderName.LUOXUE ||
+            candidate.providerTrackId == closestTrackId
     }
 }
 

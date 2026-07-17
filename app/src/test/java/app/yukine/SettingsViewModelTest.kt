@@ -162,6 +162,37 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun searchResultNavigatesToCategoryAndHighlightsWithoutExecutingTheSetting() {
+        val viewModel = SettingsViewModel()
+        viewModel.publishCurrentPage(
+            SettingsPage.Home,
+            SettingsPreferencesSnapshot(themeMode = EchoTheme.MODE_DARK),
+            RuntimeSettingsStatus(
+                audioPermissionGranted = true,
+                notificationPermissionGranted = true,
+                playbackServiceConnected = true
+            )
+        )
+
+        viewModel.uiState.value.searchEntries
+            .first { it.id == SettingsEntryId.Theme }
+            .onClick.run()
+
+        assertEquals(SettingsPage.AppearanceGroup, viewModel.state.value.page)
+        assertEquals(SettingsEntryId.Theme, viewModel.state.value.highlightedEntryId)
+        assertEquals(EchoTheme.MODE_DARK, viewModel.state.value.preferences.themeMode)
+        assertTrue(viewModel.state.value.actions.any { it.entryId == SettingsEntryId.Theme })
+        assertEquals(
+            listOf(SettingsEffect.NavigatePage(SettingsPage.AppearanceGroup)),
+            viewModel.drainEffects()
+        )
+
+        viewModel.navigateSettingsPage(SettingsPage.Home)
+
+        assertEquals(null, viewModel.state.value.highlightedEntryId)
+    }
+
+    @Test
     fun navigateLibrarySettingsPageEmitsRouteSyncEffect() {
         val effects = mutableListOf<SettingsEffect>()
         val viewModel = SettingsViewModel()
@@ -356,6 +387,7 @@ class SettingsViewModelTest {
         viewModel.appearance.setDebugPromptsEnabled(true)
         viewModel.appearance.setCustomBackgroundBlurEnabled(true)
         viewModel.appearance.setCustomBackgroundBlurRadiusDp(80f)
+        viewModel.appearance.setCompactSettingsCards(true)
         advanceUntilIdle()
 
         assertEquals(
@@ -414,7 +446,8 @@ class SettingsViewModelTest {
                 "replayGain:false",
                 "debugPrompts:true",
                 "customBackgroundBlurEnabled:true",
-                "customBackgroundBlurRadius:64.0"
+                "customBackgroundBlurRadius:64.0",
+                "compactSettingsCards:true"
             ),
             preferenceGateway.events
         )
@@ -436,6 +469,7 @@ class SettingsViewModelTest {
         assertEquals(true, state.preferences.debugPromptsEnabled)
         assertEquals(true, state.preferences.customBackgroundBlurEnabled)
         assertEquals(64f, state.preferences.customBackgroundBlurRadiusDp)
+        assertEquals(true, state.preferences.compactSettingsCards)
         assertEquals(true, viewModel.chromeState.value.customBackgroundBlurEnabled)
         assertEquals(64f, viewModel.chromeState.value.customBackgroundBlurRadiusDp)
         assertEquals(5000L, state.runtime.lyricsOffsetMs)
@@ -883,6 +917,7 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.GlassBlurEnabled -> "glassBlurEnabled:${update.value}"
                 SettingsPreferenceKey.GlassBlurRadiusDp -> "glassBlurRadius:${update.value}"
                 SettingsPreferenceKey.GlassSurfaceOpacity -> "glassSurfaceOpacity:${update.value}"
+                SettingsPreferenceKey.CompactSettingsCards -> "compactSettingsCards:${update.value}"
                 SettingsPreferenceKey.ShareStyle -> "shareStyle:${update.value}"
                 SettingsPreferenceKey.PageBackgrounds -> {
                     val backgrounds = update.value as PageBackgrounds

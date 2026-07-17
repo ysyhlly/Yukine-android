@@ -17,4 +17,20 @@ interface SettingsDestinationState {
     val destinationTitle: String
     val destinationMetrics: List<SettingsMetric>
     val destinationActions: List<SettingsAction>
+    val destinationIssues: List<SettingsIssue>
+        get() = emptyList()
+    val destinationIssuesTitle: String
+        get() = ""
+    val destinationSearchEntries: List<SettingsSearchEntry>
+        get() = emptyList()
+    val destinationSearchPlaceholder: String
+        get() = ""
+    val destinationSearchResultsTitle: String
+        get() = ""
+    val destinationSearchEmptyMessage: String
+        get() = ""
+    val destinationHighlightedEntryId: SettingsEntryId?
+        get() = null
+    val destinationCompactSettingsCards: Boolean
+        get() = false
 }

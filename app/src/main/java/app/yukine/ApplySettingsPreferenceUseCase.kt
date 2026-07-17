@@ -27,6 +27,7 @@ internal interface SettingsPreferenceOperations {
     fun saveGlassBlurEnabled(enabled: Boolean)
     fun saveGlassBlurRadiusDp(radiusDp: Float)
     fun saveGlassSurfaceOpacity(opacity: Float)
+    fun saveCompactSettingsCards(enabled: Boolean)
     fun saveShareStyle(style: String)
     fun savePageBackgrounds(backgrounds: PageBackgrounds)
 }
@@ -92,6 +93,8 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveGlassBlurRadiusDp(radiusDp: Float) = repository.saveGlassBlurRadiusDp(radiusDp)
     override fun saveGlassSurfaceOpacity(opacity: Float) = repository.saveGlassSurfaceOpacity(opacity)
+    override fun saveCompactSettingsCards(enabled: Boolean) =
+        repository.saveCompactSettingsCards(enabled)
 
     override fun saveShareStyle(style: String) =
         repository.saveShareStyle(style)
@@ -146,6 +149,8 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.saveGlassBlurRadiusDp(update.value as Float)
                 SettingsPreferenceKey.GlassSurfaceOpacity ->
                     operations.saveGlassSurfaceOpacity(update.value as Float)
+                SettingsPreferenceKey.CompactSettingsCards ->
+                    operations.saveCompactSettingsCards(update.value as Boolean)
                 SettingsPreferenceKey.ShareStyle ->
                     operations.saveShareStyle(update.value as String)
                 SettingsPreferenceKey.PageBackgrounds ->

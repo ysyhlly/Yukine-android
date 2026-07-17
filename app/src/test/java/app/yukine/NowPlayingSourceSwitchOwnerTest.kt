@@ -103,6 +103,44 @@ class NowPlayingSourceSwitchOwnerTest {
     }
 
     @Test
+    fun unresolvedLxLibrarySourceResolvesAndResumesWhenClicked() {
+        val current = track(14L, "Current", "file:current.mp3")
+        val unresolved = track(15L, "Closest LX", "streaming:luoxue:kg:lx-15")
+        val resolved = track(16L, "Resolved LX", "https://resolved.example/lx.flac")
+        val replacements = mutableListOf<ReplacementCall>()
+        val resolutions = mutableListOf<ResolveCall>()
+        val owner = owner(
+            planner = FakePlanner(
+                StreamingSourceSwitchResolveRequest(
+                    StreamingProviderName.LUOXUE,
+                    "kg:lx-15"
+                )
+            ),
+            readModel = FakePlaybackReadModel(positionMs = 63_000L, current = current),
+            resolver = StreamingSourceResolver { provider, providerTrackId, _, quality, callback ->
+                resolutions += ResolveCall(provider, providerTrackId, quality)
+                callback.onResult(resolved)
+            },
+            latest = { it == 15L },
+            replacements = replacements
+        )
+
+        owner.handle(NowPlayingEffect.SwitchLibrarySource(current, unresolved, 15L))
+
+        assertEquals(
+            listOf(
+                ResolveCall(
+                    StreamingProviderName.LUOXUE,
+                    "kg:lx-15",
+                    StreamingAudioQuality.LOSSLESS
+                )
+            ),
+            resolutions
+        )
+        assertEquals(listOf(ReplacementCall(14L, resolved, 63_000L)), replacements)
+    }
+
+    @Test
     fun unresolvedLibrarySourceRejectsMissingProviderWithoutReplacingQueue() {
         val current = track(7L, "Current", "file:current.mp3")
         val unresolved = track(8L, "Broken", "streaming:broken")

@@ -6,6 +6,7 @@ import app.yukine.identity.MusicIdentityDiagnostics
 import app.yukine.streaming.StreamingProviderCapabilities
 import app.yukine.streaming.StreamingProviderDescriptor
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.streaming.StreamingTrack
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -46,13 +47,38 @@ class LibraryMultiSourceSyncCoordinatorTest {
             operations.matches[operations.track.id to StreamingProviderName.NETEASE]
                 ?.startsWith(STREAMING_NO_SOURCE_MATCH)
         )
-        assertEquals(2, coordinator.candidatesFor(operations.track).size)
+        assertEquals(1, coordinator.candidatesFor(operations.track).size)
         assertEquals(
             "streaming:luoxue:wy:lx-42",
             coordinator.candidatesFor(operations.track).first().dataPath.substringBefore('?')
         )
         assertNull(coordinator.persistedMergeIdentityFor(operations.track))
-        assertEquals("夜空", operations.queries.single { it.first == StreamingProviderName.LUOXUE }.second)
+        assertEquals(
+            "夜空 歌手 专辑",
+            operations.queries.single { it.first == StreamingProviderName.LUOXUE }.second
+        )
+        assertEquals(
+            listOf("wy:lx-42"),
+            StreamingPlaybackAdapter.playbackCandidates(
+                coordinator.candidatesFor(operations.track).single()
+            ).map { it.providerTrackId }
+        )
+        assertEquals(
+            1,
+            StoredStreamingSourceMatchCodec.decode(
+                operations.matches.getValue(
+                    operations.track.id to StreamingProviderName.LUOXUE
+                )
+            )?.candidates?.size
+        )
+        assertEquals(
+            true,
+            StoredStreamingSourceMatchCodec.isCurrentEncoding(
+                operations.matches.getValue(
+                    operations.track.id to StreamingProviderName.LUOXUE
+                )
+            )
+        )
         assertEquals(
             listOf("wy:lx-42", "tx:lx-live"),
             operations.candidateCatalogs.getValue(
@@ -97,7 +123,7 @@ class LibraryMultiSourceSyncCoordinatorTest {
     }
 
     @Test
-    fun incrementalSyncRetriesLegacyLxNoSourceWithTitleOnlyStrategy() = runTest {
+    fun incrementalSyncRetriesLegacyLxNoSourceWithFullMetadataStrategy() = runTest {
         val operations = FakeOperations()
         operations.matches[operations.track.id to StreamingProviderName.LUOXUE] =
             "$STREAMING_NO_SOURCE_MATCH:999999"
@@ -110,12 +136,42 @@ class LibraryMultiSourceSyncCoordinatorTest {
         assertEquals(1, result.checkedCount)
         assertEquals(1, result.matchedCount)
         assertEquals(
-            listOf(StreamingProviderName.LUOXUE to "夜空"),
+            listOf(StreamingProviderName.LUOXUE to "夜空 歌手 专辑"),
             operations.queries
         )
         assertEquals(
             "wy:lx-42",
             StoredStreamingSourceMatchCodec.primaryProviderTrackId(
+                operations.matches.getValue(operations.track.id to StreamingProviderName.LUOXUE)
+            )
+        )
+    }
+
+    @Test
+    fun incrementalSyncRefreshesV2LxMatchWithFullMetadataStrategy() = runTest {
+        val operations = FakeOperations()
+        operations.matches[operations.track.id to StreamingProviderName.LUOXUE] =
+            "__echo_source_match_v2__:{\"primary\":\"tx:old\",\"candidates\":[{\"id\":\"tx:old\"}]}"
+        operations.matches[operations.track.id to StreamingProviderName.NETEASE] =
+            "$STREAMING_NO_SOURCE_MATCH:999999"
+        val coordinator = LibraryMultiSourceSyncCoordinator(operations) { 1_000_000L }
+
+        val result = coordinator.syncIncremental()
+
+        assertEquals(1, result.checkedCount)
+        assertEquals(
+            listOf(StreamingProviderName.LUOXUE to "夜空 歌手 专辑"),
+            operations.queries
+        )
+        assertEquals(
+            "wy:lx-42",
+            StoredStreamingSourceMatchCodec.primaryProviderTrackId(
+                operations.matches.getValue(operations.track.id to StreamingProviderName.LUOXUE)
+            )
+        )
+        assertEquals(
+            true,
+            StoredStreamingSourceMatchCodec.isCurrentEncoding(
                 operations.matches.getValue(operations.track.id to StreamingProviderName.LUOXUE)
             )
         )

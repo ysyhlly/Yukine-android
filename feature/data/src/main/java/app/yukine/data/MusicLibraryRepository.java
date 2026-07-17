@@ -573,6 +573,14 @@ public final class MusicLibraryRepository {
         settingsRepository.saveGlassSurfaceOpacity(opacity);
     }
 
+    public boolean loadCompactSettingsCards() {
+        return settingsRepository.loadCompactSettingsCards();
+    }
+
+    public void saveCompactSettingsCards(boolean enabled) {
+        settingsRepository.saveCompactSettingsCards(enabled);
+    }
+
     public String loadShareStyle() {
         return settingsRepository.loadShareStyle();
     }

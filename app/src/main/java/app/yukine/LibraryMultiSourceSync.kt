@@ -24,13 +24,16 @@ import kotlinx.coroutines.coroutineScope
 
 internal const val STREAMING_NO_SOURCE_MATCH = "__echo_no_source__"
 private const val LX_NO_SOURCE_MATCH_V2 = "__echo_no_source_lx_v2__"
+private const val LX_NO_SOURCE_MATCH_V3 = "__echo_no_source_lx_v3__"
 private const val NO_SOURCE_RECHECK_MS = 7L * 24L * 60L * 60L * 1_000L
 
 internal fun isStreamingNoSourceMatch(value: String): Boolean =
     value == STREAMING_NO_SOURCE_MATCH ||
         value.startsWith("$STREAMING_NO_SOURCE_MATCH:") ||
         value == LX_NO_SOURCE_MATCH_V2 ||
-        value.startsWith("$LX_NO_SOURCE_MATCH_V2:")
+        value.startsWith("$LX_NO_SOURCE_MATCH_V2:") ||
+        value == LX_NO_SOURCE_MATCH_V3 ||
+        value.startsWith("$LX_NO_SOURCE_MATCH_V3:")
 
 internal interface LibraryMultiSourceSyncOperations {
     suspend fun addedProviders(): List<StreamingProviderDescriptor>
@@ -398,7 +401,10 @@ internal class LibraryMultiSourceSyncCoordinator(
         val matches = matchesByTrack[trackKey(selected)].orEmpty()
         if (matches.isEmpty()) return emptyList()
         val choices = matches.flatMap { (provider, match) ->
-            match.orderedCandidates().map { candidate -> provider to candidate }
+            val candidates = match.orderedCandidates().let { ordered ->
+                if (provider == StreamingProviderName.LUOXUE) ordered.take(1) else ordered
+            }
+            candidates.map { candidate -> provider to candidate }
         }
         val playbackCandidates = choices.map { (provider, candidate) ->
             StreamingPlaybackCandidate(
@@ -497,7 +503,7 @@ internal class LibraryMultiSourceSyncCoordinator(
             .distinctBy { it.providerTrackId.trim() }
         if (provider == StreamingProviderName.LUOXUE) {
             val primary = playable.firstOrNull() ?: return ""
-            return StoredStreamingSourceMatchCodec.encode(primary, playable)
+            return StoredStreamingSourceMatchCodec.encode(primary, listOf(primary))
         }
         return bestReliableMatch(track, playable)?.providerTrackId.orEmpty()
     }
@@ -525,7 +531,7 @@ internal class LibraryMultiSourceSyncCoordinator(
 
     private fun searchQuery(provider: StreamingProviderName, track: Track): String =
         if (provider == StreamingProviderName.LUOXUE) {
-            StreamingTrackMatchPolicy.titleSearchQuery(track)
+            StreamingTrackMatchPolicy.fullMetadataSearchQuery(track)
         } else {
             StreamingTrackMatchPolicy.searchQuery(track)
         }
@@ -563,18 +569,18 @@ internal class LibraryMultiSourceSyncCoordinator(
     private fun matchNeedsRefresh(provider: StreamingProviderName, stored: String): Boolean {
         if (stored.isBlank()) return true
         if (isStreamingNoSourceMatch(stored)) {
-            if (provider == StreamingProviderName.LUOXUE && !stored.startsWith(LX_NO_SOURCE_MATCH_V2)) {
+            if (provider == StreamingProviderName.LUOXUE && !stored.startsWith(LX_NO_SOURCE_MATCH_V3)) {
                 return true
             }
             return negativeMatchNeedsRefresh(stored)
         }
         return provider == StreamingProviderName.LUOXUE &&
-            !StoredStreamingSourceMatchCodec.isEncoded(stored)
+            !StoredStreamingSourceMatchCodec.isCurrentEncoding(stored)
     }
 
     private fun noSourceMatchValue(provider: StreamingProviderName): String {
         val marker = if (provider == StreamingProviderName.LUOXUE) {
-            LX_NO_SOURCE_MATCH_V2
+            LX_NO_SOURCE_MATCH_V3
         } else {
             STREAMING_NO_SOURCE_MATCH
         }

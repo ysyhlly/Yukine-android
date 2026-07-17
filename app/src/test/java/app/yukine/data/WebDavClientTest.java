@@ -2,19 +2,27 @@ package app.yukine.data;
 
 import org.junit.Test;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import android.net.Uri;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -96,13 +104,121 @@ public final class WebDavClientTest {
                 html.getBytes(StandardCharsets.UTF_8)
         );
 
-        assertEquals(2, entries.size());
+        assertEquals(3, entries.size());
         assertEquals("9%E3%82%92%E7%9C%BA%E3%82%81%E3%81%9F%E9%AD%9A%E9%81%94.flac", field(entries.get(0), "href"));
         assertEquals("http://127.0.0.1:5005/music/9%E3%82%92%E7%9C%BA%E3%82%81%E3%81%9F%E9%AD%9A%E9%81%94.flac", field(entries.get(0), "url"));
         assertEquals(false, field(entries.get(0), "directory"));
-        assertEquals("sub/", field(entries.get(1), "href"));
-        assertEquals("http://127.0.0.1:5005/music/sub/", field(entries.get(1), "url"));
-        assertEquals(true, field(entries.get(1), "directory"));
+        assertEquals("cover.jpg", field(entries.get(1), "href"));
+        assertEquals("http://127.0.0.1:5005/music/cover.jpg", field(entries.get(1), "url"));
+        assertEquals(false, field(entries.get(1), "directory"));
+        assertEquals("sub/", field(entries.get(2), "href"));
+        assertEquals("http://127.0.0.1:5005/music/sub/", field(entries.get(2), "url"));
+        assertEquals(true, field(entries.get(2), "directory"));
+    }
+
+    @Test
+    public void artworkEntryPrefersAudioNameThenConventionalCover() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method parseHtmlEntries = WebDavClient.class.getDeclaredMethod(
+                "parseHtmlEntries",
+                RemoteSource.class,
+                String.class,
+                String.class,
+                byte[].class
+        );
+        parseHtmlEntries.setAccessible(true);
+        Method artworkEntryFor = WebDavClient.class.getDeclaredMethod(
+                "artworkEntryFor",
+                List.class,
+                String.class
+        );
+        artworkEntryFor.setAccessible(true);
+        RemoteSource source = source("http://127.0.0.1:5005");
+        String html = "<a href=\"song.flac\">song.flac</a>"
+                + "<a href=\"song.png\">song.png</a>"
+                + "<a href=\"other.mp3\">other.mp3</a>"
+                + "<a href=\"cover.jpg\">cover.jpg</a>"
+                + "<a href=\"artist.webp\">artist.webp</a>";
+
+        List<?> entries = (List<?>) parseHtmlEntries.invoke(
+                client,
+                source,
+                "http://127.0.0.1:5005/music/",
+                "text/html; charset=utf-8",
+                html.getBytes(StandardCharsets.UTF_8)
+        );
+
+        Object songArtwork = artworkEntryFor.invoke(client, entries, "song.flac");
+        Object otherArtwork = artworkEntryFor.invoke(client, entries, "other.mp3");
+        assertEquals("song.png", field(songArtwork, "href"));
+        assertEquals("cover.jpg", field(otherArtwork, "href"));
+    }
+
+    @Test
+    public void remoteArtworkDownloadReadsImageBytes() throws Exception {
+        byte[] expected = new byte[]{(byte) 0xff, (byte) 0xd8, 1, 2, 3, (byte) 0xff, (byte) 0xd9};
+        try (ServerSocket server = new ServerSocket(0)) {
+            server.setSoTimeout(5_000);
+            AtomicReference<Throwable> serverFailure = new AtomicReference<>();
+            Thread responder = new Thread(() -> {
+                try (Socket socket = server.accept();
+                     BufferedReader input = new BufferedReader(new InputStreamReader(
+                             socket.getInputStream(),
+                             StandardCharsets.ISO_8859_1
+                     ));
+                     OutputStream output = socket.getOutputStream()) {
+                    String line;
+                    while ((line = input.readLine()) != null && !line.isEmpty()) {
+                        // Consume the complete HTTP request before writing the response.
+                    }
+                    String headers = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: image/jpeg\r\n"
+                            + "Content-Length: " + expected.length + "\r\n"
+                            + "Connection: close\r\n\r\n";
+                    output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
+                    output.write(expected);
+                    output.flush();
+                } catch (Throwable error) {
+                    serverFailure.set(error);
+                }
+            }, "webdav-artwork-test-server");
+            responder.start();
+
+            String url = "http://127.0.0.1:" + server.getLocalPort() + "/cover.jpg";
+            Class<?> entryType = Class.forName("app.yukine.data.WebDavClient$WebDavEntry");
+            Constructor<?> constructor = entryType.getDeclaredConstructor(
+                    String.class,
+                    String.class,
+                    boolean.class,
+                    long.class,
+                    String.class,
+                    String.class
+            );
+            constructor.setAccessible(true);
+            Object entry = constructor.newInstance("cover.jpg", url, false, (long) expected.length, "", "");
+            Method readRemoteArtwork = WebDavClient.class.getDeclaredMethod(
+                    "readRemoteArtwork",
+                    RemoteSource.class,
+                    entryType
+            );
+            readRemoteArtwork.setAccessible(true);
+
+            byte[] actual;
+            try {
+                actual = (byte[]) readRemoteArtwork.invoke(
+                        new WebDavClient(),
+                        source("http://127.0.0.1:" + server.getLocalPort()),
+                        entry
+                );
+            } finally {
+                responder.join(5_000);
+            }
+            assertArrayEquals(expected, actual);
+            assertFalse("Test HTTP server did not stop", responder.isAlive());
+            if (serverFailure.get() != null) {
+                throw new AssertionError(serverFailure.get());
+            }
+        }
     }
 
     @Test
@@ -123,8 +239,17 @@ public final class WebDavClientTest {
 
         Method metadataFingerprint = WebDavClient.class.getDeclaredMethod("metadataFingerprint", String.class);
         metadataFingerprint.setAccessible(true);
-        assertEquals("metadata-v2|etag:abc", metadataFingerprint.invoke(client, "etag:abc"));
+        assertEquals("metadata-v3|etag:abc", metadataFingerprint.invoke(client, "etag:abc"));
         assertEquals("", metadataFingerprint.invoke(client, ""));
+
+        Method retryWithoutRange = WebDavClient.class.getDeclaredMethod(
+                "shouldRetryPrefixWithoutRange",
+                int.class
+        );
+        retryWithoutRange.setAccessible(true);
+        assertEquals(true, retryWithoutRange.invoke(client, 416));
+        assertEquals(true, retryWithoutRange.invoke(client, 405));
+        assertEquals(false, retryWithoutRange.invoke(client, 401));
 
         Method revisionFragment = WebDavClient.class.getDeclaredMethod("revisionFragment", String.class);
         revisionFragment.setAccessible(true);
@@ -148,16 +273,16 @@ public final class WebDavClientTest {
         Map<String, Track> cached = new LinkedHashMap<>();
         cached.put(original.dataPath, original);
         Map<String, String> manifest = new LinkedHashMap<>();
-        manifest.put(original.dataPath, "metadata-v2|etag:content-41");
+        manifest.put(original.dataPath, "metadata-v3|etag:content-41");
 
         @SuppressWarnings("unchecked")
         Map<String, Track> unique = (Map<String, Track>) candidates.invoke(client, cached, manifest);
 
-        assertEquals(original.id, unique.get("metadata-v2|etag:content-41").id);
+        assertEquals(original.id, unique.get("metadata-v3|etag:content-41").id);
 
         Track duplicate = track(42L, "webdav:7:https://dav/copy.flac");
         cached.put(duplicate.dataPath, duplicate);
-        manifest.put(duplicate.dataPath, "metadata-v2|etag:content-41");
+        manifest.put(duplicate.dataPath, "metadata-v3|etag:content-41");
         @SuppressWarnings("unchecked")
         Map<String, Track> ambiguous = (Map<String, Track>) candidates.invoke(client, cached, manifest);
         assertTrue(ambiguous.isEmpty());
@@ -189,6 +314,20 @@ public final class WebDavClientTest {
                 180_000L,
                 Uri.parse(dataPath.substring(dataPath.indexOf("https://"))),
                 dataPath
+        );
+    }
+
+    private RemoteSource source(String baseUrl) {
+        return new RemoteSource(
+                7L,
+                RemoteSource.TYPE_WEBDAV,
+                "nas",
+                baseUrl,
+                "",
+                "",
+                "/music",
+                "",
+                0L
         );
     }
 

@@ -52,9 +52,13 @@ public final class WebDavClient {
     private static final int MAX_DIRECTORIES = 200;
     private static final int INITIAL_FLAC_PREFIX_BYTES = 64 * 1024;
     private static final int MAX_FLAC_PREFIX_BYTES = 2 * 1024 * 1024;
-    private static final String METADATA_CACHE_VERSION = "metadata-v2";
+    private static final int MAX_ARTWORK_BYTES = 16 * 1024 * 1024;
+    private static final String METADATA_CACHE_VERSION = "metadata-v3";
     private static final String[] AUDIO_EXTENSIONS = {
             ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".alac"
+    };
+    private static final String[] IMAGE_EXTENSIONS = {
+            ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"
     };
     private static final Pattern HTML_HREF_PATTERN = Pattern.compile(
             "(?is)<a\\s+[^>]*href\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))"
@@ -150,6 +154,8 @@ public final class WebDavClient {
         }
 
         ArrayList<WebDavEntry> entries = readDirectoryEntries(source, normalizedDirectory);
+        Map<String, Uri> remoteArtworkCache = new LinkedHashMap<>();
+        Set<String> attemptedArtworkUrls = new HashSet<>();
         ScanStats stats = new ScanStats();
         stats.directoryCount = 1;
         for (WebDavEntry entry : entries) {
@@ -173,17 +179,20 @@ public final class WebDavClient {
             if (!isAudio(title)) {
                 continue;
             }
+            WebDavEntry siblingArtwork = artworkEntryFor(entries, title);
             String dataPath = "webdav:" + source.id + ":" + entry.url;
-            String fingerprint = metadataFingerprint(entry.fingerprint());
+            String fingerprint = metadataFingerprint(entry.fingerprint(), siblingArtwork);
             Uri contentUri = revisionedContentUri(entry.url, fingerprint);
             nextFingerprints.put(dataPath, fingerprint);
             Track cached = cachedByPath.get(dataPath);
-            if (canReuseCached(cached != null, fingerprint, previousFingerprints.get(dataPath))) {
+            if (canReuseCached(cached != null, fingerprint, previousFingerprints.get(dataPath))
+                    && hasReusableArtwork(cached)) {
                 tracks.add(cached);
                 continue;
             }
             Track relocated = relocatableByFingerprint.get(fingerprint);
             if (relocated != null
+                    && hasReusableArtwork(relocated)
                     && isStrongRelocationFingerprint(fingerprint)
                     && claimedRelocationFingerprints.add(fingerprint)) {
                 tracks.add(relocatedTrack(relocated, contentUri, dataPath));
@@ -192,6 +201,14 @@ public final class WebDavClient {
             long trackId = stableId(source.id, entry.url);
             FlacMetadataParser.Result metadata = readFlacMetadata(source, entry.url, title);
             Uri artworkUri = storeArtwork(trackId, metadata.artwork);
+            if (artworkUri == null) {
+                artworkUri = loadExternalArtwork(
+                        source,
+                        siblingArtwork,
+                        remoteArtworkCache,
+                        attemptedArtworkUrls
+                );
+            }
             tracks.add(new Track(
                     trackId,
                     firstNonBlank(metadata.title, stripExtension(title)),
@@ -291,7 +308,7 @@ public final class WebDavClient {
             }
             String name = displayName(href);
             boolean directory = href.endsWith("/") || entryUrl.endsWith("/");
-            if (!directory && !isAudio(name)) {
+            if (!directory && !isAudio(name) && !isImage(name)) {
                 continue;
             }
             entries.add(new WebDavEntry(href, entryUrl, directory, -1L, "", ""));
@@ -532,10 +549,25 @@ public final class WebDavClient {
 
     /** Invalidates unchanged remote rows when the best-effort metadata parser gains new fields. */
     private String metadataFingerprint(String serverFingerprint) {
+        return metadataFingerprint(serverFingerprint, null);
+    }
+
+    private String metadataFingerprint(String serverFingerprint, WebDavEntry artworkEntry) {
         if (serverFingerprint == null || serverFingerprint.isEmpty()) {
             return "";
         }
-        return METADATA_CACHE_VERSION + "|" + serverFingerprint;
+        StringBuilder fingerprint = new StringBuilder(METADATA_CACHE_VERSION)
+                .append('|')
+                .append(serverFingerprint);
+        if (artworkEntry != null) {
+            fingerprint.append("|artwork-url:")
+                    .append(sha256(artworkEntry.url).substring(0, 24));
+            String artworkFingerprint = artworkEntry.fingerprint();
+            if (!artworkFingerprint.isEmpty()) {
+                fingerprint.append("|artwork-").append(artworkFingerprint);
+            }
+        }
+        return fingerprint.toString();
     }
 
     /**
@@ -620,12 +652,27 @@ public final class WebDavClient {
 
     private byte[] readPrefix(RemoteSource source, String url, int requestedBytes) throws Exception {
         int limit = Math.max(4, Math.min(requestedBytes, MAX_FLAC_PREFIX_BYTES));
+        byte[] ranged = readPrefixRequest(source, url, limit, true);
+        return ranged == null ? readPrefixRequest(source, url, limit, false) : ranged;
+    }
+
+    private byte[] readPrefixRequest(
+            RemoteSource source,
+            String url,
+            int limit,
+            boolean requestRange
+    ) throws Exception {
         HttpURLConnection connection = open(source, url);
         try {
-            connection.setRequestProperty("Range", "bytes=0-" + (limit - 1));
+            if (requestRange) {
+                connection.setRequestProperty("Range", "bytes=0-" + (limit - 1));
+            }
             connection.setRequestProperty("Accept-Encoding", "identity");
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) {
+                if (requestRange && shouldRetryPrefixWithoutRange(code)) {
+                    return null;
+                }
                 return new byte[0];
             }
             try (InputStream input = connection.getInputStream();
@@ -653,6 +700,77 @@ public final class WebDavClient {
         }
     }
 
+    private boolean shouldRetryPrefixWithoutRange(int responseCode) {
+        return responseCode == HttpURLConnection.HTTP_BAD_REQUEST
+                || responseCode == HttpURLConnection.HTTP_BAD_METHOD
+                || responseCode == 416
+                || responseCode == HttpURLConnection.HTTP_NOT_IMPLEMENTED;
+    }
+
+    private Uri loadExternalArtwork(
+            RemoteSource source,
+            WebDavEntry entry,
+            Map<String, Uri> cachedByUrl,
+            Set<String> attemptedUrls
+    ) {
+        if (artworkDirectory == null || entry == null || entry.url.isEmpty()) {
+            return null;
+        }
+        Uri cached = cachedByUrl.get(entry.url);
+        if (cached != null) {
+            return cached;
+        }
+        if (!attemptedUrls.add(entry.url)) {
+            return null;
+        }
+        try {
+            byte[] bytes = readRemoteArtwork(source, entry);
+            Uri stored = storeArtwork(stableId(source.id, entry.url), bytes);
+            if (stored != null) {
+                cachedByUrl.put(entry.url, stored);
+            }
+            return stored;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private byte[] readRemoteArtwork(RemoteSource source, WebDavEntry entry) throws Exception {
+        if (entry.contentLength > MAX_ARTWORK_BYTES) {
+            return new byte[0];
+        }
+        HttpURLConnection connection = open(source, entry.url);
+        try {
+            connection.setRequestProperty("Accept", "image/avif,image/webp,image/*,*/*;q=0.8");
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return new byte[0];
+            }
+            long declaredLength = connection.getContentLengthLong();
+            if (declaredLength > MAX_ARTWORK_BYTES) {
+                return new byte[0];
+            }
+            try (InputStream input = connection.getInputStream();
+                 ByteArrayOutputStream output = new ByteArrayOutputStream(
+                         declaredLength > 0L ? (int) Math.min(declaredLength, 64 * 1024L) : 8192
+                 )) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) >= 0) {
+                    if (output.size() + read > MAX_ARTWORK_BYTES) {
+                        return new byte[0];
+                    }
+                    output.write(buffer, 0, read);
+                }
+                byte[] bytes = output.toByteArray();
+                return isHtmlResponse(connection.getContentType(), bytes) ? new byte[0] : bytes;
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
     private Uri storeArtwork(long trackId, byte[] artwork) {
         if (artworkDirectory == null || artwork == null || artwork.length == 0) {
             return null;
@@ -669,6 +787,17 @@ public final class WebDavClient {
         } catch (IOException ignored) {
             return null;
         }
+    }
+
+    private boolean hasReusableArtwork(Track track) {
+        if (track == null || track.albumArtUri == null) {
+            return true;
+        }
+        if (!"file".equalsIgnoreCase(track.albumArtUri.getScheme())) {
+            return true;
+        }
+        String path = track.albumArtUri.getPath();
+        return path != null && !path.isEmpty() && new File(path).isFile();
     }
 
     private String firstNonBlank(String preferred, String fallback) {
@@ -774,6 +903,63 @@ public final class WebDavClient {
             }
         }
         return false;
+    }
+
+    private boolean isImage(String name) {
+        String lower = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        for (String extension : IMAGE_EXTENSIONS) {
+            if (lower.endsWith(extension)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private WebDavEntry artworkEntryFor(List<WebDavEntry> entries, String audioTitle) {
+        if (entries == null || entries.isEmpty()) {
+            return null;
+        }
+        String audioBase = stripExtension(audioTitle == null ? "" : audioTitle)
+                .trim()
+                .toLowerCase(Locale.ROOT);
+        WebDavEntry firstImage = null;
+        WebDavEntry preferred = null;
+        int preferredRank = Integer.MAX_VALUE;
+        int imageCount = 0;
+        for (WebDavEntry entry : entries) {
+            if (entry == null || entry.directory) {
+                continue;
+            }
+            String imageName = displayName(entry.href);
+            if (!isImage(imageName)) {
+                continue;
+            }
+            imageCount++;
+            if (firstImage == null) {
+                firstImage = entry;
+            }
+            String imageBase = stripExtension(imageName).trim().toLowerCase(Locale.ROOT);
+            if (!audioBase.isEmpty() && audioBase.equals(imageBase)) {
+                return entry;
+            }
+            int rank = preferredArtworkRank(imageBase);
+            if (rank < preferredRank) {
+                preferred = entry;
+                preferredRank = rank;
+            }
+        }
+        if (preferred != null) {
+            return preferred;
+        }
+        return imageCount == 1 ? firstImage : null;
+    }
+
+    private int preferredArtworkRank(String baseName) {
+        if ("cover".equals(baseName) || "\u5c01\u9762".equals(baseName)) return 0;
+        if ("folder".equals(baseName)) return 1;
+        if ("front".equals(baseName)) return 2;
+        if ("album".equals(baseName) || "albumart".equals(baseName) || "album_art".equals(baseName)) return 3;
+        return Integer.MAX_VALUE;
     }
 
     private String displayName(String href) {

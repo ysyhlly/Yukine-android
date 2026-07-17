@@ -12,7 +12,8 @@ internal object SettingsPageContentFactory {
         library: LibrarySettingsStateOwner,
         network: NetworkSettingsStateOwner,
         platform: PlatformSettingsStateOwner,
-        onNavigate: (SettingsPage) -> Unit
+        onNavigate: (SettingsPage) -> Unit,
+        onSearchNavigate: (SettingsEntryId, SettingsPage) -> Unit
     ): SettingsPageStateContent {
         val languageMode = preferences.languageMode
         fun navigateSettingsPage(nextPage: SettingsPage) = onNavigate(nextPage)
@@ -43,7 +44,16 @@ internal object SettingsPageContentFactory {
                     onGlassSurfaceOpacityChange = { opacity ->
                         appearance.setGlassSurfaceOpacity(opacity)
                     },
-                    onNavigate = { nextPage -> onNavigate(nextPage) }
+                    onNavigate = { nextPage -> onNavigate(nextPage) },
+                    nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled,
+                    shareStyle = preferences.shareStyle,
+                    onNowPlayingGesturesEnabledChange = { enabled ->
+                        playback.setNowPlayingGesturesEnabled(enabled)
+                    },
+                    compactSettingsCards = preferences.compactSettingsCards,
+                    onCompactSettingsCardsChange = { enabled ->
+                        appearance.setCompactSettingsCards(enabled)
+                    }
                 )
             SettingsPage.PlaybackGroup ->
                 SettingsPageStateBuilder.playbackGroup(
@@ -52,16 +62,12 @@ internal object SettingsPageContentFactory {
                     preferences.appVolume,
                     preferences.concurrentPlaybackEnabled,
                     preferences.audioEffectSettings,
-                    preferences.nowPlayingGesturesEnabled,
                     preferences.playbackRestoreEnabled,
                     preferences.replayGainEnabled,
                     runtime.sleepTimerRemainingMs,
                     onNavigate = { nextPage -> onNavigate(nextPage) },
                     onReplayGainEnabledChange = { enabled ->
                         playback.setReplayGainEnabled(enabled)
-                    },
-                    onNowPlayingGesturesEnabledChange = { enabled ->
-                        playback.setNowPlayingGesturesEnabled(enabled)
                     },
                     onPlaybackRestoreEnabledChange = { enabled ->
                         playback.setPlaybackRestoreEnabled(enabled)
@@ -114,7 +120,6 @@ internal object SettingsPageContentFactory {
                 SettingsPageStateBuilder.sourcesGroup(
                     languageMode,
                     preferences.streamingAudioQuality,
-                    preferences.shareStyle,
                     runtime.streamingGatewayConfigured,
                     runtime.luoxueImportedSourceCount,
                     runtime.luoxueEnabledSourceCount,
@@ -129,14 +134,20 @@ internal object SettingsPageContentFactory {
                     runtime.appVersionName,
                     runtime.audioPermissionGranted,
                     runtime.notificationPermissionGranted,
-                    runtime.playbackServiceConnected,
                     preferences.debugPromptsEnabled,
                     onNavigate = ::navigateSettingsPage,
-                    onExportBackup = { platform.exportBackup() },
-                    onImportBackup = { platform.importBackup() },
+                    onRequestNeededPermissions = { platform.requestNeededPermissions() },
                     onDebugPromptsEnabledChange = { enabled ->
                         appearance.setDebugPromptsEnabled(enabled)
                     }
+                )
+            SettingsPage.Downloads ->
+                SettingsPageStateBuilder.storageGroup(
+                    languageMode = languageMode,
+                    onNavigate = ::navigateSettingsPage,
+                    onOpenDownloads = { platform.openDownloads() },
+                    onExportBackup = { platform.exportBackup() },
+                    onImportBackup = { platform.importBackup() }
                 )
             SettingsPage.Appearance ->
                 SettingsPageStateBuilder.theme(
@@ -294,16 +305,15 @@ internal object SettingsPageContentFactory {
                     onApplyEndpoint = { endpoint -> network.applyStreamingGatewayEndpoint(endpoint) },
                     onEditMusicBrainzProxy = { network.editMusicBrainzProxy() }
                 )
-            SettingsPage.Home,
-            SettingsPage.Downloads ->
+            SettingsPage.Home ->
                 SettingsPageStateBuilder.home(
-                    languageMode,
-                    runtime.audioPermissionGranted,
-                    runtime.notificationPermissionGranted,
-                    runtime.playbackServiceConnected,
+                    languageMode = languageMode,
+                    preferences = preferences,
+                    runtime = runtime,
                     onNavigate = ::navigateSettingsPage,
+                    onOpenSearchEntry = onSearchNavigate,
                     onRequestNeededPermissions = { platform.requestNeededPermissions() },
-                    onOpenDownloads = { platform.openDownloads() }
+                    onOpenOverlayPermission = { platform.openFloatingLyricsPermission() }
                 )
         }
     }

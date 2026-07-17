@@ -1,9 +1,9 @@
 package app.yukine.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -27,12 +28,16 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +48,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import app.yukine.SettingsCategoryId
+import app.yukine.SettingsEntryId
+import app.yukine.SettingsIssue
+import app.yukine.SettingsSearchEntry
 import app.yukine.TrackDownloadItem
+import app.yukine.filterSettingsSearchEntries
 
 data class SettingsMetric(
     val label: String,
@@ -78,8 +93,57 @@ data class SettingsAction(
     val onSliderValueChange: ((Float) -> Unit)? = null,
     val section: String = "",
     val isBack: Boolean = false,
-    val imageDialog: SettingsImageDialog? = null
+    val imageDialog: SettingsImageDialog? = null,
+    val entryId: SettingsEntryId? = null,
+    val categoryId: SettingsCategoryId? = null,
+    val sliderDefaultLabel: String = "",
+    val sliderResetLabel: String = "",
+    val onSliderReset: Runnable? = null
 )
+
+internal data class SettingsActionSection(
+    val title: String,
+    val actions: List<SettingsAction>
+)
+
+internal data class SettingsCardDensityTokens(
+    val sectionSpacing: Dp,
+    val horizontalPadding: Dp,
+    val verticalPadding: Dp,
+    val textSpacing: Dp,
+    val sliderSpacing: Dp,
+    val dividerInset: Dp
+)
+
+internal fun settingsCardDensityTokens(compact: Boolean): SettingsCardDensityTokens =
+    if (compact) {
+        SettingsCardDensityTokens(
+            sectionSpacing = 6.dp,
+            horizontalPadding = 12.dp,
+            verticalPadding = 10.dp,
+            textSpacing = 2.dp,
+            sliderSpacing = 6.dp,
+            dividerInset = 12.dp
+        )
+    } else {
+        SettingsCardDensityTokens(
+            sectionSpacing = 10.dp,
+            horizontalPadding = 14.dp,
+            verticalPadding = 12.dp,
+            textSpacing = 3.dp,
+            sliderSpacing = 8.dp,
+            dividerInset = 14.dp
+        )
+    }
+
+internal fun settingsActionCardGroups(
+    actions: List<SettingsAction>,
+    compact: Boolean
+): List<List<SettingsAction>> = when {
+    actions.isEmpty() -> emptyList()
+    compact -> listOf(actions)
+    else -> actions.map(::listOf)
+}
 
 data class SettingsImageDialog(
     val title: String,
@@ -117,13 +181,27 @@ fun SettingsScreen(
     metrics: List<SettingsMetric>,
     actions: List<SettingsAction>,
     scrollState: SettingsListScrollState,
+    issues: List<SettingsIssue> = emptyList(),
+    issuesTitle: String = "",
+    searchEntries: List<SettingsSearchEntry> = emptyList(),
+    searchPlaceholder: String = "",
+    searchResultsTitle: String = "",
+    searchEmptyMessage: String = "",
+    highlightedEntryId: SettingsEntryId? = null,
+    compactSettingsCards: Boolean = false,
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     var activeImageDialog by remember { mutableStateOf<SettingsImageDialog?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val titleBackAction = actions.firstOrNull { it.isBack }
     val visibleActions = settingsContentActions(actions)
+    val actionSections = settingsActionSections(visibleActions)
+    val cardDensity = settingsCardDensityTokens(compactSettingsCards)
+    val filteredSearchEntries = remember(searchEntries, searchQuery) {
+        filterSettingsSearchEntries(searchEntries, searchQuery)
+    }
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
         initialFirstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset.coerceAtLeast(0)
@@ -131,6 +209,18 @@ fun SettingsScreen(
     DisposableEffect(listState) {
         onDispose {
             scrollState.save(listState)
+        }
+    }
+    val highlightedSectionItemIndex = settingsHighlightedSectionItemIndex(
+        sections = actionSections,
+        highlightedEntryId = highlightedEntryId,
+        hasSearch = searchEntries.isNotEmpty(),
+        hasIssues = issues.isNotEmpty(),
+        hasMetrics = metrics.isNotEmpty()
+    )
+    LaunchedEffect(highlightedEntryId, highlightedSectionItemIndex) {
+        if (highlightedEntryId != null && highlightedSectionItemIndex != null) {
+            listState.animateScrollToItem(highlightedSectionItemIndex)
         }
     }
     LazyColumn(
@@ -159,33 +249,65 @@ fun SettingsScreen(
                 )
             }
         }
-        if (metrics.isNotEmpty()) {
+        if (searchEntries.isNotEmpty()) {
+            item(key = "search") {
+                SettingsSearchField(
+                    query = searchQuery,
+                    placeholder = searchPlaceholder,
+                    onQueryChange = { searchQuery = it }
+                )
+            }
+        }
+        if (searchQuery.isNotBlank()) {
+            item(key = "search-results") {
+                SettingsSearchResultsCard(
+                    title = searchResultsTitle,
+                    emptyMessage = searchEmptyMessage,
+                    entries = filteredSearchEntries,
+                    cardDensity = cardDensity,
+                    compactSettingsCards = compactSettingsCards,
+                    onSelected = { entry ->
+                        scrollState.save(listState)
+                        searchQuery = ""
+                        entry.onClick.run()
+                    }
+                )
+            }
+        } else if (issues.isNotEmpty()) {
+            item(key = "issues") {
+                SettingsIssuesCard(
+                    title = issuesTitle,
+                    issues = issues,
+                    cardDensity = cardDensity,
+                    compactSettingsCards = compactSettingsCards
+                )
+            }
+        }
+        if (searchQuery.isBlank() && metrics.isNotEmpty()) {
             item(key = "overview") {
                 SettingsOverviewCard(metrics)
             }
         }
-        itemsIndexed(
-            items = visibleActions,
-            key = { index, action -> "action:${action.label}:$index" }
-        ) { index, action ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val previousSection = visibleActions.getOrNull(index - 1)?.section.orEmpty()
-                if (action.section.isNotBlank() && action.section != previousSection) {
-                    Text(
-                        text = action.section,
-                        style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
-                        color = EchoTheme.colors().muted,
-                        modifier = Modifier.padding(start = 4.dp, top = if (index == 0) 2.dp else 8.dp)
-                    )
-                }
-                SettingsActionButton(action, Modifier.echoEnter(index.coerceAtMost(8))) {
-                    scrollState.save(listState)
-                    if (action.imageDialog != null) {
-                        activeImageDialog = action.imageDialog
-                    } else {
-                        action.onClick.run()
+        if (searchQuery.isBlank()) {
+            itemsIndexed(
+                items = actionSections,
+                key = { index, section -> "section:${section.title}:$index" }
+            ) { index, section ->
+                SettingsActionSectionCard(
+                    section = section,
+                    highlightedEntryId = highlightedEntryId,
+                    cardDensity = cardDensity,
+                    compactSettingsCards = compactSettingsCards,
+                    modifier = Modifier.echoEnter(index.coerceAtMost(8)),
+                    onAction = { action ->
+                        scrollState.save(listState)
+                        if (action.imageDialog != null) {
+                            activeImageDialog = action.imageDialog
+                        } else {
+                            action.onClick.run()
+                        }
                     }
-                }
+                )
             }
         }
     }
@@ -216,65 +338,308 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsActionButton(action: SettingsAction, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun SettingsActionSectionCard(
+    section: SettingsActionSection,
+    highlightedEntryId: SettingsEntryId?,
+    cardDensity: SettingsCardDensityTokens,
+    compactSettingsCards: Boolean,
+    modifier: Modifier = Modifier,
+    onAction: (SettingsAction) -> Unit
+) {
+    val p = EchoTheme.colors()
+    val cardGroups = settingsActionCardGroups(section.actions, compactSettingsCards)
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(cardDensity.sectionSpacing)
+    ) {
+        if (section.title.isNotBlank()) {
+            Text(
+                text = section.title,
+                style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = p.muted,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+        Column(
+            verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+        ) {
+            cardGroups.forEach { actions ->
+                SettingsActionCard(
+                    actions = actions,
+                    highlightedEntryId = highlightedEntryId,
+                    cardDensity = cardDensity,
+                    onAction = onAction
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsActionCard(
+    actions: List<SettingsAction>,
+    highlightedEntryId: SettingsEntryId?,
+    cardDensity: SettingsCardDensityTokens,
+    onAction: (SettingsAction) -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Column {
+            actions.forEachIndexed { index, action ->
+                SettingsGroupedAction(
+                    action = action,
+                    highlighted = action.entryId != null && action.entryId == highlightedEntryId,
+                    cardDensity = cardDensity,
+                    onClick = { onAction(action) }
+                )
+                if (index != actions.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = cardDensity.dividerInset),
+                        color = p.border.copy(alpha = 0.55f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroupedAction(
+    action: SettingsAction,
+    highlighted: Boolean,
+    cardDensity: SettingsCardDensityTokens,
+    onClick: () -> Unit
+) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
-    val cardModifier = modifier
-        .fillMaxWidth()
-        .echoFloatingLayer(p, EchoShapes.medium)
-        .echoGlassLayer(p, EchoShapes.medium)
-
-    if (action.style == SettingsActionStyle.Slider) {
-        Surface(
-            modifier = cardModifier,
-            shape = EchoShapes.medium,
-            color = Color.Transparent
-        ) {
-            SettingsSliderAction(action)
+    val background = if (highlighted) p.accentSoft else Color.Transparent
+    when (action.style) {
+        SettingsActionStyle.Slider -> Surface(color = background) {
+            SettingsSliderAction(action, cardDensity)
         }
-    } else if (action.style == SettingsActionStyle.Toggle) {
-        Surface(
-            modifier = cardModifier
+        SettingsActionStyle.Toggle -> Surface(
+            modifier = Modifier
+                .fillMaxWidth()
                 .toggleable(
                     value = action.checked,
                     enabled = action.enabled,
                     role = Role.Switch,
                     onValueChange = { onClick() }
                 )
-                .semantics { contentDescription = action.label },
-            shape = EchoShapes.medium,
-            color = Color.Transparent
+                .semantics { contentDescription = settingsActionContentDescription(action) },
+            color = background
         ) {
-            SettingsActionRow(action, onClick)
+            SettingsActionRow(action, onClick, cardDensity)
         }
-    } else {
-        Surface(
+        else -> Surface(
             onClick = onClick,
             enabled = action.enabled,
             interactionSource = interaction,
-            modifier = cardModifier
+            modifier = Modifier
+                .fillMaxWidth()
                 .echoPressScale(interaction)
-                .semantics { contentDescription = action.label },
-            shape = EchoShapes.medium,
-            color = Color.Transparent
+                .semantics { contentDescription = settingsActionContentDescription(action) },
+            color = background
         ) {
-            SettingsActionRow(action, onClick)
+            SettingsActionRow(action, onClick, cardDensity)
         }
     }
 }
 
 @Composable
-private fun SettingsSliderAction(action: SettingsAction) {
+private fun SettingsSearchField(
+    query: String,
+    placeholder: String,
+    onQueryChange: (String) -> Unit
+) {
+    val p = EchoTheme.colors()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium),
+        contentAlignment = Alignment.Center
+    ) {
+        TextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("settings-search-input")
+                .semantics { contentDescription = placeholder },
+            singleLine = true,
+            placeholder = {
+                Text(placeholder, style = EchoTypography.bodyMedium, color = p.muted)
+            },
+            leadingIcon = {
+                EchoIcon(EchoIconKind.Search, Modifier.size(18.dp), p.accent)
+            },
+            textStyle = EchoTypography.bodyMedium.copy(
+                color = p.text,
+                fontWeight = FontWeight.SemiBold
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {}),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = p.text,
+                unfocusedTextColor = p.text,
+                cursorColor = p.accent
+            )
+        )
+    }
+}
+
+@Composable
+private fun SettingsSearchResultsCard(
+    title: String,
+    emptyMessage: String,
+    entries: List<SettingsSearchEntry>,
+    cardDensity: SettingsCardDensityTokens,
+    compactSettingsCards: Boolean,
+    onSelected: (SettingsSearchEntry) -> Unit
+) {
+    if (entries.isEmpty()) {
+        val p = EchoTheme.colors()
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .echoFloatingLayer(p, EchoShapes.medium)
+                .echoGlassLayer(p, EchoShapes.medium),
+            shape = EchoShapes.medium,
+            color = Color.Transparent
+        ) {
+            Text(
+                text = emptyMessage,
+                style = EchoTypography.bodyMedium,
+                color = p.muted,
+                modifier = Modifier.padding(
+                    horizontal = cardDensity.horizontalPadding,
+                    vertical = cardDensity.verticalPadding
+                )
+            )
+        }
+        return
+    }
+    val actions = entries.map { entry ->
+        SettingsAction(
+            label = entry.title,
+            onClick = Runnable { onSelected(entry) },
+            description = listOf(entry.categoryLabel, entry.description)
+                .filter(String::isNotBlank)
+                .joinToString(" · "),
+            style = SettingsActionStyle.Navigation,
+            icon = entry.icon,
+            entryId = entry.id,
+            categoryId = entry.categoryId
+        )
+    }
+    SettingsActionSectionCard(
+        section = SettingsActionSection(title, actions),
+        highlightedEntryId = null,
+        cardDensity = cardDensity,
+        compactSettingsCards = compactSettingsCards,
+        onAction = { action -> action.onClick.run() }
+    )
+}
+
+@Composable
+private fun SettingsIssuesCard(
+    title: String,
+    issues: List<SettingsIssue>,
+    cardDensity: SettingsCardDensityTokens,
+    compactSettingsCards: Boolean
+) {
+    val actions = issues.map { issue ->
+        SettingsAction(
+            label = issue.title,
+            onClick = issue.onClick ?: Runnable {},
+            description = issue.description,
+            value = issue.actionLabel,
+            style = if (issue.onClick == null) SettingsActionStyle.Default else SettingsActionStyle.Navigation,
+            icon = issue.icon
+        )
+    }
+    SettingsActionSectionCard(
+        section = SettingsActionSection(title, actions),
+        highlightedEntryId = null,
+        cardDensity = cardDensity,
+        compactSettingsCards = compactSettingsCards,
+        onAction = { action -> action.onClick.run() }
+    )
+}
+
+internal fun settingsActionSections(actions: List<SettingsAction>): List<SettingsActionSection> {
+    if (actions.isEmpty()) return emptyList()
+    val sections = mutableListOf<SettingsActionSection>()
+    var currentTitle = actions.first().section
+    var currentActions = mutableListOf<SettingsAction>()
+    actions.forEach { action ->
+        if (currentActions.isNotEmpty() && action.section != currentTitle) {
+            sections += SettingsActionSection(currentTitle, currentActions.toList())
+            currentActions = mutableListOf()
+            currentTitle = action.section
+        }
+        currentActions += action
+    }
+    if (currentActions.isNotEmpty()) {
+        sections += SettingsActionSection(currentTitle, currentActions.toList())
+    }
+    return sections
+}
+
+internal fun settingsHighlightedSectionItemIndex(
+    sections: List<SettingsActionSection>,
+    highlightedEntryId: SettingsEntryId?,
+    hasSearch: Boolean,
+    hasIssues: Boolean,
+    hasMetrics: Boolean
+): Int? {
+    if (highlightedEntryId == null) return null
+    val sectionIndex = sections.indexOfFirst { section ->
+        section.actions.any { action -> action.entryId == highlightedEntryId }
+    }
+    if (sectionIndex < 0) return null
+    return 1 +
+        (if (hasSearch) 1 else 0) +
+        (if (hasIssues) 1 else 0) +
+        (if (hasMetrics) 1 else 0) +
+        sectionIndex
+}
+
+@Composable
+private fun SettingsSliderAction(
+    action: SettingsAction,
+    cardDensity: SettingsCardDensityTokens
+) {
     val p = EchoTheme.colors()
     var pendingValue by remember(action.sliderValue) { mutableFloatStateOf(action.sliderValue) }
     Column(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.padding(
+            horizontal = cardDensity.horizontalPadding,
+            vertical = cardDensity.verticalPadding
+        ),
+        verticalArrangement = Arrangement.spacedBy(cardDensity.sliderSpacing)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             EchoIcon(EchoIconKind.Gauge, Modifier.size(22.dp), if (action.enabled) p.accent else p.muted)
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(cardDensity.textSpacing)
+            ) {
                 Text(
                     action.label,
                     style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -301,21 +666,49 @@ private fun SettingsSliderAction(action: SettingsAction) {
             enabled = action.enabled && action.onSliderValueChange != null,
             modifier = Modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = action.label },
+                .semantics { contentDescription = settingsActionContentDescription(action) },
             colors = SliderDefaults.colors(
                 thumbColor = p.accent,
                 activeTrackColor = p.accent,
                 inactiveTrackColor = p.border
             )
         )
+        if (action.sliderDefaultLabel.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = action.sliderDefaultLabel,
+                    style = EchoTypography.caption,
+                    color = p.muted
+                )
+                if (action.onSliderReset != null && action.sliderResetLabel.isNotBlank()) {
+                    TextButton(
+                        onClick = { action.onSliderReset.run() },
+                        enabled = action.enabled
+                    ) {
+                        Text(action.sliderResetLabel)
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
+private fun SettingsActionRow(
+    action: SettingsAction,
+    onClick: () -> Unit,
+    cardDensity: SettingsCardDensityTokens
+) {
     val p = EchoTheme.colors()
     Row(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+        modifier = Modifier.padding(
+            horizontal = cardDensity.horizontalPadding,
+            vertical = cardDensity.verticalPadding
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         EchoIcon(
@@ -326,22 +719,18 @@ private fun SettingsActionRow(action: SettingsAction, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(cardDensity.textSpacing)
         ) {
             Text(
                 action.label,
                 style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = if (action.enabled) p.text else p.muted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = if (action.enabled) p.text else p.muted
             )
             if (action.description.isNotBlank()) {
                 Text(
                     action.description,
                     style = EchoTypography.caption,
-                    color = p.muted,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    color = p.muted
                 )
             }
         }
@@ -379,8 +768,6 @@ private fun SettingsActionTrailing(action: SettingsAction, onClick: () -> Unit) 
                     text = action.value,
                     style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                     color = p.muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
@@ -399,6 +786,11 @@ internal fun settingsContentActions(actions: List<SettingsAction>): List<Setting
     }
     return actions.filterIndexed { index, _ -> index != backActionIndex }
 }
+
+internal fun settingsActionContentDescription(action: SettingsAction): String =
+    listOf(action.label, action.value, action.description)
+        .filter(String::isNotBlank)
+        .joinToString(". ")
 
 @Composable
 private fun SettingsOverviewCard(metrics: List<SettingsMetric>) {

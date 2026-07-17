@@ -84,8 +84,14 @@ object StreamingTrackMatchPolicy {
         }
     }
 
-    /** LX result order is title-driven; artist metadata is intentionally not added to this query. */
-    fun titleSearchQuery(track: Track?): String = track?.let { sanitize(it.title) }.orEmpty()
+    /** Uses all visible recording metadata so LX search starts from the same evidence as ranking. */
+    fun fullMetadataSearchQuery(track: Track?): String = track?.let { candidate ->
+        listOf(candidate.title, candidate.artist, candidate.album)
+            .map(::sanitize)
+            .filter(String::isNotBlank)
+            .distinct()
+            .joinToString(" ")
+    }.orEmpty()
 
     fun reference(track: Track): Reference = Reference(
         title = track.title,

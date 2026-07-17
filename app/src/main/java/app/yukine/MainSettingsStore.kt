@@ -27,6 +27,7 @@ internal class MainSettingsStore {
     private var glassBlurEnabled: Boolean = false
     private var glassBlurRadiusDp: Float = app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP
     private var glassSurfaceOpacity: Float = app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY
+    private var compactSettingsCards: Boolean = false
     private var shareStyle: String = TrackShareStyle.defaultValue()
     private var pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 
@@ -54,6 +55,7 @@ internal class MainSettingsStore {
         glassBlurEnabled = preferences.glassBlurEnabled
         glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(preferences.glassBlurRadiusDp)
         glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(preferences.glassSurfaceOpacity)
+        compactSettingsCards = preferences.compactSettingsCards
         shareStyle = preferences.shareStyle
         pageBackgrounds = preferences.pageBackgrounds
         EchoTheme.setMode(themeMode)
@@ -84,6 +86,7 @@ internal class MainSettingsStore {
         glassBlurEnabled = preferences.glassBlurEnabled
         glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(preferences.glassBlurRadiusDp)
         glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(preferences.glassSurfaceOpacity)
+        compactSettingsCards = preferences.compactSettingsCards
         shareStyle = TrackShareStyle.normalize(preferences.shareStyle)
         pageBackgrounds = preferences.pageBackgrounds
     }
@@ -111,6 +114,7 @@ internal class MainSettingsStore {
             glassBlurEnabled = glassBlurEnabled,
             glassBlurRadiusDp = glassBlurRadiusDp,
             glassSurfaceOpacity = glassSurfaceOpacity,
+            compactSettingsCards = compactSettingsCards,
             shareStyle = shareStyle,
             pageBackgrounds = pageBackgrounds
         )
@@ -185,6 +189,7 @@ internal class MainSettingsStore {
 
     fun glassBlurRadiusDp(): Float = glassBlurRadiusDp
     fun glassSurfaceOpacity(): Float = glassSurfaceOpacity
+    fun compactSettingsCards(): Boolean = compactSettingsCards
 
     fun shareStyle(): String {
         return shareStyle
@@ -277,6 +282,10 @@ internal class MainSettingsStore {
 
     fun setGlassSurfaceOpacity(opacity: Float) {
         this.glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(opacity)
+    }
+
+    fun setCompactSettingsCards(enabled: Boolean) {
+        this.compactSettingsCards = enabled
     }
 
     fun setShareStyle(style: String) {
