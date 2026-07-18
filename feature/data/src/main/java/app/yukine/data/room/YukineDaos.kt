@@ -64,6 +64,12 @@ interface LibraryDao {
     fun upsertTracks(tracks: List<TrackEntity>)
 
     @Query(
+        "UPDATE tracks SET album_art_uri = :coverUrl, updated_at = :updatedAt " +
+            "WHERE id = :trackId AND TRIM(album_art_uri) = ''"
+    )
+    fun updateAlbumArtIfMissing(trackId: Long, coverUrl: String, updatedAt: Long): Int
+
+    @Query(
         "UPDATE tracks SET codec = :codec, bitrate_kbps = :bitrateKbps, " +
             "sample_rate_hz = :sampleRateHz, bits_per_sample = :bitsPerSample, " +
             "channel_count = :channelCount, replay_gain_track_db = :replayGainTrackDb, " +
@@ -692,7 +698,8 @@ interface MusicIdentityDao {
     @Query(
         "SELECT s.local_track_id AS localTrackId, a.id AS artistKey, " +
             "a.artist_uuid AS artistId, a.display_name AS displayName, " +
-            "c.credited_name AS creditedName, c.role AS role, c.position AS position " +
+            "c.credited_name AS creditedName, a.avatar_url AS avatarUrl, " +
+            "c.role AS role, c.position AS position " +
             "FROM track_sources s INNER JOIN recording_artist_credits c " +
             "ON c.recording_id = s.recording_id INNER JOIN canonical_artists a ON a.id = c.artist_id " +
             "WHERE s.local_track_id IS NOT NULL AND c.role IN ('PRIMARY','FEATURED','PERFORMER') " +
@@ -1087,6 +1094,12 @@ interface MusicIdentityDao {
     fun artist(artistId: Long): CanonicalArtistEntity?
 
     @Query(
+        "SELECT * FROM canonical_artists WHERE avatar_url = '' " +
+            "ORDER BY id LIMIT :limit"
+    )
+    fun artistsMissingAvatar(limit: Int): List<CanonicalArtistEntity>
+
+    @Query(
         "SELECT * FROM canonical_artists WHERE id != :excludedArtistId " +
             "ORDER BY display_name COLLATE NOCASE, id LIMIT :limit"
     )
@@ -1147,6 +1160,18 @@ interface MusicIdentityDao {
 
     @Query("SELECT * FROM lyric_bindings WHERE recording_id = :recordingId ORDER BY updated_at DESC")
     fun lyricBindings(recordingId: Long): List<LyricBindingEntity>
+
+    @Query("SELECT * FROM custom_lyrics WHERE identity_key = :identityKey LIMIT 1")
+    fun customLyrics(identityKey: String): CustomLyricsEntity?
+
+    @Query("SELECT * FROM custom_lyrics WHERE recording_id = :recordingId ORDER BY updated_at DESC")
+    fun customLyricsForRecording(recordingId: Long): List<CustomLyricsEntity>
+
+    @Query(
+        "SELECT * FROM custom_lyrics WHERE provider = :provider " +
+            "AND provider_track_id = :providerTrackId ORDER BY updated_at DESC LIMIT 1"
+    )
+    fun customLyricsForProvider(provider: String, providerTrackId: String): CustomLyricsEntity?
 
     @Query("SELECT * FROM identity_resolution_jobs WHERE job_id = :jobId LIMIT 1")
     fun job(jobId: String): IdentityResolutionJobEntity?
@@ -1305,6 +1330,9 @@ interface MusicIdentityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(binding: LyricBindingEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(customLyrics: CustomLyricsEntity)
+
     @Insert
     fun insert(operation: IdentityOperationEntity): Long
 
@@ -1343,6 +1371,18 @@ interface MusicIdentityDao {
 
     @Query("DELETE FROM lyric_bindings WHERE recording_id = :recordingId")
     fun deleteLyricBindings(recordingId: Long): Int
+
+    @Query("DELETE FROM custom_lyrics WHERE identity_key = :identityKey")
+    fun deleteCustomLyrics(identityKey: String): Int
+
+    @Query("DELETE FROM custom_lyrics WHERE recording_id = :recordingId")
+    fun deleteCustomLyricsForRecording(recordingId: Long): Int
+
+    @Query(
+        "DELETE FROM custom_lyrics WHERE provider = :provider " +
+            "AND provider_track_id = :providerTrackId"
+    )
+    fun deleteCustomLyricsForProvider(provider: String, providerTrackId: String): Int
 
     @Query(
         "UPDATE identity_operations SET reverted_at = :revertedAt " +
@@ -1528,6 +1568,7 @@ data class TrackArtistIdentityRow(
     val artistId: String,
     val displayName: String,
     val creditedName: String,
+    val avatarUrl: String,
     val role: String,
     val position: Int
 )

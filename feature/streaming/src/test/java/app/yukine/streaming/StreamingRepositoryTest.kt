@@ -761,6 +761,101 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun resolvePlaybackTrackNeverSubstitutesAnotherProviderForBilibili() = runTest {
+        val gateway = FakeStreamingGateway(playbackSource = playbackSource(""))
+        val repository = StreamingRepository(
+            gateway = gateway,
+            playbackSourcePolicy = playbackPolicy(
+                StreamingProviderName.BILIBILI,
+                StreamingProviderName.NETEASE,
+                StreamingProviderName.LUOXUE
+            )
+        )
+        val metadata = StreamingTrack(
+            provider = StreamingProviderName.BILIBILI,
+            providerTrackId = "video:BV1TEST:cid:42",
+            title = "Echo",
+            artist = "UP 主",
+            playbackCandidates = listOf(
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "netease-substitute"
+                ),
+                StreamingPlaybackCandidate(
+                    provider = StreamingProviderName.LUOXUE,
+                    providerTrackId = "kw:luoxue-substitute"
+                )
+            )
+        )
+
+        try {
+            repository.resolvePlaybackTrack(
+                provider = StreamingProviderName.BILIBILI,
+                providerTrackId = "video:BV1TEST:cid:42",
+                metadata = metadata
+            )
+            fail("Expected the unavailable Bilibili source to fail without substitution")
+        } catch (error: StreamingGatewayException) {
+            assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, error.code)
+        }
+
+        assertEquals(1, gateway.playbackRequests.size)
+        assertEquals(StreamingProviderName.BILIBILI, gateway.playbackRequests.single().provider)
+        assertEquals("video:BV1TEST:cid:42", gateway.playbackRequests.single().providerTrackId)
+        assertTrue(gateway.searchRequests.isEmpty())
+    }
+
+    @Test
+    fun resolvePlaybackTrackRejectsGatewaySourceFromAnotherProviderForBilibili() = runTest {
+        var searchCalls = 0
+        val gateway = object : StreamingGateway by FakeStreamingGateway() {
+            override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
+                searchCalls += 1
+                return StreamingSearchResult(
+                    provider = request.provider,
+                    query = request.query,
+                    page = request.page,
+                    pageSize = request.pageSize
+                )
+            }
+
+            override suspend fun resolvePlayback(
+                request: StreamingPlaybackRequest
+            ): StreamingPlaybackSource {
+                return playbackSource("https://netease.example.test/substitute.flac").copy(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "netease-substitute"
+                )
+            }
+        }
+        val repository = StreamingRepository(
+            gateway = gateway,
+            playbackSourcePolicy = playbackPolicy(
+                StreamingProviderName.BILIBILI,
+                StreamingProviderName.LUOXUE
+            )
+        )
+
+        try {
+            repository.resolvePlaybackTrack(
+                provider = StreamingProviderName.BILIBILI,
+                providerTrackId = "video:BV1TEST:cid:42",
+                metadata = StreamingTrack(
+                    provider = StreamingProviderName.BILIBILI,
+                    providerTrackId = "video:BV1TEST:cid:42",
+                    title = "Bilibili Video",
+                    artist = "UP 主"
+                )
+            )
+            fail("Expected a non-Bilibili gateway source to be rejected")
+        } catch (error: StreamingGatewayException) {
+            assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, error.code)
+        }
+
+        assertEquals(0, searchCalls)
+    }
+
+    @Test
     fun resolvePlaybackTrackDoesNotBlockOnCdnPreflight() = runTest {
         val gateway = FakeStreamingGateway(
             playbackSource = playbackSource("https://10.255.255.1/slow-track.flac")

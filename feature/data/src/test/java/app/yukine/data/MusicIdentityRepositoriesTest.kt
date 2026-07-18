@@ -419,6 +419,59 @@ class MusicIdentityRepositoriesTest {
         assertEquals("USAAA1234567", recordings.canonicalForRecording(recording.recordingId)?.isrc)
     }
 
+    @Test(timeout = 10_000L)
+    fun candidateConfirmationReusesItsTransactionWhenProviderSourceHasAnotherOwner() {
+        val owner = recordings.ensureCanonicalForTrack(track(41L, "Candidate", "Artist"))
+        val candidateTarget = recordings.ensureCanonicalForTrack(track(42L, "Candidate version", "Artist"))
+        val dao = database.musicIdentityDao()
+        dao.upsert(
+            TrackSourceMappingEntity(
+                sourceId = null,
+                recordingId = owner.recordingId,
+                provider = "netease",
+                providerTrackId = "owned-song-42",
+                localTrackId = null,
+                dataPath = "",
+                title = "Candidate",
+                artist = "Artist",
+                album = "Album",
+                durationMs = 120_000L,
+                quality = "",
+                qualityScore = 0,
+                playable = false,
+                matchStatus = "CONFIRMED",
+                confidence = 1.0,
+                lastSuccessfulAt = 0L,
+                lastVerifiedAt = 0L,
+                legacyLocalKey = ""
+            )
+        )
+        val candidate = candidate(
+            targetType = IdentityTargetType.RECORDING,
+            targetId = candidateTarget.recordingId,
+            provider = "netease",
+            providerItemId = "owned-song-42"
+        )
+        candidates.saveCandidate(candidate)
+        val mergedRecordingId = minOf(owner.recordingId, candidateTarget.recordingId)
+        val removedRecordingId = maxOf(owner.recordingId, candidateTarget.recordingId)
+
+        val confirmed = candidates.confirmCandidate(candidate.candidateId)
+
+        assertEquals(IdentityCandidateStatus.USER_CONFIRMED, confirmed.status)
+        assertEquals(mergedRecordingId, confirmed.targetId)
+        assertNull(recordings.canonicalForRecording(removedRecordingId))
+        assertEquals(
+            mergedRecordingId,
+            dao.source("netease", "owned-song-42")?.recordingId
+        )
+        assertTrue(
+            candidates.pendingCandidates(IdentityTargetType.RECORDING, mergedRecordingId)
+                .none { it.provider == "netease" && it.providerItemId == "owned-song-42" }
+        )
+        assertTrue(!database.inTransaction())
+    }
+
     @Test
     fun jobClaimAndRetryAreAtomicAndPersistent() {
         recordings.ensureCanonicalForTrack(track(50L, "Job", "Artist"))

@@ -1,6 +1,8 @@
 package app.yukine
 
+import app.yukine.data.CustomLyricsRepository
 import app.yukine.data.LyricsRepository
+import app.yukine.model.LyricsDocument
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import app.yukine.streaming.LuoxueTrackMetadataResolver
@@ -56,7 +58,8 @@ internal class LuoxueFirstTrackLyricsOperations(
 }
 
 internal class LoadTrackLyricsUseCase(
-    private val operations: TrackLyricsOperations
+    private val operations: TrackLyricsOperations,
+    private val customLyricsRepository: CustomLyricsRepository? = null
 ) {
     suspend fun execute(
         track: Track?,
@@ -68,14 +71,33 @@ internal class LoadTrackLyricsUseCase(
         }
         return operations.loadForTrack(track, onlineEnabled, neteaseProviderTrackId.orEmpty())
     }
+
+    suspend fun executeDocument(
+        track: Track?,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String?
+    ): LyricsDocument {
+        if (track == null) return LyricsDocument.empty()
+        customLyricsRepository?.loadForTrack(track)?.document?.let { return it }
+        return LyricsDocument.fromLegacy(
+            execute(track, onlineEnabled, neteaseProviderTrackId),
+            format = "legacy"
+        )
+    }
 }
 
 internal class LoadTrackLyricsUseCaseLyricsLoader(
     private val useCase: LoadTrackLyricsUseCase
-) : LyricsLoader {
+) : LyricsLoader, RichLyricsLoader {
     override suspend fun load(
         track: Track,
         onlineEnabled: Boolean,
         neteaseProviderTrackId: String
     ): List<LyricsLine> = useCase.execute(track, onlineEnabled, neteaseProviderTrackId)
+
+    override suspend fun loadDocument(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): LyricsDocument = useCase.executeDocument(track, onlineEnabled, neteaseProviderTrackId)
 }

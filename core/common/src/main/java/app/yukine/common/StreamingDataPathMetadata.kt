@@ -1,6 +1,7 @@
 package app.yukine.common
 
 import app.yukine.streaming.StreamingProviderName
+import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
@@ -8,6 +9,7 @@ object StreamingDataPathMetadata {
     private const val DATA_PATH_PREFIX = "streaming:"
     private const val QUALITY_MARKER = "quality="
     private const val LUOXUE_MUSIC_INFO_QUERY = "lxmi"
+    private const val PLAYBACK_MIME_TYPE_QUERY = "playbackMime"
 
     @JvmStatic
     fun isStreamingTrack(dataPath: String?): Boolean {
@@ -46,6 +48,38 @@ object StreamingDataPathMetadata {
             dataPath.indexOf('#', valueStart)
         ).filter { it >= 0 }.minOrNull() ?: dataPath.length
         return dataPath.substring(valueStart, valueEnd).trim().lowercase()
+    }
+
+    @JvmStatic
+    fun playbackMimeType(dataPath: String?): String {
+        if (!isStreamingTrack(dataPath)) {
+            return ""
+        }
+        val encoded = dataPath
+            ?.substringAfter('?', "")
+            ?.substringBefore('#')
+            ?.split('&')
+            ?.firstOrNull { parameter ->
+                parameter.substringBefore('=') == PLAYBACK_MIME_TYPE_QUERY
+            }
+            ?.substringAfter('=', "")
+            .orEmpty()
+        if (encoded.isBlank()) {
+            return ""
+        }
+        return runCatching {
+            URLDecoder.decode(encoded, StandardCharsets.UTF_8.name()).trim()
+        }.getOrDefault("")
+            .takeIf { value ->
+                val separator = value.indexOf('/')
+                value.length in 3..128 &&
+                    separator in 1 until value.lastIndex &&
+                    value.substring(0, separator).all(Char::isLetterOrDigit) &&
+                    value.substring(separator + 1).all { character ->
+                        character.isLetterOrDigit() || character in ".+-"
+                    }
+            }
+            .orEmpty()
     }
 
     /**

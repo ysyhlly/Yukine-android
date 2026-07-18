@@ -3,6 +3,7 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -85,6 +87,39 @@ class LyricsViewModelTest {
 
         assertEquals(LyricsStatusKind.LOCAL_NOT_FOUND, viewModel.state.value.statusKind)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "no.local.lyrics.found"), viewModel.status(AppLanguage.MODE_ENGLISH))
+    }
+
+    @Test
+    fun slowOnlineLoadRemainsInProgressUntilResultArrives() = runTest {
+        val result = CompletableDeferred<List<LyricsLine>>()
+        val viewModel = LyricsViewModel(dispatcher)
+        viewModel.configure(
+            LyricsLoader { _, _, _ -> result.await() },
+            onlineEnabled = true,
+            offsetMs = 0L
+        )
+
+        val job = viewModel.load(track(10L), "")
+        runCurrent()
+        advanceTimeBy(7_999L)
+        runCurrent()
+
+        assertEquals(LyricsStatusKind.LOADING, viewModel.state.value.statusKind)
+
+        advanceTimeBy(1L)
+        runCurrent()
+
+        assertEquals(LyricsStatusKind.LOADING_SLOW, viewModel.state.value.statusKind)
+        assertEquals(
+            AppLanguage.text(AppLanguage.MODE_ENGLISH, "loading.lyrics.slow"),
+            viewModel.status(AppLanguage.MODE_ENGLISH)
+        )
+
+        result.complete(listOf(LyricsLine(1_000L, "eventual result")))
+        job.join()
+
+        assertEquals(LyricsStatusKind.LOADED, viewModel.state.value.statusKind)
+        assertEquals(listOf("eventual result"), viewModel.lines().map { it.text })
     }
 
     @Test

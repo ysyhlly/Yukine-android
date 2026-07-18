@@ -24,6 +24,8 @@ enum class SettingsPreferenceKey {
     GlassBlurEnabled,
     GlassBlurRadiusDp,
     GlassSurfaceOpacity,
+    CompactSettingsCards,
+    HomeDashboardLayout,
     ShareStyle,
     PageBackgrounds
 }

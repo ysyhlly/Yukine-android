@@ -10,7 +10,8 @@ class MainSettingsStoreTest {
         val store = MainSettingsStore()
         val expected = SettingsPreferencesSnapshot(
             streamingAudioQuality = StreamingQualityPreference.LOSSLESS,
-            refuseAutomaticQualityDowngrade = true
+            refuseAutomaticQualityDowngrade = true,
+            compactSettingsCards = true
         )
 
         store.sync(expected)

@@ -36,7 +36,8 @@ object StreamingProviderCatalog {
                 "哔哩哔哩",
                 supportsMv = true,
                 authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
-                localFirst = localFirst
+                localFirst = localFirst,
+                statusMessage = if (localFirst) "登录后可导入视频、多 P 与收藏夹" else ""
             ),
             descriptor(StreamingProviderName.YOUTUBE, "YouTube", localFirst = localFirst),
             descriptor(StreamingProviderName.SOUNDCLOUD, "SoundCloud", localFirst = localFirst),
@@ -88,42 +89,64 @@ object StreamingProviderCatalog {
             connected = false,
             statusMessage = if (localPending) localPendingMessage(name) else null
         )
+        val baseCapabilities = StreamingProviderCapabilities(
+            supportsSearch = !localPending,
+            supportsPlayback = !localPending && name != StreamingProviderName.QQ_MUSIC,
+            supportsLyrics = !localPending,
+            supportsMv = supportsMv && !localPending,
+            supportsAuth = supportsAuth && !localPending,
+            supportsFavorites = supportsAuth && !localPending,
+            supportsPlaylists = !localPending,
+            supportedMediaTypes = if (localPending) {
+                emptySet()
+            } else {
+                setOf(
+                    StreamingMediaType.TRACK,
+                    StreamingMediaType.ALBUM,
+                    StreamingMediaType.ARTIST,
+                    StreamingMediaType.PLAYLIST
+                )
+            },
+            supportsPlaylistImport = !localPending,
+            supportsPlaylistReadSync = !localPending,
+            supportsPlaylistCreate = !localPending && supportsAuth,
+            supportsPlaylistWrite = !localPending && supportsAuth,
+            supportsPlaylistDelete = !localPending && supportsAuth,
+            supportsPlaylistRename = !localPending && supportsAuth,
+            supportsPlaylistReorder = !localPending && supportsAuth,
+            supportsFavoritesRead = !localPending && supportsAuth,
+            supportsFavoritesWrite = !localPending && supportsAuth,
+            supportsAudioResolve = !localPending && name != StreamingProviderName.QQ_MUSIC,
+            supportsAudioFallback = !localPending && name != StreamingProviderName.QQ_MUSIC,
+            supportsAudioDownload = !localPending && name != StreamingProviderName.QQ_MUSIC,
+            supportsAudioCache = !localPending && name != StreamingProviderName.QQ_MUSIC
+        )
+        val capabilities = if (name == StreamingProviderName.BILIBILI && !localPending) {
+            baseCapabilities.copy(
+                supportsSearch = false,
+                supportsLyrics = false,
+                supportsMv = false,
+                supportsFavorites = false,
+                supportedMediaTypes = setOf(StreamingMediaType.TRACK, StreamingMediaType.PLAYLIST),
+                supportsPlaylistCreate = false,
+                supportsPlaylistWrite = false,
+                supportsPlaylistDelete = false,
+                supportsPlaylistRename = false,
+                supportsPlaylistReorder = false,
+                supportsFavoritesRead = false,
+                supportsFavoritesWrite = false,
+                supportsAudioFallback = false,
+                supportsAudioDownload = false,
+                supportsAudioCache = false
+            )
+        } else {
+            baseCapabilities
+        }
         return StreamingProviderDescriptor(
             name = name,
             displayName = displayName,
             enabled = !localPending,
-            capabilities = StreamingProviderCapabilities(
-                supportsSearch = !localPending,
-                supportsPlayback = !localPending && name != StreamingProviderName.QQ_MUSIC,
-                supportsLyrics = !localPending,
-                supportsMv = supportsMv && !localPending,
-                supportsAuth = supportsAuth && !localPending,
-                supportsFavorites = supportsAuth && !localPending,
-                supportsPlaylists = !localPending,
-                supportedMediaTypes = if (localPending) {
-                    emptySet()
-                } else {
-                    setOf(
-                        StreamingMediaType.TRACK,
-                        StreamingMediaType.ALBUM,
-                        StreamingMediaType.ARTIST,
-                        StreamingMediaType.PLAYLIST
-                    )
-                },
-                supportsPlaylistImport = !localPending,
-                supportsPlaylistReadSync = !localPending,
-                supportsPlaylistCreate = !localPending && supportsAuth,
-                supportsPlaylistWrite = !localPending && supportsAuth,
-                supportsPlaylistDelete = !localPending && supportsAuth,
-                supportsPlaylistRename = !localPending && supportsAuth,
-                supportsPlaylistReorder = !localPending && supportsAuth,
-                supportsFavoritesRead = !localPending && supportsAuth,
-                supportsFavoritesWrite = !localPending && supportsAuth,
-                supportsAudioResolve = !localPending && name != StreamingProviderName.QQ_MUSIC,
-                supportsAudioFallback = !localPending && name != StreamingProviderName.QQ_MUSIC,
-                supportsAudioDownload = !localPending && name != StreamingProviderName.QQ_MUSIC,
-                supportsAudioCache = !localPending && name != StreamingProviderName.QQ_MUSIC
-            ),
+            capabilities = capabilities,
             auth = auth,
             status = when {
                 localPending -> StreamingProviderStatus.DISABLED
@@ -139,6 +162,7 @@ object StreamingProviderCatalog {
     private fun localCapableProvider(name: StreamingProviderName): Boolean {
         return name == StreamingProviderName.NETEASE ||
             name == StreamingProviderName.QQ_MUSIC ||
+            name == StreamingProviderName.BILIBILI ||
             name == StreamingProviderName.LUOXUE
     }
 }

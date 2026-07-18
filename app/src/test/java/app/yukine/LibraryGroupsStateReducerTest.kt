@@ -3,6 +3,8 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupActions
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryGroupSort
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
@@ -10,8 +12,13 @@ import app.yukine.ui.TrackListAlbumCardUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.ArrayList
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class LibraryGroupsStateReducerTest {
     @Test
     fun rendersAlbumGroupsWithEnglishLabels() {
@@ -32,6 +39,8 @@ class LibraryGroupsStateReducerTest {
         assertEquals("Albums", viewModel.libraryGroups.value.title)
         assertEquals("Unknown album", viewModel.libraryGroups.value.rows.single().title)
         assertEquals("Artist - 1 track", viewModel.libraryGroups.value.rows.single().subtitle)
+        assertEquals(1, viewModel.libraryGroups.value.rows.single().trackCount)
+        assertTrue(viewModel.libraryGroups.value.rows.single().groupKey.endsWith("\u001fArtist"))
         assertEquals("No Albums available", listener.chromeState?.emptyText)
         assertEquals(true, listener.chromeState?.actions?.single()?.playEnabled)
     }
@@ -67,6 +76,81 @@ class LibraryGroupsStateReducerTest {
         assertEquals("Album", listener.trackListRequest?.title)
         assertEquals("Tracks", listener.trackListRequest?.headerMetrics?.single()?.label)
         assertEquals(listOf("Back", "Play group"), listener.trackListRequest?.headerActions?.map { it.label })
+        assertEquals(LibraryListContext.Album, listener.trackListRequest?.context)
+    }
+
+    @Test
+    fun sortsByTrackCountAndKeepsStableGroupSelection() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val controller = LibraryGroupsStateReducer(viewModel, listener)
+        val tracks = listOf(
+            track(1L, "One", "Artist", "Small"),
+            track(2L, "Two", "Artist", "Large"),
+            track(3L, "Three", "Artist", "Large")
+        )
+
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            tracks,
+            LibraryGrouping.ALBUMS,
+            "",
+            "",
+            emptyList()
+        )
+        val smallId = viewModel.libraryGroups.value.rows.first { it.title == "Small" }.id
+        viewModel.presentation.onAction(LibraryAction.ToggleGroupSelection(smallId))
+        viewModel.presentation.onAction(
+            LibraryAction.GroupSortChanged(LibraryGroupSort.TrackCountDescending)
+        )
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            tracks,
+            LibraryGrouping.ALBUMS,
+            "",
+            "",
+            emptyList()
+        )
+
+        assertEquals(listOf("Large", "Small"), viewModel.libraryGroups.value.rows.map { it.title })
+        assertEquals(listOf(2, 1), viewModel.libraryGroups.value.rows.map { it.trackCount })
+        assertEquals(setOf(smallId), viewModel.libraryUi.value.selectedGroupKeys)
+    }
+
+    @Test
+    fun folderDetailPublishesFolderContext() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val controller = LibraryGroupsStateReducer(viewModel, listener)
+        val folderTrack = Track(
+            1L,
+            "Track",
+            "Artist",
+            "Album",
+            1000L,
+            Uri.EMPTY,
+            "/storage/emulated/0/Music/Echo/track.mp3"
+        )
+
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            listOf(folderTrack),
+            LibraryGrouping.FOLDERS,
+            "",
+            "",
+            emptyList()
+        )
+        val group = viewModel.libraryGroups.value.rows.single()
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            listOf(folderTrack),
+            LibraryGrouping.FOLDERS,
+            group.groupKey,
+            group.title,
+            emptyList()
+        )
+
+        assertEquals(LibraryListContext.Folder, listener.trackListRequest?.context)
     }
 
     @Test
@@ -89,7 +173,12 @@ class LibraryGroupsStateReducerTest {
             LibraryGroupsUiDispatcher { it.run() },
             ArtistLocalInfoSource { _, artistId, _ ->
                 localLoadCount++
-                ArtistInfo("Aimer", "本地身份数据库", "$artistId 已关联稳定的本地艺人身份。")
+                ArtistInfo(
+                    "Aimer",
+                    "本地身份数据库",
+                    "$artistId 已关联稳定的本地艺人身份。",
+                    avatarUrl = "https://commons.wikimedia.org/aimer.jpg"
+                )
             }
         )
         val tracks = listOf(track(1L, "花の唄", "Aimer", "ONE"))
@@ -116,6 +205,13 @@ class LibraryGroupsStateReducerTest {
 
         assertTrue(listener.artistIntro().contains("稳定的本地艺人身份"))
         assertEquals("本地身份数据库", listener.headerMetric("资料来源"))
+        assertEquals(
+            "https://commons.wikimedia.org/aimer.jpg",
+            listener.trackListRequest?.headerMetrics
+                ?.first { it.label == "歌手介绍" }
+                ?.artworkUri
+                ?.toString()
+        )
         listener.trackListRequest?.headerActions
             ?.first { it.label == "管理艺人身份" }
             ?.onClick
@@ -241,9 +337,17 @@ class LibraryGroupsStateReducerTest {
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,
             headerActions: ArrayList<TrackListHeaderAction>,
-            footerAlbums: ArrayList<TrackListAlbumCardUiState>
+            footerAlbums: ArrayList<TrackListAlbumCardUiState>,
+            context: LibraryListContext
         ) {
-            trackListRequest = LibraryGroupTrackListRequest(title, tracks, headerMetrics, headerActions, footerAlbums)
+            trackListRequest = LibraryGroupTrackListRequest(
+                title,
+                tracks,
+                headerMetrics,
+                headerActions,
+                footerAlbums,
+                context
+            )
         }
 
         fun artistIntro(): String {

@@ -201,7 +201,15 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
     }
 
     private fun dataPath(source: StreamingPlaybackSource, metadata: StreamingTrack?): String {
-        return "$DATA_PATH_PREFIX${source.provider.wireName}:${source.providerTrackId}${metadataQuery(metadata)}"
+        val base = "$DATA_PATH_PREFIX${source.provider.wireName}:${source.providerTrackId}"
+        val metadataQuery = metadataQuery(metadata)
+        val mimeType = source.mimeType?.trim().orEmpty()
+        if (mimeType.isBlank()) {
+            return base + metadataQuery
+        }
+        val separator = if (metadataQuery.isBlank()) "?" else "&"
+        return base + metadataQuery + separator + "playbackMime=" +
+            URLEncoder.encode(mimeType, StandardCharsets.UTF_8.name())
     }
 
     private fun metadataQuery(metadata: StreamingTrack?): String {

@@ -27,29 +27,35 @@ fun LibraryTrackListDestination(
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     actionHandler: LibraryActionHandler = LibraryActionHandler { },
-    libraryControlsEnabled: Boolean = false
+    libraryControlsEnabled: Boolean = false,
+    compactCards: Boolean = true,
+    onNavigateUp: Runnable? = null
 ) {
     val uiState by state.collectAsState()
     val backAction = uiState.headerActions.firstOrNull { action -> action.isBack }
-    BackHandler(enabled = backAction != null) {
-        backAction?.onClick?.run()
+    val effectiveNavigateUp = backAction?.onClick ?: onNavigateUp
+    BackHandler(enabled = effectiveNavigateUp != null) {
+        effectiveNavigateUp?.run()
     }
     TrackListScreen(
-        uiState.title,
-        uiState.rows,
-        uiState.actions,
-        uiState.headerMetrics,
-        uiState.headerActions,
-        uiState.emptyText,
-        uiState.modeActions,
-        uiState.labels,
-        onSearch,
-        activeDownload,
-        playbackQuality,
-        audioMotion,
-        uiState.footerAlbums,
-        uiState.libraryUi,
-        actionHandler,
-        libraryControlsEnabled
+        title = uiState.title,
+        tracks = uiState.rows,
+        actions = uiState.actions,
+        headerMetrics = uiState.headerMetrics,
+        headerActions = uiState.headerActions,
+        emptyText = uiState.emptyText,
+        modeActions = uiState.modeActions,
+        labels = uiState.labels,
+        onSearch = onSearch,
+        activeDownload = activeDownload,
+        playbackQuality = playbackQuality,
+        audioMotion = audioMotion,
+        footerAlbums = uiState.footerAlbums,
+        libraryUi = uiState.libraryUi,
+        libraryActionHandler = actionHandler,
+        libraryControlsEnabled = libraryControlsEnabled,
+        compactCards = compactCards,
+        context = uiState.context,
+        onNavigateUp = effectiveNavigateUp
     )
 }

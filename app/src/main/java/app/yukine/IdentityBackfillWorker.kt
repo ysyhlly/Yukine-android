@@ -15,7 +15,6 @@ import app.yukine.data.IdentityBackfillCoordinator
 import app.yukine.data.IdentityBackfillProgress
 import app.yukine.data.IdentityBackfillStage
 import app.yukine.data.room.YukineDatabase
-import app.yukine.playback.IdentityEnhancementPlaybackGate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,10 +24,6 @@ class IdentityBackfillWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        if (IdentityEnhancementPlaybackGate.shouldDefer()) {
-            Log.i(TAG, "Deferring canonical identity backfill while the app is visible or playback is active")
-            return@withContext Result.retry()
-        }
         runCatching {
             val store = IdentityBackfillCheckpointStore(applicationContext)
             val result = IdentityBackfillCoordinator(
@@ -91,7 +86,6 @@ object IdentityBackfillScheduler {
         runCatching {
             val constraints = Constraints.Builder()
                 .setRequiresBatteryNotLow(true)
-                .apply { if (automatic) setRequiresDeviceIdle(true) }
                 .build()
             val requestBuilder = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
                 .setConstraints(constraints)

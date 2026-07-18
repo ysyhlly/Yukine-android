@@ -40,6 +40,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         IdentityResolutionJobEntity::class,
         ProviderResponseCacheEntity::class,
         LyricBindingEntity::class,
+        CustomLyricsEntity::class,
         IdentityOperationEntity::class
     ],
     version = YukineMigrations.TARGET_VERSION,
@@ -80,7 +81,12 @@ abstract class YukineDatabase : RoomDatabase() {
         }
 
         internal fun openForTest(context: Context, databaseName: String): YukineDatabase =
-            builder(context.applicationContext, databaseName).build()
+            builder(context.applicationContext, databaseName)
+                // Robolectric's legacy sqlite4java backend cannot create WAL sidecars from the
+                // background-thread rule used by repository tests. Production entry points retain
+                // WRITE_AHEAD_LOGGING; this override is isolated to local JVM fixtures.
+                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .build()
 
         private fun build(context: Context, databaseName: String): YukineDatabase =
             builder(context, databaseName).build()
@@ -90,9 +96,10 @@ abstract class YukineDatabase : RoomDatabase() {
             databaseName: String
         ): RoomDatabase.Builder<YukineDatabase> =
             Room.databaseBuilder(context, YukineDatabase::class.java, databaseName)
-                // BackupManager copies a single live database snapshot. Keep rollback journaling
-                // explicit until export is moved to a database-owned online-backup API.
-                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                // Identity reconciliation and playlist sync both read this database in parallel.
+                // WAL keeps those readers off the single rollback-journal connection while the
+                // backup archive preserves the database together with its WAL sidecar files.
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .addMigrations(*YukineMigrations.all)
                 .addCallback(
                     object : Callback() {

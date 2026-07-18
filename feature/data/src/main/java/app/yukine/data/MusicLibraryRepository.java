@@ -282,6 +282,7 @@ public final class MusicLibraryRepository {
                             row.getArtistId(),
                             row.getDisplayName(),
                             row.getCreditedName(),
+                            row.getAvatarUrl(),
                             role,
                             row.getPosition()
                     )
@@ -395,11 +396,13 @@ public final class MusicLibraryRepository {
                 enumValueOr(entity.getArtistType(), ArtistType.UNKNOWN, ArtistType.class),
                 entity.getCountryCode(),
                 entity.getMusicBrainzArtistId(),
+                entity.getAvatarUrl(),
                 enumValueOr(entity.getMatchStatus(), IdentityMatchStatus.UNRESOLVED, IdentityMatchStatus.class),
                 entity.getConfidence(),
                 entity.getMetadataSource(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getDescription()
         );
     }
 
@@ -571,6 +574,22 @@ public final class MusicLibraryRepository {
 
     public void saveGlassSurfaceOpacity(float opacity) {
         settingsRepository.saveGlassSurfaceOpacity(opacity);
+    }
+
+    public boolean loadCompactSettingsCards() {
+        return settingsRepository.loadCompactSettingsCards();
+    }
+
+    public void saveCompactSettingsCards(boolean enabled) {
+        settingsRepository.saveCompactSettingsCards(enabled);
+    }
+
+    public String loadHomeDashboardLayout() {
+        return settingsRepository.loadHomeDashboardLayout();
+    }
+
+    public void saveHomeDashboardLayout(String layout) {
+        settingsRepository.saveHomeDashboardLayout(layout);
     }
 
     public String loadShareStyle() {

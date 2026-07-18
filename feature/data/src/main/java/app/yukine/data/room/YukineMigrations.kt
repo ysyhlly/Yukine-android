@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 25
+    const val TARGET_VERSION: Int = 28
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -17,6 +17,9 @@ object YukineMigrations {
                 normalizeV23(db)
                 normalizeV24(db)
                 normalizeV25(db)
+                normalizeV26(db)
+                normalizeV27(db)
+                normalizeV28(db)
             }
         }
     }.toTypedArray()
@@ -197,6 +200,86 @@ object YukineMigrations {
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS `idx_audio_features_spec_state` ON " +
                 "`audio_features` (`audio_spec_state`,`last_attempt_at`)"
+        )
+    }
+
+    internal fun normalizeV26(db: SupportSQLiteDatabase) {
+        if (!columnExists(db, "canonical_artists", "avatar_url")) {
+            db.execSQL(
+                "ALTER TABLE `canonical_artists` ADD COLUMN " +
+                    "`avatar_url` TEXT NOT NULL DEFAULT ''"
+            )
+        }
+        // Existing artist jobs may have succeeded before avatar enrichment existed. Requeue each
+        // missing artist exactly once during this schema upgrade; normal track ingestion owns new
+        // jobs after that, so artists without a Wikimedia image are not retried every six hours.
+        db.execSQL(
+            "DELETE FROM `identity_resolution_jobs` WHERE `target_type`='ARTIST' " +
+                "AND `target_id` IN (SELECT `id` FROM `canonical_artists` WHERE `avatar_url`='')"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO `identity_resolution_jobs`(" +
+                "`job_id`,`target_type`,`target_id`,`priority`,`reason`,`attempt_count`," +
+                "`next_attempt_at`,`last_error`,`status`,`created_at`,`updated_at`) " +
+                "SELECT lower(hex(randomblob(16))),'ARTIST',`id`,60,'MISSING_ARTIST_AVATAR'," +
+                "0,0,'','PENDING',CAST(strftime('%s','now') AS INTEGER)*1000," +
+                "CAST(strftime('%s','now') AS INTEGER)*1000 " +
+                "FROM `canonical_artists` WHERE `avatar_url`=''"
+        )
+    }
+
+    internal fun normalizeV27(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `custom_lyrics` (" +
+                "`identity_key` TEXT NOT NULL," +
+                "`recording_id` INTEGER," +
+                "`provider` TEXT NOT NULL DEFAULT ''," +
+                "`provider_track_id` TEXT NOT NULL DEFAULT ''," +
+                "`source_name` TEXT NOT NULL DEFAULT ''," +
+                "`format` TEXT NOT NULL DEFAULT ''," +
+                "`document_json` TEXT NOT NULL," +
+                "`checksum` TEXT NOT NULL DEFAULT ''," +
+                "`updated_at` INTEGER NOT NULL," +
+                "PRIMARY KEY(`identity_key`)," +
+                "FOREIGN KEY(`recording_id`) REFERENCES `recordings`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_custom_lyrics_recording` ON " +
+                "`custom_lyrics` (`recording_id`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_custom_lyrics_provider_track` ON " +
+                "`custom_lyrics` (`provider`, `provider_track_id`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_custom_lyrics_updated` ON " +
+                "`custom_lyrics` (`updated_at`)"
+        )
+    }
+
+    internal fun normalizeV28(db: SupportSQLiteDatabase) {
+        if (!columnExists(db, "canonical_artists", "description")) {
+            db.execSQL(
+                "ALTER TABLE `canonical_artists` ADD COLUMN " +
+                    "`description` TEXT NOT NULL DEFAULT ''"
+            )
+        }
+        // Artist jobs completed before profile descriptions existed need one new lookup. The
+        // enhancement engine treats a missing remote description as a valid result, so this
+        // migration schedules one pass without creating a permanent retry loop.
+        db.execSQL(
+            "DELETE FROM `identity_resolution_jobs` WHERE `target_type`='ARTIST' " +
+                "AND `target_id` IN (SELECT `id` FROM `canonical_artists` WHERE `description`='')"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO `identity_resolution_jobs`(" +
+                "`job_id`,`target_type`,`target_id`,`priority`,`reason`,`attempt_count`," +
+                "`next_attempt_at`,`last_error`,`status`,`created_at`,`updated_at`) " +
+                "SELECT lower(hex(randomblob(16))),'ARTIST',`id`,70,'MISSING_ARTIST_DESCRIPTION'," +
+                "0,0,'','PENDING',CAST(strftime('%s','now') AS INTEGER)*1000," +
+                "CAST(strftime('%s','now') AS INTEGER)*1000 " +
+                "FROM `canonical_artists` WHERE `description`=''"
         )
     }
 

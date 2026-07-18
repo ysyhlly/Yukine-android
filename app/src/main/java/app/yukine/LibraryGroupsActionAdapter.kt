@@ -105,7 +105,8 @@ internal class LibraryGroupsActionAdapter @JvmOverloads constructor(
         tracks: ArrayList<Track>,
         headerMetrics: ArrayList<TrackListHeaderMetric>,
         headerActions: ArrayList<TrackListHeaderAction>,
-        footerAlbums: ArrayList<TrackListAlbumCardUiState>
+        footerAlbums: ArrayList<TrackListAlbumCardUiState>,
+        context: LibraryListContext
     ) {
         trackListPublisher.publishLibraryGroupTrackList(
             LibraryGroupTrackListRequest(
@@ -113,7 +114,8 @@ internal class LibraryGroupsActionAdapter @JvmOverloads constructor(
                 tracks,
                 headerMetrics,
                 headerActions,
-                footerAlbums
+                footerAlbums,
+                context
             )
         )
     }

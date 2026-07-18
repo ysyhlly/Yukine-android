@@ -32,30 +32,57 @@ class SettingsPageStateBuilderTest {
     @Test
     fun homeBuildsSettingsOverviewAndRoutesActions() {
         val navigated = mutableListOf<SettingsPage>()
-        var downloadsOpened = false
+        val searchSelections = mutableListOf<Pair<SettingsEntryId, SettingsPage>>()
 
         val content = SettingsPageStateBuilder.home(
             languageMode = AppLanguage.MODE_ENGLISH,
-            audioPermissionGranted = true,
-            notificationPermissionGranted = false,
-            playbackServiceConnected = true,
+            preferences = SettingsPreferencesSnapshot(
+                playbackSpeed = 1.25f,
+                appVolume = 0.7f
+            ),
+            runtime = RuntimeSettingsStatus(
+                appVersionName = "0.1.21",
+                audioPermissionGranted = true,
+                notificationPermissionGranted = true,
+                playbackServiceConnected = true,
+                librarySongCount = 42
+            ),
             onNavigate = { page -> navigated += page },
+            onOpenSearchEntry = { id, page -> searchSelections += id to page },
             onRequestNeededPermissions = {},
-            onOpenDownloads = { downloadsOpened = true }
+            onOpenOverlayPermission = {}
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "tab.settings"), content.uiState.title)
-        assertEquals(4, content.uiState.metrics.size)
+        assertTrue(content.uiState.metrics.isEmpty())
+        assertTrue(content.uiState.issues.isEmpty())
         assertEquals(7, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.start"), content.uiState.metrics[0].label)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.section.start"), content.actions[0].section)
+        assertEquals(SettingsCategoryId.PlaybackAudio, content.actions[0].categoryId)
+        assertEquals("1.25x · 70%", content.actions[0].value)
+        val downloadsAction = content.actions.first {
+            it.categoryId == SettingsCategoryId.DownloadsStorageBackup
+        }
+        assertEquals(
+            listOf(
+                "Listening experience",
+                "Listening experience",
+                "Listening experience",
+                "Library & connections",
+                "Library & connections",
+                "Library & connections",
+                "System & support"
+            ),
+            content.actions.map { it.section }
+        )
         assertEquals(SettingsActionStyle.Navigation, content.actions[0].style)
+        assertTrue(content.uiState.searchEntries.isNotEmpty())
 
         content.actions[0].onClick.run()
-        content.actions[5].onClick.run()
+        downloadsAction.onClick.run()
+        content.uiState.searchEntries.first { it.id == SettingsEntryId.Theme }.onClick.run()
 
-        assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
-        assertEquals(true, downloadsOpened)
+        assertEquals(listOf(SettingsPage.PlaybackGroup, SettingsPage.Downloads), navigated)
+        assertEquals(listOf(SettingsEntryId.Theme to SettingsPage.AppearanceGroup), searchSelections)
     }
 
     @Test
@@ -64,64 +91,89 @@ class SettingsPageStateBuilderTest {
 
         val content = SettingsPageStateBuilder.home(
             languageMode = AppLanguage.MODE_ENGLISH,
-            audioPermissionGranted = false,
-            notificationPermissionGranted = false,
-            playbackServiceConnected = false,
+            preferences = SettingsPreferencesSnapshot(),
+            runtime = RuntimeSettingsStatus(
+                audioPermissionGranted = false,
+                notificationPermissionGranted = false,
+                playbackServiceConnected = false
+            ),
             onNavigate = {},
+            onOpenSearchEntry = { _, _ -> },
             onRequestNeededPermissions = { permissionRequested = true },
-            onOpenDownloads = {}
+            onOpenOverlayPermission = {}
         )
 
-        assertEquals(8, content.actions.size)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.grant.music.access"), content.actions[0].label)
-        assertEquals(SettingsActionStyle.Navigation, content.actions[0].style)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.section.start"), content.actions[0].section)
+        assertEquals(7, content.actions.size)
+        assertEquals(3, content.uiState.issues.size)
+        assertEquals(SettingsIssueId.AudioPermission, content.uiState.issues[0].id)
+        assertEquals(SettingsIssueId.NotificationPermission, content.uiState.issues[1].id)
+        assertEquals(SettingsIssueId.PlaybackService, content.uiState.issues[2].id)
 
-        content.actions[0].onClick.run()
+        content.uiState.issues[0].onClick?.run()
 
         assertEquals(true, permissionRequested)
     }
 
     @Test
-    fun aboutGroupBuildsBackupActions() {
+    fun aboutGroupBuildsSystemHelpActions() {
         val navigated = mutableListOf<SettingsPage>()
-        var exported = false
-        var imported = false
+        var permissionsRequested = false
         var debugPromptsEnabled = false
 
         val content = SettingsPageStateBuilder.aboutGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
             appVersionName = "0.1.21",
-            audioPermissionGranted = true,
+            audioPermissionGranted = false,
             notificationPermissionGranted = true,
-            playbackServiceConnected = false,
             debugPromptsEnabled = false,
             onNavigate = { page -> navigated += page },
-            onExportBackup = { exported = true },
-            onImportBackup = { imported = true },
+            onRequestNeededPermissions = { permissionsRequested = true },
             onDebugPromptsEnabledChange = { debugPromptsEnabled = it }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.about"), content.uiState.title)
-        assertEquals(4, content.uiState.metrics.size)
-        assertEquals(5, content.actions.size)
+        assertEquals(3, content.uiState.metrics.size)
+        assertEquals(4, content.actions.size)
         assertTrue(content.actions[0].isBack)
-        assertEquals("1013122077", content.actions[1].value)
-        assertEquals(app.yukine.feature.settingsui.R.drawable.qq_group_qr, content.actions[1].imageDialog?.imageResId)
-        assertEquals(SettingsActionStyle.Toggle, content.actions[2].style)
-        assertEquals(false, content.actions[2].checked)
-        assertEquals(SettingsActionStyle.Destructive, content.actions[4].style)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "backup.import.description"), content.actions[4].description)
+        assertEquals(SettingsEntryId.AudioPermission, content.actions[1].entryId)
+        assertEquals("1013122077", content.actions[2].value)
+        assertEquals(app.yukine.feature.settingsui.R.drawable.qq_group_qr, content.actions[2].imageDialog?.imageResId)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[3].style)
+        assertEquals(false, content.actions[3].checked)
 
         content.actions[0].onClick.run()
+        content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
-        content.actions[4].onClick.run()
 
         assertEquals(listOf(SettingsPage.Home), navigated)
-        assertEquals(true, exported)
-        assertEquals(true, imported)
+        assertEquals(true, permissionsRequested)
         assertEquals(true, debugPromptsEnabled)
+    }
+
+    @Test
+    fun storageGroupBuildsDownloadsAndBackupActions() {
+        val navigated = mutableListOf<SettingsPage>()
+        val calls = mutableListOf<String>()
+
+        val content = SettingsPageStateBuilder.storageGroup(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            onNavigate = { page -> navigated += page },
+            onOpenDownloads = { calls += "downloads" },
+            onExportBackup = { calls += "export" },
+            onImportBackup = { calls += "import" }
+        )
+
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.storage"), content.uiState.title)
+        assertEquals(4, content.actions.size)
+        assertEquals(SettingsEntryId.DownloadManager, content.actions[1].entryId)
+        assertEquals(SettingsEntryId.BackupExport, content.actions[2].entryId)
+        assertEquals(SettingsActionStyle.Destructive, content.actions[3].style)
+
+        content.actions.forEach { it.onClick.run() }
+
+        assertEquals(listOf(SettingsPage.Home), navigated)
+        assertEquals(listOf("downloads", "export", "import"), calls)
     }
 
     @Test
@@ -131,6 +183,8 @@ class SettingsPageStateBuilderTest {
         var blurRadius = 0f
         var backgroundBlurEnabled = true
         var backgroundBlurRadius = 0f
+        var surfaceOpacity = 0f
+        var compactSettingsCards = false
         val backgrounds = PageBackgrounds(
             sharedUri = "",
             homeUri = "content://home",
@@ -153,27 +207,45 @@ class SettingsPageStateBuilderTest {
             onCustomBackgroundBlurRadiusChange = { backgroundBlurRadius = it },
             onGlassBlurEnabledChange = { blurEnabled = it },
             onGlassBlurRadiusChange = { blurRadius = it },
-            onGlassSurfaceOpacityChange = { },
-            onNavigate = { page -> navigated += page }
+            onGlassSurfaceOpacityChange = { surfaceOpacity = it },
+            onNavigate = { page -> navigated += page },
+            compactSettingsCards = false,
+            onCompactSettingsCardsChange = { compactSettingsCards = it }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.appearance"), content.uiState.title)
         assertEquals(5, content.uiState.metrics.size)
         assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "page.background.custom.count"), content.uiState.metrics[3].value)
-        assertEquals(10, content.actions.size)
+        assertEquals(14, content.actions.size)
+        fun action(id: SettingsEntryId) = content.actions.first { it.entryId == id }
+        val backgroundBlurIntensity = action(SettingsEntryId.BackgroundBlurIntensity)
+        val glassBlurIntensity = action(SettingsEntryId.GlassBlurIntensity)
+        val glassSurfaceOpacity = action(SettingsEntryId.GlassSurfaceOpacity)
 
-        content.actions[0].onClick.run()
-        content.actions[4].onClick.run()
-        content.actions[5].onClick.run()
-        content.actions[6].onSliderValueChange?.invoke(36f)
-        content.actions[7].onClick.run()
-        content.actions[8].onSliderValueChange?.invoke(28f)
+        content.actions.first { it.isBack }.onClick.run()
+        action(SettingsEntryId.PageBackground).onClick.run()
+        action(SettingsEntryId.CompactSettingsCards).onClick.run()
+        action(SettingsEntryId.BackgroundBlur).onClick.run()
+        backgroundBlurIntensity.onSliderValueChange?.invoke(36f)
+        action(SettingsEntryId.GlassBlur).onClick.run()
+        glassBlurIntensity.onSliderValueChange?.invoke(28f)
 
         assertEquals(listOf(SettingsPage.Home, SettingsPage.PageBackground), navigated)
+        assertEquals(true, compactSettingsCards)
         assertEquals(false, backgroundBlurEnabled)
         assertEquals(36f, backgroundBlurRadius)
         assertEquals(false, blurEnabled)
         assertEquals(28f, blurRadius)
+        assertEquals("Default: 24 dp", backgroundBlurIntensity.sliderDefaultLabel)
+        assertEquals("Restore default", backgroundBlurIntensity.sliderResetLabel)
+
+        backgroundBlurIntensity.onSliderReset?.run()
+        glassBlurIntensity.onSliderReset?.run()
+        glassSurfaceOpacity.onSliderReset?.run()
+
+        assertEquals(app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP, backgroundBlurRadius)
+        assertEquals(app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP, blurRadius)
+        assertEquals(app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY, surfaceOpacity)
     }
 
     @Test
@@ -342,7 +414,6 @@ class SettingsPageStateBuilderTest {
         val content = SettingsPageStateBuilder.sourcesGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
             quality = StreamingQualityPreference.LOSSLESS,
-            shareStyle = TrackShareStyle.CARD,
             gatewayConfigured = false,
             luoxueImportedSourceCount = 4,
             luoxueEnabledSourceCount = 3,
@@ -357,15 +428,15 @@ class SettingsPageStateBuilderTest {
         assertEquals("3 of 4 enabled", content.uiState.metrics[0].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[1].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[2].value)
-        assertEquals(9, content.actions.size)
+        assertEquals(8, content.actions.size)
 
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[4].onClick.run()
         content.actions[5].onClick.run()
         content.actions[6].onClick.run()
         content.actions[7].onClick.run()
-        content.actions[8].onClick.run()
 
         assertEquals(
             listOf(
@@ -376,7 +447,7 @@ class SettingsPageStateBuilderTest {
             openedNetworkPages
         )
         assertEquals(listOf("manage", "import"), lxActions)
-        assertEquals(listOf(SettingsPage.StreamingGateway, SettingsPage.ShareStyle), navigated)
+        assertEquals(listOf(SettingsPage.StreamingAudioQuality, SettingsPage.StreamingGateway), navigated)
     }
 
     @Test
@@ -393,35 +464,33 @@ class SettingsPageStateBuilderTest {
             appVolume = 0.7f,
             concurrentPlaybackEnabled = false,
             audioEffects = audioEffects,
-            nowPlayingGesturesEnabled = false,
             playbackRestoreEnabled = true,
             replayGainEnabled = false,
             remainingMs = 61000L,
             onNavigate = { page -> navigated += page },
             onReplayGainEnabledChange = { enabled -> toggled += "replay:$enabled" },
-            onNowPlayingGesturesEnabledChange = { enabled -> toggled += "gestures:$enabled" },
             onPlaybackRestoreEnabledChange = { enabled -> toggled += "restore:$enabled" },
             onAudioExclusiveEnabledChange = { enabled -> toggled += "exclusive:$enabled" }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.playback"), content.uiState.title)
-        assertEquals(8, content.uiState.metrics.size)
+        assertEquals(7, content.uiState.metrics.size)
         assertEquals("1.25x", content.uiState.metrics[0].value)
         assertEquals("70%", content.uiState.metrics[1].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.exclusive"), content.uiState.metrics[6].label)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[6].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.exclusive"), content.uiState.metrics[5].label)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[5].value)
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled") + " / " + AppLanguage.text(AppLanguage.MODE_ENGLISH, "eq.classical"),
             content.uiState.metrics[2].value
         )
-        assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[7].value)
-        assertEquals(9, content.actions.size)
+        assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[6].value)
+        assertEquals(8, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.effects.hint"), content.actions[3].description)
         assertEquals("1.25x", content.actions[1].value)
         assertEquals(SettingsActionStyle.Toggle, content.actions[4].style)
         assertEquals(false, content.actions[4].checked)
-        assertEquals(SettingsActionStyle.Toggle, content.actions[7].style)
-        assertEquals(true, content.actions[7].checked)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[6].style)
+        assertEquals(true, content.actions[6].checked)
 
         content.actions.forEach { action -> action.onClick.run() }
 
@@ -436,7 +505,7 @@ class SettingsPageStateBuilderTest {
             navigated
         )
         assertEquals(
-            listOf("replay:true", "gestures:true", "restore:false", "exclusive:false"),
+            listOf("replay:true", "restore:false", "exclusive:false"),
             toggled
         )
     }
@@ -514,7 +583,7 @@ class SettingsPageStateBuilderTest {
     }
 
     @Test
-    fun playbackBooleanLeafPagesBuildToggleActions() {
+    fun booleanLeafPagesBuildToggleActionsAndReturnToTheirNewCategories() {
         val navigated = mutableListOf<SettingsPage>()
         val toggles = mutableListOf<String>()
 
@@ -548,7 +617,7 @@ class SettingsPageStateBuilderTest {
         restore.actions[1].onClick.run()
         replayGain.actions[1].onClick.run()
 
-        assertEquals(listOf(SettingsPage.PlaybackGroup, SettingsPage.PlaybackGroup, SettingsPage.PlaybackGroup), navigated)
+        assertEquals(listOf(SettingsPage.AppearanceGroup, SettingsPage.PlaybackGroup, SettingsPage.PlaybackGroup), navigated)
         assertEquals(listOf("gestures:true", "restore:true", "replay:false"), toggles)
     }
 
@@ -818,7 +887,7 @@ class SettingsPageStateBuilderTest {
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
 
-        assertEquals(listOf(SettingsPage.Home), navigated)
+        assertEquals(listOf(SettingsPage.AppearanceGroup), navigated)
         assertEquals(
             listOf(
                 TrackShareStyle.PLATFORM_CARD,

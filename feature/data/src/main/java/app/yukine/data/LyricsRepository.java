@@ -71,14 +71,20 @@ public final class LyricsRepository {
                 }
             };
     private final BindingStore bindingStore;
+    private final GatewaySource gatewaySource;
     private final ThreadLocal<ResolvedBinding> resolvedBinding = new ThreadLocal<>();
 
     public LyricsRepository() {
-        this(null);
+        this(null, null);
     }
 
     public LyricsRepository(BindingStore bindingStore) {
+        this(bindingStore, null);
+    }
+
+    public LyricsRepository(BindingStore bindingStore, GatewaySource gatewaySource) {
         this.bindingStore = bindingStore;
+        this.gatewaySource = gatewaySource;
     }
 
     public List<LyricsLine> loadForTrack(Track track) {
@@ -127,6 +133,13 @@ public final class LyricsRepository {
         if (!onlineEnabled) {
             return Collections.emptyList();
         }
+        List<LyricsLine> gatewayLines = fetchGatewayLyrics(track);
+        if (!gatewayLines.isEmpty()) {
+            // Gateway results are deliberately transient. Do not call finish(), because that
+            // would create a provider binding which could not be recovered without the gateway.
+            resolvedBinding.remove();
+            return gatewayLines;
+        }
         List<LyricsLine> lrclibLines = fetchOnlineLyrics(track);
         if (!lrclibLines.isEmpty()) {
             return finish(track, lrclibLines);
@@ -144,6 +157,35 @@ public final class LyricsRepository {
             return finish(track, kugouLines);
         }
         return finish(track, fetchKuwoSearchLyrics(track));
+    }
+
+    private List<LyricsLine> fetchGatewayLyrics(Track track) {
+        if (gatewaySource == null) {
+            return Collections.emptyList();
+        }
+        try {
+            ProviderLyrics lyrics = gatewaySource.load(track);
+            if (lyrics == null) {
+                return Collections.emptyList();
+            }
+            return parseProviderLyrics(lyrics.primary, lyrics.translation);
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    public interface GatewaySource {
+        ProviderLyrics load(Track track);
+    }
+
+    public static final class ProviderLyrics {
+        public final String primary;
+        public final String translation;
+
+        public ProviderLyrics(String primary, String translation) {
+            this.primary = primary == null ? "" : primary;
+            this.translation = translation == null ? "" : translation;
+        }
     }
 
     private List<LyricsLine> fetchBoundLyrics(Track track) {
@@ -1690,7 +1732,11 @@ public final class LyricsRepository {
     private String cacheNeteaseSearchTrackId(String cacheKey, String providerTrackId) {
         String clean = providerTrackId == null ? "" : providerTrackId.trim();
         synchronized (NETEASE_SEARCH_CACHE) {
-            NETEASE_SEARCH_CACHE.put(cacheKey, clean);
+            if (clean.isEmpty()) {
+                NETEASE_SEARCH_CACHE.remove(cacheKey);
+            } else {
+                NETEASE_SEARCH_CACHE.put(cacheKey, clean);
+            }
         }
         return clean;
     }

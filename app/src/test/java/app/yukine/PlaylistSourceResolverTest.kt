@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
 import app.yukine.streaming.StreamingProviderName
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -52,6 +53,33 @@ class PlaylistSourceResolverTest {
         )
 
         assertEquals(StreamingProviderName.QQ_MUSIC, source)
+    }
+
+    @Test
+    fun playlistMirrorDirectionSurvivesStoreRecreation() {
+        StreamingPlaylistSyncStore(context).linkPlaylist(
+            localPlaylistId = 43L,
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerPlaylistId = "qq-list-43",
+            direction = StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE
+        )
+
+        val restored = StreamingPlaylistSyncStore(context).getLink(43L)
+
+        assertEquals(StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE, restored?.direction)
+    }
+
+    @Test
+    fun existingLinksDefaultToRemoteToLocalDirection() {
+        StreamingPlaylistSyncStore(context).linkPlaylist(
+            localPlaylistId = 44L,
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "netease-list-44"
+        )
+
+        val restored = StreamingPlaylistSyncStore(context).getLink(44L)
+
+        assertEquals(StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL, restored?.direction)
     }
 
     @Test

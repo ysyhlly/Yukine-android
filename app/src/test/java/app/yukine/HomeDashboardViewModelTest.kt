@@ -111,6 +111,51 @@ class HomeDashboardViewModelTest {
         assertEquals(listOf(7L), handler.shuffledTrackIds)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun playingDashboardPublishesNextQueueTrackAndNextAction() = runTest {
+        val viewModel = HomeDashboardViewModel(null)
+        val readModel = FakePlaybackReadModel()
+        val current = Track(10L, "Current", "Yukine", "Queue", 180_000L, Uri.EMPTY, "file:10")
+        val next = Track(11L, "Next", "Echo", "Queue", 190_000L, Uri.EMPTY, "file:11")
+        val handler = RecordingHomeIntentHandler()
+        readModel.queue.value = PlaybackQueueSnapshot(
+            currentIndex = 0,
+            tracks = listOf(current, next)
+        )
+        readModel.state.value = PlaybackStateSnapshot(
+            current,
+            0,
+            2,
+            30_000L,
+            180_000L,
+            true,
+            false,
+            "",
+            false,
+            0,
+            1.0f,
+            1.0f,
+            0L
+        )
+
+        viewModel.bindStateSources(
+            readModel,
+            MutableStateFlow(LibraryStoreState(allTracks = listOf(current, next))),
+            MutableStateFlow(StreamingSearchState()),
+            MutableStateFlow(AppLanguage.MODE_ENGLISH),
+            handler
+        )
+        advanceUntilIdle()
+
+        val content = viewModel.uiState.value.content
+        assertEquals("Current", content.continueTitle)
+        assertEquals("Next", content.nextTitle)
+        assertEquals("Echo - Queue", content.nextSubtitle)
+        viewModel.uiState.value.actions.onNext.run()
+        assertEquals(1, handler.nextCalls)
+    }
+
     private class FakePlaybackReadModel : PlaybackReadModel {
         override val state = MutableStateFlow(PlaybackStateSnapshot.empty())
         override val queue = MutableStateFlow(PlaybackQueueSnapshot())
@@ -119,6 +164,7 @@ class HomeDashboardViewModelTest {
 
     private class RecordingHomeIntentHandler : HomeDashboardIntentHandler {
         var shuffledTrackIds: List<Long> = emptyList()
+        var nextCalls: Int = 0
 
         override fun openLibraryMode(mode: String) = Unit
         override fun continuePlayback(track: Track?) = Unit
@@ -126,6 +172,9 @@ class HomeDashboardViewModelTest {
         override fun playTrack(track: Track) = Unit
         override fun refreshLibrary() = Unit
         override fun openQueue() = Unit
+        override fun nextTrack() {
+            nextCalls++
+        }
         override fun shuffleAll(tracks: List<Track>) {
             shuffledTrackIds = tracks.map { it.id }
         }

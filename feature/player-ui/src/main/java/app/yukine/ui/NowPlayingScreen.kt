@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.core.designsystem.R
 import app.yukine.TrackDownloadItem
+import kotlinx.coroutines.delay
+import android.os.SystemClock
 import kotlin.math.abs
 
 data class NowPlayingUiState(
@@ -77,8 +81,19 @@ data class NowPlayingUiState(
     val playbackQuality: String = "",
     val audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     val appVolume: Float = 1.0f,
+    val trackId: Long = -1L,
+    val playing: Boolean = false,
+    val positionMs: Long = 0L,
+    val primaryVisible: Boolean = true,
+    val translationVisible: Boolean = true,
+    val romanizationVisible: Boolean = false,
     val onShare: Runnable = Runnable {},
-    val onDownload: Runnable = Runnable {}
+    val onDownload: Runnable = Runnable {},
+    val onImportLyrics: Runnable = Runnable {},
+    val onClearLyrics: Runnable = Runnable {},
+    val onPrimaryVisibleChange: (Boolean) -> Unit = {},
+    val onTranslationVisibleChange: (Boolean) -> Unit = {},
+    val onRomanizationVisibleChange: (Boolean) -> Unit = {}
 )
 
 data class NowPlayingSourceOption(
@@ -111,7 +126,22 @@ fun NowPlayingScreen(
     gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty,
     onLyricSeek: (Long) -> Unit = {}
 ) {
-    val activeLyricIndex = state.lyrics.indexOfFirst { it.active }
+    var smoothPositionMs by remember(state.trackId) { mutableStateOf(state.positionMs) }
+    LaunchedEffect(state.trackId, state.positionMs, state.playing) {
+        smoothPositionMs = state.positionMs
+        if (state.playing) {
+            val anchorRealtime = SystemClock.elapsedRealtime()
+            while (true) {
+                delay(50L)
+                smoothPositionMs = state.positionMs +
+                    (SystemClock.elapsedRealtime() - anchorRealtime)
+            }
+        }
+    }
+    val timedLyrics = state.lyrics.map { line ->
+        line.copy(active = smoothPositionMs in line.timeMs until line.endTimeMs.coerceAtLeast(line.timeMs + 1L))
+    }
+    val activeLyricIndex = timedLyrics.indexOfFirst { it.active }
 
     AnimatedContent(
         targetState = immersive,
@@ -120,8 +150,9 @@ fun NowPlayingScreen(
     ) { isImmersive ->
         if (isImmersive) {
             ImmersiveLyricsView(
-                lyrics = state.lyrics,
+                lyrics = timedLyrics,
                 activeIndex = activeLyricIndex,
+                positionMs = smoothPositionMs,
                 title = state.title,
                 subtitle = state.subtitle,
                 albumArtUri = state.albumArtUri,
@@ -130,8 +161,9 @@ fun NowPlayingScreen(
             )
         } else {
             NowPlayingNormalView(
-                state = state,
+                state = state.copy(lyrics = timedLyrics),
                 activeLyricIndex = activeLyricIndex,
+                positionMs = smoothPositionMs,
                 onArtworkClick = {
                     if (state.lyrics.isNotEmpty()) {
                         onImmersiveChanged(true)
@@ -148,6 +180,7 @@ fun NowPlayingScreen(
 private fun ImmersiveLyricsView(
     lyrics: List<LyricUiLine>,
     activeIndex: Int,
+    positionMs: Long,
     title: String,
     subtitle: String,
     albumArtUri: Uri?,
@@ -225,7 +258,7 @@ private fun ImmersiveLyricsView(
                     items = lyrics,
                     key = { index, line -> "imm-$index:${line.text.hashCode()}" }
                 ) { _, line ->
-                    ImmersiveLyricRow(line, onSeek = onLyricSeek)
+                    ImmersiveLyricRow(line, positionMs, onSeek = onLyricSeek)
                 }
             }
         }
@@ -234,7 +267,7 @@ private fun ImmersiveLyricsView(
 }
 
 @Composable
-private fun ImmersiveLyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
+private fun ImmersiveLyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long) -> Unit) {
     val p = EchoTheme.colors()
     val copyText = rememberCopyTextAction()
     Box(
@@ -252,17 +285,15 @@ private fun ImmersiveLyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
                     onLongClick = { copyText(line.text) }
                 )
         ) {
-            Text(
-                text = line.text,
-                style = if (line.active) {
+            LayeredLyricText(
+                line = line,
+                positionMs = positionMs,
+                primaryStyle = if (line.active) {
                     EchoTypography.headline.copy(fontSize = 24.sp, lineHeight = 32.sp)
                 } else {
                     EchoTypography.body.copy(fontSize = 16.sp, lineHeight = 24.sp)
                 },
-                color = if (line.active) p.accent else p.muted.copy(alpha = 0.5f),
-                textAlign = TextAlign.Center,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
+                primaryColor = if (line.active) p.accent else p.muted.copy(alpha = 0.5f)
             )
         }
     }
@@ -272,6 +303,7 @@ private fun ImmersiveLyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
 private fun NowPlayingNormalView(
     state: NowPlayingUiState,
     activeLyricIndex: Int,
+    positionMs: Long,
     onArtworkClick: () -> Unit,
     gestureActions: NowPlayingGestureActions,
     onLyricSeek: (Long) -> Unit
@@ -412,6 +444,15 @@ private fun NowPlayingNormalView(
                 status = state.lyricsStatus,
                 lines = state.lyrics,
                 activeIndex = activeLyricIndex,
+                positionMs = positionMs,
+                primaryVisible = state.primaryVisible,
+                translationVisible = state.translationVisible,
+                romanizationVisible = state.romanizationVisible,
+                onImportLyrics = state.onImportLyrics,
+                onClearLyrics = state.onClearLyrics,
+                onPrimaryVisibleChange = state.onPrimaryVisibleChange,
+                onTranslationVisibleChange = state.onTranslationVisibleChange,
+                onRomanizationVisibleChange = state.onRomanizationVisibleChange,
                 onLyricSeek = onLyricSeek
             )
         }
@@ -741,6 +782,15 @@ private fun LyricsPanel(
     status: String,
     lines: List<LyricUiLine>,
     activeIndex: Int,
+    positionMs: Long,
+    primaryVisible: Boolean,
+    translationVisible: Boolean,
+    romanizationVisible: Boolean,
+    onImportLyrics: Runnable,
+    onClearLyrics: Runnable,
+    onPrimaryVisibleChange: (Boolean) -> Unit,
+    onTranslationVisibleChange: (Boolean) -> Unit,
+    onRomanizationVisibleChange: (Boolean) -> Unit,
     onLyricSeek: (Long) -> Unit
 ) {
     val p = EchoTheme.colors()
@@ -756,12 +806,45 @@ private fun LyricsPanel(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
     ) {
         Column(Modifier.fillMaxWidth()) {
-            Text(
-                title,
-                style = EchoTypography.title,
-                color = p.heading,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    title,
+                    style = EchoTypography.title,
+                    color = p.heading,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .weight(1f)
+                )
+                LyricsAction("导入/替换", EchoIconKind.Import) { onImportLyrics.run() }
+                if (lines.isNotEmpty()) {
+                    LyricsAction("清除", EchoIconKind.Remove) { onClearLyrics.run() }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                LyricsTrackToggle(
+                    "原文",
+                    primaryVisible,
+                    Modifier.weight(1f)
+                ) { onPrimaryVisibleChange(!primaryVisible) }
+                LyricsTrackToggle(
+                    "翻译",
+                    translationVisible,
+                    Modifier.weight(1f)
+                ) { onTranslationVisibleChange(!translationVisible) }
+                LyricsTrackToggle(
+                    "罗马音",
+                    romanizationVisible,
+                    Modifier.weight(1f)
+                ) { onRomanizationVisibleChange(!romanizationVisible) }
+            }
             Spacer(Modifier.height(6.dp))
             if (lines.isEmpty()) {
                 Box(
@@ -790,7 +873,7 @@ private fun LyricsPanel(
                         items = lines,
                         key = { index, line -> "$index:${line.text.hashCode()}" }
                     ) { _, line ->
-                        LyricRow(line, onSeek = onLyricSeek)
+                        LyricRow(line, positionMs, onSeek = onLyricSeek)
                     }
                 }
             }
@@ -799,7 +882,7 @@ private fun LyricsPanel(
 }
 
 @Composable
-private fun LyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
+private fun LyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long) -> Unit) {
     val p = EchoTheme.colors()
     val copyText = rememberCopyTextAction()
     Surface(
@@ -812,20 +895,139 @@ private fun LyricRow(line: LyricUiLine, onSeek: (Long) -> Unit) {
                 onLongClick = { copyText(line.text) }
             )
     ) {
-        Text(
-            text = line.text,
-            style = if (line.active) {
-                EchoTypography.body.copy(fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp)
-            } else {
-                EchoTypography.body
-            },
-            color = if (line.active) p.accent else p.muted,
-            textAlign = TextAlign.Center,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = if (line.active) 10.dp else 8.dp),
-            maxLines = 3,
+                .padding(horizontal = 16.dp, vertical = if (line.active) 10.dp else 8.dp)
+        ) {
+            LayeredLyricText(
+                line = line,
+                positionMs = positionMs,
+                primaryStyle = if (line.active) {
+                    EchoTypography.body.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp
+                    )
+                } else {
+                    EchoTypography.body
+                },
+                primaryColor = if (line.active) p.accent else p.muted
+            )
+        }
+    }
+}
+
+@Composable
+private fun LayeredLyricText(
+    line: LyricUiLine,
+    positionMs: Long,
+    primaryStyle: TextStyle,
+    primaryColor: Color
+) {
+    val p = EchoTheme.colors()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = highlightedWords(line, positionMs, primaryColor, p.muted),
+            style = primaryStyle,
+            color = primaryColor,
+            textAlign = TextAlign.Center,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis
+        )
+        if (line.translation.isNotBlank()) {
+            Text(
+                line.translation,
+                style = EchoTypography.caption,
+                color = if (line.active) p.text else p.muted.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (line.romanization.isNotBlank()) {
+            Text(
+                line.romanization,
+                style = EchoTypography.small,
+                color = p.muted.copy(alpha = if (line.active) 0.7f else 0.45f),
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun highlightedWords(
+    line: LyricUiLine,
+    positionMs: Long,
+    activeColor: Color,
+    inactiveColor: Color
+): AnnotatedString {
+    if (!line.active || line.words.isEmpty()) return AnnotatedString(line.text)
+    val currentWord = line.words.indexOfLast { positionMs >= it.startMs }
+    if (currentWord < 0) return AnnotatedString(line.text)
+    val builder = AnnotatedString.Builder(line.text)
+    var searchFrom = 0
+    line.words.forEachIndexed { index, word ->
+        val start = line.text.indexOf(word.text, searchFrom).takeIf { it >= 0 } ?: return@forEachIndexed
+        val end = (start + word.text.length).coerceAtMost(line.text.length)
+        builder.addStyle(
+            SpanStyle(
+                color = if (index <= currentWord) activeColor else inactiveColor,
+                fontWeight = if (index == currentWord) FontWeight.Bold else null
+            ),
+            start,
+            end
+        )
+        searchFrom = end
+    }
+    return builder.toAnnotatedString()
+}
+
+@Composable
+private fun LyricsAction(label: String, icon: EchoIconKind, onClick: () -> Unit) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        shape = EchoShapes.small,
+        color = p.accentSoft.copy(alpha = 0.5f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(icon, Modifier.size(14.dp), p.accent)
+            Text(label, style = EchoTypography.small, color = p.accent)
+        }
+    }
+}
+
+@Composable
+private fun LyricsTrackToggle(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = EchoShapes.small,
+        color = if (enabled) p.accentSoft.copy(alpha = 0.55f) else p.surfaceVariant.copy(alpha = 0.3f)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            style = EchoTypography.small,
+            color = if (enabled) p.accent else p.muted,
+            textAlign = TextAlign.Center
         )
     }
 }

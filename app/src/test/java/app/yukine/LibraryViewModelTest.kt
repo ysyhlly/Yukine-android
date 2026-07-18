@@ -359,7 +359,7 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun albumAndArtistGroupsUseRepresentativeArtwork() {
+    fun onlyAlbumGroupsUseRepresentativeTrackArtwork() {
         val artwork = Uri.parse("content://artwork/album")
         val tracks = listOf(
             track(1L),
@@ -367,7 +367,7 @@ class LibraryViewModelTest {
         )
 
         assertEquals(artwork, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.ALBUMS))
-        assertEquals(artwork, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.ARTISTS))
+        assertEquals(null, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.ARTISTS))
         assertEquals(null, LibraryGrouping.groupArtworkUri(tracks, LibraryGrouping.FOLDERS))
     }
 

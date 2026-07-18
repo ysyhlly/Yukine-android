@@ -52,4 +52,21 @@ class StreamingDataPathMetadataTest {
         assertEquals("high", StreamingDataPathMetadata.quality("streaming:qq:track-2?quality= high |extra"))
         assertEquals("standard", StreamingDataPathMetadata.quality("streaming:mock:track-3?quality=standard#fragment"))
     }
+
+    @Test
+    fun playbackMimeTypeReadsValidatedEncodedQueryValue() {
+        assertEquals(
+            "audio/mp4",
+            StreamingDataPathMetadata.playbackMimeType(
+                "streaming:bilibili:video:BV1:cid:2?playbackMime=audio%2Fmp4"
+            )
+        )
+        assertEquals(
+            "",
+            StreamingDataPathMetadata.playbackMimeType(
+                "streaming:bilibili:video:BV1:cid:2?playbackMime=not-a-mime"
+            )
+        )
+        assertEquals("", StreamingDataPathMetadata.playbackMimeType("file:///music/local.m4s"))
+    }
 }

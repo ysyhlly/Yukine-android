@@ -2,6 +2,7 @@ package app.yukine.navigation
 
 import app.yukine.NetworkPage
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -14,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import app.yukine.TrackDownloadStatus
 import app.yukine.TrackDownloadItem
@@ -24,9 +26,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.Modifier
 import app.yukine.LibraryGroupsDestinationState
+import app.yukine.LibraryStoreState
+import app.yukine.DownloadsUiState
 import app.yukine.StreamingSearchState
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.LibraryActionHandler
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryFilter
+import app.yukine.ui.LibraryOverviewScreen
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.downloads.DownloadsDestination
 import app.yukine.home.HomeDestination
@@ -134,6 +141,7 @@ fun EchoNavGraph(
         }
     }
     val openSearchAction = remember(hostState) { Runnable { onTabChanged(SearchTab) } }
+    val openDownloadsAction = remember(hostState) { Runnable { onTabChanged(DownloadsTab) } }
     var nowPlayingImmersive by remember { mutableStateOf(false) }
     val playerPageSelected = selectedTab == QueueTab || selectedTab == NowTab
     LaunchedEffect(playerPageSelected) {
@@ -269,7 +277,13 @@ fun EchoNavGraph(
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                 }
             }
         } else {
@@ -280,15 +294,27 @@ fun EchoNavGraph(
             ) { page ->
                 val tab = pagerTabs[page]
                 when (tab) {
-                    HomeTab -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    HomeTab -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                     LibraryTab -> LibraryDestination(
                         groupsState = hostState.library.libraryGroupsState,
                         trackListState = hostState.library.libraryTrackListState,
+                        libraryState = hostState.library.libraryStoreState,
+                        downloadsState = hostState.library.downloadsState,
                         openSearchAction = openSearchAction,
+                        openDownloadsAction = openDownloadsAction,
+                        openPlayHistoryAction = hostState.library.openPlayHistoryAction,
+                        openNetworkSourcesAction = hostState.library.openNetworkSourcesAction,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion,
                         actionHandler = hostState.library.libraryActionHandler,
+                        compactCards = settingsChromeState.compactSettingsCards,
                         recordingMatchStateProvider = hostState.library.recordingMatchStateProvider
                     )
                     QueueTab -> NowPlayingDestination(
@@ -322,7 +348,13 @@ fun EchoNavGraph(
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                 }
             }
         }
@@ -347,16 +379,64 @@ fun EchoNavGraph(
 private fun LibraryDestination(
     groupsState: StateFlow<LibraryGroupsDestinationState>,
     trackListState: StateFlow<LibraryTrackListDestinationState>,
+    libraryState: StateFlow<LibraryStoreState>,
+    downloadsState: StateFlow<DownloadsUiState>,
     openSearchAction: Runnable,
+    openDownloadsAction: Runnable,
+    openPlayHistoryAction: Runnable,
+    openNetworkSourcesAction: Runnable,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion,
     actionHandler: LibraryActionHandler,
+    compactCards: Boolean,
     recordingMatchStateProvider: app.yukine.RecordingMatchDestinationStateProvider?
 ) {
+    var showOverview by rememberSaveable { mutableStateOf(true) }
     val recordingMatchState = recordingMatchStateProvider?.uiState?.collectAsState()
     if (recordingMatchState?.value?.visible == true) {
         RecordingMatchDestination(recordingMatchState.value, recordingMatchStateProvider)
+        return
+    }
+    if (showOverview) {
+        val library by libraryState.collectAsState()
+        val downloads by downloadsState.collectAsState()
+        val groups by groupsState.collectAsState()
+        val trackList by trackListState.collectAsState()
+        val modeActions = trackList.modeActions.ifEmpty { groups.modeActions }
+        val openMode: (String) -> Unit = { mode ->
+            modeActions.firstOrNull { it.mode == mode }?.let { action ->
+                actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
+                action.onClick.run()
+                showOverview = false
+            }
+        }
+        LibraryOverviewScreen(
+            library = library,
+            downloads = downloads,
+            modeActions = modeActions,
+            onOpenMode = openMode,
+            onOpenFavorites = {
+                modeActions.firstOrNull { it.mode == app.yukine.LibraryGrouping.SONGS }?.let { action ->
+                    action.onClick.run()
+                    actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.Favorites))
+                    showOverview = false
+                }
+            },
+            onOpenRecent = {
+                actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
+                openPlayHistoryAction.run()
+                showOverview = false
+            },
+            onOpenDownloads = { openDownloadsAction.run() },
+            onOpenSources = { openNetworkSourcesAction.run() },
+            onManageLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
+            onSearch = openSearchAction,
+            activeDownload = activeDownload,
+            playbackQuality = playbackQuality,
+            audioMotion = audioMotion,
+            compactCards = compactCards
+        )
         return
     }
     // The child destinations own full list collection. The parent only needs to know which
@@ -376,7 +456,9 @@ private fun LibraryDestination(
             playbackQuality = playbackQuality,
             audioMotion = audioMotion,
             actionHandler = actionHandler,
-            libraryControlsEnabled = true
+            libraryControlsEnabled = true,
+            compactCards = compactCards,
+            onNavigateUp = Runnable { showOverview = true }
         )
         return
     }
@@ -387,7 +469,9 @@ private fun LibraryDestination(
         playbackQuality = playbackQuality,
         audioMotion = audioMotion,
         actionHandler = actionHandler,
-        libraryControlsEnabled = true
+        libraryControlsEnabled = true,
+        compactCards = compactCards,
+        onNavigateUp = Runnable { showOverview = true }
     )
 }
 

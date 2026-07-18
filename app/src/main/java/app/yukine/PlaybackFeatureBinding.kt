@@ -206,7 +206,9 @@ internal class PlaybackFeatureBinding(
         openQueue: Runnable,
         addToPlaylist: Consumer<Track>,
         shareTrack: Consumer<Track>,
-        downloadTrack: Consumer<Track>
+        downloadTrack: Consumer<Track>,
+        importLyrics: Consumer<Track>,
+        clearLyrics: Consumer<Track>
     ) {
         nowPlayingEffectOwner = NowPlayingEffectOwner(
             nowPlayingViewModel,
@@ -214,11 +216,27 @@ internal class PlaybackFeatureBinding(
             addToPlaylist,
             shareTrack,
             downloadTrack,
+            importLyrics,
+            clearLyrics,
             sourceSwitchOwner::handle,
             sourceSwitchOwner::handle,
             statusMessages::setStatus
         )
     }
+
+    fun bindEffects(
+        openQueue: Runnable,
+        addToPlaylist: Consumer<Track>,
+        shareTrack: Consumer<Track>,
+        downloadTrack: Consumer<Track>
+    ) = bindEffects(
+        openQueue,
+        addToPlaylist,
+        shareTrack,
+        downloadTrack,
+        Consumer {},
+        Consumer {}
+    )
 
     fun bindService() = connection.bind()
     fun setAppVisible(visible: Boolean) = connection.setAppVisible(visible)
@@ -247,6 +265,7 @@ internal class PlaybackFeatureBinding(
         nowPlayingViewModel.bindPlaybackGateway(null)
         nowPlayingViewModel.bindSourceCandidatesProvider(null)
         nowPlayingViewModel.bindLuoxueTrackMetadataResolver(null)
+        nowPlayingViewModel.bindLyricsVisibilitySetter(null)
         queueViewModel.bindStateSources(null, null, null)
         boundHomeDashboardViewModel?.bindStateSources(null, null, null, null, null)
         boundHomeDashboardViewModel = null

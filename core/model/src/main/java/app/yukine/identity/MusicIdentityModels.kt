@@ -73,11 +73,13 @@ data class CanonicalArtist(
     val artistType: ArtistType = ArtistType.UNKNOWN,
     val countryCode: String = "",
     val musicBrainzArtistId: String = "",
+    val avatarUrl: String = "",
     val matchStatus: IdentityMatchStatus = IdentityMatchStatus.UNRESOLVED,
     val confidence: Double = 0.0,
     val metadataSource: String = "",
     val createdAt: Long = 0L,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    val description: String = ""
 )
 
 data class ArtistAlias(
@@ -123,6 +125,7 @@ data class TrackArtistIdentity(
     val artistId: String,
     val displayName: String,
     val creditedName: String,
+    val avatarUrl: String = "",
     val role: ArtistCreditRole,
     val position: Int
 )
@@ -229,6 +232,7 @@ data class AnonymousRecordingCandidate(
     val recordingMbid: String = "",
     val workMbid: String = "",
     val acoustId: String = "",
+    val coverUrl: String = "",
     /** True only when the gateway returned this candidate for the uploaded Chromaprint. */
     val fingerprintVerified: Boolean = false,
     val variantType: RecordingVariantType = RecordingVariantType.UNKNOWN,
@@ -252,7 +256,9 @@ data class AnonymousArtistCandidate(
     val countryCode: String = "",
     val artistType: ArtistType = ArtistType.UNKNOWN,
     val artistMbid: String = "",
-    val providerScore: Double = 0.0
+    val avatarUrl: String = "",
+    val providerScore: Double = 0.0,
+    val description: String = ""
 )
 
 data class AnonymousArtistProviderResult(

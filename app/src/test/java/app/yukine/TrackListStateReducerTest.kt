@@ -190,6 +190,30 @@ class TrackListStateReducerTest {
         assertEquals(listOf(32L), viewModel.trackList.value.rows.map { it.id })
     }
 
+    @Test
+    fun detailContextIsPublishedWithTrackListState() {
+        val viewModel = LibraryViewModel()
+        val controller = TrackListStateReducer(viewModel, FakeListener())
+
+        controller.reduce(
+            "Album",
+            listOf(track(41L)),
+            true,
+            emptyList(),
+            false,
+            emptyList(),
+            emptyList(),
+            "",
+            emptyList(),
+            TrackListLabels(),
+            null,
+            emptySet(),
+            context = LibraryListContext.Album
+        )
+
+        assertEquals(LibraryListContext.Album, viewModel.trackList.value.context)
+    }
+
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }

@@ -14,6 +14,7 @@ import app.yukine.model.Track;
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.playback.PlaybackStateSnapshot;
 import app.yukine.streaming.LuoxueTrackMetadataResolver;
+import app.yukine.streaming.StreamingPlaylistSyncStore;
 import app.yukine.streaming.StreamingProviderName;
 import app.yukine.streaming.cache.StreamingCacheRepository;
 
@@ -37,6 +38,7 @@ final class StreamingFeatureBinding {
     private final ResolveStreamingPlaybackUseCase resolvePlaybackUseCase;
     private final StreamingTrackMatchUseCase trackMatchUseCase;
     private final StreamingLocalPlaylistOperations localPlaylistOperations;
+    private final StreamingPlaylistSyncStore playlistSyncStore;
     private final LuoxueTrackMetadataResolver luoxueTrackMetadataResolver;
     private final StreamingViewModel viewModel;
     private final StreamingRecommendationViewModel recommendationViewModel;
@@ -78,6 +80,7 @@ final class StreamingFeatureBinding {
             ResolveStreamingPlaybackUseCase resolvePlaybackUseCase,
             StreamingTrackMatchUseCase trackMatchUseCase,
             StreamingLocalPlaylistOperations localPlaylistOperations,
+            StreamingPlaylistSyncStore playlistSyncStore,
             LuoxueTrackMetadataResolver luoxueTrackMetadataResolver,
             MusicLibraryRepository musicLibraryRepository
     ) {
@@ -91,6 +94,7 @@ final class StreamingFeatureBinding {
         this.resolvePlaybackUseCase = resolvePlaybackUseCase;
         this.trackMatchUseCase = trackMatchUseCase;
         this.localPlaylistOperations = localPlaylistOperations;
+        this.playlistSyncStore = playlistSyncStore;
         this.luoxueTrackMetadataResolver = luoxueTrackMetadataResolver;
         this.musicLibraryRepository = musicLibraryRepository;
         this.viewModel = viewModels.getStreamingViewModel();
@@ -265,7 +269,20 @@ final class StreamingFeatureBinding {
                                 playlistController.runStreamingPlaylistImport(provider, playlistName, tracks),
                         (provider, playlists) ->
                                 playlistController.importSelectedAccountPlaylists(provider, playlists),
-                        provider -> playlistController.importStreamingLikedTracks(provider)
+                        (provider, playlist) ->
+                                playlistController.importStreamingPlaylistFromProviderRef(
+                                        provider,
+                                        playlist.getProviderPlaylistId()
+                                ),
+                        provider -> playlistController.importStreamingLikedTracks(provider),
+                        (provider, providerPlaylistId, playlistName, tracks, linkToProviderPlaylist) ->
+                                playlistController.importSelectedStreamingPlaylistTracks(
+                                        provider,
+                                        providerPlaylistId,
+                                        playlistName,
+                                        tracks,
+                                        linkToProviderPlaylist
+                                )
                 )
         );
         playlistController = new StreamingPlaylistController(
@@ -283,6 +300,7 @@ final class StreamingFeatureBinding {
                         playlistDialogController::showStreamingProviderPicker,
                         () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming),
                         playlistDialogController::showStreamingPlaylistLoadedDialog,
+                        playlistDialogController::showStreamingPlaylistImportPreview,
                         playlistDialogController::showAccountPlaylistImportPicker,
                         statusMessages::setStatus
                 )
@@ -453,9 +471,19 @@ final class StreamingFeatureBinding {
 
     void onResume() {
         viewModel.authOwner().maintainSessions();
+        playlistSyncStore.startPeriodicSync(links -> {
+            if (playlistController != null) {
+                playlistController.syncStreamingPlaylists(links);
+            }
+        });
+    }
+
+    void onPause() {
+        playlistSyncStore.stopPeriodicSync();
     }
 
     void release() {
+        playlistSyncStore.stopPeriodicSync();
         viewModel.playbackResolutionOwner().bindPlaybackCoordinator(null, null);
         viewModel.playlistOwner().bindLocalPlaylistOperations(null);
         viewModel.playbackResolutionOwner().bindTrackMatchStore(null);

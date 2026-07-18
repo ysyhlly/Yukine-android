@@ -2,7 +2,9 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.yukine.model.LyricsDocument
 import app.yukine.model.LyricsLine
+import app.yukine.model.LyricsTrackRole
 import app.yukine.model.Track
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +20,7 @@ enum class LyricsStatusKind {
     NO_TRACK,
     LOADING,
     LOADING_LOCAL,
+    LOADING_SLOW,
     NOT_FOUND,
     LOCAL_NOT_FOUND,
     LOADED
@@ -29,11 +32,46 @@ data class LyricsState @JvmOverloads constructor(
     val onlineEnabled: Boolean = false,
     val offsetMs: Long = 0L,
     val statusKind: LyricsStatusKind = LyricsStatusKind.NOT_LOADED,
-    val loadedLineCount: Int = 0
+    val loadedLineCount: Int = 0,
+    val document: LyricsDocument = LyricsDocument.empty(),
+    val trackVisibility: LyricsTrackVisibility = LyricsTrackVisibility()
 )
+
+data class LyricsTrackVisibility @JvmOverloads constructor(
+    val primary: Boolean = true,
+    val translation: Boolean = true,
+    val romanization: Boolean = false
+) {
+    fun enabled(role: LyricsTrackRole): Boolean = when (role) {
+        LyricsTrackRole.PRIMARY -> primary
+        LyricsTrackRole.TRANSLATION -> translation
+        LyricsTrackRole.ROMANIZATION -> romanization
+    }
+
+    fun with(role: LyricsTrackRole, enabled: Boolean): LyricsTrackVisibility = when (role) {
+        LyricsTrackRole.PRIMARY -> copy(primary = enabled)
+        LyricsTrackRole.TRANSLATION -> copy(translation = enabled)
+        LyricsTrackRole.ROMANIZATION -> copy(romanization = enabled)
+    }
+
+    fun anyEnabled(): Boolean = primary || translation || romanization
+}
+
+interface LyricsTrackVisibilityGateway {
+    suspend fun load(): LyricsTrackVisibility
+    suspend fun save(visibility: LyricsTrackVisibility)
+}
 
 fun interface LyricsLoader {
     suspend fun load(track: Track, onlineEnabled: Boolean, neteaseProviderTrackId: String): List<LyricsLine>
+}
+
+interface RichLyricsLoader {
+    suspend fun loadDocument(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): LyricsDocument
 }
 
 fun interface CurrentLyricsTrackProvider {
@@ -56,6 +94,7 @@ object LyricsStatusText {
             LyricsStatusKind.NO_TRACK -> AppLanguage.text(mode, "no.track.selected")
             LyricsStatusKind.LOADING -> AppLanguage.text(mode, "loading.lyrics")
             LyricsStatusKind.LOADING_LOCAL -> AppLanguage.text(mode, "loading.local.lyrics")
+            LyricsStatusKind.LOADING_SLOW -> AppLanguage.text(mode, "loading.lyrics.slow")
             LyricsStatusKind.NOT_FOUND -> AppLanguage.text(mode, "no.lyrics.found")
             LyricsStatusKind.LOCAL_NOT_FOUND -> AppLanguage.text(mode, "no.local.lyrics.found")
             LyricsStatusKind.LOADED -> AppLanguage.text(mode, "loaded.lyrics.prefix") +
@@ -70,7 +109,7 @@ class LyricsViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     companion object {
-        private const val LOAD_TIMEOUT_MS = 8000L
+        private const val SLOW_LOAD_NOTICE_MS = 8000L
     }
 
     private val _state = MutableStateFlow(LyricsState())
@@ -80,6 +119,7 @@ class LyricsViewModel @JvmOverloads constructor(
     private var currentTrackProvider: CurrentLyricsTrackProvider? = null
     private var providerTrackIdResolver: LyricsProviderTrackIdResolver? = null
     private var reloadStatusSink: LyricsReloadStatusSink? = null
+    private var trackVisibilityGateway: LyricsTrackVisibilityGateway? = null
     private var requestToken = 0L
 
     fun configure(
@@ -104,6 +144,24 @@ class LyricsViewModel @JvmOverloads constructor(
         this.currentTrackProvider = currentTrackProvider
         this.providerTrackIdResolver = providerTrackIdResolver
         this.reloadStatusSink = reloadStatusSink
+    }
+
+    fun bindTrackVisibilityGateway(gateway: LyricsTrackVisibilityGateway?) {
+        trackVisibilityGateway = gateway
+        gateway ?: return
+        viewModelScope.launch {
+            val loaded = withContext(ioDispatcher) { gateway.load() }
+            updateState(_state.value.copy(trackVisibility = loaded))
+        }
+    }
+
+    fun setTrackVisible(role: LyricsTrackRole, visible: Boolean) {
+        val next = _state.value.trackVisibility.with(role, visible)
+        if (!next.anyEnabled()) return
+        updateState(_state.value.copy(trackVisibility = next))
+        trackVisibilityGateway?.let { gateway ->
+            viewModelScope.launch(ioDispatcher) { gateway.save(next) }
+        }
     }
 
     fun stateSnapshot(): LyricsState = _state.value
@@ -135,7 +193,8 @@ class LyricsViewModel @JvmOverloads constructor(
             _state.value.copy(
                 trackId = -1L,
                 lines = emptyList(),
-                loadedLineCount = 0
+                loadedLineCount = 0,
+                document = LyricsDocument.empty()
             )
         )
         return load(track)
@@ -191,7 +250,8 @@ class LyricsViewModel @JvmOverloads constructor(
                 trackId = track?.id ?: -1L,
                 lines = if (keepPreviousLines) previous.lines else emptyList(),
                 loadedLineCount = if (keepPreviousLines) previous.loadedLineCount else 0,
-                statusKind = nextStatus
+                statusKind = nextStatus,
+                document = if (keepPreviousLines) previous.document else LyricsDocument.empty()
             )
         )
         if (track == null) {
@@ -200,7 +260,7 @@ class LyricsViewModel @JvmOverloads constructor(
 
         val requestedTrackId = track.id
         val timeoutJob = viewModelScope.launch {
-            delay(LOAD_TIMEOUT_MS)
+            delay(SLOW_LOAD_NOTICE_MS)
             if (token != requestToken || _state.value.trackId != requestedTrackId) {
                 return@launch
             }
@@ -215,18 +275,24 @@ class LyricsViewModel @JvmOverloads constructor(
                     loadedLineCount = if (keepFallbackLines) current.loadedLineCount else 0,
                     statusKind = if (keepFallbackLines) {
                         LyricsStatusKind.LOADED
-                    } else if (requestOnline) {
-                        LyricsStatusKind.NOT_FOUND
                     } else {
-                        LyricsStatusKind.LOCAL_NOT_FOUND
+                        LyricsStatusKind.LOADING_SLOW
                     }
                 )
             )
         }
         val loadJob = viewModelScope.launch {
-            val loadedLines = withContext(ioDispatcher) {
-                lyricsLoader?.load(track, requestOnline, providerTrackId).orEmpty()
+            val loadedDocument = withContext(ioDispatcher) {
+                val loader = lyricsLoader
+                when (loader) {
+                    is RichLyricsLoader -> loader.loadDocument(track, requestOnline, providerTrackId)
+                    null -> LyricsDocument.empty()
+                    else -> LyricsDocument.fromLegacy(
+                        loader.load(track, requestOnline, providerTrackId)
+                    )
+                }
             }
+            val loadedLines = loadedDocument.primaryLegacyLines()
             if (token != requestToken || _state.value.trackId != requestedTrackId) {
                 return@launch
             }
@@ -236,6 +302,7 @@ class LyricsViewModel @JvmOverloads constructor(
                 current.copy(
                     lines = if (keepFallbackLines) current.lines else loadedLines,
                     loadedLineCount = if (keepFallbackLines) current.loadedLineCount else loadedLines.size,
+                    document = if (keepFallbackLines) current.document else loadedDocument,
                     statusKind = if (loadedLines.isEmpty()) {
                         if (keepFallbackLines) LyricsStatusKind.LOADED
                         else if (requestOnline) LyricsStatusKind.NOT_FOUND

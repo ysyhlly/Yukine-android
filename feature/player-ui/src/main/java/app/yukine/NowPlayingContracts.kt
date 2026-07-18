@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.model.LyricsTrackRole
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.LyricUiLine
@@ -23,6 +24,12 @@ sealed interface NowPlayingEvent {
     data object AddToPlaylist : NowPlayingEvent
     data object ShareCurrentTrack : NowPlayingEvent
     data object DownloadCurrentTrack : NowPlayingEvent
+    data object ImportCurrentLyrics : NowPlayingEvent
+    data object ClearCurrentLyrics : NowPlayingEvent
+    data class SetLyricsTrackVisible(
+        val role: LyricsTrackRole,
+        val visible: Boolean
+    ) : NowPlayingEvent
     data object ToggleShuffle : NowPlayingEvent
     data object CycleRepeatMode : NowPlayingEvent
     data class SwitchSource(
@@ -46,7 +53,10 @@ enum class RepeatModeUi {
 data class LyricsUiState(
     val title: String = "",
     val status: String = "",
-    val lines: List<LyricUiLine> = emptyList()
+    val lines: List<LyricUiLine> = emptyList(),
+    val primaryVisible: Boolean = true,
+    val translationVisible: Boolean = true,
+    val romanizationVisible: Boolean = false
 )
 
 data class NowPlayingTrackState(

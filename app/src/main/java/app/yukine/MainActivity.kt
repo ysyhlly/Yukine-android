@@ -55,7 +55,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
-        if (::features.isInitialized) features.playback.setAppVisible(false)
+        if (::features.isInitialized) {
+            features.streaming.onPause()
+            features.playback.setAppVisible(false)
+        }
         super.onPause()
     }
 

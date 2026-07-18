@@ -1,7 +1,9 @@
 ﻿package app.yukine.ui
 
 import android.net.Uri
+import android.os.SystemClock
 import app.yukine.TrackDownloadItem
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,10 +32,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -46,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.core.designsystem.R
+import kotlinx.coroutines.delay
 
 /** Number of natural-week columns shown in the recap heatmap (desktop parity). */
 internal const val HEATMAP_WEEK_COLUMNS = 12
@@ -61,9 +68,14 @@ data class HomeDashboardUiState(
     val continueAlbumArtUri: Uri? = null,
     val continueProgress: Float = 0f,
     val continuePlaying: Boolean = false,
+    val nextTitle: String = "",
+    val nextSubtitle: String = "",
+    val nextAlbumArtUri: Uri? = null,
     val stats: List<HomeDashboardStatUiState> = emptyList(),
     val recent: List<HomeDashboardRecentUiState> = emptyList(),
     val recentTabIndex: Int = 0,
+    val todayListeningDuration: String = "0 分钟",
+    val todayListeningPoints: List<HomeDashboardListeningPoint> = emptyList(),
     val weeklyTitle: String = "",
     val weeklyPlays: Int = 0,
     val weeklyDuration: String = "",
@@ -106,6 +118,12 @@ data class HomeDashboardRecentUiState(
     val albumArtUri: Uri?
 )
 
+data class HomeDashboardListeningPoint(
+    val hour: Int,
+    val durationMs: Long,
+    val future: Boolean = false
+)
+
 data class HomeDashboardActions(
     val onOpenStat: List<Runnable>,
     val onContinue: Runnable,
@@ -118,8 +136,85 @@ data class HomeDashboardActions(
     val onDailyRecommend: Runnable = Runnable { },
     val onHeartbeatRecommend: Runnable = Runnable { },
     val onConnectStreaming: Runnable = Runnable { },
-    val onSearch: Runnable = Runnable { }
+    val onSearch: Runnable = Runnable { },
+    val onNext: Runnable = Runnable { }
 )
+
+internal const val PLAYBACK_CARD_STABILITY_MILLIS = 1_200L
+
+internal data class HomePlaybackCardState(
+    val title: String,
+    val subtitle: String,
+    val detail: String,
+    val albumArtUri: Uri?,
+    val progress: Float
+) {
+    fun action(actions: HomeDashboardActions): Runnable = actions.onContinue
+}
+
+internal class HomePlaybackCardStabilizer(
+    private val settleMillis: Long = PLAYBACK_CARD_STABILITY_MILLIS,
+    initial: HomePlaybackCardState? = null
+) {
+    var displayed: HomePlaybackCardState? = initial
+        private set
+    private var pending: HomePlaybackCardState? = null
+    private var hasPending: Boolean = false
+    private var pendingSinceMillis: Long = 0L
+
+    fun update(candidate: HomePlaybackCardState?, nowMillis: Long): HomePlaybackCardState? {
+        if (displayed == null) {
+            displayed = candidate
+            pending = null
+            hasPending = false
+            return displayed
+        }
+        if (candidate == displayed) {
+            pending = null
+            hasPending = false
+            return displayed
+        }
+        if (!hasPending || candidate != pending) {
+            pending = candidate
+            hasPending = true
+            pendingSinceMillis = nowMillis
+            return displayed
+        }
+        if (nowMillis - pendingSinceMillis >= settleMillis) {
+            displayed = candidate
+            pending = null
+            hasPending = false
+        }
+        return displayed
+    }
+}
+
+internal fun HomeDashboardUiState.playbackCardState(): HomePlaybackCardState? {
+    if (nextTitle.isBlank()) return null
+    return HomePlaybackCardState(
+        title = nextTitle,
+        subtitle = nextSubtitle,
+        detail = "即将播放",
+        albumArtUri = nextAlbumArtUri,
+        progress = 0f
+    )
+}
+
+@Composable
+private fun rememberStablePlaybackCard(
+    candidate: HomePlaybackCardState?
+): HomePlaybackCardState? {
+    val stabilizer = remember { HomePlaybackCardStabilizer(initial = candidate) }
+    var displayed by remember { mutableStateOf(stabilizer.displayed) }
+    LaunchedEffect(candidate) {
+        displayed = stabilizer.update(candidate, SystemClock.elapsedRealtime())
+        if (displayed != candidate) {
+            delay(PLAYBACK_CARD_STABILITY_MILLIS)
+            displayed = stabilizer.update(candidate, SystemClock.elapsedRealtime())
+        }
+    }
+    return displayed
+}
 
 @Composable
 fun HomeDashboardScreen(
@@ -127,44 +222,54 @@ fun HomeDashboardScreen(
     actions: HomeDashboardActions,
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    layout: HomeDashboardLayout = HomeDashboardLayout.Classic
 ) {
-    val p = EchoTheme.colors()
+    val playbackCard = rememberStablePlaybackCard(state.playbackCardState())
     CollapsibleSearchHeader(
         header = { HomeSearchCard(actions, activeDownload, playbackQuality, audioMotion) }
     ) { contentModifier, _ ->
         LazyColumn(
             modifier = contentModifier,
-            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = echoPageBottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = echoPageBottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Hero section with Now Playing card
-            item("hero") {
-                Box(Modifier.echoEnter(0)) { HeroSection(state, actions) }
-            }
-            // Streaming guide (only when not connected)
-            if (!state.streamingConnected) {
-                item("streaming-guide") {
-                    Box(Modifier.echoEnter(1)) { StreamingGuideCard { actions.onConnectStreaming.run() } }
+            if (layout == HomeDashboardLayout.Classic) {
+                item("classic-hero") {
+                    Box(Modifier.echoEnter(0)) { ClassicHeroSection(state, actions, playbackCard) }
                 }
-            }
-            // Recommendations (每日推荐 / 心动推荐) kept near the top so they're visible on first screen
-            item("recommendations") {
-                Box(Modifier.echoEnter(if (state.streamingConnected) 1 else 2)) {
-                    RecommendationCards(actions, enabled = state.streamingConnected)
+                item("classic-recommendations") {
+                    Box(Modifier.echoEnter(1)) {
+                        ClassicRecommendationCards(actions, enabled = state.streamingConnected)
+                    }
                 }
-            }
-            // Stats grid (2x2 for mobile)
-            item("stats") {
-                Box(Modifier.echoEnter(2)) { StatGrid(state.stats, actions) }
-            }
-            // Recent activity (horizontal scroll)
-            item("recent") {
-                Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
-            }
-            // Weekly recap with heatmap
-            item("weekly") {
-                Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+                item("classic-today-listening") {
+                    Box(Modifier.echoEnter(2)) { TodayListeningSection(state) }
+                }
+                item("classic-recent") {
+                    Box(Modifier.echoEnter(3)) { RecentActivitySection(state, actions) }
+                }
+                item("classic-weekly") {
+                    Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+                }
+            } else {
+                item("content-hero") {
+                    Box(Modifier.echoEnter(0)) { ContentHeroSection(state, actions, playbackCard) }
+                }
+                item("content-recent") {
+                    Box(Modifier.echoEnter(1)) { RecentActivitySection(state, actions) }
+                }
+                item("content-recommendations") {
+                    Box(Modifier.echoEnter(2)) {
+                        ContentRecommendationCards(actions, enabled = state.streamingConnected)
+                    }
+                }
+                item("content-stats") {
+                    Box(Modifier.echoEnter(3)) { StatGrid(state.stats, actions) }
+                }
+                item("content-weekly") {
+                    Box(Modifier.echoEnter(4)) { WeeklyRecapSection(state) }
+                }
             }
         }
     }
@@ -187,25 +292,32 @@ private fun HomeSearchCard(
 }
 
 @Composable
-private fun HeroSection(state: HomeDashboardUiState, actions: HomeDashboardActions) {
-    val p = EchoTheme.colors()
+private fun ClassicHeroSection(
+    state: HomeDashboardUiState,
+    actions: HomeDashboardActions,
+    playbackCard: HomePlaybackCardState?
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Now Playing Card (full width on mobile)
-        NowPlayingCard(state, actions)
-        // Hero text and actions
-        HeroPanel(state, actions)
+        if (playbackCard != null) {
+            ClassicContinueCard(playbackCard, state.continuePlaying, actions)
+        }
+        ClassicHeroPanel(state, actions)
     }
 }
 
 @Composable
-private fun HeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+private fun ClassicHeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions) {
     val p = EchoTheme.colors()
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Badge
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
@@ -215,11 +327,11 @@ private fun HeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions
             Spacer(Modifier.width(6.dp))
             Text(
                 "今日回声",
+                modifier = Modifier.weight(1f),
                 style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                 color = p.accent
             )
         }
-        // Title
         Text(
             state.heroTitle,
             style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
@@ -227,44 +339,52 @@ private fun HeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-        // Subtitle
         Text(
-            state.heroSubtitle.ifBlank { "继续最近播放，或从最近入库里挑一张封面开始。" },
+            state.heroSubtitle.ifBlank { "接上最近播放，或者从最近入库里挑一张封面开始。" },
             style = EchoTypography.body,
             color = p.muted,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-        // Action buttons
-        HeroActionButtons(actions)
+        ClassicHeroActionButtons(state, actions)
     }
 }
 
 @Composable
-private fun HeroActionButtons(actions: HomeDashboardActions) {
+private fun ClassicHeroActionButtons(state: HomeDashboardUiState, actions: HomeDashboardActions) {
     val p = EchoTheme.colors()
-    // Horizontal scrollable action buttons for mobile
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(end = 8.dp)
     ) {
         item {
-            // Primary action - Continue playback
             Surface(
                 onClick = { actions.onContinue.run() },
                 modifier = Modifier
-                    .height(40.dp)
-                    .semantics { contentDescription = "继续播放" },
+                    .width(116.dp)
+                    .height(42.dp)
+                    .semantics {
+                        contentDescription = if (state.continuePlaying) "暂停播放" else "继续播放"
+                    },
                 shape = EchoShapes.medium,
                 color = p.accent
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    EchoIcon(EchoIconKind.Play, Modifier.size(18.dp), p.onAccent)
+                    EchoIcon(
+                        if (state.continuePlaying) EchoIconKind.Pause else EchoIconKind.Play,
+                        Modifier.size(18.dp),
+                        p.onAccent
+                    )
                     Spacer(Modifier.width(8.dp))
-                    Text("继续播放", style = EchoTypography.label, color = p.onAccent)
+                    Text(
+                    if (state.continuePlaying) "暂停播放" else "继续播放",
+                        style = EchoTypography.label,
+                        color = p.onAccent
+                    )
                 }
             }
         }
@@ -276,55 +396,36 @@ private fun HeroActionButtons(actions: HomeDashboardActions) {
 }
 
 @Composable
-private fun HeroSecondaryButton(label: String, icon: EchoIconKind, onClick: () -> Unit) {
-    val p = EchoTheme.colors()
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .height(40.dp)
-            .semantics { contentDescription = label },
-        shape = EchoShapes.medium,
-        color = p.surfaceVariant
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EchoIcon(icon, Modifier.size(16.dp), p.text)
-            Spacer(Modifier.width(6.dp))
-            Text(label, style = EchoTypography.label, color = p.text)
-        }
-    }
-}
-
-// Now playing card (full width for mobile)
-
-@Composable
-private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+private fun ClassicContinueCard(
+    card: HomePlaybackCardState,
+    playing: Boolean,
+    actions: HomeDashboardActions
+) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
     Surface(
-        onClick = { actions.onOpenNowPlaying.run() },
+        onClick = { card.action(actions).run() },
         interactionSource = interaction,
         modifier = Modifier
             .echoPressScale(interaction)
             .fillMaxWidth()
-            .echoFloatingLayer(p, EchoShapes.large)
             .echoGaussianBackdrop(p, EchoShapes.large)
-            .semantics { contentDescription = "正在播放" },
+            .semantics { contentDescription = card.detail },
         shape = EchoShapes.large,
-        color = echoCardColor(p.surface)
+        color = echoCardColor(p.surface),
+        border = BorderStroke(1.dp, p.border)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Album art
             AsyncArtwork(
-                uri = state.continueAlbumArtUri,
-                title = state.continueTitle,
-                subtitle = state.continueSubtitle,
+                uri = card.albumArtUri,
+                title = card.title,
+                subtitle = card.subtitle,
                 modifier = Modifier.size(56.dp),
                 cornerRadius = 10.dp,
                 fallbackTextSize = 16.sp,
@@ -332,32 +433,30 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
                 backgroundColor = p.surfaceVariant,
                 fallbackResId = R.drawable.ic_stat_echo
             )
-            // Track info
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
-                    state.continueDetail,
+                    card.detail,
                     style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
                     color = p.accent
                 )
                 Text(
-                    state.continueTitle,
+                    card.title,
                     style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = p.text,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    state.continueSubtitle,
+                    card.subtitle,
                     style = EchoTypography.caption,
                     color = p.muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                // Progress bar
-                if (state.continueProgress > 0f) {
+                if (card.progress > 0f) {
                     Spacer(Modifier.height(2.dp))
                     Box(
                         modifier = Modifier
@@ -368,28 +467,244 @@ private fun NowPlayingCard(state: HomeDashboardUiState, actions: HomeDashboardAc
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(state.continueProgress)
+                                .fillMaxWidth(card.progress.coerceIn(0f, 1f))
                                 .fillMaxHeight()
                                 .background(p.accent)
                         )
                     }
                 }
             }
-            // Play/Pause button
             Surface(
-                onClick = { actions.onContinue.run() },
-                modifier = Modifier.size(48.dp),
+                onClick = { card.action(actions).run() },
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics {
+                        contentDescription = if (playing) "暂停播放" else "继续播放"
+                    },
                 shape = CircleShape,
                 color = p.accent
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     EchoIcon(
-                        if (state.continuePlaying) EchoIconKind.Pause else EchoIconKind.Play,
+                        if (playing) EchoIconKind.Pause else EchoIconKind.Play,
                         Modifier.size(22.dp),
                         p.onAccent
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ContentHeroSection(
+    state: HomeDashboardUiState,
+    actions: HomeDashboardActions,
+    playbackCard: HomePlaybackCardState?
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ContentHeroPanel(state, actions)
+        if (playbackCard != null) {
+            ContentNowPlayingCard(playbackCard, state.continuePlaying, actions)
+        }
+        ContentHeroActionButtons(actions)
+    }
+}
+
+@Composable
+private fun ContentHeroPanel(state: HomeDashboardUiState, actions: HomeDashboardActions) {
+    val p = EchoTheme.colors()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                state.heroTitle,
+                modifier = Modifier.weight(1f),
+                style = EchoTypography.headline.copy(fontSize = 22.sp, lineHeight = 27.sp),
+                color = p.heading,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                onClick = { actions.onRefresh.run() },
+                modifier = Modifier
+                    .size(34.dp)
+                    .semantics { contentDescription = "刷新" },
+                shape = CircleShape,
+                color = p.surfaceVariant
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    EchoIcon(EchoIconKind.Sync, Modifier.size(16.dp), p.accent)
+                }
+            }
+        }
+        Text(
+            state.heroSubtitle.ifBlank { "继续最近播放，或从最近入库里挑一张封面开始。" },
+            style = EchoTypography.caption,
+            color = p.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ContentHeroActionButtons(actions: HomeDashboardActions) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        HeroSecondaryButton(
+            label = "查看队列",
+            icon = EchoIconKind.Queue,
+            modifier = Modifier.weight(1f)
+        ) { actions.onViewQueue.run() }
+        HeroSecondaryButton(
+            label = "随机播放",
+            icon = EchoIconKind.Shuffle,
+            modifier = Modifier.weight(1f)
+        ) { actions.onShuffleAll.run() }
+    }
+}
+
+@Composable
+private fun HeroSecondaryButton(
+    label: String,
+    icon: EchoIconKind,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .height(42.dp)
+            .semantics { contentDescription = label },
+        shape = EchoShapes.medium,
+        color = echoCardColor(p.surface),
+        border = BorderStroke(1.dp, p.border)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            EchoIcon(icon, Modifier.size(17.dp), p.accent)
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = EchoTypography.label, color = p.text)
+        }
+    }
+}
+
+// Now playing card (full width for mobile)
+
+@Composable
+private fun ContentNowPlayingCard(
+    card: HomePlaybackCardState,
+    playing: Boolean,
+    actions: HomeDashboardActions
+) {
+    val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = { card.action(actions).run() },
+        interactionSource = interaction,
+        modifier = Modifier
+            .echoPressScale(interaction)
+            .fillMaxWidth()
+            .echoFloatingLayer(p, EchoShapes.large)
+            .echoGaussianBackdrop(p, EchoShapes.large)
+            .semantics { contentDescription = card.detail },
+        shape = EchoShapes.large,
+        color = echoCardColor(p.surface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(146.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    card.detail,
+                    style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.accent
+                )
+                Text(
+                    card.title,
+                    style = EchoTypography.title,
+                    color = p.text,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    card.subtitle,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        onClick = { card.action(actions).run() },
+                        modifier = Modifier
+                            .requiredSize(width = 48.dp, height = 30.dp)
+                            .semantics {
+                                contentDescription = if (playing) "暂停播放" else "继续播放"
+                            },
+                        shape = CircleShape,
+                        color = p.accent
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            EchoIcon(
+                                if (playing) EchoIconKind.Pause else EchoIconKind.Play,
+                                Modifier.size(18.dp),
+                                p.onAccent
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(3.dp)
+                            .clip(EchoShapes.small)
+                            .background(p.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(card.progress.coerceAtLeast(0.04f))
+                                .fillMaxHeight()
+                                .background(p.accent)
+                        )
+                    }
+                }
+            }
+            AsyncArtwork(
+                uri = card.albumArtUri,
+                title = card.title,
+                subtitle = card.subtitle,
+                modifier = Modifier.size(width = 116.dp, height = 108.dp),
+                cornerRadius = 16.dp,
+                fallbackTextSize = 20.sp,
+                targetSize = 116.dp,
+                backgroundColor = p.surfaceVariant,
+                fallbackResId = R.drawable.ic_stat_echo
+            )
         }
     }
 }
@@ -514,7 +829,7 @@ private fun RecentActivitySection(state: HomeDashboardUiState, actions: HomeDash
             }
         } else {
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(end = 8.dp)
             ) {
                 itemsIndexed(state.recent, key = { _, item -> item.id }) { index, item ->
@@ -534,13 +849,13 @@ private fun CompactRecentCard(item: HomeDashboardRecentUiState, action: Runnable
         interactionSource = interaction,
         modifier = Modifier
             .echoPressScale(interaction)
-            .width(120.dp)
+            .width(88.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
             .semantics { contentDescription = item.title },
         shape = EchoShapes.medium,
         color = p.surfaceVariant.copy(alpha = 0.5f)
     ) {
-        Column(modifier = Modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(7.dp)) {
             AsyncArtwork(
                 uri = item.albumArtUri,
                 title = item.title,
@@ -550,7 +865,7 @@ private fun CompactRecentCard(item: HomeDashboardRecentUiState, action: Runnable
                     .aspectRatio(1f),
                 cornerRadius = 6.dp,
                 fallbackTextSize = 16.sp,
-                targetSize = 104.dp,
+                targetSize = 74.dp,
                 backgroundColor = p.surfaceVariant,
                 fallbackResId = R.drawable.ic_stat_echo
             )
@@ -781,11 +1096,10 @@ private fun WaveProgress(progress: Float) {
 // Recommendations (每日推荐 / 心动推荐)
 
 @Composable
-private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean = true) {
-    val p = EchoTheme.colors()
+private fun ClassicRecommendationCards(actions: HomeDashboardActions, enabled: Boolean = true) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         RecommendationCard(
             title = "每日推荐",
@@ -807,6 +1121,33 @@ private fun RecommendationCards(actions: HomeDashboardActions, enabled: Boolean 
 }
 
 @Composable
+private fun ContentRecommendationCards(actions: HomeDashboardActions, enabled: Boolean = true) {
+    val p = EchoTheme.colors()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("今天听什么", style = EchoTypography.title, color = p.text)
+        RecommendationCard(
+            title = "每日推荐",
+            subtitle = if (enabled) "每天为你精选" else "需要登录",
+            icon = EchoIconKind.Sparkle,
+            modifier = Modifier.fillMaxWidth(),
+            dimmed = !enabled,
+            onClick = { if (enabled) actions.onDailyRecommend.run() else actions.onConnectStreaming.run() }
+        )
+        RecommendationCard(
+            title = "心动推荐",
+            subtitle = if (enabled) "根据喜好智能播放" else "需要登录",
+            icon = EchoIconKind.Heart,
+            modifier = Modifier.fillMaxWidth(),
+            dimmed = !enabled,
+            onClick = { if (enabled) actions.onHeartbeatRecommend.run() else actions.onConnectStreaming.run() }
+        )
+    }
+}
+
+@Composable
 private fun RecommendationCard(
     title: String,
     subtitle: String,
@@ -817,18 +1158,16 @@ private fun RecommendationCard(
 ) {
     val p = EchoTheme.colors()
     val interaction = remember { MutableInteractionSource() }
-    val alpha = if (dimmed) 0.5f else 1f
     Surface(
         onClick = onClick,
         interactionSource = interaction,
         modifier = modifier
             .echoPressScale(interaction)
-            .alpha(alpha)
-            .echoFloatingLayer(p, EchoShapes.medium)
             .echoGaussianBackdrop(p, EchoShapes.medium)
             .semantics { contentDescription = title },
         shape = EchoShapes.medium,
-        color = echoCardColor(p.surface)
+        color = echoCardColor(if (dimmed) p.surfaceVariant else p.surface),
+        border = BorderStroke(1.dp, p.border)
     ) {
         Row(
             modifier = Modifier
@@ -863,48 +1202,4 @@ private fun iconForMode(mode: String): EchoIconKind = when (mode) {
     "artists" -> EchoIconKind.Artist
     "folders" -> EchoIconKind.Folder
     else -> EchoIconKind.Library
-}
-
-@Composable
-private fun StreamingGuideCard(onConnect: () -> Unit) {
-    val p = EchoTheme.colors()
-    val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onConnect,
-        interactionSource = interaction,
-        modifier = Modifier
-            .fillMaxWidth()
-            .echoPressScale(interaction)
-            .echoFloatingLayer(p, EchoShapes.medium)
-            .semantics { contentDescription = "连接流媒体账号" },
-        shape = EchoShapes.medium,
-        color = p.accent.copy(alpha = 0.12f)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            EchoIcon(EchoIconKind.Action, Modifier.size(24.dp), p.accent)
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    "连接流媒体账号",
-                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = p.heading
-                )
-                Text(
-                    "解锁每日推荐和心动推荐",
-                    style = EchoTypography.small,
-                    color = p.muted
-                )
-            }
-            Text(
-                "去连接",
-                style = EchoTypography.label,
-                color = p.accent
-            )
-        }
-    }
 }

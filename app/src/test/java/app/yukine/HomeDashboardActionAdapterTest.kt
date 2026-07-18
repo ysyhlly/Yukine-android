@@ -19,6 +19,7 @@ class HomeDashboardActionAdapterTest {
         listener.playTrack(track)
         listener.refreshLibrary()
         listener.openQueue()
+        listener.nextTrack()
         listener.shuffleAll(listOf(homeTrack(2L)))
         listener.openStreaming()
         listener.openSearch()
@@ -33,6 +34,7 @@ class HomeDashboardActionAdapterTest {
                 "play:1:0",
                 "refresh",
                 "queue",
+                "next",
                 "play:1:0",
                 "streaming",
                 "search",
@@ -66,7 +68,8 @@ class HomeDashboardActionAdapterTest {
             streamingOpener = HomeDashboardActionAdapter.StreamingOpener { calls += "streaming" },
             searchOpener = HomeDashboardActionAdapter.SearchOpener { calls += "search" },
             dailyRecommendationsPlayer = HomeDashboardActionAdapter.DailyRecommendationsPlayer { calls += "daily" },
-            heartbeatRecommendationsPlayer = HomeDashboardActionAdapter.HeartbeatRecommendationsPlayer { calls += "heartbeat" }
+            heartbeatRecommendationsPlayer = HomeDashboardActionAdapter.HeartbeatRecommendationsPlayer { calls += "heartbeat" },
+            nextTrackPlayer = HomeDashboardActionAdapter.NextTrackPlayer { calls += "next" }
         )
 }
 

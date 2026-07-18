@@ -160,6 +160,22 @@ class MainRouteControllerTest {
     }
 
     @Test
+    fun playHistoryRouteSelectsVirtualHistoryInsidePlaylistMode() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.SONGS
+        )
+
+        openPlayHistoryRoute(controller, AppLanguage.MODE_CHINESE)
+
+        val state = controller.current()
+        assertEquals(LibraryGrouping.PLAYLISTS, state.libraryMode)
+        assertEquals(LibraryPlaylistsStateReducer.HISTORY_GROUP_KEY, state.selectedLibraryGroupKey)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "play.history.playlist"), state.selectedLibraryGroupTitle)
+        assertEquals(-1L, state.selectedPlaylistId)
+    }
+
+    @Test
     fun userTabNavigationStillResetsExplicitRootDestinations() {
         val controller = controllerWith(
             selectedTab = MainRoutes.TAB_HOME,

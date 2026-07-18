@@ -16,6 +16,9 @@ import app.yukine.streaming.RecordingRelationship
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,6 +84,52 @@ class LibraryRepositoryTest {
         assertEquals(-1L, playback.loadPositionTrackId())
         assertEquals(0L, playback.loadPositionMs())
         assertTrue(database.musicIdentityDao().canonicalRecording(deletedCanonicalId) != null)
+    }
+
+    @Test
+    fun trackPersistenceCommitsBeforeIdentityClusteringWaitsForGate() {
+        val executor = Executors.newFixedThreadPool(3)
+        val gateHeld = CountDownLatch(1)
+        val releaseGate = CountDownLatch(1)
+        val persisted = track(8_901L, "Deferred identity")
+
+        try {
+            val gateFuture = executor.submit {
+                IdentityMutationGate.withLock {
+                    gateHeld.countDown()
+                    assertTrue(releaseGate.await(5, TimeUnit.SECONDS))
+                }
+            }
+            assertTrue(gateHeld.await(2, TimeUnit.SECONDS))
+
+            val upsertFuture = executor.submit {
+                repository.upsertTracks(listOf(persisted))
+            }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            while (database.libraryDao().loadTrack(persisted.id) == null &&
+                System.nanoTime() < deadline
+            ) {
+                Thread.sleep(10)
+            }
+
+            assertTrue(
+                "Track transaction must commit before waiting for identity clustering",
+                database.libraryDao().loadTrack(persisted.id) != null
+            )
+            val independentWrite = track(8_902L, "Independent write")
+            executor.submit {
+                database.libraryDao().upsertTracks(
+                    listOf(TrackEntityMapper.entity(independentWrite, System.currentTimeMillis()))
+                )
+            }.get(2, TimeUnit.SECONDS)
+
+            releaseGate.countDown()
+            upsertFuture.get(5, TimeUnit.SECONDS)
+            gateFuture.get(5, TimeUnit.SECONDS)
+        } finally {
+            releaseGate.countDown()
+            executor.shutdownNow()
+        }
     }
 
     @Test

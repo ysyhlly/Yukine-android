@@ -236,6 +236,7 @@ class StreamingRepository(
                 if (
                     source != null &&
                     StreamingAudioCapabilityPolicy.canUsePlaybackUrl(source.provider) &&
+                    isPlaybackSourceCompatible(provider, providerTrackId, source) &&
                     isSupportedPlaybackSourceUrl(source.url)
                 ) {
                     recordCacheHit("playback", provider)
@@ -252,6 +253,7 @@ class StreamingRepository(
             val source = recordGatewayCall("playback", provider) {
                 gateway.resolvePlayback(request).also { source ->
                     validatePlaybackSource(source)
+                    requirePlaybackSourceCompatible(provider, providerTrackId, source)
                     val ttlMs = cachePolicy.ttlForPlayback(source, clockMs())
                     cache?.takeIf { audioCacheAllowed(provider) }?.savePlayback(
                         provider,
@@ -275,14 +277,18 @@ class StreamingRepository(
         forceRefresh: Boolean = false
     ): StreamingResolvedPlayback {
         return withContext(Dispatchers.IO) {
-            // 热路径只使用已经绑定的来源 ID。只有这些来源全部失效后，才按音源
-            // 优先级逐个搜索，并使用统一录音匹配策略选择相似度最高的候选。
+            // Bilibili 视频只允许使用原视频 ID 解析；其他音乐来源在已绑定来源全部
+            // 失效后，才按音源优先级搜索并选择相似度最高的候选。
+            val exclusiveBilibiliSource = provider == StreamingProviderName.BILIBILI
             val attempts = playbackResolveAttempts(provider, providerTrackId, metadata).toMutableList()
             var lastError: Throwable? = null
             val searchedProviders = linkedSetOf<StreamingProviderName>()
             var index = 0
             while (true) {
                 if (index >= attempts.size) {
+                    if (exclusiveBilibiliSource) {
+                        break
+                    }
                     val fallback = playbackNextSearchFallbackAttempt(
                         metadata = metadata,
                         existingAttempts = attempts,
@@ -299,7 +305,11 @@ class StreamingRepository(
                 if (lastError != null) {
                     logWarning(
                         "Playback resolve failed for ${attempt.provider.wireName}:${attempt.providerTrackId}, " +
-                            "trying next source",
+                            if (exclusiveBilibiliSource) {
+                                "exclusive source will not fall back"
+                            } else {
+                                "trying next source"
+                            },
                         lastError
                     )
                 }
@@ -505,6 +515,13 @@ class StreamingRepository(
             storedPrimaryPayload ?: fallbackLuoxueMusicInfo(metadata, providerTrackId)
         } else {
             storedPrimaryPayload
+        }
+        if (provider == StreamingProviderName.BILIBILI) {
+            return if (playbackEnabled(provider)) {
+                listOf(PlaybackResolveAttempt(provider, providerTrackId, primaryPayload))
+            } else {
+                emptyList()
+            }
         }
         val attempts = mutableListOf<PlaybackResolveAttempt>()
         val seen = linkedSetOf<String>()
@@ -1065,6 +1082,29 @@ class StreamingRepository(
         if (!supported) {
             throw StreamingGatewayException(
                 "Playback source scheme is unsupported for ${source.provider.wireName}:${source.providerTrackId}: $scheme",
+                code = StreamingErrorCode.SOURCE_UNAVAILABLE
+            )
+        }
+    }
+
+    private fun isPlaybackSourceCompatible(
+        requestedProvider: StreamingProviderName,
+        requestedTrackId: String,
+        source: StreamingPlaybackSource
+    ): Boolean {
+        return requestedProvider != StreamingProviderName.BILIBILI ||
+            source.provider == StreamingProviderName.BILIBILI &&
+            source.providerTrackId == requestedTrackId
+    }
+
+    private fun requirePlaybackSourceCompatible(
+        requestedProvider: StreamingProviderName,
+        requestedTrackId: String,
+        source: StreamingPlaybackSource
+    ) {
+        if (!isPlaybackSourceCompatible(requestedProvider, requestedTrackId, source)) {
+            throw StreamingGatewayException(
+                "Bilibili playback source must resolve from the original Bilibili video",
                 code = StreamingErrorCode.SOURCE_UNAVAILABLE
             )
         }

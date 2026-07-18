@@ -42,18 +42,21 @@ class SettingsRepositoryTest {
     fun typedDefaultsAndRuntimeSettingsRoundTripWithoutKeyDrift() {
         assertFalse(repository.loadSystemMediaLyricsTitleEnabled())
         assertFalse(repository.loadDebugPromptsEnabled())
+        assertFalse(repository.loadCompactSettingsCards())
         assertTrue(repository.loadOnlineLyricsEnabled())
         assertEquals(1.0f, repository.loadPlaybackSpeed())
         assertEquals(-1L, repository.loadMediaStoreGeneration())
 
         repository.saveSystemMediaLyricsTitleEnabled(true)
         repository.saveDebugPromptsEnabled(true)
+        repository.saveCompactSettingsCards(true)
         repository.savePlaybackSpeed(1.25f)
         repository.saveLyricsOffsetMs(-850L)
         repository.saveMediaStoreGeneration(42L)
 
         assertTrue(repository.loadSystemMediaLyricsTitleEnabled())
         assertTrue(repository.loadDebugPromptsEnabled())
+        assertTrue(repository.loadCompactSettingsCards())
         assertEquals(1.25f, repository.loadPlaybackSpeed())
         assertEquals(-850L, repository.loadLyricsOffsetMs())
         assertEquals(42L, repository.loadMediaStoreGeneration())

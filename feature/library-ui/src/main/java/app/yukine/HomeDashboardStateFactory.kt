@@ -5,6 +5,7 @@ import app.yukine.model.TrackPlayRecord
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.HomeDashboardHeatmapDay
 import app.yukine.ui.HomeDashboardHeatmapMonth
+import app.yukine.ui.HomeDashboardListeningPoint
 import app.yukine.ui.HomeDashboardRecentUiState
 import app.yukine.ui.HomeDashboardStatUiState
 import app.yukine.ui.HomeDashboardUiState
@@ -62,6 +63,8 @@ object HomeDashboardStateFactory {
         val heatmapMonths = buildMonthLabels(heatmapData)
         val activeWeeks = heatmapData.chunked(7)
             .count { week -> week.any { !it.future && it.count > 0 } }
+        val todayListening = buildTodayListening(recentRecords, nowMs)
+        val todayListeningDurationMs = todayListening.sumOf { it.durationMs }
 
         return HomeDashboardUiState(
             title = "YUKINE",
@@ -82,6 +85,8 @@ object HomeDashboardStateFactory {
             ),
             recent = recentRows,
             recentTabIndex = 0,
+            todayListeningDuration = listeningDurationSummary(todayListeningDurationMs),
+            todayListeningPoints = todayListening,
             weeklyTitle = "本周回声",
             weeklyPlays = weekPlayCount,
             weeklyDuration = durationSummary(weekDurationMs),
@@ -123,6 +128,46 @@ object HomeDashboardStateFactory {
         return if (rest == 0L) "$hours 小时" else "$hours 小时 $rest 分钟"
     }
 
+    private fun listeningDurationSummary(durationMs: Long): String {
+        if (durationMs <= 0L) return "0 分钟"
+        if (durationMs < 60_000L) {
+            return "${max(1L, durationMs / 1_000L)} 秒"
+        }
+        return durationSummary(durationMs)
+    }
+
+    private fun buildTodayListening(
+        records: List<TrackPlayRecord>,
+        nowMs: Long
+    ): List<HomeDashboardListeningPoint> {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = nowMs
+        val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+        val todayStartMs = startOfDay(nowMs)
+        calendar.timeInMillis = todayStartMs
+        calendar.add(Calendar.DAY_OF_YEAR, 1)
+        val tomorrowStartMs = calendar.timeInMillis
+        val buckets = LongArray(24)
+
+        records.forEach { record ->
+            if (record.playedAt < todayStartMs || record.playedAt >= tomorrowStartMs) {
+                return@forEach
+            }
+            calendar.timeInMillis = record.playedAt
+            val hour = calendar.get(Calendar.HOUR_OF_DAY).coerceIn(0, 23)
+            val playCount = max(1, record.playCount)
+            buckets[hour] += record.track.durationMs.coerceAtLeast(0L) * playCount.toLong()
+        }
+
+        return buckets.mapIndexed { hour, durationMs ->
+            HomeDashboardListeningPoint(
+                hour = hour,
+                durationMs = durationMs,
+                future = hour > currentHour
+            )
+        }
+    }
+
     private fun weekBars(records: List<TrackPlayRecord>, nowMs: Long): List<Float> {
         if (records.isEmpty()) {
             return List(7) { 0.08f }
@@ -152,6 +197,16 @@ object HomeDashboardStateFactory {
         val dow = calendar.get(Calendar.DAY_OF_WEEK)
         val mondayOffset = if (dow == Calendar.SUNDAY) -6 else Calendar.MONDAY - dow
         calendar.add(Calendar.DAY_OF_YEAR, mondayOffset)
+        return calendar.timeInMillis
+    }
+
+    private fun startOfDay(timeMs: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = timeMs
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
         return calendar.timeInMillis
     }
 

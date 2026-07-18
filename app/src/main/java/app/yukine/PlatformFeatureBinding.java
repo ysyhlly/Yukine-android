@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity;
 
 import app.yukine.streaming.LuoxueSourceStore;
 import app.yukine.ui.EchoTheme;
+import app.yukine.data.CustomLyricsRepository;
+import app.yukine.data.MusicLibraryRepository;
 
 /** Owns Android permission, document, share, download and backup launcher delegation. */
 final class PlatformFeatureBinding {
@@ -18,6 +20,9 @@ final class PlatformFeatureBinding {
     private final LibraryDeletionUseCase libraryDeletionUseCase;
     private final LuoxueSourceStore luoxueSourceStore;
     private final DownloadsViewModel downloadsViewModel;
+    private final LyricsViewModel lyricsViewModel;
+    private final CustomLyricsRepository customLyricsRepository;
+    private final MusicLibraryRepository musicLibraryRepository;
 
     private final MainUiShellController uiShellController;
     private final StatusMessageController statusMessageController;
@@ -33,6 +38,7 @@ final class PlatformFeatureBinding {
     private LuoxueSourceImportController luoxueSourceImportController;
     private LuoxueSourceImportDialogController luoxueSourceImportDialogController;
     private OnboardingOwner onboardingOwner;
+    private LyricsImportCoordinator lyricsImportCoordinator;
 
     PlatformFeatureBinding(
             ComponentActivity activity,
@@ -44,7 +50,9 @@ final class PlatformFeatureBinding {
             TrackDownloadManager trackDownloadManager,
             ResolveStreamingPlaybackUseCase resolvePlaybackUseCase,
             LibraryDeletionUseCase libraryDeletionUseCase,
-            LuoxueSourceStore luoxueSourceStore
+            LuoxueSourceStore luoxueSourceStore,
+            CustomLyricsRepository customLyricsRepository,
+            MusicLibraryRepository musicLibraryRepository
     ) {
         this.activity = activity;
         this.mainHandler = mainHandler;
@@ -54,7 +62,10 @@ final class PlatformFeatureBinding {
         this.resolvePlaybackUseCase = resolvePlaybackUseCase;
         this.libraryDeletionUseCase = libraryDeletionUseCase;
         this.luoxueSourceStore = luoxueSourceStore;
+        this.customLyricsRepository = customLyricsRepository;
+        this.musicLibraryRepository = musicLibraryRepository;
         this.downloadsViewModel = viewModels.getDownloadsViewModel();
+        this.lyricsViewModel = viewModels.getLyricsViewModel();
         this.uiShellController = new MainUiShellController(activity);
         this.statusMessageController = new StatusMessageController(
                 (StatusMessageViewModel) viewModels.getStatusMessageViewModel(),
@@ -119,6 +130,23 @@ final class PlatformFeatureBinding {
 
     TrackDownloadManager trackDownloadManager() {
         return trackDownloadManager;
+    }
+
+    void importCurrentLyrics(PlaybackFeatureBinding playback) {
+        app.yukine.model.Track track = playback.snapshot().currentTrack;
+        if (track == null) {
+            statusMessageController.setStatus(AppLanguage.text(languageMode(), "no.track.selected"));
+            return;
+        }
+        lyricsImportCoordinator.importForTrack(track);
+    }
+
+    void importLyricsDirectory() {
+        lyricsImportCoordinator.openBatchDirectory();
+    }
+
+    void showLyricsImportReport() {
+        lyricsImportCoordinator.showLatestReport();
     }
 
     void bindFeatures(
@@ -206,6 +234,18 @@ final class PlatformFeatureBinding {
                     return kotlin.Unit.INSTANCE;
                 }
         );
+        lyricsImportCoordinator = new LyricsImportCoordinator(
+                activity,
+                customLyricsRepository,
+                musicLibraryRepository,
+                executors::io,
+                task -> mainHandler.post(task),
+                statusMessageController::setStatus,
+                () -> {
+                    lyricsViewModel.reloadCurrentLyrics(languageMode());
+                    return kotlin.Unit.INSTANCE;
+                }
+        );
     }
 
     void bindPlaybackEffects(
@@ -217,7 +257,9 @@ final class PlatformFeatureBinding {
                 () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
                 library.playlistDialogController()::showAddToPlaylist,
                 trackShareLauncher::share,
-                downloadRequestController::downloadTrack
+                downloadRequestController::downloadTrack,
+                lyricsImportCoordinator::importForTrack,
+                lyricsImportCoordinator::clearForTrack
         );
     }
 

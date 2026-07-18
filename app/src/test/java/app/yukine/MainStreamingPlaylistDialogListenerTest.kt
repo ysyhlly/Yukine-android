@@ -4,6 +4,7 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -42,7 +43,9 @@ class MainStreamingPlaylistDialogListenerTest {
             AccountPlaylistImportSink { provider, playlists ->
                 calls += "account:${provider.wireName}:${playlists.size}"
             },
-            StreamingLikedTracksImportSink { provider -> calls += "liked:${provider.wireName}" }
+            AccountPlaylistPreviewSink { _, _ -> },
+            StreamingLikedTracksImportSink { provider -> calls += "liked:${provider.wireName}" },
+            SelectedStreamingTracksImportSink { _, _, _, _, _ -> }
         )
 
         listener.setStatus("Ready")
@@ -68,7 +71,13 @@ class MainStreamingPlaylistDialogListenerTest {
             accountPlaylistImportSink = AccountPlaylistImportSink { provider, playlists ->
                 calls += "account:${provider.wireName}:${playlists.single().providerPlaylistId}"
             },
-            likedTracksImportSink = StreamingLikedTracksImportSink { provider -> calls += "liked:${provider.wireName}" }
+            accountPlaylistPreviewSink = AccountPlaylistPreviewSink { provider, playlist ->
+                calls += "preview:${provider.wireName}:${playlist.providerPlaylistId}"
+            },
+            likedTracksImportSink = StreamingLikedTracksImportSink { provider -> calls += "liked:${provider.wireName}" },
+            selectedTracksImportSink = SelectedStreamingTracksImportSink { provider, providerPlaylistId, _, tracks, linked ->
+                calls += "selected:${provider.wireName}:$providerPlaylistId:${tracks.size}:$linked"
+            }
         )
 }
 

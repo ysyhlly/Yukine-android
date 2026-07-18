@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.ui.HomeDashboardLayout
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -32,6 +33,13 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassBlurEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassBlurRadiusDp, 24f))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.GlassSurfaceOpacity, 1f))
+        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.CompactSettingsCards, true))
+        useCase.execute(
+            SettingsPreferenceUpdate(
+                SettingsPreferenceKey.HomeDashboardLayout,
+                HomeDashboardLayout.Content.storageValue
+            )
+        )
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ShareStyle, TrackShareStyle.PLATFORM_CARD))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PageBackgrounds, PageBackgrounds(sharedUri = "content://bg")))
 
@@ -59,6 +67,8 @@ class ApplySettingsPreferenceUseCaseTest {
                 "glassBlurEnabled:true",
                 "glassBlurRadius:24.0",
                 "glassSurfaceOpacity:1.0",
+                "compactSettingsCards:true",
+                "homeDashboardLayout:content",
                 "shareStyle:${TrackShareStyle.PLATFORM_CARD}",
                 "background:content://bg"
             ),
@@ -159,6 +169,14 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveGlassSurfaceOpacity(opacity: Float) {
             events.add("glassSurfaceOpacity:$opacity")
+        }
+
+        override fun saveCompactSettingsCards(enabled: Boolean) {
+            events.add("compactSettingsCards:$enabled")
+        }
+
+        override fun saveHomeDashboardLayout(layout: String) {
+            events.add("homeDashboardLayout:$layout")
         }
 
         override fun saveShareStyle(style: String) {

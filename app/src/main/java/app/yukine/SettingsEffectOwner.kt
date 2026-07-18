@@ -23,11 +23,14 @@ internal data class SettingsLibraryEffectActions(
     val restoreAllHiddenLibraryItems: Runnable
 )
 
-internal data class SettingsPlaybackEffectActions(
+internal data class SettingsPlaybackEffectActions @JvmOverloads constructor(
     val reloadCurrentLyrics: Runnable,
     val startSleepTimer: IntConsumer,
     val cancelSleepTimer: Runnable,
-    val openFloatingLyricsPermission: Runnable
+    val openFloatingLyricsPermission: Runnable,
+    val importCurrentLyrics: Runnable = Runnable {},
+    val importLyricsDirectory: Runnable = Runnable {},
+    val viewLyricsImportReport: Runnable = Runnable {}
 )
 
 internal data class SettingsFileEffectActions(
@@ -67,6 +70,9 @@ internal class SettingsEffectOwner(
                 library.restoreHiddenLibraryItem.accept(effect.sourceKey)
             SettingsEffect.RestoreAllHiddenLibraryItems -> library.restoreAllHiddenLibraryItems.run()
             SettingsEffect.ReloadCurrentLyrics -> playback.reloadCurrentLyrics.run()
+            SettingsEffect.ImportCurrentLyrics -> playback.importCurrentLyrics.run()
+            SettingsEffect.ImportLyricsDirectory -> playback.importLyricsDirectory.run()
+            SettingsEffect.ViewLyricsImportReport -> playback.viewLyricsImportReport.run()
             is SettingsEffect.StartSleepTimer -> playback.startSleepTimer.accept(effect.minutes)
             SettingsEffect.CancelSleepTimer -> playback.cancelSleepTimer.run()
             SettingsEffect.OpenFloatingLyricsPermission -> playback.openFloatingLyricsPermission.run()

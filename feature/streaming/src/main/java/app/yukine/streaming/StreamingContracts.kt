@@ -14,6 +14,8 @@ interface StreamingProvider {
         )
     }
 
+    suspend fun userPlaylists(): List<StreamingPlaylist> = emptyList()
+
     suspend fun authState(): StreamingAuthState = descriptor.auth
 
     suspend fun startAuth(request: StreamingAuthRequest): StreamingAuthResult {

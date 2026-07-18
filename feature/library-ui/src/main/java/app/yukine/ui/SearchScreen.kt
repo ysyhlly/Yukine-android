@@ -1,8 +1,10 @@
 package app.yukine.ui
 
 import android.net.Uri
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +18,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -29,12 +33,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -125,66 +133,275 @@ fun UnifiedSearchScreen(
         LazyColumn(
             state = listState,
             modifier = contentModifier,
-            contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = echoPageBottomPadding()),
+            contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = echoPageBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item("header") {
-                EchoPageTitle("搜索音乐")
-            }
-
-            item("local-title") {
-                SectionTitle("本地曲库", searchState.localTracks.size)
-            }
             if (query.isBlank()) {
-                item("local-empty-before") {
-                    EmptyHint("输入歌名、歌手或专辑名，同时搜索本地和在线音乐。")
-                }
-            } else if (searchState.localTracks.isEmpty() && searchState.searched) {
-                item("local-empty") { EmptyHint("本地没有找到匹配歌曲") }
-            } else {
-                items(searchState.localTracks, key = { it.id }) { track ->
-                    LocalTrackResultRow(track) { actions.onPlayLocalTrack.run(track) }
-                }
-            }
-
-            item("online-title") {
-                SectionTitle("在线音乐", onlineTracks.size)
-            }
-            when {
-                query.isBlank() -> item("online-empty-before") {
-                    EmptyHint("按搜索后会使用当前已连接的流媒体账号查找在线歌曲。")
-                }
-                streamingState.loading && onlineTracks.isEmpty() -> item("online-loading") {
-                    EmptyHint("正在搜索在线音乐...")
-                }
-                !streamingState.errorMessage.isNullOrBlank() && onlineTracks.isEmpty() -> item("online-error") {
-                    EmptyHint(streamingState.errorMessage ?: "在线搜索失败")
-                }
-                onlineTracks.isEmpty() && searchState.searched -> item("online-empty") {
-                    EmptyHint("在线音乐没有找到匹配歌曲")
-                }
-                else -> {
-                    items(onlineTracks, key = { it.stableKey }) { track ->
-                        StreamingTrackResultRow(
-                            track = track,
-                            streamingState = streamingState,
-                            onPlay = actions.onPlayStreamingTrack::run
+                item("search-hero") {
+                    Box(Modifier.echoEnter(0)) {
+                        SearchHero(
+                            query = query,
+                            localCount = searchState.localTracks.size,
+                            onlineCount = onlineTracks.size,
+                            searched = searchState.searched
                         )
                     }
-                    if (!streamingState.errorMessage.isNullOrBlank()) {
-                        item("online-playback-error") {
-                            EmptyHint(streamingState.errorMessage ?: "在线歌曲解析失败")
+                }
+                item("search-scope") {
+                    Box(Modifier.echoEnter(1)) {
+                        SearchScopeCard()
+                    }
+                }
+            } else {
+                item("search-hero") {
+                    Box(Modifier.echoEnter(0)) {
+                        SearchHero(
+                            query = query,
+                            localCount = searchState.localTracks.size,
+                            onlineCount = onlineTracks.size,
+                            searched = searchState.searched
+                        )
+                    }
+                }
+
+                item("local-title") {
+                    SearchSectionHeader(
+                        title = "本地曲库",
+                        subtitle = "先从设备里的收藏开始",
+                        count = searchState.localTracks.size,
+                        icon = EchoIconKind.Library
+                    )
+                }
+                if (searchState.localTracks.isEmpty() && searchState.searched) {
+                    item("local-empty") {
+                        EmptyHint("本地没有找到匹配歌曲", EchoIconKind.Search)
+                    }
+                } else {
+                    itemsIndexed(
+                        items = searchState.localTracks,
+                        key = { _, track -> track.id }
+                    ) { index, track ->
+                        LocalTrackResultRow(
+                            track = track,
+                            modifier = Modifier.echoEnter(index.coerceAtMost(8))
+                        ) {
+                            actions.onPlayLocalTrack.run(track)
                         }
                     }
-                    if (streamingState.hasMore) {
-                        item("online-more") {
-                            SearchActionButton("加载更多", EchoIconKind.Sync) {
-                                actions.onLoadMoreStreaming.run()
+                }
+
+                item("online-title") {
+                    SearchSectionHeader(
+                        title = "在线音乐",
+                        subtitle = if (streamingState.loading) "正在继续寻找更多声音" else "从已连接的音源继续找",
+                        count = onlineTracks.size,
+                        icon = EchoIconKind.Network
+                    )
+                }
+                when {
+                    streamingState.loading && onlineTracks.isEmpty() -> item("online-loading") {
+                        EmptyHint("正在搜索在线音乐…", EchoIconKind.Sync)
+                    }
+                    !streamingState.errorMessage.isNullOrBlank() && onlineTracks.isEmpty() -> item("online-error") {
+                        EmptyHint(streamingState.errorMessage ?: "在线搜索失败", EchoIconKind.Info)
+                    }
+                    onlineTracks.isEmpty() && searchState.searched -> item("online-empty") {
+                        EmptyHint("在线音乐没有找到匹配歌曲", EchoIconKind.Search)
+                    }
+                    else -> {
+                        itemsIndexed(
+                            items = onlineTracks,
+                            key = { _, track -> track.stableKey }
+                        ) { index, track ->
+                            StreamingTrackResultRow(
+                                track = track,
+                                streamingState = streamingState,
+                                modifier = Modifier.echoEnter(index.coerceAtMost(8)),
+                                onPlay = actions.onPlayStreamingTrack::run
+                            )
+                        }
+                        if (!streamingState.errorMessage.isNullOrBlank()) {
+                            item("online-playback-error") {
+                                EmptyHint(
+                                    streamingState.errorMessage ?: "在线歌曲解析失败",
+                                    EchoIconKind.Info
+                                )
+                            }
+                        }
+                        if (streamingState.hasMore) {
+                            item("online-more") {
+                                SearchActionButton("加载更多", EchoIconKind.Sync) {
+                                    actions.onLoadMoreStreaming.run()
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchHero(
+    query: String,
+    localCount: Int,
+    onlineCount: Int,
+    searched: Boolean
+) {
+    val p = EchoTheme.colors()
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(p.accent)
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                if (query.isBlank()) "听见所想" else "搜索结果",
+                style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = p.accent
+            )
+        }
+        Text(
+            if (query.isBlank()) "想听什么，就从这里开始。" else "关于「$query」",
+            style = EchoTypography.display.copy(fontSize = 22.sp, lineHeight = 28.sp),
+            color = p.heading,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            when {
+                query.isBlank() -> "本地收藏与在线音乐，一次找齐。"
+                !searched -> "按下搜索，同时去本地与在线寻找。"
+                else -> "本地 $localCount 首 · 在线 $onlineCount 首"
+            },
+            style = EchoTypography.body,
+            color = p.muted,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun SearchScopeCard() {
+    val p = EchoTheme.colors()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoGaussianBackdrop(p, EchoShapes.large),
+        shape = EchoShapes.large,
+        color = echoCardColor(p.surface)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(
+                "一次搜索，两处回声",
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.heading
+            )
+            Spacer(Modifier.height(10.dp))
+            SearchScopeRow(
+                icon = EchoIconKind.Library,
+                title = "本地曲库",
+                subtitle = "从设备里的歌曲、歌手与专辑开始"
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 48.dp, top = 7.dp, bottom = 7.dp),
+                color = p.border.copy(alpha = 0.48f)
+            )
+            SearchScopeRow(
+                icon = EchoIconKind.Network,
+                title = "在线音乐",
+                subtitle = "再去已连接的音乐来源里继续寻找"
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchScopeRow(icon: EchoIconKind, title: String, subtitle: String) {
+    val p = EchoTheme.colors()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(38.dp),
+            shape = EchoShapes.medium,
+            color = p.accentSoft.copy(alpha = 0.76f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                EchoIcon(icon, Modifier.size(19.dp), p.accent)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                title,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.text
+            )
+            Text(
+                subtitle,
+                style = EchoTypography.caption,
+                color = p.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        EchoIcon(EchoIconKind.Next, Modifier.size(16.dp), p.muted)
+    }
+}
+
+@Composable
+private fun SearchSectionHeader(
+    title: String,
+    subtitle: String,
+    count: Int,
+    icon: EchoIconKind
+) {
+    val p = EchoTheme.colors()
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = EchoShapes.medium,
+            color = p.accentSoft.copy(alpha = 0.72f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                EchoIcon(icon, Modifier.size(18.dp), p.accent)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                title,
+                style = EchoTypography.title.copy(fontWeight = FontWeight.SemiBold),
+                color = p.heading
+            )
+            Text(
+                subtitle,
+                style = EchoTypography.caption,
+                color = p.muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Surface(shape = EchoShapes.full, color = p.accentSoft.copy(alpha = 0.66f)) {
+            Text(
+                "$count 首",
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = p.accent
+            )
         }
     }
 }
@@ -199,22 +416,24 @@ private fun SearchInput(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     val p = EchoTheme.colors()
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .echoFloatingLayer(p, EchoShapes.large)
+            .echoGlassLayer(p, EchoShapes.large),
+        shape = EchoShapes.large,
+        color = Color.Transparent
     ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(56.dp)
-                .echoGlassLayer(p, EchoShapes.medium),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(start = 2.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxSize()
                     .testTag("unified-search-input"),
                 singleLine = true,
@@ -236,56 +455,59 @@ private fun SearchInput(
                     cursorColor = p.accent
                 )
             )
-        }
-        Surface(
-            onClick = onSearch,
-            shape = EchoShapes.medium,
-            color = Color.Transparent,
-            modifier = Modifier
-                .height(56.dp)
-                .echoFloatingLayer(p, EchoShapes.medium)
-                .echoGlassLayer(p, EchoShapes.medium)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                EchoIcon(EchoIconKind.Search, Modifier.size(18.dp), p.accent)
+            if (query.isNotBlank()) {
+                Surface(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier
+                        .size(34.dp)
+                        .semantics { contentDescription = "清空搜索" },
+                    shape = CircleShape,
+                    color = p.surfaceVariant.copy(alpha = 0.66f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        EchoIcon(EchoIconKind.Remove, Modifier.size(15.dp), p.muted)
+                    }
+                }
                 Spacer(Modifier.width(6.dp))
-                Text("搜索", style = EchoTypography.label, color = p.accent)
             }
+            Surface(
+                onClick = onSearch,
+                shape = EchoShapes.medium,
+                color = p.accent,
+                modifier = Modifier.height(40.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EchoIcon(EchoIconKind.Search, Modifier.size(16.dp), p.onAccent)
+                    Spacer(Modifier.width(6.dp))
+                    Text("搜索", style = EchoTypography.label, color = p.onAccent)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            YukineDownloadOrb(
+                item = activeDownload,
+                playbackQuality = playbackQuality,
+                audioMotion = audioMotion,
+                modifier = Modifier.size(38.dp)
+            )
         }
-        YukineDownloadOrb(
-            item = activeDownload,
-            playbackQuality = playbackQuality,
-            audioMotion = audioMotion,
-            modifier = Modifier.size(40.dp)
-        )
     }
 }
 
 @Composable
-private fun SectionTitle(title: String, count: Int) {
-    val p = EchoTheme.colors()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, style = EchoTypography.title, color = p.heading)
-        Spacer(Modifier.width(8.dp))
-        Text("$count 首", style = EchoTypography.caption, color = p.muted)
-    }
-}
-
-@Composable
-private fun LocalTrackResultRow(track: Track, onClick: () -> Unit) {
+private fun LocalTrackResultRow(
+    track: Track,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     ResultRow(
         title = track.title,
         subtitle = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" / "),
         coverUri = track.albumArtUri,
         sourceLabel = "本地",
+        modifier = modifier,
         onClick = onClick
     )
 }
@@ -294,6 +516,7 @@ private fun LocalTrackResultRow(track: Track, onClick: () -> Unit) {
 private fun StreamingTrackResultRow(
     track: StreamingTrack,
     streamingState: UnifiedSearchStreamingState,
+    modifier: Modifier = Modifier,
     onPlay: (StreamingTrack) -> Unit
 ) {
     val sources = track.selectablePlaybackSources()
@@ -310,6 +533,7 @@ private fun StreamingTrackResultRow(
             .takeIf { it > 0 }
             ?.let { " +$it" }
             .orEmpty(),
+        modifier = modifier,
         onClick = { onPlay(track) },
         onSourceClick = if (additionalSourceCount > 0) {
             { sourcesExpanded = !sourcesExpanded }
@@ -348,40 +572,44 @@ private fun ResultRow(
     subtitle: String,
     coverUri: Uri?,
     sourceLabel: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onSourceClick: (() -> Unit)? = null,
     expandedContent: (@Composable () -> Unit)? = null
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
-        modifier = Modifier
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .echoFloatingLayer(p, EchoShapes.medium)
-            .echoGlassLayer(p, EchoShapes.medium),
-        shape = EchoShapes.medium,
-        color = Color.Transparent
+            .echoPressScale(interaction)
+            .echoGaussianBackdrop(p, EchoShapes.large)
+            .animateContentSize(),
+        shape = EchoShapes.large,
+        color = echoCardColor(p.surface)
     ) {
         Column {
             Row(
-                modifier = Modifier.padding(10.dp),
+                modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncArtwork(
                     uri = coverUri,
                     title = title,
                     subtitle = subtitle,
-                    modifier = Modifier.size(52.dp),
-                    cornerRadius = 8.dp,
-                    fallbackTextSize = 14.sp,
-                    targetSize = 52.dp,
+                    modifier = Modifier.size(56.dp),
+                    cornerRadius = 10.dp,
+                    fallbackTextSize = 15.sp,
+                    targetSize = 56.dp,
                     backgroundColor = p.surfaceVariant
                 )
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         title.ifBlank { "未知歌曲" },
-                        style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = p.heading,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -400,7 +628,7 @@ private fun ResultRow(
             }
             if (expandedContent != null) {
                 Box(
-                    modifier = Modifier.padding(start = 74.dp, end = 10.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(start = 80.dp, end = 12.dp, bottom = 12.dp)
                 ) {
                     expandedContent()
                 }
@@ -570,12 +798,30 @@ private fun SearchActionButton(label: String, icon: EchoIconKind, onClick: () ->
 }
 
 @Composable
-private fun EmptyHint(text: String) {
+private fun EmptyHint(text: String, icon: EchoIconKind = EchoIconKind.Info) {
     val p = EchoTheme.colors()
-    EchoGlassSurface(
-        shape = EchoShapes.medium,
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .echoGaussianBackdrop(p, EchoShapes.large),
+        shape = EchoShapes.large,
+        color = echoCardColor(p.surface)
     ) {
-        Text(text, style = EchoTypography.body, color = p.muted)
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(34.dp),
+                shape = EchoShapes.medium,
+                color = p.accentSoft.copy(alpha = 0.68f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    EchoIcon(icon, Modifier.size(17.dp), p.accent)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(text, style = EchoTypography.body, color = p.muted, modifier = Modifier.weight(1f))
+        }
     }
 }

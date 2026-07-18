@@ -61,11 +61,16 @@ class SearchDestinationTest {
             }
         }
 
+        composeRule.onNodeWithText("想听什么，就从这里开始。").assertIsDisplayed()
+        composeRule.onNodeWithText("一次搜索，两处回声").assertIsDisplayed()
         composeRule.onNodeWithTag("unified-search-input")
             .assertHeightIsAtLeast(56.dp)
             .performTextInput("周杰伦")
         composeRule.waitForIdle()
         composeRule.onNodeWithText("周杰伦").assertIsDisplayed()
+        composeRule.onNodeWithText("关于「周杰伦」").assertIsDisplayed()
+        composeRule.onNodeWithText("本地曲库").assertIsDisplayed()
+        composeRule.onNodeWithText("在线音乐").assertIsDisplayed()
         composeRule.onNodeWithTag("unified-search-input").performImeAction()
 
         assertEquals("周杰伦", latestInput)

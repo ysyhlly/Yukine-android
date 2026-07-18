@@ -81,6 +81,53 @@ class LocalQqMusicStreamingProvider(
         authStore?.signOut(StreamingProviderName.QQ_MUSIC) ?: descriptor.auth
 }
 
+class LocalBilibiliStreamingProvider(
+    private val client: LocalBilibiliStreamingClient,
+    private val authStore: StreamingLocalAuthStore?
+) : StreamingProvider {
+    override val descriptor: StreamingProviderDescriptor
+        get() {
+            val auth = authStore?.authState(StreamingProviderName.BILIBILI)
+                ?: StreamingAuthState(
+                    kind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
+                    connected = false,
+                    statusMessage = "未登录，点击登录"
+                )
+            return StreamingProviderCatalog.localFirstDescriptor(StreamingProviderName.BILIBILI)
+                .copy(
+                    auth = auth,
+                    status = if (auth.connected) {
+                        StreamingProviderStatus.READY
+                    } else {
+                        StreamingProviderStatus.NEEDS_ACCOUNT
+                    },
+                    statusMessage = auth.statusMessage
+                        ?: if (auth.connected) "可导入视频、多 P 与收藏夹" else "登录后可导入视频、多 P 与收藏夹"
+                )
+        }
+
+    override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
+        throw StreamingGatewayException(
+            "哔哩哔哩本机音源不提供搜索，请粘贴视频或收藏夹链接",
+            code = StreamingErrorCode.UNSUPPORTED_OPERATION
+        )
+    }
+
+    override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail =
+        client.playlist(request)
+
+    override suspend fun userPlaylists(): List<StreamingPlaylist> = client.userPlaylists()
+
+    override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource =
+        client.resolvePlayback(request)
+
+    override suspend fun authState(): StreamingAuthState =
+        authStore?.authState(StreamingProviderName.BILIBILI) ?: descriptor.auth
+
+    override suspend fun signOut(): StreamingAuthState =
+        authStore?.signOut(StreamingProviderName.BILIBILI) ?: descriptor.auth
+}
+
 class LocalLuoxueStreamingProvider(
     private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(),
     private val sourceStore: LuoxueSourceStore? = null
@@ -187,13 +234,15 @@ class LocalStreamingProviderRegistry(
         neteaseClient = neteaseClient,
         qqMusicClient = qqMusicClient
     ),
-    private val luoxueSourceStore: LuoxueSourceStore? = null
+    private val luoxueSourceStore: LuoxueSourceStore? = null,
+    private val bilibiliClient: LocalBilibiliStreamingClient = LocalBilibiliStreamingClient(authStore)
 ) {
     private val providersByName: Map<StreamingProviderName, StreamingProvider> =
         StreamingProviderCatalog.localFirstDescriptors().associate { descriptor ->
             val provider = when (descriptor.name) {
                 StreamingProviderName.NETEASE -> LocalNeteaseStreamingProvider(neteaseClient, authStore)
                 StreamingProviderName.QQ_MUSIC -> LocalQqMusicStreamingProvider(qqMusicClient, authStore)
+                StreamingProviderName.BILIBILI -> LocalBilibiliStreamingProvider(bilibiliClient, authStore)
                 StreamingProviderName.LUOXUE -> LocalLuoxueStreamingProvider(luoxueClient, luoxueSourceStore)
                 else -> LocalUnsupportedStreamingProvider(descriptor)
             }
@@ -213,7 +262,7 @@ class LocalStreamingProviderRegistry(
 internal fun localPendingMessage(provider: StreamingProviderName): String = when (provider) {
     StreamingProviderName.QQ_MUSIC -> "QQ 音乐本机直连已接入"
     StreamingProviderName.KUGOU -> "酷狗音乐本机解析待实现；可先配置网关使用"
-    StreamingProviderName.BILIBILI -> "哔哩哔哩本机解析待实现；可先配置网关使用"
+    StreamingProviderName.BILIBILI -> "哔哩哔哩本机直连已接入，登录后可导入视频与收藏夹"
     StreamingProviderName.LUOXUE -> "LX/洛雪本机直连已接入，支持 kw/kg，wy/tx 复用对应本机登录"
     StreamingProviderName.M3U8 -> "M3U8 本机导入请走曲库导入；在线网关可提供更多能力"
     StreamingProviderName.PLUGIN -> "自定义插件本机运行时待实现；可先配置网关使用"

@@ -40,7 +40,8 @@ final class RoomArtistLocalInfoSource implements ArtistLocalInfoSource {
                 source,
                 summary,
                 Collections.emptyList(),
-                false
+                false,
+                artist.getAvatarUrl().isBlank() ? null : artist.getAvatarUrl()
         );
     }
 
@@ -72,10 +73,16 @@ final class RoomArtistLocalInfoSource implements ArtistLocalInfoSource {
         if (!aliases.isEmpty()) {
             details.add((english ? "Aliases: " : "别名：") + String.join("、", aliases));
         }
-        String prefix = english
-                ? artist.getDisplayName() + " is linked to a stable local artist identity."
-                : artist.getDisplayName() + " 已关联稳定的本地艺人身份。";
+        String description = artist.getDescription().trim();
+        String prefix = description.isEmpty()
+                ? (english
+                    ? artist.getDisplayName() + " is linked to a stable local artist identity."
+                    : artist.getDisplayName() + " 已关联稳定的本地艺人身份。")
+                : description;
         if (details.isEmpty()) {
+            if (!description.isEmpty()) {
+                return prefix;
+            }
             return prefix + (english
                     ? " Background enrichment can add verified metadata later without blocking this page."
                     : "后台增强可在后续补充已验证资料，不会阻塞当前页面。");

@@ -38,6 +38,8 @@ public final class SettingsRepository {
     private static final String GLASS_BLUR_ENABLED = "glass_blur_enabled";
     private static final String GLASS_BLUR_RADIUS_DP = "glass_blur_radius_dp";
     private static final String GLASS_SURFACE_OPACITY = "glass_surface_opacity";
+    private static final String COMPACT_SETTINGS_CARDS = "compact_settings_cards";
+    private static final String HOME_DASHBOARD_LAYOUT = "home_dashboard_layout";
     private static final String SHARE_STYLE = "share_style";
     private static final String PAGE_BACKGROUND_SHARED = "page_background_shared";
     private static final String PAGE_BACKGROUND_HOME = "page_background_home";
@@ -139,6 +141,12 @@ public final class SettingsRepository {
     }
     void saveGlassSurfaceOpacity(float value) {
         save(GLASS_SURFACE_OPACITY, String.valueOf(normalizeGlassSurfaceOpacity(value)));
+    }
+    boolean loadCompactSettingsCards() { return bool(COMPACT_SETTINGS_CARDS, false); }
+    void saveCompactSettingsCards(boolean value) { saveBool(COMPACT_SETTINGS_CARDS, value); }
+    String loadHomeDashboardLayout() { return load(HOME_DASHBOARD_LAYOUT, "classic"); }
+    void saveHomeDashboardLayout(String value) {
+        save(HOME_DASHBOARD_LAYOUT, value == null ? "classic" : value);
     }
     String loadShareStyle() { return TrackShareStyle.normalize(load(SHARE_STYLE, "platform_card")); }
     void saveShareStyle(String value) { save(SHARE_STYLE, TrackShareStyle.normalize(value)); }

@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.HomeDashboardLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -44,6 +45,8 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.glassBlurEnabled = true
         operations.glassBlurRadiusDp = 24f
         operations.glassSurfaceOpacity = 1f
+        operations.compactSettingsCards = true
+        operations.homeDashboardLayout = HomeDashboardLayout.Content.storageValue
         operations.shareStyle = TrackShareStyle.PLATFORM_CARD
         operations.pageBackgrounds = PageBackgrounds(sharedUri = "content://all")
 
@@ -70,10 +73,12 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(true, result.glassBlurEnabled)
         assertEquals(24f, result.glassBlurRadiusDp)
         assertEquals(1f, result.glassSurfaceOpacity)
+        assertEquals(true, result.compactSettingsCards)
+        assertEquals(HomeDashboardLayout.Content, result.homeDashboardLayout)
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -113,6 +118,8 @@ class LoadSettingsPreferencesUseCaseTest {
         var glassBlurEnabled = false
         var glassBlurRadiusDp = 18f
         var glassSurfaceOpacity = 0.62f
+        var compactSettingsCards = false
+        var homeDashboardLayout = HomeDashboardLayout.Classic.storageValue
         var shareStyle = TrackShareStyle.TEXT
         var pageBackgrounds = PageBackgrounds.empty()
 
@@ -219,6 +226,16 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadGlassSurfaceOpacity(): Float {
             events.add("glassSurfaceOpacity")
             return glassSurfaceOpacity
+        }
+
+        override fun loadCompactSettingsCards(): Boolean {
+            events.add("compactSettingsCards")
+            return compactSettingsCards
+        }
+
+        override fun loadHomeDashboardLayout(): String {
+            events.add("homeDashboardLayout")
+            return homeDashboardLayout
         }
 
         override fun loadShareStyle(): String {

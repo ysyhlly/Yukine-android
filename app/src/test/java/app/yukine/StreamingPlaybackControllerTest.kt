@@ -53,6 +53,35 @@ class StreamingPlaybackControllerTest {
     }
 
     @Test
+    fun bilibiliPlaceholderSkipsCanonicalPhysicalSourceReplacement() = runTest {
+        val placeholder = streamingPlaceholderTrack(93L, StreamingProviderName.BILIBILI)
+        val local = track(94L)
+        val listener = CountingListener(emptyList())
+        val planner = RecordingPlanner()
+        val viewModel = StreamingViewModel()
+        viewModel.bindIoDispatcherForTest(StandardTestDispatcher(testScheduler))
+        viewModel.playbackResolution.bindPlaybackCoordinator(planner, NoopStreamingPlaybackTaskQueue)
+        var canonicalResolveCalls = 0
+        val controller = StreamingPlaybackController(
+            viewModel,
+            NowPlayingViewModel(),
+            listener,
+            CanonicalPlaybackSourceResolver { _, callback ->
+                canonicalResolveCalls += 1
+                callback.onResolved(local)
+                true
+            }
+        )
+
+        controller.resolveAndPlayStreamingTrack(listOf(placeholder), 0)
+
+        assertEquals(0, canonicalResolveCalls)
+        assertEquals(1, planner.prepareCalls)
+        assertEquals(0, listener.playbackResultsApplied)
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin()
+    }
+
+    @Test
     fun preResolveReadsOnlyImmediateNextTrackWithoutFullSnapshot() = runTest {
         val currentIndex = 250
         val queue = (0 until 500).map { index ->
@@ -243,10 +272,13 @@ class StreamingPlaybackControllerTest {
     private fun track(id: Long): Track =
         Track(id, "Track $id", "Artist", "Album", 1_000L, Uri.EMPTY, "file:$id")
 
-    private fun streamingPlaceholderTrack(id: Long): Track =
+    private fun streamingPlaceholderTrack(
+        id: Long,
+        provider: StreamingProviderName = StreamingProviderName.NETEASE
+    ): Track =
         StreamingPlaybackAdapter.placeholderTrack(
             StreamingTrack(
-                provider = StreamingProviderName.NETEASE,
+                provider = provider,
                 providerTrackId = id.toString(),
                 title = "Streaming $id",
                 artist = "Artist",

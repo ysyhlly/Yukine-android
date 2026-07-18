@@ -8,6 +8,14 @@ import org.junit.Test
 
 class PlaybackSourcePolicyTest {
     @Test
+    fun defaultSnapshotEnablesBilibiliPlayback() {
+        val snapshot = PlaybackSourcePolicySnapshot()
+
+        assertTrue(snapshot.isEnabled(StreamingProviderName.BILIBILI))
+        assertTrue(StreamingProviderName.BILIBILI in snapshot.remotePriority)
+    }
+
+    @Test
     fun disabledProviderDoesNotResolveOrUseCachedUrl() = runTest {
         val provider = RecordingProvider(StreamingProviderName.NETEASE)
         val policy = TestPolicy(setOf(StreamingProviderName.LUOXUE))

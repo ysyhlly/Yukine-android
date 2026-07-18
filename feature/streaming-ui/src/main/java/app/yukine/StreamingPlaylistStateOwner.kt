@@ -253,6 +253,12 @@ class StreamingPlaylistStateOwner internal constructor(
         result: StreamingLocalPlaylistSyncResult?,
         languageMode: String
     ): StreamingLocalPlaylistSyncPresentation {
+        if (!result?.errorMessage.isNullOrBlank()) {
+            return StreamingLocalPlaylistSyncPresentation(
+                empty = true,
+                status = result?.errorMessage.orEmpty()
+            )
+        }
         if (result == null || result.empty) {
             return StreamingLocalPlaylistSyncPresentation(
                 empty = true,
@@ -573,6 +579,45 @@ class StreamingPlaylistStateOwner internal constructor(
         }
     }
 
+    fun importSelectedStreamingTracksToLocal(
+        playlistName: String,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        tracks: List<StreamingTrack>,
+        linkToProviderPlaylist: Boolean,
+        onImported: StreamingCallback<StreamingLocalPlaylistImportResult>
+    ): Job {
+        beginRequest()
+        return scope.launch {
+            runCatching {
+                if (tracks.isEmpty()) {
+                    return@runCatching StreamingLocalPlaylistImportResult(
+                        playlistName = playlistName,
+                        empty = true
+                    )
+                }
+                importStreamingTracksToLocal(
+                    playlistName = playlistName,
+                    provider = provider,
+                    providerPlaylistId = providerPlaylistId.takeIf { linkToProviderPlaylist }.orEmpty(),
+                    tracks = tracks,
+                    linkWhenProviderPlaylistIdBlank = false
+                )
+            }.onSuccess { result ->
+                stateOwner.value = stateOwner.value.copy(
+                    loading = false,
+                    errorMessage = null,
+                    diagnostics = repository().diagnostics()
+                )
+                onImported.onResult(result)
+            }.onFailure { error ->
+                failRequest(error.message)
+                updateDiagnostics(repository().diagnostics())
+                onImported.onResult(StreamingLocalPlaylistImportResult(empty = true))
+            }
+        }
+    }
+
     fun importStreamingLikedTracksToLocal(
         provider: StreamingProviderName,
         playlistName: String,
@@ -610,14 +655,14 @@ class StreamingPlaylistStateOwner internal constructor(
         }
     }
 
-    fun syncStreamingPlaylistToLocal(
+    fun syncStreamingPlaylist(
         link: app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist,
         onSynced: StreamingCallback<StreamingLocalPlaylistSyncResult>
     ): Job {
         beginRequest()
         return scope.launch {
             runCatching {
-                playlistDataCoordinator.syncPlaylistToLocal(link)
+                playlistDataCoordinator.syncLinkedPlaylist(link)
             }.onSuccess { result ->
                 stateOwner.value = stateOwner.value.copy(
                     loading = false,
@@ -628,10 +673,21 @@ class StreamingPlaylistStateOwner internal constructor(
             }.onFailure { error ->
                 failRequest(error.message)
                 updateDiagnostics(repository().diagnostics())
-                onSynced.onResult(StreamingLocalPlaylistSyncResult(empty = true))
+                onSynced.onResult(
+                    StreamingLocalPlaylistSyncResult(
+                        playlistId = link.localPlaylistId,
+                        empty = true,
+                        errorMessage = error.message.orEmpty()
+                    )
+                )
             }
         }
     }
+
+    fun syncStreamingPlaylistToLocal(
+        link: app.yukine.streaming.StreamingPlaylistSyncStore.LinkedPlaylist,
+        onSynced: StreamingCallback<StreamingLocalPlaylistSyncResult>
+    ): Job = syncStreamingPlaylist(link, onSynced)
 
     fun ensureStreamingLoginPlaylist(
         playlistName: String,
@@ -662,6 +718,7 @@ class StreamingPlaylistStateOwner internal constructor(
         provider: StreamingProviderName,
         playlistName: String,
         localTracks: List<Track>,
+        localPlaylistId: Long = -1L,
         onComplete: ((StreamingPlaylistImportSummary) -> Unit)? = null
     ): Job {
         stateOwner.value = stateOwner.value.copy(
@@ -676,6 +733,19 @@ class StreamingPlaylistStateOwner internal constructor(
                     localTracks
                 )
             }.onSuccess { summary ->
+                val remotePlaylistId = summary.remotePlaylist?.providerPlaylistId.orEmpty()
+                if (localPlaylistId >= 0L &&
+                    remotePlaylistId.isNotBlank() &&
+                    summary.unresolvedTracks.isEmpty() &&
+                    summary.errors.isEmpty()
+                ) {
+                    localPlaylistOperations?.linkPlaylist(
+                        localPlaylistId = localPlaylistId,
+                        provider = provider,
+                        providerPlaylistId = remotePlaylistId,
+                        direction = app.yukine.streaming.StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE
+                    )
+                }
                 stateOwner.value = stateOwner.value.copy(
                     playlistImporting = false,
                     playlistImportSummary = summary,

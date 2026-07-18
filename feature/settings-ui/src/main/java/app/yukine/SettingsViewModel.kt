@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.HomeDashboardLayout
 import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsMetric
 import kotlinx.coroutines.CoroutineDispatcher
@@ -32,7 +33,13 @@ sealed interface SettingsItem {
 data class SettingsUiState(
     val title: String = "",
     val metrics: List<SettingsMetric> = emptyList(),
-    val items: List<SettingsItem> = emptyList()
+    val items: List<SettingsItem> = emptyList(),
+    val issues: List<SettingsIssue> = emptyList(),
+    val issuesTitle: String = "",
+    val searchEntries: List<SettingsSearchEntry> = emptyList(),
+    val searchPlaceholder: String = "",
+    val searchResultsTitle: String = "",
+    val searchEmptyMessage: String = ""
 )
 
 data class SettingsPreferencesSnapshot(
@@ -57,6 +64,8 @@ data class SettingsPreferencesSnapshot(
     val glassBlurEnabled: Boolean = false,
     val glassBlurRadiusDp: Float = app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP,
     val glassSurfaceOpacity: Float = app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY,
+    val compactSettingsCards: Boolean = false,
+    val homeDashboardLayout: HomeDashboardLayout = HomeDashboardLayout.Classic,
     val shareStyle: String = TrackShareStyle.defaultValue(),
     val pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 )
@@ -105,7 +114,8 @@ data class SettingsState(
     val preferences: SettingsPreferencesSnapshot = SettingsPreferencesSnapshot(),
     val runtime: RuntimeSettingsStatus = RuntimeSettingsStatus(),
     val actions: List<SettingsAction> = emptyList(),
-    val ui: SettingsUiState = SettingsUiState()
+    val ui: SettingsUiState = SettingsUiState(),
+    val highlightedEntryId: SettingsEntryId? = null
 ) : SettingsDestinationState {
     override val destinationTitle: String
         get() = ui.title
@@ -113,6 +123,22 @@ data class SettingsState(
         get() = ui.metrics
     override val destinationActions: List<SettingsAction>
         get() = actions
+    override val destinationIssues: List<SettingsIssue>
+        get() = ui.issues
+    override val destinationIssuesTitle: String
+        get() = ui.issuesTitle
+    override val destinationSearchEntries: List<SettingsSearchEntry>
+        get() = ui.searchEntries
+    override val destinationSearchPlaceholder: String
+        get() = ui.searchPlaceholder
+    override val destinationSearchResultsTitle: String
+        get() = ui.searchResultsTitle
+    override val destinationSearchEmptyMessage: String
+        get() = ui.searchEmptyMessage
+    override val destinationHighlightedEntryId: SettingsEntryId?
+        get() = highlightedEntryId
+    override val destinationCompactSettingsCards: Boolean
+        get() = preferences.compactSettingsCards
 }
 
 data class SettingsAppliedStatusText(
@@ -142,32 +168,6 @@ data class SettingsAppliedStatusText(
     val pageBackgroundApplied: String = "",
     val pageBackgroundCleared: String = ""
 )
-
-sealed interface SettingsEffect {
-    data class ShowStatus(val message: String) : SettingsEffect
-    data class NavigatePage(val page: SettingsPage) : SettingsEffect
-    data class OpenNetworkPage(val page: NetworkPage) : SettingsEffect
-    data object OpenDownloads : SettingsEffect
-    data object RequestNeededPermissions : SettingsEffect
-    data object LoadLibrary : SettingsEffect
-    data object OpenAudioFilePicker : SettingsEffect
-    data object OpenAudioFolderPicker : SettingsEffect
-    data object RebuildSongIdentity : SettingsEffect
-    data object CancelIdentityBackfill : SettingsEffect
-    data object OpenLuoxueSourceManager : SettingsEffect
-    data object ImportLuoxueSource : SettingsEffect
-    data object ReloadCurrentLyrics : SettingsEffect
-    data class StartSleepTimer(val minutes: Int) : SettingsEffect
-    data object CancelSleepTimer : SettingsEffect
-    data object OpenFloatingLyricsPermission : SettingsEffect
-    data class ChoosePageBackground(val page: String) : SettingsEffect
-    data object ExportBackup : SettingsEffect
-    data object ImportBackup : SettingsEffect
-    data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEffect
-    data object EditMusicBrainzProxy : SettingsEffect
-    data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEffect
-    data object RestoreAllHiddenLibraryItems : SettingsEffect
-}
 
 fun interface SettingsEffectListener {
     fun onEffect(effect: SettingsEffect)
@@ -257,7 +257,12 @@ class SettingsViewModel @JvmOverloads constructor(
                     .distinctUntilChanged()
                     .collect { (active, page) ->
                         val current = _state.value
-                        publishCurrentPage(page, current.preferences, current.runtime)
+                        publishCurrentPage(
+                            page,
+                            current.preferences,
+                            current.runtime,
+                            current.highlightedEntryId.takeIf { current.page == page }
+                        )
                         if (active) {
                             refreshSettingsContext()
                         }
@@ -313,7 +318,8 @@ class SettingsViewModel @JvmOverloads constructor(
     fun publishCurrentPage(
         page: SettingsPage,
         preferences: SettingsPreferencesSnapshot,
-        runtime: RuntimeSettingsStatus
+        runtime: RuntimeSettingsStatus,
+        highlightedEntryId: SettingsEntryId? = null
     ): SettingsPageStateContent {
         mutations.ensureBaseline(preferences, runtime)
         val content = buildPageContent(page, preferences, runtime)
@@ -322,7 +328,8 @@ class SettingsViewModel @JvmOverloads constructor(
             preferences = preferences,
             runtime = runtime,
             actions = content.actions,
-            ui = content.uiState
+            ui = content.uiState,
+            highlightedEntryId = highlightedEntryId
         )
         syncChromeState(preferences)
         _uiState.value = content.uiState
@@ -334,7 +341,8 @@ class SettingsViewModel @JvmOverloads constructor(
         val content = buildPageContent(current.page, current.preferences, current.runtime)
         _state.value = current.copy(
             actions = content.actions,
-            ui = content.uiState
+            ui = content.uiState,
+            highlightedEntryId = current.highlightedEntryId
         )
         _uiState.value = content.uiState
         return content
@@ -358,12 +366,19 @@ class SettingsViewModel @JvmOverloads constructor(
         library,
         network,
         platform,
-        ::navigateSettingsPage
+        ::navigateSettingsPage,
+        ::navigateSettingsSearchResult
     )
 
     fun navigateSettingsPage(page: SettingsPage) {
         val current = _state.value
-        publishCurrentPage(page, current.preferences, current.runtime)
+        publishCurrentPage(page, current.preferences, current.runtime, highlightedEntryId = null)
+        mutations.emit(SettingsEffect.NavigatePage(page))
+    }
+
+    private fun navigateSettingsSearchResult(entryId: SettingsEntryId, page: SettingsPage) {
+        val current = _state.value
+        publishCurrentPage(page, current.preferences, current.runtime, highlightedEntryId = entryId)
         mutations.emit(SettingsEffect.NavigatePage(page))
     }
 
@@ -377,18 +392,25 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
         _chromeState.value = SettingsChromeState(
             pageBackgrounds = preferences.pageBackgrounds,
+            homeDashboardLayout = preferences.homeDashboardLayout,
             nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled,
             customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled,
             customBackgroundBlurRadiusDp = preferences.customBackgroundBlurRadiusDp,
             glassBlurEnabled = preferences.glassBlurEnabled,
             glassBlurRadiusDp = preferences.glassBlurRadiusDp,
-            glassSurfaceOpacity = preferences.glassSurfaceOpacity
+            glassSurfaceOpacity = preferences.glassSurfaceOpacity,
+            compactSettingsCards = preferences.compactSettingsCards
         )
     }
 
     private fun updateRuntime(transform: (RuntimeSettingsStatus) -> RuntimeSettingsStatus) {
         val current = _state.value
-        publishCurrentPage(current.page, current.preferences, transform(current.runtime))
+        publishCurrentPage(
+            current.page,
+            current.preferences,
+            transform(current.runtime),
+            current.highlightedEntryId
+        )
     }
 
     private fun replaceSnapshot(
@@ -396,7 +418,7 @@ class SettingsViewModel @JvmOverloads constructor(
         runtime: RuntimeSettingsStatus
     ) {
         val current = _state.value
-        publishCurrentPage(current.page, preferences, runtime)
+        publishCurrentPage(current.page, preferences, runtime, current.highlightedEntryId)
     }
 
 }

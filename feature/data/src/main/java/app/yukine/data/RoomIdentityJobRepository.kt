@@ -7,6 +7,7 @@ import app.yukine.identity.IdentityJobRepository
 import app.yukine.identity.IdentityJobStatus
 import app.yukine.identity.IdentityResolutionJob
 import java.util.concurrent.Callable
+import java.util.UUID
 
 class RoomIdentityJobRepository(
     private val database: YukineDatabase
@@ -43,6 +44,42 @@ class RoomIdentityJobRepository(
     override fun markFailed(jobId: String, error: String, now: Long) {
         update(jobId, IdentityJobStatus.FAILED, 0L, error, now)
     }
+
+    fun requeueMissingArtistAvatarJobs(now: Long, limit: Int = 10_000): Int =
+        database.runInTransaction(Callable {
+            val safeNow = now.coerceAtLeast(0L)
+            var requeued = 0
+            dao.artistsMissingAvatar(limit.coerceIn(1, 10_000)).forEach { artist ->
+                val artistId = artist.id ?: return@forEach
+                val existing = dao.jobs("ARTIST", artistId)
+                if (existing.any { it.status in ACTIVE_JOB_STATUSES }) return@forEach
+                val reusable = existing.maxByOrNull { it.updatedAt }
+                val job = reusable?.copy(
+                    priority = maxOf(reusable.priority, 70),
+                    reason = ARTIST_AVATAR_REPAIR_REASON,
+                    attemptCount = 0,
+                    nextAttemptAt = safeNow,
+                    lastError = "",
+                    status = IdentityJobStatus.PENDING.name,
+                    updatedAt = safeNow
+                ) ?: IdentityResolutionJobEntity(
+                    jobId = UUID.randomUUID().toString(),
+                    targetType = "ARTIST",
+                    targetId = artistId,
+                    priority = 70,
+                    reason = ARTIST_AVATAR_REPAIR_REASON,
+                    attemptCount = 0,
+                    nextAttemptAt = safeNow,
+                    lastError = "",
+                    status = IdentityJobStatus.PENDING.name,
+                    createdAt = safeNow,
+                    updatedAt = safeNow
+                )
+                dao.upsert(job)
+                requeued++
+            }
+            requeued
+        })
 
     private fun update(
         jobId: String,
@@ -84,5 +121,11 @@ class RoomIdentityJobRepository(
 
     internal companion object {
         const val STALE_RUNNING_TIMEOUT_MS = 15L * 60L * 1_000L
+        const val ARTIST_AVATAR_REPAIR_REASON = "MISSING_ARTIST_AVATAR_V2"
+        val ACTIVE_JOB_STATUSES = setOf(
+            IdentityJobStatus.PENDING.name,
+            IdentityJobStatus.RETRY.name,
+            IdentityJobStatus.RUNNING.name
+        )
     }
 }

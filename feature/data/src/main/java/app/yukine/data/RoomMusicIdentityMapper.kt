@@ -90,11 +90,13 @@ internal fun CanonicalArtistEntity.toModel(): CanonicalArtist = CanonicalArtist(
     artistType = enumValueOr(artistType, ArtistType.UNKNOWN),
     countryCode = countryCode,
     musicBrainzArtistId = musicBrainzArtistId,
+    avatarUrl = avatarUrl,
     matchStatus = enumValueOr(matchStatus, IdentityMatchStatus.UNRESOLVED),
     confidence = confidence,
     metadataSource = metadataSource,
     createdAt = createdAt,
-    updatedAt = updatedAt
+    updatedAt = updatedAt,
+    description = description
 )
 
 internal fun ArtistAliasEntity.toModel(artist: CanonicalArtistEntity): ArtistAlias = ArtistAlias(

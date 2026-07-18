@@ -9,6 +9,7 @@ import app.yukine.identity.ProviderArtistCandidate
 import app.yukine.identity.ProviderCacheFreshness
 import app.yukine.identity.ProviderResponseCacheRepository
 import app.yukine.identity.RecordingVariantRecognizer
+import java.net.URI
 import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
@@ -79,6 +80,15 @@ class MusicBrainzMetadataClient(
             staleCache = fetched.staleCache,
             allEndpointsFailed = false
         )
+    }
+
+    fun artistAvatarUrl(artistMbid: String): String {
+        val normalizedMbid = artistMbid.trim().lowercase()
+        if (!normalizedMbid.matches(MUSICBRAINZ_ID)) return ""
+        return fetch(
+            "artist/${encode(normalizedMbid)}?inc=url-rels&fmt=json",
+            ::parseArtistAvatarUrl
+        )?.value.orEmpty()
     }
 
     private fun <T> fetch(path: String, parser: (String) -> T?): Fetched<T>? {
@@ -242,6 +252,53 @@ class MusicBrainzMetadataClient(
         }
     }.getOrNull()
 
+    private fun parseArtistAvatarUrl(body: String): String? = runCatching {
+        val relations = JSONObject(body).optJSONArray("relations") ?: return@runCatching ""
+        val resources = buildList {
+            for (index in 0 until relations.length()) {
+                val relation = relations.optJSONObject(index) ?: continue
+                val resource = relation.optJSONObject("url")
+                    ?.optString("resource")
+                    ?.trim()
+                    .orEmpty()
+                if (resource.isNotBlank()) add(relation.optString("type") to resource)
+            }
+        }
+        resources.asSequence()
+            .mapNotNull { (_, resource) -> deezerArtistId(resource) }
+            .firstOrNull()
+            ?.let { artistId -> return@runCatching "https://api.deezer.com/artist/$artistId/image?size=big" }
+        resources.asSequence()
+            .filter { (type, _) -> type.equals("image", ignoreCase = true) }
+            .mapNotNull { (_, resource) -> trustedArtistImageUrl(resource) }
+            .firstOrNull()
+            .orEmpty()
+    }.getOrNull()
+
+    private fun deezerArtistId(value: String): String? = runCatching {
+        val uri = URI(value)
+        val host = uri.host?.lowercase().orEmpty()
+        if (uri.scheme != "https" || (host != "deezer.com" && !host.endsWith(".deezer.com"))) {
+            return@runCatching null
+        }
+        uri.path.orEmpty()
+            .split('/')
+            .filter(String::isNotBlank)
+            .let { parts ->
+                parts.getOrNull(parts.indexOf("artist") + 1)
+                    ?.takeIf { parts.contains("artist") && it.all(Char::isDigit) }
+            }
+    }.getOrNull()
+
+    private fun trustedArtistImageUrl(value: String): String? = runCatching {
+        val uri = URI(value)
+        val host = uri.host?.lowercase().orEmpty()
+        value.takeIf {
+            uri.scheme.equals("https", ignoreCase = true) &&
+                host in TRUSTED_ARTIST_IMAGE_HOSTS
+        }
+    }.getOrNull()
+
     private fun artistType(value: String): ArtistType = when (value.trim().lowercase()) {
         "person" -> ArtistType.PERSON
         "group" -> ArtistType.GROUP
@@ -281,6 +338,15 @@ class MusicBrainzMetadataClient(
         const val EU_ENDPOINT = "https://musicbrainz.eu/ws/2/"
         const val INITIAL_RETRY_DELAY_MS = 250L
         const val MAX_RETRY_DELAY_MS = 2_000L
+        val MUSICBRAINZ_ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
         val RETRYABLE_STATUS_CODES = setOf(429, 500, 502, 503, 504)
+        val TRUSTED_ARTIST_IMAGE_HOSTS = setOf(
+            "archive.org",
+            "web.archive.org",
+            "i.scdn.co",
+            "commons.wikimedia.org",
+            "upload.wikimedia.org",
+            "cdn-images.dzcdn.net"
+        )
     }
 }

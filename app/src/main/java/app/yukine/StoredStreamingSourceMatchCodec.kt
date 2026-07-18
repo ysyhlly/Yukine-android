@@ -33,17 +33,20 @@ internal data class StoredStreamingSourceMatch(
 /** Compact, backward-compatible persistence for one canonical match and its version choices. */
 internal object StoredStreamingSourceMatchCodec {
     private const val LEGACY_PREFIX = "__echo_source_match_v1__:"
-    private const val PREFIX = "__echo_source_match_v2__:"
+    private const val V2_PREFIX = "__echo_source_match_v2__:"
+    private const val PREFIX = "__echo_source_match_v3__:"
     private const val MAX_CANDIDATES = 12
 
     fun isEncoded(value: String?): Boolean = value?.let {
-        it.startsWith(PREFIX) || it.startsWith(LEGACY_PREFIX)
+        it.startsWith(PREFIX) || it.startsWith(V2_PREFIX) || it.startsWith(LEGACY_PREFIX)
     } == true
+
+    fun isCurrentEncoding(value: String?): Boolean = value?.startsWith(PREFIX) == true
 
     fun upgradedEncoding(value: String?): String? {
         val clean = value.orEmpty().trim()
         if (!clean.startsWith(LEGACY_PREFIX)) return null
-        return PREFIX + clean.removePrefix(LEGACY_PREFIX)
+        return V2_PREFIX + clean.removePrefix(LEGACY_PREFIX)
     }
 
     fun primaryProviderTrackId(value: String?): String {
@@ -78,6 +81,7 @@ internal object StoredStreamingSourceMatchCodec {
         return runCatching {
             val json = when {
                 clean.startsWith(PREFIX) -> clean.removePrefix(PREFIX)
+                clean.startsWith(V2_PREFIX) -> clean.removePrefix(V2_PREFIX)
                 else -> clean.removePrefix(LEGACY_PREFIX)
             }
             val root = JSONObject(json)

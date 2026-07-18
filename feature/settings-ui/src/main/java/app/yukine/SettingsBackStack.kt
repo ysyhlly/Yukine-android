@@ -8,19 +8,21 @@ object SettingsBackStack {
             SettingsPage.LibraryGroup,
             SettingsPage.LyricsGroup,
             SettingsPage.SourcesGroup,
+            SettingsPage.Downloads,
             SettingsPage.AboutGroup -> SettingsPage.Home
 
             SettingsPage.Appearance,
             SettingsPage.Accent,
             SettingsPage.Language,
-            SettingsPage.PageBackground -> SettingsPage.AppearanceGroup
+            SettingsPage.PageBackground,
+            SettingsPage.NowPlayingGestures,
+            SettingsPage.ShareStyle -> SettingsPage.AppearanceGroup
             SettingsPage.AdvancedTheme -> SettingsPage.Appearance
 
             SettingsPage.PlaybackSpeed,
             SettingsPage.AppVolume,
             SettingsPage.AudioEffects,
             SettingsPage.ReplayGain,
-            SettingsPage.NowPlayingGestures,
             SettingsPage.PlaybackRestore,
             SettingsPage.ConcurrentPlayback,
             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
@@ -30,8 +32,7 @@ object SettingsBackStack {
             SettingsPage.StatusBarLyrics,
             SettingsPage.FloatingLyrics -> SettingsPage.LyricsGroup
             SettingsPage.StreamingAudioQuality,
-            SettingsPage.StreamingGateway,
-            SettingsPage.Downloads -> SettingsPage.SourcesGroup
+            SettingsPage.StreamingGateway -> SettingsPage.SourcesGroup
 
             else -> SettingsPage.Home
         }

@@ -11,6 +11,7 @@ import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoIconKind
+import app.yukine.ui.HomeDashboardLayout
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
@@ -22,6 +23,16 @@ data class SettingsPageStateContent(
 )
 
 object SettingsPageStateBuilder {
+    private val homeCategoryOrder = listOf(
+        SettingsCategoryId.PlaybackAudio,
+        SettingsCategoryId.LyricsSystemDisplay,
+        SettingsCategoryId.AppearanceInteraction,
+        SettingsCategoryId.LibraryMetadata,
+        SettingsCategoryId.SourcesAccountsSync,
+        SettingsCategoryId.DownloadsStorageBackup,
+        SettingsCategoryId.SystemPrivacyHelp
+    )
+
     fun build(
         title: String,
         metrics: List<SettingsMetric>,
@@ -31,7 +42,13 @@ object SettingsPageStateBuilder {
     fun buildContent(
         title: String,
         metrics: List<SettingsMetric>,
-        actions: List<SettingsAction>
+        actions: List<SettingsAction>,
+        issues: List<SettingsIssue> = emptyList(),
+        issuesTitle: String = "",
+        searchEntries: List<SettingsSearchEntry> = emptyList(),
+        searchPlaceholder: String = "",
+        searchResultsTitle: String = "",
+        searchEmptyMessage: String = ""
     ): SettingsPageStateContent {
         val stableMetrics = metrics.toList()
         val stableActions = actions.toList()
@@ -40,7 +57,13 @@ object SettingsPageStateBuilder {
                 title = title,
                 metrics = stableMetrics,
                 items = stableActions.map { action -> action.toSettingsItem() } +
-                        stableMetrics.map { metric -> SettingsItem.Metric(metric.label, metric.value) }
+                        stableMetrics.map { metric -> SettingsItem.Metric(metric.label, metric.value) },
+                issues = issues.toList(),
+                issuesTitle = issuesTitle,
+                searchEntries = searchEntries.toList(),
+                searchPlaceholder = searchPlaceholder,
+                searchResultsTitle = searchResultsTitle,
+                searchEmptyMessage = searchEmptyMessage
             ),
             actions = stableActions
         )
@@ -48,88 +71,92 @@ object SettingsPageStateBuilder {
 
     fun home(
         languageMode: String,
-        audioPermissionGranted: Boolean,
-        notificationPermissionGranted: Boolean,
-        playbackServiceConnected: Boolean,
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus,
         onNavigate: (SettingsPage) -> Unit,
+        onOpenSearchEntry: (SettingsEntryId, SettingsPage) -> Unit,
         onRequestNeededPermissions: () -> Unit,
-        onOpenDownloads: () -> Unit
+        onOpenOverlayPermission: () -> Unit
     ): SettingsPageStateContent {
-        val metrics = listOf(
-            SettingsMetric(
-                text(languageMode, "settings.start"),
-                text(languageMode, "settings.start.hint"),
-                compact = true
-            ),
-            SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode)),
-            SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode)),
-            SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))
-        )
-        val actions = buildList {
-            if (!audioPermissionGranted) {
-                add(
-                    SettingsAction(
-                        label = text(languageMode, "settings.grant.music.access"),
-                        onClick = Runnable { onRequestNeededPermissions() },
-                        description = text(languageMode, "settings.grant.music.access.hint"),
-                        style = SettingsActionStyle.Navigation,
-                        icon = EchoIconKind.Permission,
-                        section = text(languageMode, "settings.section.start")
-                    )
-                )
-            }
-            add(groupNavigationAction(
-                languageMode,
-                "library",
-                SettingsPage.LibraryGroup,
-                onNavigate,
-                text(languageMode, "settings.section.start")
-            ))
-            add(groupNavigationAction(
-                languageMode,
-                "playback",
-                SettingsPage.PlaybackGroup,
-                onNavigate,
-                text(languageMode, "settings.section.start")
-            ))
-            add(groupNavigationAction(
-                languageMode,
-                "lyrics",
-                SettingsPage.LyricsGroup,
-                onNavigate,
-                text(languageMode, "settings.section.start")
-            ))
-            add(groupNavigationAction(
-                languageMode,
-                "appearance",
-                SettingsPage.AppearanceGroup,
-                onNavigate,
-                text(languageMode, "settings.section.start")
-            ))
-            add(groupNavigationAction(
-                languageMode,
-                "sources",
-                SettingsPage.SourcesGroup,
-                onNavigate,
-                text(languageMode, "settings.section.more")
-            ))
-            add(SettingsAction(
-                label = text(languageMode, "download.manager"),
-                onClick = Runnable { onOpenDownloads() },
-                description = text(languageMode, "download.manager.hint"),
+        val actions = SettingsInformationArchitecture.categories
+            .sortedBy { category -> homeCategoryOrder.indexOf(category.id).takeIf { it >= 0 } ?: Int.MAX_VALUE }
+            .map { category ->
+            SettingsAction(
+                label = groupTitle(languageMode, category.groupKey),
+                onClick = Runnable { onNavigate(category.page) },
+                description = groupDescription(languageMode, category.groupKey),
+                value = homeCategorySummary(category.id, languageMode, preferences, runtime),
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Download,
-                section = text(languageMode, "settings.section.more")
-            ))
-            add(groupNavigationAction(
-                languageMode,
-                "about",
-                SettingsPage.AboutGroup,
-                onNavigate,
-                text(languageMode, "settings.section.more")
-            ))
+                icon = category.icon,
+                section = text(languageMode, homeCategorySectionKey(category.id)),
+                categoryId = category.id
+            )
         }
-        return buildContent(text(languageMode, "tab.settings"), metrics, actions)
+        val issues = buildList {
+            if (!runtime.audioPermissionGranted) {
+                add(SettingsIssue(
+                    SettingsIssueId.AudioPermission,
+                    text(languageMode, "settings.issue.audio.title"),
+                    text(languageMode, "settings.issue.audio.description"),
+                    EchoIconKind.Permission,
+                    text(languageMode, "settings.issue.review"),
+                    Runnable(onRequestNeededPermissions)
+                ))
+            }
+            if (!runtime.notificationPermissionGranted) {
+                add(SettingsIssue(
+                    SettingsIssueId.NotificationPermission,
+                    text(languageMode, "settings.issue.notification.title"),
+                    text(languageMode, "settings.issue.notification.description"),
+                    EchoIconKind.Permission,
+                    text(languageMode, "settings.issue.review"),
+                    Runnable(onRequestNeededPermissions)
+                ))
+            }
+            if (preferences.floatingLyricsEnabled && !runtime.overlayPermissionGranted) {
+                add(SettingsIssue(
+                    SettingsIssueId.OverlayPermission,
+                    text(languageMode, "settings.issue.overlay.title"),
+                    text(languageMode, "settings.issue.overlay.description"),
+                    EchoIconKind.Permission,
+                    text(languageMode, "settings.issue.review"),
+                    Runnable(onOpenOverlayPermission)
+                ))
+            }
+            if (!runtime.playbackServiceConnected) {
+                add(SettingsIssue(
+                    SettingsIssueId.PlaybackService,
+                    text(languageMode, "settings.issue.playback.title"),
+                    text(languageMode, "settings.issue.playback.description"),
+                    EchoIconKind.Info,
+                    text(languageMode, "settings.issue.open.playback"),
+                    Runnable { onNavigate(SettingsPage.PlaybackGroup) }
+                ))
+            }
+        }
+        return buildContent(
+            title = text(languageMode, "tab.settings"),
+            metrics = emptyList(),
+            actions = actions,
+            issues = issues,
+            issuesTitle = text(languageMode, "settings.issues"),
+            searchEntries = SettingsInformationArchitecture.searchEntries(languageMode, onOpenSearchEntry),
+            searchPlaceholder = text(languageMode, "settings.search.placeholder"),
+            searchResultsTitle = text(languageMode, "settings.search.results"),
+            searchEmptyMessage = text(languageMode, "settings.search.no.results")
+        )
+    }
+
+    private fun homeCategorySectionKey(categoryId: SettingsCategoryId): String = when (categoryId) {
+        SettingsCategoryId.PlaybackAudio,
+        SettingsCategoryId.LyricsSystemDisplay,
+        SettingsCategoryId.AppearanceInteraction -> "settings.section.listening"
+
+        SettingsCategoryId.LibraryMetadata,
+        SettingsCategoryId.SourcesAccountsSync,
+        SettingsCategoryId.DownloadsStorageBackup -> "settings.section.library.connections"
+
+        SettingsCategoryId.SystemPrivacyHelp -> "settings.section.system.support"
     }
 
     fun aboutGroup(
@@ -137,57 +164,118 @@ object SettingsPageStateBuilder {
         appVersionName: String,
         audioPermissionGranted: Boolean,
         notificationPermissionGranted: Boolean,
-        playbackServiceConnected: Boolean,
         debugPromptsEnabled: Boolean,
         onNavigate: (SettingsPage) -> Unit,
-        onExportBackup: () -> Unit,
-        onImportBackup: () -> Unit,
+        onRequestNeededPermissions: () -> Unit,
         onDebugPromptsEnabledChange: (Boolean) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "version"), appVersionName),
             SettingsMetric(text(languageMode, "audio.permission"), permissionLabel(audioPermissionGranted, languageMode)),
-            SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode)),
-            SettingsMetric(text(languageMode, "playback.service"), if (playbackServiceConnected) text(languageMode, "connected") else text(languageMode, "disconnected"))
+            SettingsMetric(text(languageMode, "notification.permission"), permissionLabel(notificationPermissionGranted, languageMode))
         )
+        val actions = buildList {
+            add(backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate))
+            if (!audioPermissionGranted) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "audio.permission"),
+                        onClick = Runnable(onRequestNeededPermissions),
+                        description = text(languageMode, "settings.permissions.review.description"),
+                        style = SettingsActionStyle.Navigation,
+                        icon = EchoIconKind.Permission,
+                        section = text(languageMode, "settings.section.permissions"),
+                        entryId = SettingsEntryId.AudioPermission
+                    )
+                )
+            }
+            if (!notificationPermissionGranted) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "notification.permission"),
+                        onClick = Runnable(onRequestNeededPermissions),
+                        description = text(languageMode, "settings.permissions.review.description"),
+                        style = SettingsActionStyle.Navigation,
+                        icon = EchoIconKind.Permission,
+                        section = text(languageMode, "settings.section.permissions"),
+                        entryId = SettingsEntryId.NotificationPermission
+                    )
+                )
+            }
+            add(
+                SettingsAction(
+                    label = text(languageMode, "qq.group"),
+                    onClick = Runnable { },
+                    description = text(languageMode, "qq.group.hint"),
+                    value = "1013122077",
+                    style = SettingsActionStyle.Navigation,
+                    icon = EchoIconKind.Network,
+                    section = text(languageMode, "settings.section.help"),
+                    imageDialog = SettingsImageDialog(
+                        title = text(languageMode, "qq.group"),
+                        message = text(languageMode, "qq.group.number"),
+                        imageResId = R.drawable.qq_group_qr,
+                        imageContentDescription = text(languageMode, "qq.group.qr.description"),
+                        dismissLabel = text(languageMode, "close")
+                    ),
+                    entryId = SettingsEntryId.Community
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "debug.prompts"),
+                    onClick = Runnable { onDebugPromptsEnabledChange(!debugPromptsEnabled) },
+                    description = text(languageMode, "debug.prompts.hint"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = debugPromptsEnabled,
+                    section = text(languageMode, "settings.section.diagnostics"),
+                    entryId = SettingsEntryId.DebugPrompts
+                )
+            )
+        }
+        return buildContent(groupTitle(languageMode, "about"), metrics, actions)
+    }
+
+    fun storageGroup(
+        languageMode: String,
+        onNavigate: (SettingsPage) -> Unit,
+        onOpenDownloads: () -> Unit,
+        onExportBackup: () -> Unit,
+        onImportBackup: () -> Unit
+    ): SettingsPageStateContent {
         val actions = listOf(
             backNavigationAction(text(languageMode, "back"), SettingsPage.Home, onNavigate),
             SettingsAction(
-                label = text(languageMode, "qq.group"),
-                onClick = Runnable { },
-                description = text(languageMode, "qq.group.hint"),
-                value = "1013122077",
+                label = text(languageMode, "download.manager"),
+                onClick = Runnable(onOpenDownloads),
+                description = text(languageMode, "download.manager.hint"),
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Network,
-                imageDialog = SettingsImageDialog(
-                    title = text(languageMode, "qq.group"),
-                    message = text(languageMode, "qq.group.number"),
-                    imageResId = R.drawable.qq_group_qr,
-                    imageContentDescription = text(languageMode, "qq.group.qr.description"),
-                    dismissLabel = text(languageMode, "close")
-                )
-            ),
-            SettingsAction(
-                label = text(languageMode, "debug.prompts"),
-                onClick = Runnable { onDebugPromptsEnabledChange(!debugPromptsEnabled) },
-                description = text(languageMode, "debug.prompts.hint"),
-                style = SettingsActionStyle.Toggle,
-                checked = debugPromptsEnabled
+                icon = EchoIconKind.Download,
+                section = text(languageMode, "settings.section.downloads"),
+                entryId = SettingsEntryId.DownloadManager
             ),
             SettingsAction(
                 label = text(languageMode, "backup.export"),
-                onClick = Runnable { onExportBackup() },
-                icon = EchoIconKind.Upload
+                onClick = Runnable(onExportBackup),
+                icon = EchoIconKind.Upload,
+                section = text(languageMode, "settings.section.backup"),
+                entryId = SettingsEntryId.BackupExport
             ),
             SettingsAction(
                 label = text(languageMode, "backup.import"),
-                onClick = Runnable { onImportBackup() },
+                onClick = Runnable(onImportBackup),
                 description = text(languageMode, "backup.import.description"),
                 style = SettingsActionStyle.Destructive,
-                icon = EchoIconKind.Import
+                icon = EchoIconKind.Import,
+                section = text(languageMode, "settings.section.backup"),
+                entryId = SettingsEntryId.BackupImport
             )
         )
-        return buildContent(groupTitle(languageMode, "about"), metrics, actions)
+        return buildContent(
+            groupTitle(languageMode, "storage"),
+            emptyList(),
+            actions
+        )
     }
 
     fun appearanceGroup(
@@ -205,7 +293,14 @@ object SettingsPageStateBuilder {
         onGlassBlurEnabledChange: (Boolean) -> Unit,
         onGlassBlurRadiusChange: (Float) -> Unit,
         onGlassSurfaceOpacityChange: (Float) -> Unit,
-        onNavigate: (SettingsPage) -> Unit
+        onNavigate: (SettingsPage) -> Unit,
+        nowPlayingGesturesEnabled: Boolean = true,
+        shareStyle: String = TrackShareStyle.defaultValue(),
+        onNowPlayingGesturesEnabledChange: (Boolean) -> Unit = {},
+        compactSettingsCards: Boolean = false,
+        onCompactSettingsCardsChange: (Boolean) -> Unit = {},
+        homeDashboardLayout: HomeDashboardLayout = HomeDashboardLayout.Classic,
+        onHomeDashboardLayoutChange: (HomeDashboardLayout) -> Unit = {}
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)),
@@ -222,6 +317,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "settings.choose.hint"),
                 AppLanguage.themeLabel(themeMode, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.appearance"),
+                entryId = SettingsEntryId.Theme
             ),
             navigationAction(
                 text(languageMode, "accent"),
@@ -229,6 +327,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "settings.choose.hint"),
                 AppLanguage.accentLabel(accentMode, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.appearance"),
+                entryId = SettingsEntryId.Accent
             ),
             navigationAction(
                 text(languageMode, "language"),
@@ -236,6 +337,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "settings.choose.hint"),
                 AppLanguage.labelFor(languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.appearance"),
+                entryId = SettingsEntryId.Language
             ),
             navigationAction(
                 text(languageMode, "page.background"),
@@ -243,6 +347,45 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "page.background.hint"),
                 pageBackgroundSummary(pageBackgrounds, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.appearance"),
+                entryId = SettingsEntryId.PageBackground
+            ),
+            SettingsAction(
+                label = text(languageMode, "home.layout"),
+                onClick = Runnable {
+                    onHomeDashboardLayoutChange(
+                        if (homeDashboardLayout == HomeDashboardLayout.Classic) {
+                            HomeDashboardLayout.Content
+                        } else {
+                            HomeDashboardLayout.Classic
+                        }
+                    )
+                },
+                description = text(languageMode, "home.layout.hint"),
+                value = text(
+                    languageMode,
+                    if (homeDashboardLayout == HomeDashboardLayout.Classic) {
+                        "home.layout.classic"
+                    } else {
+                        "home.layout.content"
+                    }
+                ),
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Library,
+                checked = homeDashboardLayout == HomeDashboardLayout.Content,
+                section = text(languageMode, "settings.section.layout"),
+                entryId = SettingsEntryId.HomeDashboardLayout
+            ),
+            SettingsAction(
+                label = text(languageMode, "settings.compact.cards"),
+                onClick = Runnable { onCompactSettingsCardsChange(!compactSettingsCards) },
+                description = text(languageMode, "settings.compact.cards.hint"),
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Settings,
+                checked = compactSettingsCards,
+                section = text(languageMode, "settings.section.layout"),
+                entryId = SettingsEntryId.CompactSettingsCards
             ),
             SettingsAction(
                 label = text(languageMode, "background.blur"),
@@ -251,7 +394,9 @@ object SettingsPageStateBuilder {
                 },
                 description = text(languageMode, "background.blur.hint"),
                 style = SettingsActionStyle.Toggle,
-                checked = customBackgroundBlurEnabled
+                checked = customBackgroundBlurEnabled,
+                section = text(languageMode, "settings.section.effects"),
+                entryId = SettingsEntryId.BackgroundBlur
             ),
             SettingsAction(
                 label = text(languageMode, "background.blur.intensity"),
@@ -265,14 +410,26 @@ object SettingsPageStateBuilder {
                 ),
                 sliderRangeStart = app.yukine.ui.EchoBackgroundBlurDefaults.MIN_RADIUS_DP,
                 sliderRangeEnd = app.yukine.ui.EchoBackgroundBlurDefaults.MAX_RADIUS_DP,
-                onSliderValueChange = onCustomBackgroundBlurRadiusChange
+                onSliderValueChange = onCustomBackgroundBlurRadiusChange,
+                section = text(languageMode, "settings.section.effects"),
+                entryId = SettingsEntryId.BackgroundBlurIntensity,
+                sliderDefaultLabel = text(languageMode, "settings.default.value") + ": " +
+                    "${app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP.roundToInt()} dp",
+                sliderResetLabel = text(languageMode, "settings.restore.default"),
+                onSliderReset = Runnable {
+                    onCustomBackgroundBlurRadiusChange(
+                        app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP
+                    )
+                }
             ),
             SettingsAction(
                 label = text(languageMode, "glass.blur"),
                 onClick = Runnable { onGlassBlurEnabledChange(!glassBlurEnabled) },
                 description = text(languageMode, "glass.blur.hint"),
                 style = SettingsActionStyle.Toggle,
-                checked = glassBlurEnabled
+                checked = glassBlurEnabled,
+                section = text(languageMode, "settings.section.effects"),
+                entryId = SettingsEntryId.GlassBlur
             ),
             SettingsAction(
                 label = text(languageMode, "glass.blur.intensity"),
@@ -284,7 +441,15 @@ object SettingsPageStateBuilder {
                 sliderValue = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(glassBlurRadiusDp),
                 sliderRangeStart = app.yukine.ui.EchoGlassDefaults.MIN_BLUR_RADIUS_DP,
                 sliderRangeEnd = app.yukine.ui.EchoGlassDefaults.MAX_BLUR_RADIUS_DP,
-                onSliderValueChange = onGlassBlurRadiusChange
+                onSliderValueChange = onGlassBlurRadiusChange,
+                section = text(languageMode, "settings.section.effects"),
+                entryId = SettingsEntryId.GlassBlurIntensity,
+                sliderDefaultLabel = text(languageMode, "settings.default.value") + ": " +
+                    "${app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP.roundToInt()} dp",
+                sliderResetLabel = text(languageMode, "settings.restore.default"),
+                onSliderReset = Runnable {
+                    onGlassBlurRadiusChange(app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP)
+                }
             ),
             SettingsAction(
                 label = text(languageMode, "glass.card.opacity"),
@@ -296,7 +461,35 @@ object SettingsPageStateBuilder {
                 sliderValue = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(glassSurfaceOpacity) * 100f,
                 sliderRangeStart = app.yukine.ui.EchoGlassDefaults.MIN_SURFACE_OPACITY * 100f,
                 sliderRangeEnd = app.yukine.ui.EchoGlassDefaults.MAX_SURFACE_OPACITY * 100f,
-                onSliderValueChange = { value -> onGlassSurfaceOpacityChange(value / 100f) }
+                onSliderValueChange = { value -> onGlassSurfaceOpacityChange(value / 100f) },
+                section = text(languageMode, "settings.section.effects"),
+                entryId = SettingsEntryId.GlassSurfaceOpacity,
+                sliderDefaultLabel = text(languageMode, "settings.default.value") + ": " +
+                    "${(app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY * 100f).roundToInt()}%",
+                sliderResetLabel = text(languageMode, "settings.restore.default"),
+                onSliderReset = Runnable {
+                    onGlassSurfaceOpacityChange(app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY)
+                }
+            ),
+            SettingsAction(
+                label = text(languageMode, "now.playing.gestures"),
+                onClick = Runnable { onNowPlayingGesturesEnabledChange(!nowPlayingGesturesEnabled) },
+                description = text(languageMode, "now.playing.gestures.hint"),
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.More,
+                checked = nowPlayingGesturesEnabled,
+                section = text(languageMode, "settings.section.interaction"),
+                entryId = SettingsEntryId.NowPlayingGestures
+            ),
+            navigationAction(
+                text(languageMode, "share.style"),
+                SettingsPage.ShareStyle,
+                onNavigate,
+                text(languageMode, "share.style.hint"),
+                shareStyleLabel(shareStyle, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.interaction"),
+                entryId = SettingsEntryId.ShareStyle
             )
         )
         return buildContent(groupTitle(languageMode, "appearance"), metrics, actions)
@@ -305,7 +498,6 @@ object SettingsPageStateBuilder {
     fun sourcesGroup(
         languageMode: String,
         quality: String,
-        shareStyle: String,
         gatewayConfigured: Boolean,
         luoxueImportedSourceCount: Int,
         luoxueEnabledSourceCount: Int,
@@ -332,21 +524,45 @@ object SettingsPageStateBuilder {
                 onClick = Runnable { onOpenNetworkPage(NetworkPage.Streaming) },
                 description = text(languageMode, "streaming.providers.manage.hint"),
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Network
+                icon = EchoIconKind.Network,
+                section = text(languageMode, "settings.section.accounts"),
+                entryId = SettingsEntryId.StreamingProviders
             ),
             SettingsAction(
                 label = text(languageMode, "streaming.lx.source.manager"),
                 onClick = Runnable { onManageLuoxueSources() },
                 description = text(languageMode, "streaming.lx.source.manager.hint") + " · " + lxSummary,
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Network
+                icon = EchoIconKind.Network,
+                section = text(languageMode, "settings.section.accounts"),
+                entryId = SettingsEntryId.LuoxueSourceManager
             ),
             SettingsAction(
                 label = text(languageMode, "streaming.lx.import.source"),
                 onClick = Runnable { onImportLuoxueSource() },
                 description = text(languageMode, "streaming.lx.import.hint"),
                 style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Network
+                icon = EchoIconKind.Network,
+                section = text(languageMode, "settings.section.accounts"),
+                entryId = SettingsEntryId.LuoxueSourceImport
+            ),
+            SettingsAction(
+                label = text(languageMode, "remote.music.sources"),
+                onClick = Runnable { onOpenNetworkPage(NetworkPage.Sources) },
+                description = text(languageMode, "remote.music.sources.hint"),
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Folder,
+                section = text(languageMode, "settings.section.sources"),
+                entryId = SettingsEntryId.RemoteMusicSources
+            ),
+            SettingsAction(
+                label = text(languageMode, "webdav"),
+                onClick = Runnable { onOpenNetworkPage(NetworkPage.WebDav) },
+                description = text(languageMode, "settings.sources.webdav.hint"),
+                style = SettingsActionStyle.Navigation,
+                icon = EchoIconKind.Folder,
+                section = text(languageMode, "settings.section.sources"),
+                entryId = SettingsEntryId.WebDav
             ),
             navigationAction(
                 text(languageMode, "streaming.audio.quality"),
@@ -354,6 +570,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "streaming.audio.quality.hint"),
                 streamingQualityLabel(normalizedQuality, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.playback"),
+                entryId = SettingsEntryId.StreamingAudioQuality
             ),
             navigationAction(
                 text(languageMode, "advanced") + " · " + text(languageMode, "streaming.gateway"),
@@ -361,27 +580,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "streaming.gateway.hint"),
                 if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing")
-            ),
-            SettingsAction(
-                label = text(languageMode, "remote.music.sources"),
-                onClick = Runnable { onOpenNetworkPage(NetworkPage.Sources) },
-                description = text(languageMode, "remote.music.sources.hint"),
-                style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Folder
-            ),
-            SettingsAction(
-                label = text(languageMode, "webdav"),
-                onClick = Runnable { onOpenNetworkPage(NetworkPage.WebDav) },
-                description = text(languageMode, "settings.sources.webdav.hint"),
-                style = SettingsActionStyle.Navigation,
-                icon = EchoIconKind.Folder
-            ),
-            navigationAction(
-                text(languageMode, "share.style"),
-                SettingsPage.ShareStyle,
-                onNavigate,
-                text(languageMode, "share.style.hint"),
-                shareStyleLabel(shareStyle, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.advanced"),
+                entryId = SettingsEntryId.StreamingGateway
             )
         )
         return buildContent(text(languageMode, "streaming.settings"), metrics, actions)
@@ -393,13 +594,11 @@ object SettingsPageStateBuilder {
         appVolume: Float,
         concurrentPlaybackEnabled: Boolean,
         audioEffects: AudioEffectSettings,
-        nowPlayingGesturesEnabled: Boolean,
         playbackRestoreEnabled: Boolean,
         replayGainEnabled: Boolean,
         remainingMs: Long,
         onNavigate: (SettingsPage) -> Unit,
         onReplayGainEnabledChange: (Boolean) -> Unit = {},
-        onNowPlayingGesturesEnabledChange: (Boolean) -> Unit = {},
         onPlaybackRestoreEnabledChange: (Boolean) -> Unit = {},
         onAudioExclusiveEnabledChange: (Boolean) -> Unit = {}
     ): SettingsPageStateContent {
@@ -408,7 +607,6 @@ object SettingsPageStateBuilder {
             SettingsMetric(text(languageMode, "app.volume"), appVolumeLabel(appVolume)),
             SettingsMetric(text(languageMode, "audio.effects"), audioEffectsLabel(audioEffects, languageMode)),
             SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(replayGainEnabled, languageMode)),
-            SettingsMetric(text(languageMode, "now.playing.gestures"), enabledLabel(nowPlayingGesturesEnabled, languageMode)),
             SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(playbackRestoreEnabled, languageMode)),
             SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(!concurrentPlaybackEnabled, languageMode)),
             SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode))
@@ -421,6 +619,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "speed.description"),
                 playbackSpeedLabel(playbackSpeed)
+            ).copy(
+                section = text(languageMode, "settings.section.audio"),
+                entryId = SettingsEntryId.PlaybackSpeed
             ),
             navigationAction(
                 text(languageMode, "app.volume"),
@@ -428,6 +629,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "volume.description"),
                 appVolumeLabel(appVolume)
+            ).copy(
+                section = text(languageMode, "settings.section.audio"),
+                entryId = SettingsEntryId.AppVolume
             ),
             navigationAction(
                 text(languageMode, "audio.effects"),
@@ -435,6 +639,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "audio.effects.hint"),
                 audioEffectsLabel(audioEffects, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.audio"),
+                entryId = SettingsEntryId.AudioEffects
             ),
             SettingsAction(
                 label = text(languageMode, "replay.gain"),
@@ -442,15 +649,9 @@ object SettingsPageStateBuilder {
                 description = text(languageMode, "replay.gain.hint"),
                 style = SettingsActionStyle.Toggle,
                 icon = EchoIconKind.Gauge,
-                checked = replayGainEnabled
-            ),
-            SettingsAction(
-                label = text(languageMode, "now.playing.gestures"),
-                onClick = Runnable { onNowPlayingGesturesEnabledChange(!nowPlayingGesturesEnabled) },
-                description = text(languageMode, "now.playing.gestures.hint"),
-                style = SettingsActionStyle.Toggle,
-                icon = EchoIconKind.More,
-                checked = nowPlayingGesturesEnabled
+                checked = replayGainEnabled,
+                section = text(languageMode, "settings.section.audio"),
+                entryId = SettingsEntryId.ReplayGain
             ),
             SettingsAction(
                 label = text(languageMode, "playback.restore"),
@@ -458,7 +659,9 @@ object SettingsPageStateBuilder {
                 description = text(languageMode, "playback.restore.hint"),
                 style = SettingsActionStyle.Toggle,
                 icon = EchoIconKind.Refresh,
-                checked = playbackRestoreEnabled
+                checked = playbackRestoreEnabled,
+                section = text(languageMode, "settings.section.behavior"),
+                entryId = SettingsEntryId.PlaybackRestore
             ),
             SettingsAction(
                 label = text(languageMode, "audio.exclusive"),
@@ -466,7 +669,9 @@ object SettingsPageStateBuilder {
                 description = text(languageMode, "audio.exclusive.hint"),
                 style = SettingsActionStyle.Toggle,
                 icon = EchoIconKind.Gauge,
-                checked = !concurrentPlaybackEnabled
+                checked = !concurrentPlaybackEnabled,
+                section = text(languageMode, "settings.section.behavior"),
+                entryId = SettingsEntryId.AudioExclusive
             ),
             navigationAction(
                 text(languageMode, "sleep.timer"),
@@ -474,6 +679,9 @@ object SettingsPageStateBuilder {
                 onNavigate,
                 text(languageMode, "sleep.timer.description"),
                 sleepTimerLabel(remainingMs, languageMode)
+            ).copy(
+                section = text(languageMode, "settings.section.tools"),
+                entryId = SettingsEntryId.SleepTimer
             )
         )
         return buildContent(groupTitle(languageMode, "playback"), metrics, actions)
@@ -497,6 +705,9 @@ object SettingsPageStateBuilder {
                         SettingsPage.AdvancedTheme,
                         onNavigate,
                         text(languageMode, "advanced.themes.description")
+                    ).copy(
+                        section = text(languageMode, "settings.section.advanced"),
+                        entryId = SettingsEntryId.AdvancedTheme
                     )
                 )
             }
@@ -1045,41 +1256,55 @@ object SettingsPageStateBuilder {
             add(SettingsAction(
                 label = text(languageMode, "scan.library"),
                 onClick = Runnable { onLoadLibrary() },
-                icon = EchoIconKind.Sync
+                icon = EchoIconKind.Sync,
+                section = text(languageMode, "settings.section.library"),
+                entryId = SettingsEntryId.LibraryScan
             ))
             add(SettingsAction(
                 label = text(languageMode, "import.audio.files"),
                 onClick = Runnable { onOpenAudioFilePicker() },
-                icon = EchoIconKind.Import
+                icon = EchoIconKind.Import,
+                section = text(languageMode, "settings.section.library"),
+                entryId = SettingsEntryId.ImportAudioFiles
             ))
             add(SettingsAction(
                 label = text(languageMode, "import.audio.folder"),
                 onClick = Runnable { onOpenAudioFolderPicker() },
-                icon = EchoIconKind.Folder
+                icon = EchoIconKind.Folder,
+                section = text(languageMode, "settings.section.library"),
+                entryId = SettingsEntryId.ImportAudioFolder
             ))
             add(SettingsAction(
                 label = text(languageMode, "identity.backfill.rebuild"),
                 onClick = Runnable { onRebuildSongIdentity() },
-                icon = EchoIconKind.Refresh
+                icon = EchoIconKind.Refresh,
+                section = text(languageMode, "settings.section.metadata"),
+                entryId = SettingsEntryId.IdentityRebuild
             ))
             if (identityBackfill.running) {
                 add(SettingsAction(
                     label = text(languageMode, "identity.backfill.cancel"),
                     onClick = Runnable { onCancelIdentityBackfill() },
-                    icon = EchoIconKind.Remove
+                    icon = EchoIconKind.Remove,
+                    section = text(languageMode, "settings.section.metadata"),
+                    entryId = SettingsEntryId.IdentityRebuild
                 ))
             }
             if (hiddenItems.isNotEmpty()) {
                 add(SettingsAction(
                     text(languageMode, "library.hidden.restore.all") + " (${hiddenItems.size})",
                     Runnable { onRestoreAllHidden() },
-                    icon = EchoIconKind.Refresh
+                    icon = EchoIconKind.Refresh,
+                    section = text(languageMode, "settings.section.hidden"),
+                    entryId = SettingsEntryId.RestoreHiddenLibraryItems
                 ))
                 hiddenItems.forEach { item ->
                     add(SettingsAction(
                         text(languageMode, "library.hidden.restore") + ": " + item.label,
                         Runnable { onRestoreHidden(item.sourceKey) },
-                        icon = EchoIconKind.Refresh
+                        icon = EchoIconKind.Refresh,
+                        section = text(languageMode, "settings.section.hidden"),
+                        entryId = SettingsEntryId.RestoreHiddenLibraryItems
                     ))
                 }
             }
@@ -1100,6 +1325,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)? = null,
+        onImportLyricsDirectory: (() -> Unit)? = null,
+        onViewLyricsImportReport: (() -> Unit)? = null,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
         title = groupTitle(languageMode, "lyrics"),
@@ -1116,6 +1344,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
+        onImportCurrentLyrics = onImportCurrentLyrics,
+        onImportLyricsDirectory = onImportLyricsDirectory,
+        onViewLyricsImportReport = onViewLyricsImportReport,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
 
@@ -1132,6 +1363,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)? = null,
+        onImportLyricsDirectory: (() -> Unit)? = null,
+        onViewLyricsImportReport: (() -> Unit)? = null,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
         title = text(languageMode, "lyrics"),
@@ -1148,6 +1382,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
+        onImportCurrentLyrics = onImportCurrentLyrics,
+        onImportLyricsDirectory = onImportLyricsDirectory,
+        onViewLyricsImportReport = onViewLyricsImportReport,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
 
@@ -1166,6 +1403,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)?,
+        onImportLyricsDirectory: (() -> Unit)?,
+        onViewLyricsImportReport: (() -> Unit)?,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
@@ -1186,14 +1426,47 @@ object SettingsPageStateBuilder {
                     onClick = Runnable { onOnlineLyricsEnabledChange(!onlineLyricsEnabled) },
                     style = SettingsActionStyle.Toggle,
                     icon = EchoIconKind.Lyrics,
-                    checked = onlineLyricsEnabled
+                    checked = onlineLyricsEnabled,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.OnlineLyrics
                 )
             )
             add(SettingsAction(
                 label = text(languageMode, "reload.lyrics"),
                 onClick = Runnable { onReloadLyrics() },
-                icon = EchoIconKind.Sync
+                icon = EchoIconKind.Sync,
+                section = text(languageMode, "settings.section.lyrics"),
+                entryId = SettingsEntryId.ReloadLyrics
             ))
+            if (onImportCurrentLyrics != null) add(
+                SettingsAction(
+                    label = "导入/替换当前歌曲歌词",
+                    description = "支持 LRC、TTML、XML 与 TXT",
+                    onClick = Runnable(onImportCurrentLyrics),
+                    icon = EchoIconKind.Import,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.ImportCurrentLyrics
+                )
+            )
+            if (onImportLyricsDirectory != null) add(
+                SettingsAction(
+                    label = "批量导入歌词目录",
+                    description = "递归扫描并仅写入安全的唯一匹配",
+                    onClick = Runnable(onImportLyricsDirectory),
+                    icon = EchoIconKind.Folder,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.ImportLyricsDirectory
+                )
+            )
+            if (onViewLyricsImportReport != null) add(
+                SettingsAction(
+                    label = "查看最近批量报告",
+                    onClick = Runnable(onViewLyricsImportReport),
+                    icon = EchoIconKind.Info,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.LyricsImportReport
+                )
+            )
             add(
                 SettingsAction(
                     label = text(languageMode, "status.bar.lyrics"),
@@ -1201,7 +1474,9 @@ object SettingsPageStateBuilder {
                     description = text(languageMode, "status.bar.lyrics.description"),
                     style = SettingsActionStyle.Toggle,
                     icon = EchoIconKind.Lyrics,
-                    checked = statusBarLyricsEnabled
+                    checked = statusBarLyricsEnabled,
+                    section = text(languageMode, "settings.section.system.display"),
+                    entryId = SettingsEntryId.StatusBarLyrics
                 )
             )
             add(
@@ -1211,7 +1486,9 @@ object SettingsPageStateBuilder {
                     description = text(languageMode, "system.media.lyrics.title.description"),
                     style = SettingsActionStyle.Toggle,
                     icon = EchoIconKind.Lyrics,
-                    checked = systemMediaLyricsTitleEnabled
+                    checked = systemMediaLyricsTitleEnabled,
+                    section = text(languageMode, "settings.section.system.display"),
+                    entryId = SettingsEntryId.SystemMediaLyricsTitle
                 )
             )
             add(
@@ -1221,13 +1498,49 @@ object SettingsPageStateBuilder {
                     onNavigate,
                     text(languageMode, "floating.lyrics.description"),
                     enabledLabel(floatingLyricsEnabled, languageMode)
+                ).copy(
+                    section = text(languageMode, "settings.section.system.display"),
+                    entryId = SettingsEntryId.FloatingLyrics
                 )
             )
             listOf(-1000L, -500L, 0L, 500L, 1000L).forEach { offset ->
-                add(lyricsOffsetAction(languageMode, offsetMs, offset, onApplyLyricsOffset))
+                add(
+                    lyricsOffsetAction(languageMode, offsetMs, offset, onApplyLyricsOffset).copy(
+                        section = text(languageMode, "settings.section.timing"),
+                        entryId = SettingsEntryId.LyricsOffset
+                    )
+                )
             }
         }
         return buildContent(title, metrics, actions)
+    }
+
+    private fun homeCategorySummary(
+        categoryId: SettingsCategoryId,
+        languageMode: String,
+        preferences: SettingsPreferencesSnapshot,
+        runtime: RuntimeSettingsStatus
+    ): String = when (categoryId) {
+        SettingsCategoryId.PlaybackAudio ->
+            playbackSpeedLabel(preferences.playbackSpeed) + " · " + appVolumeLabel(preferences.appVolume)
+        SettingsCategoryId.LibraryMetadata ->
+            runtime.librarySongCount.toString() + " " + text(languageMode, "songs")
+        SettingsCategoryId.SourcesAccountsSync ->
+            streamingQualityLabel(preferences.streamingAudioQuality, languageMode) + " · " +
+                if (runtime.streamingGatewayConfigured) text(languageMode, "connected") else text(languageMode, "settings.summary.local.first")
+        SettingsCategoryId.LyricsSystemDisplay -> when {
+            preferences.floatingLyricsEnabled -> text(languageMode, "floating.lyrics")
+            preferences.statusBarLyricsEnabled -> text(languageMode, "status.bar.lyrics")
+            runtime.onlineLyricsEnabled -> text(languageMode, "online.lyrics")
+            else -> text(languageMode, "off")
+        }
+        SettingsCategoryId.DownloadsStorageBackup -> text(languageMode, "settings.summary.downloads.backup")
+        SettingsCategoryId.AppearanceInteraction ->
+            AppLanguage.themeLabel(preferences.themeMode, languageMode) + " · " +
+                AppLanguage.accentLabel(preferences.accentMode, languageMode)
+        SettingsCategoryId.SystemPrivacyHelp -> runtime.appVersionName.ifBlank {
+            permissionLabel(runtime.audioPermissionGranted, languageMode)
+        }
     }
 
     private fun groupNavigationAction(

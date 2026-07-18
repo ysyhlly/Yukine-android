@@ -4,6 +4,7 @@ import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingTrack
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -66,6 +67,7 @@ class MainStreamingPlaylistListenerTest {
             },
             StreamingNavigationSink { calls += "navigate" },
             StreamingPlaylistLoadedDialogPresenter { calls += "loaded:$it" },
+            StreamingPlaylistImportPreviewPresenter { _, _, _, _ -> },
             StreamingAccountPlaylistImportPickerPresenter { provider, playlists ->
                 calls += "account:${provider.wireName}:${playlists.size}"
             },
@@ -128,6 +130,9 @@ class MainStreamingPlaylistListenerTest {
             },
             navigationSink = StreamingNavigationSink { calls += "navigate" },
             loadedDialogPresenter = StreamingPlaylistLoadedDialogPresenter { calls += "loaded:$it" },
+            importPreviewPresenter = StreamingPlaylistImportPreviewPresenter { provider, _, playlistName, tracks ->
+                calls += "preview:${provider.wireName}:$playlistName:${tracks.size}"
+            },
             accountPlaylistPickerPresenter = StreamingAccountPlaylistImportPickerPresenter { provider, playlists ->
                 calls += "accountPicker:${provider.wireName}:${playlists.single().providerPlaylistId}"
             },

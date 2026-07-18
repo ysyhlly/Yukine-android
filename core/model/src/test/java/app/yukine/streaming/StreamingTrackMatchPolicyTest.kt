@@ -23,15 +23,20 @@ class StreamingTrackMatchPolicyTest {
     }
 
     @Test
-    fun titleSearchQueryUsesOnlyTheSanitizedTitle() {
+    fun fullMetadataSearchQueryUsesTitleArtistAndAlbum() {
         assertEquals(
-            "Song",
-            StreamingTrackMatchPolicy.titleSearchQuery(track(title = " Song ", artist = "Artist"))
+            "Song Artist Album",
+            StreamingTrackMatchPolicy.fullMetadataSearchQuery(
+                track(title = " Song ", artist = "Artist")
+            )
         )
         assertEquals(
-            "",
-            StreamingTrackMatchPolicy.titleSearchQuery(track(title = "\u672a\u77e5\u6b4c\u66f2", artist = "Artist"))
+            "Artist Album",
+            StreamingTrackMatchPolicy.fullMetadataSearchQuery(
+                track(title = "\u672a\u77e5\u6b4c\u66f2", artist = "Artist")
+            )
         )
+        assertEquals("", StreamingTrackMatchPolicy.fullMetadataSearchQuery(null))
     }
 
     @Test

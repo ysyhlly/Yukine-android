@@ -10,7 +10,8 @@ data class ArtistInfo(
     val source: String,
     val summary: String,
     val albums: List<ArtistAlbumInfo> = emptyList(),
-    val preview: Boolean = false
+    val preview: Boolean = false,
+    val avatarUrl: String? = null
 )
 
 data class ArtistAlbumInfo(

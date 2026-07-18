@@ -1,5 +1,6 @@
 package app.yukine.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,9 +26,14 @@ fun LibraryGroupsDestination(
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     actionHandler: LibraryActionHandler = LibraryActionHandler { },
-    libraryControlsEnabled: Boolean = false
+    libraryControlsEnabled: Boolean = false,
+    compactCards: Boolean = true,
+    onNavigateUp: Runnable? = null
 ) {
     val uiState by state.collectAsState()
+    BackHandler(enabled = onNavigateUp != null) {
+        onNavigateUp?.run()
+    }
     LibraryGroupsScreen(
         uiState.title,
         uiState.rows,
@@ -41,6 +47,8 @@ fun LibraryGroupsDestination(
         uiState.libraryUi,
         actionHandler,
         libraryControlsEnabled,
-        uiState.playlistFolders
+        uiState.playlistFolders,
+        onNavigateUp,
+        compactCards
     )
 }

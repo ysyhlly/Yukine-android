@@ -5,6 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.HomeDashboardDestinationState
 import app.yukine.TrackDownloadItem
+import app.yukine.ui.HomeDashboardLayout
 import app.yukine.ui.HomeDashboardScreen
 import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,9 @@ fun HomeDestination(
     state: StateFlow<HomeDashboardDestinationState>,
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    layout: HomeDashboardLayout = HomeDashboardLayout.Classic
 ) {
     val uiState by state.collectAsState()
-    HomeDashboardScreen(uiState.content, uiState.actions, activeDownload, playbackQuality, audioMotion)
+    HomeDashboardScreen(uiState.content, uiState.actions, activeDownload, playbackQuality, audioMotion, layout)
 }

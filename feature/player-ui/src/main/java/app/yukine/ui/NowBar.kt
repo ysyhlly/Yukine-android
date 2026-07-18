@@ -487,21 +487,8 @@ fun NowBar(
                                 onCollapseWaveform = onCollapseWaveform
                             )
                         }
-                        if (!waveformExpanded) {
-                            Spacer(Modifier.height(2.dp))
-                            NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
-                        }
-                    }
-                    if (waveformExpanded) {
-                        BottomWaveformProgress(
-                            slice = progressSlice,
-                            scrub = playbackScrub,
-                            onSeek = onSeek,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                        )
+                        Spacer(Modifier.height(2.dp))
+                        NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
                     }
                 }
                 if (dockMorphProgress > 0.01f) {

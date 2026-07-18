@@ -18,6 +18,7 @@ import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistDetail
 import app.yukine.streaming.StreamingPlaylistRequest
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
 import app.yukine.streaming.StreamingProviderCapabilities
 import app.yukine.streaming.StreamingProviderCapability
 import app.yukine.streaming.StreamingProviderDescriptor
@@ -1176,6 +1177,92 @@ class StreamingViewModelTest {
     }
 
     @Test
+    fun syncStreamingPlaylistPushesLinkedLocalMirrorToRemoteProvider() = runTest {
+        val provider = FakeProvider().apply {
+            searchResult = StreamingSearchResult(
+                provider = StreamingProviderName.NETEASE,
+                query = "New song Artist",
+                page = 1,
+                pageSize = 5,
+                tracks = listOf(
+                    streamingTrack("new").copy(title = "New song", artist = "Artist")
+                )
+            )
+        }
+        val gateway = FakeGateway(provider).apply {
+            playlistTitle = "Old title"
+            playlistTrackIds = listOf("old")
+        }
+        val operations = FakeStreamingLocalPlaylistOperations().apply {
+            localSnapshot = StreamingLocalPlaylistSnapshot(
+                playlistId = 15L,
+                playlistName = "Local mirror",
+                tracks = listOf(
+                    Track(15L, "New song", "Artist", "Album", 180_000L, null, "")
+                )
+            )
+        }
+        val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
+        val link = StreamingPlaylistSyncStore.LinkedPlaylist(
+            localPlaylistId = 15L,
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "playlist-15",
+            lastSyncMs = 0L,
+            direction = StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE
+        )
+
+        viewModel.playlists.syncStreamingPlaylist(link) { result -> synced += result }.join()
+
+        assertEquals(listOf("Local mirror"), gateway.renamedPlaylists)
+        assertEquals(listOf(listOf("new")), gateway.addedTrackIds)
+        assertEquals(listOf(listOf("old")), gateway.removedTrackIds)
+        assertEquals(listOf(listOf("new")), gateway.reorderedTrackIds)
+        assertEquals(listOf(15L), operations.markedPlaylistIds)
+        assertEquals(1, synced.single().syncedCount)
+        assertFalse(synced.single().empty)
+    }
+
+    @Test
+    fun localMirrorSyncDoesNotChangeRemoteWhenAnyTrackCannotBeMatched() = runTest {
+        val gateway = FakeGateway(FakeProvider()).apply {
+            playlistTrackIds = listOf("keep")
+        }
+        val operations = FakeStreamingLocalPlaylistOperations().apply {
+            localSnapshot = StreamingLocalPlaylistSnapshot(
+                playlistId = 15L,
+                playlistName = "Local mirror",
+                tracks = listOf(
+                    Track(15L, "Missing song", "Artist", "Album", 180_000L, null, "")
+                )
+            )
+        }
+        val synced = mutableListOf<StreamingLocalPlaylistSyncResult>()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
+        val link = StreamingPlaylistSyncStore.LinkedPlaylist(
+            localPlaylistId = 15L,
+            provider = StreamingProviderName.NETEASE,
+            providerPlaylistId = "playlist-15",
+            lastSyncMs = 0L,
+            direction = StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE
+        )
+
+        viewModel.playlists.syncStreamingPlaylist(link) { result -> synced += result }.join()
+
+        assertTrue(gateway.renamedPlaylists.isEmpty())
+        assertTrue(gateway.addedTrackIds.isEmpty())
+        assertTrue(gateway.removedTrackIds.isEmpty())
+        assertTrue(gateway.reorderedTrackIds.isEmpty())
+        assertTrue(operations.markedPlaylistIds.isEmpty())
+        assertTrue(synced.single().empty)
+        assertTrue(synced.single().errorMessage.isNotBlank())
+    }
+
+    @Test
     fun importAccountPlaylistsToLocalRefreshesExistingLinkedPlaylist() = runTest {
         val provider = FakeProvider()
         val gateway = FakeGateway(provider)
@@ -1570,6 +1657,10 @@ class StreamingViewModelTest {
         var playlistTitle: String? = "Remote Playlist"
         var playlistTrackIds: List<String> = listOf("track-1", "track-2", "track-3")
         var playlistAlwaysHasMoreWithoutTotal: Boolean = false
+        val renamedPlaylists = mutableListOf<String>()
+        val addedTrackIds = mutableListOf<List<String>>()
+        val removedTrackIds = mutableListOf<List<String>>()
+        val reorderedTrackIds = mutableListOf<List<String>>()
 
         override suspend fun providers(): List<StreamingProviderDescriptor> = listOf(provider.descriptor)
 
@@ -1667,6 +1758,35 @@ class StreamingViewModelTest {
 
         override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState =
             this.provider.signOut()
+
+        override suspend fun renameUserPlaylist(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            title: String
+        ) {
+            renamedPlaylists += title
+        }
+
+        override suspend fun mutateUserPlaylistTracks(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            providerTrackIds: List<String>,
+            add: Boolean
+        ) {
+            if (add) {
+                addedTrackIds += providerTrackIds
+            } else {
+                removedTrackIds += providerTrackIds
+            }
+        }
+
+        override suspend fun reorderUserPlaylistTracks(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            orderedProviderTrackIds: List<String>
+        ) {
+            reorderedTrackIds += orderedProviderTrackIds
+        }
     }
 
     private class FakeStreamingPlaybackTaskQueue : StreamingPlaybackTaskQueue {
@@ -1703,6 +1823,8 @@ class StreamingViewModelTest {
         var playlistExistsResult = true
         var linkedPlaylistResult: StreamingPlaylistSyncStore.LinkedPlaylist? = null
         val linkedRemotePlaylists = mutableMapOf<String, StreamingPlaylistSyncStore.LinkedPlaylist>()
+        var localSnapshot: StreamingLocalPlaylistSnapshot? = null
+        val markedPlaylistIds = mutableListOf<Long>()
 
         override fun playlistExists(localPlaylistId: Long): Boolean = playlistExistsResult
 
@@ -1758,6 +1880,13 @@ class StreamingViewModelTest {
             providerPlaylistId: String
         ): StreamingPlaylistSyncStore.LinkedPlaylist? =
             linkedRemotePlaylists["${provider.wireName}:$providerPlaylistId"]
+
+        override fun localPlaylistSnapshot(localPlaylistId: Long): StreamingLocalPlaylistSnapshot? =
+            localSnapshot?.takeIf { it.playlistId == localPlaylistId }
+
+        override fun markPlaylistSynced(localPlaylistId: Long) {
+            markedPlaylistIds += localPlaylistId
+        }
     }
 
     private class FakeStreamingTrackMatchStore : StreamingTrackMatchStore {

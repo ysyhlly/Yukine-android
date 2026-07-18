@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.model.PlaylistImportResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
@@ -60,4 +61,31 @@ internal class MainStreamingLocalPlaylistOperations(
         providerPlaylistId: String
     ): StreamingPlaylistSyncStore.LinkedPlaylist? =
         streamingPlaylistLinkUseCase.execute(provider, providerPlaylistId)
+
+    override fun linkPlaylist(
+        localPlaylistId: Long,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        direction: StreamingPlaylistSyncDirection
+    ) {
+        streamingPlaylistLinkUseCase.link(
+            localPlaylistId,
+            provider,
+            providerPlaylistId,
+            direction
+        )
+    }
+
+    override fun localPlaylistSnapshot(localPlaylistId: Long): StreamingLocalPlaylistSnapshot? =
+        syncStreamingPlaylistUseCase.snapshot(localPlaylistId)?.let { snapshot ->
+            StreamingLocalPlaylistSnapshot(
+                playlistId = snapshot.playlistId,
+                playlistName = snapshot.playlistName,
+                tracks = snapshot.tracks
+            )
+        }
+
+    override fun markPlaylistSynced(localPlaylistId: Long) {
+        syncStreamingPlaylistUseCase.markSynced(localPlaylistId)
+    }
 }
