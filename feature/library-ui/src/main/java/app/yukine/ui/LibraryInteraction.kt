@@ -12,6 +12,10 @@ enum class LibrarySort {
     TitleAscending, TitleDescending, Artist, Album, DurationAscending, DurationDescending
 }
 
+enum class LibraryGroupSort {
+    TitleAscending, TitleDescending, TrackCountDescending, TrackCountAscending
+}
+
 enum class LibraryFilter { All, Favorites, Local, Network }
 
 enum class LibrarySourceKind { MediaStore, Document, Stream, WebDav }
@@ -22,6 +26,7 @@ data class LibraryUiState(
     val mode: LibraryMode = LibraryMode.Songs,
     val query: String = "",
     val sort: LibrarySort = LibrarySort.TitleAscending,
+    val groupSort: LibraryGroupSort = LibraryGroupSort.TitleAscending,
     val filter: LibraryFilter = LibraryFilter.All,
     val revealedRowKey: String? = null,
     val selectedTrackKeys: Set<String> = emptySet(),
@@ -54,6 +59,8 @@ data class LibraryUiLabels(
     val selectedSuffix: String = " 项已选择",
     val sortTitleAscending: String = "标题 A-Z",
     val sortTitleDescending: String = "标题 Z-A",
+    val sortTrackCountDescending: String = "歌曲数从多到少",
+    val sortTrackCountAscending: String = "歌曲数从少到多",
     val sortArtist: String = "歌手",
     val sortAlbum: String = "专辑",
     val sortDurationAscending: String = "时长升序",
@@ -61,12 +68,24 @@ data class LibraryUiLabels(
     val syncLibrary: String = "同步曲库",
     val syncLibraryDescription: String = "更新 WebDAV 歌曲、标签和封面",
     val syncingLibrary: String = "正在同步曲库",
-    val autoSync: String = "启动时自动同步"
+    val autoSync: String = "启动时自动同步",
+    val scanLibrary: String = "扫描曲库",
+    val importFiles: String = "导入文件",
+    val clearSearch: String = "清除搜索",
+    val resetFilter: String = "重置筛选",
+    val emptySearch: String = "没有匹配的歌曲",
+    val emptyFilter: String = "当前筛选没有歌曲",
+    val emptyGroupSearch: String = "没有匹配的分组",
+    val emptyGroupFilter: String = "当前筛选没有分组",
+    val emptyLibrary: String = "曲库中还没有歌曲",
+    val groupCountSuffix: String = "个结果",
+    val back: String = "返回"
 )
 
 sealed interface LibraryAction {
     data class QueryChanged(val query: String) : LibraryAction
     data class SortChanged(val sort: LibrarySort) : LibraryAction
+    data class GroupSortChanged(val sort: LibraryGroupSort) : LibraryAction
     data class FilterChanged(val filter: LibraryFilter) : LibraryAction
     data class ModeChanged(val mode: LibraryMode) : LibraryAction
     data class RevealTrack(val key: String?) : LibraryAction

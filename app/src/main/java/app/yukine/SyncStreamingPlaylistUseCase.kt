@@ -9,6 +9,10 @@ import app.yukine.streaming.StreamingTrack
 internal interface StreamingPlaylistSyncOperations {
     fun playlistExists(playlistId: Long): Boolean
 
+    fun playlistName(playlistId: Long): String? = null
+
+    fun playlistTracks(playlistId: Long): List<Track> = emptyList()
+
     fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int
 
     fun markSynced(playlistId: Long)
@@ -20,6 +24,12 @@ internal class MusicLibraryStreamingPlaylistSyncOperations(
 ) : StreamingPlaylistSyncOperations {
     override fun playlistExists(playlistId: Long): Boolean =
         repository.loadPlaylists().any { it.id == playlistId }
+
+    override fun playlistName(playlistId: Long): String? =
+        repository.loadPlaylists().firstOrNull { it.id == playlistId }?.name
+
+    override fun playlistTracks(playlistId: Long): List<Track> =
+        repository.loadPlaylistTracks(playlistId)
 
     override fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int =
         repository.syncStreamingPlaylist(playlistId, tracks)
@@ -35,6 +45,12 @@ internal data class SyncStreamingPlaylistResult(
     val empty: Boolean
 )
 
+internal data class LocalPlaylistSyncSnapshot(
+    val playlistId: Long,
+    val playlistName: String,
+    val tracks: List<Track>
+)
+
 internal class SyncStreamingPlaylistUseCase(
     private val operations: StreamingPlaylistSyncOperations
 ) {
@@ -43,6 +59,27 @@ internal class SyncStreamingPlaylistUseCase(
             return false
         }
         return operations.playlistExists(playlistId)
+    }
+
+    fun snapshot(playlistId: Long): LocalPlaylistSyncSnapshot? {
+        if (!playlistExists(playlistId)) {
+            return null
+        }
+        val playlistName = operations.playlistName(playlistId)?.trim().orEmpty()
+        if (playlistName.isEmpty()) {
+            return null
+        }
+        return LocalPlaylistSyncSnapshot(
+            playlistId = playlistId,
+            playlistName = playlistName,
+            tracks = operations.playlistTracks(playlistId)
+        )
+    }
+
+    fun markSynced(playlistId: Long) {
+        if (playlistId >= 0L) {
+            operations.markSynced(playlistId)
+        }
     }
 
     fun execute(

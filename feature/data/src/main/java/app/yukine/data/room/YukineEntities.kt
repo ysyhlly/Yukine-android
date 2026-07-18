@@ -340,11 +340,13 @@ data class CanonicalArtistEntity(
     @ColumnInfo(name = "artist_type", defaultValue = "'UNKNOWN'") val artistType: String,
     @ColumnInfo(name = "country_code", defaultValue = "''") val countryCode: String,
     @ColumnInfo(name = "musicbrainz_artist_id", defaultValue = "''") val musicBrainzArtistId: String,
+    @ColumnInfo(name = "avatar_url", defaultValue = "''") val avatarUrl: String,
     @ColumnInfo(name = "match_status", defaultValue = "'UNRESOLVED'") val matchStatus: String,
     @ColumnInfo(defaultValue = "0") val confidence: Double,
     @ColumnInfo(name = "metadata_source", defaultValue = "''") val metadataSource: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(defaultValue = "''") val description: String = ""
 )
 
 @Entity(
@@ -797,6 +799,37 @@ data class LyricBindingEntity(
     @ColumnInfo(name = "provider_lyric_id") val providerLyricId: String,
     @ColumnInfo(defaultValue = "0") val synced: Boolean,
     @ColumnInfo(name = "duration_ms", defaultValue = "0") val durationMs: Long,
+    @ColumnInfo(defaultValue = "''") val checksum: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+@Entity(
+    tableName = "custom_lyrics",
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalRecordingEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["recording_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(name = "idx_custom_lyrics_recording", value = ["recording_id"]),
+        Index(
+            name = "idx_custom_lyrics_provider_track",
+            value = ["provider", "provider_track_id"]
+        ),
+        Index(name = "idx_custom_lyrics_updated", value = ["updated_at"])
+    ]
+)
+data class CustomLyricsEntity(
+    @PrimaryKey @ColumnInfo(name = "identity_key") val identityKey: String,
+    @ColumnInfo(name = "recording_id") val recordingId: Long?,
+    @ColumnInfo(defaultValue = "''") val provider: String,
+    @ColumnInfo(name = "provider_track_id", defaultValue = "''") val providerTrackId: String,
+    @ColumnInfo(name = "source_name", defaultValue = "''") val sourceName: String,
+    @ColumnInfo(defaultValue = "''") val format: String,
+    @ColumnInfo(name = "document_json") val documentJson: String,
     @ColumnInfo(defaultValue = "''") val checksum: String,
     @ColumnInfo(name = "updated_at") val updatedAt: Long
 )

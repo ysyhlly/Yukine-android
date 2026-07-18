@@ -472,6 +472,7 @@ class SettingsViewModelTest {
         assertEquals(true, state.preferences.compactSettingsCards)
         assertEquals(true, viewModel.chromeState.value.customBackgroundBlurEnabled)
         assertEquals(64f, viewModel.chromeState.value.customBackgroundBlurRadiusDp)
+        assertEquals(true, viewModel.chromeState.value.compactSettingsCards)
         assertEquals(5000L, state.runtime.lyricsOffsetMs)
         assertEquals(state.ui, viewModel.uiState.value)
     }
@@ -918,6 +919,7 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.GlassBlurRadiusDp -> "glassBlurRadius:${update.value}"
                 SettingsPreferenceKey.GlassSurfaceOpacity -> "glassSurfaceOpacity:${update.value}"
                 SettingsPreferenceKey.CompactSettingsCards -> "compactSettingsCards:${update.value}"
+                SettingsPreferenceKey.HomeDashboardLayout -> "homeDashboardLayout:${update.value}"
                 SettingsPreferenceKey.ShareStyle -> "shareStyle:${update.value}"
                 SettingsPreferenceKey.PageBackgrounds -> {
                     val backgrounds = update.value as PageBackgrounds

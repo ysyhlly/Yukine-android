@@ -58,6 +58,7 @@ data class LibraryNavBinding(
     val downloadsActions: DownloadsDestinationActions = DownloadsDestinationActions(),
     val searchState: StateFlow<UnifiedSearchUiState> = MutableStateFlow(UnifiedSearchUiState()),
     val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
+    val openPlayHistoryAction: Runnable = Runnable { },
     val openNetworkSourcesAction: Runnable = Runnable { },
     val recordingMatchStateProvider: RecordingMatchDestinationStateProvider? = null
 )

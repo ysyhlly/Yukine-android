@@ -21,11 +21,12 @@ import app.yukine.data.enrichment.IdentityEnhancementEngine
 import app.yukine.data.enrichment.MetadataGatewayArtistProvider
 import app.yukine.data.enrichment.MetadataGatewayClient
 import app.yukine.data.enrichment.MetadataGatewayRecordingProvider
+import app.yukine.data.enrichment.MusicBrainzMetadataClient
+import app.yukine.data.enrichment.RoomMissingRecordingCoverWriter
 import app.yukine.data.enrichment.RoomRecordingFingerprintLookup
 import app.yukine.data.enrichment.StreamingSearchRecordingMetadataProvider
 import app.yukine.data.enrichment.UrlConnectionMetadataHttpTransport
 import app.yukine.data.room.YukineDatabase
-import app.yukine.playback.IdentityEnhancementPlaybackGate
 import app.yukine.streaming.LocalNeteaseStreamingClient
 import app.yukine.streaming.LocalQqMusicStreamingClient
 import app.yukine.streaming.LocalStreamingAuthStore
@@ -39,10 +40,6 @@ class IdentityEnhancementWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        if (IdentityEnhancementPlaybackGate.shouldDefer()) {
-            Log.i(TAG, "Deferring identity enhancement while the app is visible or playback is active")
-            return@withContext Result.retry()
-        }
         val context = applicationContext
         val database = YukineDatabase.getInstance(context)
         val cache = RoomProviderResponseCacheRepository(database)
@@ -54,12 +51,23 @@ class IdentityEnhancementWorker(
             Log.i(TAG, "Metadata gateway is not configured; identity enhancement remains offline")
             return@withContext Result.success()
         }
+        val jobs = RoomIdentityJobRepository(database)
+        if (settings.needsArtistAvatarRepair()) {
+            jobs.requeueMissingArtistAvatarJobs(System.currentTimeMillis())
+            settings.markArtistAvatarRepairScheduled()
+        }
         val authStore = LocalStreamingAuthStore(context)
         val metadataGatewayClient = MetadataGatewayClient(
             cache = cache,
             transport = transport,
             endpoint = metadataEndpoint,
             applicationVersion = BuildConfig.VERSION_NAME,
+        )
+        val musicBrainzClient = MusicBrainzMetadataClient(
+            cache = cache,
+            transport = transport,
+            applicationVersion = BuildConfig.VERSION_NAME,
+            contact = MUSICBRAINZ_CONTACT
         )
         val providers = buildList {
             add(MetadataGatewayRecordingProvider(
@@ -79,11 +87,15 @@ class IdentityEnhancementWorker(
             recordings = RoomRecordingIdentityRepository(database),
             artists = RoomArtistIdentityRepository(database),
             candidates = RoomIdentityCandidateRepository(database),
-            jobs = RoomIdentityJobRepository(database),
+            jobs = jobs,
             providers = providers,
             artistProviders = listOf(
-                MetadataGatewayArtistProvider(metadataGatewayClient)
-            )
+                MetadataGatewayArtistProvider(
+                    metadataGatewayClient,
+                    musicBrainzClient::artistAvatarUrl
+                )
+            ),
+            missingCoverWriter = RoomMissingRecordingCoverWriter(database)
         )
         val run = runCatching { engine.runReadyJobs(MAX_JOBS_PER_RUN) }
         run.fold(
@@ -99,7 +111,8 @@ class IdentityEnhancementWorker(
 
     private companion object {
         const val TAG = "IdentityEnhancement"
-        const val MAX_JOBS_PER_RUN = 20
+        const val MAX_JOBS_PER_RUN = 100
+        const val MUSICBRAINZ_CONTACT = "https://github.com/ysyhlly/Yukine-android"
     }
 }
 
@@ -140,6 +153,17 @@ class IdentityEnhancementSettingsStore(context: Context) {
         MetadataGatewayMode.OFFLINE -> ""
     }
 
+    fun needsArtistAvatarRepair(): Boolean =
+        preferences.getInt(KEY_ARTIST_AVATAR_REPAIR_VERSION, 0) < ARTIST_AVATAR_REPAIR_VERSION
+
+    fun markArtistAvatarRepairScheduled() {
+        check(
+            preferences.edit()
+                .putInt(KEY_ARTIST_AVATAR_REPAIR_VERSION, ARTIST_AVATAR_REPAIR_VERSION)
+                .commit()
+        ) { "Unable to persist artist avatar repair version" }
+    }
+
     /** Legacy compatibility for installs that already stored the old MusicBrainz-only proxy. */
     fun musicBrainzProxy(): String = normalizeMusicBrainzProxy(
         preferences.getString(KEY_MUSICBRAINZ_PROXY, "").orEmpty()
@@ -166,12 +190,15 @@ class IdentityEnhancementSettingsStore(context: Context) {
         const val KEY_MUSICBRAINZ_PROXY = "musicbrainz_proxy"
         const val KEY_GATEWAY_MODE = "metadata_gateway_mode"
         const val KEY_CUSTOM_GATEWAY = "metadata_gateway_endpoint"
+        const val KEY_ARTIST_AVATAR_REPAIR_VERSION = "artist_avatar_repair_version"
+        const val ARTIST_AVATAR_REPAIR_VERSION = 2
     }
 }
 
 object IdentityEnhancementScheduler {
     private const val IMMEDIATE_WORK = "identity_enhancement_now"
     private const val PERIODIC_WORK = "identity_enhancement_periodic"
+    private const val PERIODIC_INTERVAL_MINUTES = 15L
     private const val TAG = "IdentityEnhancement"
 
     fun schedule(context: Context) {
@@ -191,8 +218,11 @@ object IdentityEnhancementScheduler {
             )
             manager.enqueueUniquePeriodicWork(
                 PERIODIC_WORK,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<IdentityEnhancementWorker>(6, TimeUnit.HOURS)
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<IdentityEnhancementWorker>(
+                    PERIODIC_INTERVAL_MINUTES,
+                    TimeUnit.MINUTES
+                )
                     .setConstraints(constraints)
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
                     .build()

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.HomeDashboardLayout
 import app.yukine.ui.SettingsListScrollState
 import app.yukine.ui.SettingsMetric
 import kotlinx.coroutines.CoroutineDispatcher
@@ -64,6 +65,7 @@ data class SettingsPreferencesSnapshot(
     val glassBlurRadiusDp: Float = app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP,
     val glassSurfaceOpacity: Float = app.yukine.ui.EchoGlassDefaults.SURFACE_OPACITY,
     val compactSettingsCards: Boolean = false,
+    val homeDashboardLayout: HomeDashboardLayout = HomeDashboardLayout.Classic,
     val shareStyle: String = TrackShareStyle.defaultValue(),
     val pageBackgrounds: PageBackgrounds = PageBackgrounds.empty()
 )
@@ -166,32 +168,6 @@ data class SettingsAppliedStatusText(
     val pageBackgroundApplied: String = "",
     val pageBackgroundCleared: String = ""
 )
-
-sealed interface SettingsEffect {
-    data class ShowStatus(val message: String) : SettingsEffect
-    data class NavigatePage(val page: SettingsPage) : SettingsEffect
-    data class OpenNetworkPage(val page: NetworkPage) : SettingsEffect
-    data object OpenDownloads : SettingsEffect
-    data object RequestNeededPermissions : SettingsEffect
-    data object LoadLibrary : SettingsEffect
-    data object OpenAudioFilePicker : SettingsEffect
-    data object OpenAudioFolderPicker : SettingsEffect
-    data object RebuildSongIdentity : SettingsEffect
-    data object CancelIdentityBackfill : SettingsEffect
-    data object OpenLuoxueSourceManager : SettingsEffect
-    data object ImportLuoxueSource : SettingsEffect
-    data object ReloadCurrentLyrics : SettingsEffect
-    data class StartSleepTimer(val minutes: Int) : SettingsEffect
-    data object CancelSleepTimer : SettingsEffect
-    data object OpenFloatingLyricsPermission : SettingsEffect
-    data class ChoosePageBackground(val page: String) : SettingsEffect
-    data object ExportBackup : SettingsEffect
-    data object ImportBackup : SettingsEffect
-    data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEffect
-    data object EditMusicBrainzProxy : SettingsEffect
-    data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEffect
-    data object RestoreAllHiddenLibraryItems : SettingsEffect
-}
 
 fun interface SettingsEffectListener {
     fun onEffect(effect: SettingsEffect)
@@ -416,12 +392,14 @@ class SettingsViewModel @JvmOverloads constructor(
     private fun syncChromeState(preferences: SettingsPreferencesSnapshot) {
         _chromeState.value = SettingsChromeState(
             pageBackgrounds = preferences.pageBackgrounds,
+            homeDashboardLayout = preferences.homeDashboardLayout,
             nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled,
             customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled,
             customBackgroundBlurRadiusDp = preferences.customBackgroundBlurRadiusDp,
             glassBlurEnabled = preferences.glassBlurEnabled,
             glassBlurRadiusDp = preferences.glassBlurRadiusDp,
-            glassSurfaceOpacity = preferences.glassSurfaceOpacity
+            glassSurfaceOpacity = preferences.glassSurfaceOpacity,
+            compactSettingsCards = preferences.compactSettingsCards
         )
     }
 

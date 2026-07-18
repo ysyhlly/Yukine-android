@@ -263,6 +263,108 @@ class NowPlayingDestinationTest {
         composeRule.onNodeWithText("网易云音乐").performScrollTo().assertIsDisplayed()
     }
 
+    @Test
+    fun percentEncodedSourceLabelIsDecodedWithoutChangingLiteralPlus() {
+        val current = streamingTrack(
+            """[
+                {
+                    "provider":"netease",
+                    "providerTrackId":"netease-song",
+                    "label":"%E3%81%82%E3%81%9F%E3%82%89%E3%82%88+C+",
+                    "available":true
+                }
+            ]"""
+        )
+        val state = stateFor(current)
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                NowPlayingDestination(
+                    state = state,
+                    playbackSourcePolicy = PlaybackSourcePolicySnapshot(
+                        enabledRemoteProviders = setOf(StreamingProviderName.NETEASE)
+                    )
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("あたらよ+C+"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("あたらよ+C+").assertIsDisplayed()
+        composeRule.onAllNodesWithText("%E3%81%82%E3%81%9F%E3%82%89%E3%82%88+C+")
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun bilibiliProviderIsHiddenForOrdinaryTracks() {
+        val current = streamingTrack("[]")
+        val state = stateFor(current)
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                NowPlayingDestination(
+                    state = state,
+                    streamingProviders = listOf(
+                        provider(StreamingProviderName.BILIBILI, "哔哩哔哩")
+                    )
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithText("哔哩哔哩").assertCountEquals(0)
+    }
+
+    @Test
+    fun bilibiliProviderRemainsVisibleForBilibiliOriginTrack() {
+        val embeddedOptions = """[
+            {
+                "provider":"netease",
+                "providerTrackId":"netease-substitute",
+                "label":"网易云替代音源",
+                "available":true
+            }
+        ]"""
+        val current = Track(
+            301L,
+            "Bilibili Video",
+            "UP 主",
+            "Bilibili",
+            180_000L,
+            Uri.EMPTY,
+            "streaming:bilibili:video:BV1TEST:cid:42?sourceOptions=" +
+                URLEncoder.encode(embeddedOptions, StandardCharsets.UTF_8.name())
+        )
+        val localSubstitute = track(
+            id = 302L,
+            dataPath = "file:///music/local-substitute.flac",
+            codec = "flac"
+        )
+        val state = stateFor(current)
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                NowPlayingDestination(
+                    state = state,
+                    streamingProviders = listOf(
+                        provider(StreamingProviderName.BILIBILI, "哔哩哔哩"),
+                        provider(StreamingProviderName.NETEASE, "网易云音乐"),
+                        provider(StreamingProviderName.LUOXUE, "洛雪音源")
+                    ),
+                    sourceCandidates = { listOf(localSubstitute) }
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("哔哩哔哩"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("哔哩哔哩").assertIsDisplayed()
+        composeRule.onNodeWithText("当前音源").assertIsDisplayed()
+        composeRule.onAllNodesWithText("网易云音乐").assertCountEquals(0)
+        composeRule.onAllNodesWithText("网易云替代音源").assertCountEquals(0)
+        composeRule.onAllNodesWithText("洛雪音源").assertCountEquals(0)
+        composeRule.onAllNodesWithText("local-substitute.flac").assertCountEquals(0)
+    }
+
     private fun track(id: Long, dataPath: String, codec: String): Track = Track(
         id,
         "Same Song",
@@ -304,6 +406,19 @@ class NowPlayingDestinationTest {
         capabilities = StreamingProviderCapabilities(
             supportsSearch = true,
             supportsPlayback = true
+        )
+    )
+
+    private fun stateFor(track: Track) = MutableStateFlow(
+        NowPlayingUiState(
+            track = NowPlayingTrackState(
+                title = track.title,
+                artist = track.artist,
+                album = track.album,
+                trackId = track.id,
+                currentTrack = track
+            ),
+            progress = NowPlayingProgressState(durationMs = track.durationMs)
         )
     )
 

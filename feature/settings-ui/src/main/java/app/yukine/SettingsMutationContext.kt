@@ -163,6 +163,7 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.GlassBlurRadiusDp to preferences.glassBlurRadiusDp,
         SettingsPreferenceKey.GlassSurfaceOpacity to preferences.glassSurfaceOpacity,
         SettingsPreferenceKey.CompactSettingsCards to preferences.compactSettingsCards,
+        SettingsPreferenceKey.HomeDashboardLayout to preferences.homeDashboardLayout,
         SettingsPreferenceKey.ShareStyle to preferences.shareStyle,
         SettingsPreferenceKey.PageBackgrounds to preferences.pageBackgrounds
     )
@@ -194,6 +195,7 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.GlassBlurRadiusDp -> state.preferences.glassBlurRadiusDp
             SettingsPreferenceKey.GlassSurfaceOpacity -> state.preferences.glassSurfaceOpacity
             SettingsPreferenceKey.CompactSettingsCards -> state.preferences.compactSettingsCards
+            SettingsPreferenceKey.HomeDashboardLayout -> state.preferences.homeDashboardLayout
             SettingsPreferenceKey.ShareStyle -> state.preferences.shareStyle
             SettingsPreferenceKey.PageBackgrounds -> state.preferences.pageBackgrounds
         }
@@ -249,6 +251,8 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.GlassSurfaceOpacity -> preferences = preferences.copy(glassSurfaceOpacity = value as Float)
             SettingsPreferenceKey.CompactSettingsCards ->
                 preferences = preferences.copy(compactSettingsCards = value as Boolean)
+            SettingsPreferenceKey.HomeDashboardLayout ->
+                preferences = preferences.copy(homeDashboardLayout = value as app.yukine.ui.HomeDashboardLayout)
             SettingsPreferenceKey.ShareStyle -> preferences = preferences.copy(shareStyle = value as String)
             SettingsPreferenceKey.PageBackgrounds -> preferences = preferences.copy(pageBackgrounds = value as PageBackgrounds)
         }

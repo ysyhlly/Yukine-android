@@ -2,6 +2,7 @@ package app.yukine.dashboard
 
 import android.net.Uri
 import android.util.Log
+import app.yukine.HomeDashboardStateFactory
 import app.yukine.LibraryGrouping
 import app.yukine.HomeDashboardRepository
 import app.yukine.StreamingGatewayEndpointStore
@@ -49,7 +50,12 @@ class DashboardRepository(
 
         try {
             val response = gateway.home()
-            withLocalWeeklyRecapIfMissing(mapToUiState(response), localRecords)
+            withLocalListeningTrail(
+                state = withLocalWeeklyRecapIfMissing(mapToUiState(response), localRecords),
+                tracks = localTracks,
+                records = localRecords,
+                playback = localPlayback
+            )
         } catch (e: Exception) {
             safeLogWarn("Failed to fetch from backend, falling back to local", e)
             buildLocalDashboard(localTracks, localRecords, localPlayback)
@@ -238,35 +244,59 @@ class DashboardRepository(
         }
         val heatmapData = buildHeatmap(records, nowMs)
 
-        return HomeDashboardUiState(
-            title = "Yukine",
-            subtitle = "${tracks.size} 首歌曲 - $durationText",
-            heroTitle = "No thoughts, just PCM.",
-            heroSubtitle = continueTrack?.let { "接上 ${it.artist} 的「${it.title}」，或者从最近入库里挑一张封面开始。" }
-                ?: "接上最近播放，或者从最近入库里挑一张封面开始。",
-            continueTitle = continueTrack?.title ?: "准备播放",
-            continueSubtitle = continueTrack?.subtitle() ?: "添加音乐后开始聆听",
-            continueDetail = if (snapshot.playing) "正在播放" else "继续播放",
-            continueAlbumArtUri = continueTrack?.albumArtUri,
-            continueProgress = progress,
-            continuePlaying = snapshot.playing,
-            stats = listOf(
-                HomeDashboardStatUiState("歌曲", tracks.size.toString(), LibraryGrouping.SONGS),
-                HomeDashboardStatUiState("专辑", LibraryGrouping.uniqueAlbumCount(tracks).toString(), LibraryGrouping.ALBUMS),
-                HomeDashboardStatUiState("艺人", LibraryGrouping.uniqueArtistCount(tracks).toString(), LibraryGrouping.ARTISTS),
-                HomeDashboardStatUiState("文件夹", LibraryGrouping.uniqueFolderCount(tracks).toString(), LibraryGrouping.FOLDERS)
+        return withLocalListeningTrail(
+            state = HomeDashboardUiState(
+                title = "Yukine",
+                subtitle = "${tracks.size} 首歌曲 - $durationText",
+                heroTitle = "No thoughts, just PCM.",
+                heroSubtitle = continueTrack?.let { "接上 ${it.artist} 的「${it.title}」，或者从最近入库里挑一张封面开始。" }
+                    ?: "接上最近播放，或者从最近入库里挑一张封面开始。",
+                continueTitle = continueTrack?.title ?: "准备播放",
+                continueSubtitle = continueTrack?.subtitle() ?: "添加音乐后开始聆听",
+                continueDetail = if (snapshot.playing) "正在播放" else "继续播放",
+                continueAlbumArtUri = continueTrack?.albumArtUri,
+                continueProgress = progress,
+                continuePlaying = snapshot.playing,
+                stats = listOf(
+                    HomeDashboardStatUiState("歌曲", tracks.size.toString(), LibraryGrouping.SONGS),
+                    HomeDashboardStatUiState("专辑", LibraryGrouping.uniqueAlbumCount(tracks).toString(), LibraryGrouping.ALBUMS),
+                    HomeDashboardStatUiState("艺人", LibraryGrouping.uniqueArtistCount(tracks).toString(), LibraryGrouping.ARTISTS),
+                    HomeDashboardStatUiState("文件夹", LibraryGrouping.uniqueFolderCount(tracks).toString(), LibraryGrouping.FOLDERS)
+                ),
+                recent = recentRows,
+                recentTabIndex = 0,
+                weeklyTitle = "本周回声",
+                weeklyPlays = weekPlayCount,
+                weeklyDuration = formatDuration(weekDurationMs),
+                weeklyBars = weekBars(weekRecords, nowMs),
+                heatmap = heatmapData,
+                heatmapMonths = buildMonthLabels(heatmapData),
+                activeWeeks = heatmapData.chunked(7).count { week -> week.any { !it.future && it.count > 0 } },
+                activeDays = heatmapData.count { it.count > 0 },
+                empty = tracks.isEmpty()
             ),
-            recent = recentRows,
-            recentTabIndex = 0,
-            weeklyTitle = "本周回声",
-            weeklyPlays = weekPlayCount,
-            weeklyDuration = formatDuration(weekDurationMs),
-            weeklyBars = weekBars(weekRecords, nowMs),
-            heatmap = heatmapData,
-            heatmapMonths = buildMonthLabels(heatmapData),
-            activeWeeks = heatmapData.chunked(7).count { week -> week.any { !it.future && it.count > 0 } },
-            activeDays = heatmapData.count { it.count > 0 },
-            empty = tracks.isEmpty()
+            tracks = tracks,
+            records = records,
+            playback = playback
+        )
+    }
+
+    private fun withLocalListeningTrail(
+        state: HomeDashboardUiState,
+        tracks: List<Track>,
+        records: List<TrackPlayRecord>,
+        playback: PlaybackStateSnapshot?
+    ): HomeDashboardUiState {
+        val localState = HomeDashboardStateFactory.create(
+            languageMode = "zh",
+            allTracks = tracks,
+            visibleTracks = tracks,
+            recentRecords = records,
+            playbackState = playback
+        )
+        return state.copy(
+            todayListeningDuration = localState.todayListeningDuration,
+            todayListeningPoints = localState.todayListeningPoints
         )
     }
 

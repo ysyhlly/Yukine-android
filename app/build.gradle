@@ -15,7 +15,7 @@ def yukineQqAppId            = findProperty("YUKINE_QQ_APP_ID")            ?: Sy
 def yukineWechatAppId        = findProperty("YUKINE_WECHAT_APP_ID")        ?: System.getenv("YUKINE_WECHAT_APP_ID") ?: ""
 def echoVersionCode          = findProperty("ECHO_VERSION_CODE")           ?: System.getenv("ECHO_VERSION_CODE")
 def echoVersionName          = findProperty("ECHO_VERSION_NAME")           ?: System.getenv("ECHO_VERSION_NAME") ?: "0.2.0-rc.1"
-def echoMetadataGatewayUrl   = findProperty("ECHO_METADATA_GATEWAY_URL")   ?: System.getenv("ECHO_METADATA_GATEWAY_URL") ?: ""
+def echoMetadataGatewayUrl   = findProperty("ECHO_METADATA_GATEWAY_URL")   ?: System.getenv("ECHO_METADATA_GATEWAY_URL") ?: "https://metadata.ysyhly.cn/"
 
 android {
     namespace "app.yukine"

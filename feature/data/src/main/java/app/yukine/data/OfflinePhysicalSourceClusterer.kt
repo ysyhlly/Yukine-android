@@ -68,12 +68,12 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         return maxOf(mergedCount, missingSources.size, removedSelfOwnedCandidates)
     }
 
-    fun ingestLocalTracks(localTrackIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
+    fun ingestLocalTracks(localTrackIds: List<Long>): Int = IdentityMutationGate.withLock {
         ingestSourcesLocked(localTrackIds, emptyList())
     }
 
     /** Incremental entry used after a provider owner collision or a manual candidate decision. */
-    fun ingestRecordings(recordingIds: List<Long>): Int = synchronized(INGESTION_LOCK) {
+    fun ingestRecordings(recordingIds: List<Long>): Int = IdentityMutationGate.withLock {
         ingestSourcesLocked(emptyList(), recordingIds)
     }
 
@@ -616,7 +616,6 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     }
 
     private companion object {
-        val INGESTION_LOCK = Any()
         const val TARGET_RECORDING = "RECORDING"
         const val SQLITE_IN_BATCH_SIZE = 500
         const val CANDIDATE_WRITE_BATCH_SIZE = 1_000

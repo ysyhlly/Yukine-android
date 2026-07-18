@@ -3,6 +3,8 @@ package app.yukine
 import androidx.lifecycle.ViewModel
 import android.net.Uri
 import app.yukine.model.Track
+import app.yukine.model.LyricsTrackRole
+import app.yukine.ui.LyricUiWord
 import app.yukine.model.TrackIdentity
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
@@ -32,6 +34,8 @@ sealed interface NowPlayingEffect {
     data class OpenAddToPlaylist(val track: Track) : NowPlayingEffect
     data class ShareTrack(val track: Track) : NowPlayingEffect
     data class DownloadTrack(val track: Track) : NowPlayingEffect
+    data class ImportLyrics(val track: Track) : NowPlayingEffect
+    data class ClearLyrics(val track: Track) : NowPlayingEffect
     data class SwitchSource(
         val track: Track,
         val provider: StreamingProviderName,
@@ -218,7 +222,10 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             lyrics = LyricsUiState(
                 title = overlay.lyrics.title,
                 status = overlay.lyrics.status,
-                lines = overlay.lyrics.lines
+                lines = richLyricRows(lyricsState, snapshot.positionMs),
+                primaryVisible = lyricsState?.trackVisibility?.primary ?: true,
+                translationVisible = lyricsState?.trackVisibility?.translation ?: true,
+                romanizationVisible = lyricsState?.trackVisibility?.romanization ?: false
             ),
             labels = NowPlayingLabelsState(
                 errorMessage = overlay.error.message.takeIf { it.isNotBlank() }
@@ -289,6 +296,12 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                     emitNoTrackMessage()
                 }
             }
+            NowPlayingEvent.ImportCurrentLyrics -> emitCurrentTrackEffect(NowPlayingEffect::ImportLyrics)
+            NowPlayingEvent.ClearCurrentLyrics -> emitCurrentTrackEffect(NowPlayingEffect::ClearLyrics)
+            is NowPlayingEvent.SetLyricsTrackVisible -> {
+                // Routed through the state source owner; the gateway is bound by app composition.
+                lyricsVisibilitySetter?.invoke(event.role, event.visible)
+            }
             NowPlayingEvent.ToggleShuffle -> gateway?.toggleShuffle()
             NowPlayingEvent.CycleRepeatMode -> gateway?.cycleRepeatMode()
             is NowPlayingEvent.SwitchSource -> switchSource(
@@ -302,6 +315,54 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 event.replacement
             )
         }
+    }
+
+    private var lyricsVisibilitySetter: ((LyricsTrackRole, Boolean) -> Unit)? = null
+
+    fun bindLyricsVisibilitySetter(setter: ((LyricsTrackRole, Boolean) -> Unit)?) {
+        lyricsVisibilitySetter = setter
+    }
+
+    private fun emitCurrentTrackEffect(factory: (Track) -> NowPlayingEffect) {
+        val track = _uiState.value.track.currentTrack
+        if (track != null && TrackIdentity.isUsable(track.id)) {
+            emitEffect(factory(track))
+        } else {
+            emitNoTrackMessage()
+        }
+    }
+
+    private fun richLyricRows(state: LyricsState?, positionMs: Long): List<app.yukine.ui.LyricUiLine> {
+        state ?: return emptyList()
+        val visibility = state.trackVisibility
+        val enabledTracks = state.document.tracks.filter { visibility.enabled(it.role) && it.lines.isNotEmpty() }
+        val baseTrack = enabledTracks.firstOrNull { it.role == LyricsTrackRole.PRIMARY }
+            ?: enabledTracks.firstOrNull()
+            ?: return emptyList()
+        val adjustedPosition = positionMs + state.offsetMs
+        val secondary = enabledTracks.associateBy { it.role }
+        return baseTrack.lines.map { line ->
+            val translation = secondary[LyricsTrackRole.TRANSLATION]
+                ?.lines?.closestText(line.startMs).orEmpty()
+            val romanization = secondary[LyricsTrackRole.ROMANIZATION]
+                ?.lines?.closestText(line.startMs).orEmpty()
+            app.yukine.ui.LyricUiLine(
+                text = line.text,
+                active = adjustedPosition in line.startMs until line.endMs.coerceAtLeast(line.startMs + 1L),
+                timeMs = line.startMs,
+                endTimeMs = line.endMs,
+                translation = if (baseTrack.role == LyricsTrackRole.TRANSLATION) "" else translation,
+                romanization = if (baseTrack.role == LyricsTrackRole.ROMANIZATION) "" else romanization,
+                words = line.words.map {
+                    LyricUiWord(it.text, it.startMs, it.endMs)
+                }
+            )
+        }
+    }
+
+    private fun List<app.yukine.model.LyricLine>.closestText(timeMs: Long): String {
+        val match = minByOrNull { kotlin.math.abs(it.startMs - timeMs) } ?: return ""
+        return match.text.takeIf { kotlin.math.abs(match.startMs - timeMs) <= 500L }.orEmpty()
     }
 
     fun drainEffects(): List<NowPlayingEffect> {

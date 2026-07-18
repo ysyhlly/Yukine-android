@@ -389,17 +389,18 @@ public final class LibraryRepository {
             long now = System.currentTimeMillis();
             upsertTrackRows(trackEntities(values, exclusions, now), identityTags(values), now);
         });
+        ingestConfirmedIdentitySources(localTrackIds(values));
     }
 
     public void replaceScanManagedTracks(List<Track> values) {
         throwIfInterrupted();
+        List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
         database.runInTransaction(() -> {
             throwIfInterrupted();
             LinkedHashSet<Long> removedIds = new LinkedHashSet<>(libraryDao.loadScanManagedTrackIds());
             List<Track> queueBefore = playbackPersistence.loadQueueSnapshots();
             int queueIndexBefore = playbackPersistence.loadQueueIndex();
             Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
-            List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
             long now = System.currentTimeMillis();
             ArrayList<TrackEntity> replacements = trackEntities(
                     replacementTracks,
@@ -422,6 +423,7 @@ public final class LibraryRepository {
             );
             musicIdentityStore.pruneMissingTracks();
         });
+        ingestConfirmedIdentitySources(localTrackIds(replacementTracks));
     }
 
     public int replaceTracksByDataPathPattern(String pattern, List<Track> replacements) {
@@ -439,6 +441,7 @@ public final class LibraryRepository {
             }
             musicIdentityStore.pruneMissingTracks();
         });
+        ingestConfirmedIdentitySources(localTrackIds(replacements));
         return removed.get();
     }
 
@@ -1092,7 +1095,7 @@ public final class LibraryRepository {
 
             long newRecordingId = musicIdentityStore.recordingIdForTrack(newTrackId);
             if (oldRecordingId > 0L && newRecordingId > 0L && oldRecordingId != newRecordingId) {
-                new RoomRecordingIdentityRepository(database).mergeRecordings(
+                new RoomRecordingIdentityRepository(database).mergeRecordingsInCurrentTransaction(
                         oldRecordingId,
                         newRecordingId
                 );
@@ -1117,6 +1120,7 @@ public final class LibraryRepository {
             libraryDao.deleteTracksByIds(List.of(oldTrackId));
             musicIdentityStore.pruneMissingTracks();
         });
+        ingestConfirmedIdentitySources(List.of(replacement.id));
     }
 
     static String librarySourceKey(Track track) {
@@ -1373,6 +1377,19 @@ public final class LibraryRepository {
             batches.add(ids.subList(start, Math.min(ids.size(), start + SQLITE_IN_BATCH_SIZE)));
         }
         return batches;
+    }
+
+    private static List<Long> localTrackIds(List<Track> tracks) {
+        if (tracks == null || tracks.isEmpty()) {
+            return Collections.emptyList();
+        }
+        ArrayList<Long> ids = new ArrayList<>(tracks.size());
+        for (Track track : tracks) {
+            if (track != null && track.id != 0L) {
+                ids.add(track.id);
+            }
+        }
+        return ids;
     }
 
     private static List<Track> tracks(List<TrackEntity> rows) {

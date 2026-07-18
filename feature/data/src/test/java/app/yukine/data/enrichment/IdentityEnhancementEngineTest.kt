@@ -31,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.json.JSONObject
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -125,6 +126,54 @@ class IdentityEnhancementEngineTest {
     }
 
     @Test
+    fun autoConfirmedWinnerWritesTrustedCoverOnlyWhenLocalArtworkIsMissing() {
+        val missing = recordings.ensureCanonicalForTrack(track(8L))
+        val existing = recordings.ensureCanonicalForTrack(
+            track(9L, Uri.parse("content://embedded/existing"))
+        )
+        val coverUrl = "https://coverartarchive.org/release/release-id/front-500"
+        val provider = fixedProvider(AnonymousProviderResult(listOf(
+            AnonymousRecordingCandidate(
+                provider = "musicbrainz",
+                providerItemId = "mb-cover",
+                title = "Song",
+                artists = listOf(ProviderArtistCandidate("mb-artist", "Artist")),
+                album = "Album",
+                durationMs = 180_000L,
+                recordingMbid = "mb-cover",
+                coverUrl = coverUrl
+            )
+        )))
+        val engine = IdentityEnhancementEngine(
+            recordings = recordings,
+            artists = artists,
+            candidates = candidates,
+            jobs = jobs,
+            providers = listOf(provider),
+            missingCoverWriter = RoomMissingRecordingCoverWriter(database),
+            now = { 100L }
+        )
+
+        engine.runReadyJobs(20)
+
+        assertEquals(coverUrl, database.libraryDao().loadTrack(8L)?.albumArtUri)
+        assertEquals(
+            "content://embedded/existing",
+            database.libraryDao().loadTrack(9L)?.albumArtUri
+        )
+        assertEquals(
+            coverUrl,
+            JSONObject(
+                database.musicIdentityDao()
+                .candidates(IdentityTargetType.RECORDING.name, missing.recordingId)
+                .single()
+                .evidenceJson
+            ).optString("coverUrl")
+        )
+        assertTrue(existing.recordingId > 0L)
+    }
+
+    @Test
     fun manualMetadataConfirmationNeverCreatesPlayableTrackSource() {
         val recording = recordings.ensureCanonicalForTrack(track(7L))
         val provider = fixedProvider(AnonymousProviderResult(listOf(
@@ -196,10 +245,68 @@ class IdentityEnhancementEngineTest {
 
         val result = engine.runReadyJobs(20)
 
-        assertTrue(result.succeeded >= 2)
+        assertTrue(result.succeeded >= 1)
+        assertTrue(result.retried >= 1)
         val saved = candidates.pendingCandidates(IdentityTargetType.ARTIST, artistBefore.artistKey).single()
         assertEquals("artist-mbid", saved.providerItemId)
         assertEquals(artistBefore, artists.artistByKey(artistBefore.artistKey))
+    }
+
+    @Test
+    fun exactHighConfidenceArtistCandidateFillsMissingProfileWithoutConfirmingIdentity() {
+        val recording = recordings.ensureCanonicalForTrack(track(33L))
+        val artistBefore = artists.creditsForRecording(recording.recordingId).single().let {
+            checkNotNull(artists.artistByKey(it.artistKey))
+        }
+        val avatarUrl = "https://api.deezer.com/artist/74702872/image?size=big"
+        val description = "A Japanese pop singer and lyricist."
+        val artistProvider = object : AnonymousArtistMetadataProvider {
+            override val providerName: String = "musicbrainz"
+            override fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>) =
+                AnonymousArtistProviderResult(
+                    listOf(
+                        AnonymousArtistCandidate(
+                            provider = "musicbrainz",
+                            providerItemId = "8fb646cc-61e0-4fd6-8a72-1f5684cfba08",
+                            displayName = artist.displayName,
+                            artistMbid = "8fb646cc-61e0-4fd6-8a72-1f5684cfba08",
+                            avatarUrl = avatarUrl,
+                            providerScore = 1.0,
+                            description = description
+                        )
+                    )
+                )
+        }
+
+        val result = engine(
+            fixedProvider(AnonymousProviderResult(emptyList())),
+            artistProvider
+        ).runReadyJobs(20)
+
+        assertTrue(result.succeeded >= 2)
+        assertEquals(avatarUrl, artists.artistByKey(artistBefore.artistKey)?.avatarUrl)
+        assertEquals(description, artists.artistByKey(artistBefore.artistKey)?.description)
+        val saved = candidates.pendingCandidates(IdentityTargetType.ARTIST, artistBefore.artistKey).single()
+        assertEquals(app.yukine.identity.IdentityCandidateStatus.PENDING, saved.status)
+        assertTrue(saved.evidenceJson.contains(description))
+    }
+
+    @Test
+    fun terminalMissingAvatarJobIsRequeuedForTheVersionedRepair() {
+        val recording = recordings.ensureCanonicalForTrack(track(34L))
+        val artistKey = artists.creditsForRecording(recording.recordingId).single().artistKey
+        val artistJob = jobs.readyJobs(100L, 100)
+            .first { it.targetType == IdentityTargetType.ARTIST && it.targetId == artistKey }
+        checkNotNull(jobs.claim(artistJob.jobId, 100L))
+        jobs.markSucceeded(artistJob.jobId, 100L)
+
+        val requeued = jobs.requeueMissingArtistAvatarJobs(200L)
+
+        assertEquals(1, requeued)
+        val repaired = jobs.readyJobs(200L, 100)
+            .first { it.targetType == IdentityTargetType.ARTIST && it.targetId == artistKey }
+        assertEquals("MISSING_ARTIST_AVATAR_V2", repaired.reason)
+        assertEquals(0, repaired.attemptCount)
     }
 
     @Test
@@ -307,7 +414,7 @@ class IdentityEnhancementEngineTest {
         providerScore = 0.95
     )
 
-    private fun track(id: Long) = Track(
+    private fun track(id: Long, albumArtUri: Uri? = null) = Track(
         id,
         "Song",
         "Artist",
@@ -316,7 +423,7 @@ class IdentityEnhancementEngineTest {
         Uri.parse("content://media/$id"),
         "/music/$id.flac",
         id,
-        null,
+        albumArtUri,
         "",
         0,
         0,

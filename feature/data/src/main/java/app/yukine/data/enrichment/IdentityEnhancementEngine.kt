@@ -1,5 +1,6 @@
 package app.yukine.data.enrichment
 
+import app.yukine.data.IdentityMutationGate
 import app.yukine.identity.AnonymousRecordingCandidate
 import app.yukine.identity.AnonymousRecordingMetadataProvider
 import app.yukine.identity.AnonymousProviderResult
@@ -18,6 +19,7 @@ import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityEnhancementRunResult
 import app.yukine.identity.IdentityJobRepository
 import app.yukine.identity.IdentityTargetType
+import app.yukine.identity.IdentityTextNormalizer
 import app.yukine.identity.RecordingCandidateRanker
 import app.yukine.identity.RecordingIdentityRepository
 import app.yukine.identity.RecordingIdentifier
@@ -28,6 +30,10 @@ import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
 
+fun interface MissingRecordingCoverWriter {
+    fun writeIfMissing(recordingId: Long, coverUrl: String, updatedAt: Long)
+}
+
 class IdentityEnhancementEngine(
     private val recordings: RecordingIdentityRepository,
     private val artists: ArtistIdentityRepository,
@@ -37,6 +43,7 @@ class IdentityEnhancementEngine(
     private val artistProviders: List<AnonymousArtistMetadataProvider> = emptyList(),
     private val recordingRanker: RecordingCandidateRanker = RecordingCandidateRanker(),
     private val artistRanker: ArtistCandidateRanker = ArtistCandidateRanker(),
+    private val missingCoverWriter: MissingRecordingCoverWriter = MissingRecordingCoverWriter { _, _, _ -> },
     private val now: () -> Long = System::currentTimeMillis
 ) {
     fun runReadyJobs(limit: Int = 20): IdentityEnhancementRunResult {
@@ -46,18 +53,53 @@ class IdentityEnhancementEngine(
         var failed = 0
         var saved = 0
         jobs.readyJobs(now(), limit.coerceIn(1, 100)).forEach { pending ->
-            val claimed = jobs.claim(pending.jobId, now()) ?: return@forEach
-            claimedCount++
-            when (claimed.targetType) {
-                IdentityTargetType.ARTIST -> {
-                    runCatching { enhanceArtist(claimed.targetId) }.fold(
+            IdentityMutationGate.withLock {
+                val claimed = jobs.claim(pending.jobId, now()) ?: return@withLock
+                claimedCount++
+                when (claimed.targetType) {
+                    IdentityTargetType.ARTIST -> {
+                        runCatching { enhanceArtist(claimed.targetId) }.fold(
+                            onSuccess = { outcome ->
+                                saved += outcome.candidatesSaved
+                                if (outcome.shouldRetry) {
+                                    jobs.markRetry(
+                                        claimed.jobId,
+                                        retryAt(claimed.attemptCount, now()),
+                                        outcome.error.ifBlank { "All artist metadata providers unavailable" },
+                                        now()
+                                    )
+                                    retried++
+                                } else {
+                                    jobs.markSucceeded(claimed.jobId, now())
+                                    succeeded++
+                                }
+                            },
+                            onFailure = { error ->
+                                if (claimed.attemptCount >= MAX_ATTEMPTS - 1) {
+                                    jobs.markFailed(claimed.jobId, error.message.orEmpty(), now())
+                                    failed++
+                                } else {
+                                    jobs.markRetry(
+                                        claimed.jobId,
+                                        retryAt(claimed.attemptCount, now()),
+                                        error.message.orEmpty(),
+                                        now()
+                                    )
+                                    retried++
+                                }
+                            }
+                        )
+                    }
+                    IdentityTargetType.RECORDING -> runCatching {
+                        enhanceRecording(claimed.targetId)
+                    }.fold(
                         onSuccess = { outcome ->
                             saved += outcome.candidatesSaved
                             if (outcome.shouldRetry) {
                                 jobs.markRetry(
                                     claimed.jobId,
                                     retryAt(claimed.attemptCount, now()),
-                                    outcome.error.ifBlank { "All artist metadata providers unavailable" },
+                                    outcome.error.ifBlank { "All metadata providers unavailable" },
                                     now()
                                 )
                                 retried++
@@ -82,39 +124,6 @@ class IdentityEnhancementEngine(
                         }
                     )
                 }
-                IdentityTargetType.RECORDING -> runCatching {
-                    enhanceRecording(claimed.targetId)
-                }.fold(
-                    onSuccess = { outcome ->
-                        saved += outcome.candidatesSaved
-                        if (outcome.shouldRetry) {
-                            jobs.markRetry(
-                                claimed.jobId,
-                                retryAt(claimed.attemptCount, now()),
-                                outcome.error.ifBlank { "All metadata providers unavailable" },
-                                now()
-                            )
-                            retried++
-                        } else {
-                            jobs.markSucceeded(claimed.jobId, now())
-                            succeeded++
-                        }
-                    },
-                    onFailure = { error ->
-                        if (claimed.attemptCount >= MAX_ATTEMPTS - 1) {
-                            jobs.markFailed(claimed.jobId, error.message.orEmpty(), now())
-                            failed++
-                        } else {
-                            jobs.markRetry(
-                                claimed.jobId,
-                                retryAt(claimed.attemptCount, now()),
-                                error.message.orEmpty(),
-                                now()
-                            )
-                            retried++
-                        }
-                    }
-                )
             }
         }
         return IdentityEnhancementRunResult(claimedCount, succeeded, retried, failed, saved)
@@ -159,7 +168,10 @@ class IdentityEnhancementEngine(
             val autoConfirmed = decision.eligible && decision.winner?.candidate?.let {
                 it.provider == candidate.provider && it.providerItemId == candidate.providerItemId
             } == true
-            if (autoConfirmed) attachStrongIdentifiers(recording, candidate, time)
+            if (autoConfirmed) {
+                attachStrongIdentifiers(recording, candidate, time)
+                missingCoverWriter.writeIfMissing(recordingId, candidate.coverUrl, time)
+            }
             candidates.saveCandidate(
                 IdentityCandidate(
                     candidateId = stableCandidateId(recordingId, candidate),
@@ -223,6 +235,33 @@ class IdentityEnhancementEngine(
         val decision = artistRanker.chooseForAutoConfirmation(target, evidence.values.toList())
         val rankedByKey = ranked.associateBy { it.candidate.provider to it.candidate.providerItemId }
         val time = now()
+        val autoConfirmedCandidate = rawCandidates.firstOrNull { candidate ->
+            decision.eligible && decision.winner?.candidate?.let {
+                it.provider == candidate.provider && it.providerItemId == candidate.providerItemId
+            } == true
+        }
+        val exactProfileCandidates = rawCandidates.filter { candidate ->
+            val ranking = rankedByKey.getValue(candidate.provider to candidate.providerItemId)
+            candidate.providerScore >= 0.95 &&
+                !ranking.hardConflict &&
+                ranking.score >= 0.60 &&
+                IdentityTextNormalizer.normalizeForSearch(candidate.displayName) ==
+                IdentityTextNormalizer.normalizeForSearch(artist.displayName)
+        }
+        val avatarCandidate = autoConfirmedCandidate?.takeIf { it.avatarUrl.isNotBlank() }
+            ?: exactProfileCandidates.filter { it.avatarUrl.isNotBlank() }.singleOrNull()
+        val descriptionCandidate = autoConfirmedCandidate?.takeIf { it.description.isNotBlank() }
+            ?: exactProfileCandidates.filter { it.description.isNotBlank() }.singleOrNull()
+        if (artist.avatarUrl.isBlank() && avatarCandidate != null) {
+            artists.updateAvatarIfMissing(artistKey, avatarCandidate.avatarUrl, avatarCandidate.provider)
+        }
+        if (artist.description.isBlank() && descriptionCandidate != null) {
+            artists.updateDescriptionIfMissing(
+                artistKey,
+                descriptionCandidate.description,
+                descriptionCandidate.provider
+            )
+        }
         rawCandidates.forEach { candidate ->
             val ranking = rankedByKey.getValue(candidate.provider to candidate.providerItemId)
             val autoConfirmed = decision.eligible && decision.winner?.candidate?.let {
@@ -245,6 +284,8 @@ class IdentityEnhancementEngine(
                         .put("country", candidate.countryCode)
                         .put("artistType", candidate.artistType.name)
                         .put("aliases", JSONArray(candidate.aliases.toList()))
+                        .put("avatarUrl", candidate.avatarUrl)
+                        .put("description", candidate.description)
                         .put("hardConflict", ranking.hardConflict)
                         .put("margin", decision.margin)
                         .put("reasons", JSONArray(ranking.reasons))
@@ -257,7 +298,12 @@ class IdentityEnhancementEngine(
         val error = responses.mapNotNull { (provider, response) ->
             response.exceptionOrNull()?.let { "$provider: ${it.message.orEmpty()}" }
         }.joinToString("; ")
-        return RecordingOutcome(rawCandidates.size, allUnavailable, error)
+        val missingAvatar = artist.avatarUrl.isBlank() && rawCandidates.none { it.avatarUrl.isNotBlank() }
+        return RecordingOutcome(
+            rawCandidates.size,
+            allUnavailable || missingAvatar,
+            error.ifBlank { if (missingAvatar) "Artist avatar unavailable" else "" }
+        )
     }
 
     private fun AnonymousRecordingCandidate.toMatchEvidence(): RecordingMatchEvidence {
@@ -330,6 +376,7 @@ class IdentityEnhancementEngine(
         .put("recordingMbid", candidate.recordingMbid)
         .put("workMbid", candidate.workMbid)
         .put("acoustId", candidate.acoustId)
+        .put("coverUrl", candidate.coverUrl)
         .put("fingerprintVerified", candidate.fingerprintVerified)
         .toString()
 

@@ -3,8 +3,10 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics
+import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.StreamingProviderName
 
 internal class StreamingPlaybackController(
     private val streamingViewModel: StreamingViewModel,
@@ -48,7 +50,9 @@ internal class StreamingPlaybackController(
         val diagnostics = PlaybackStreamingDiagnostics.process()
         diagnostics.recordResolveStarted(selected)
         val generation = nextForegroundResolveGeneration()
-        val canonicalScheduled = canonicalSourceResolver?.resolve(selected) { resolved ->
+        val allowCanonicalReplacement =
+            StreamingDataPathMetadata.provider(selected.dataPath) != StreamingProviderName.BILIBILI
+        val canonicalScheduled = allowCanonicalReplacement && canonicalSourceResolver?.resolve(selected) { resolved ->
             if (!isCurrentForegroundResolve(generation)) {
                 return@resolve
             }

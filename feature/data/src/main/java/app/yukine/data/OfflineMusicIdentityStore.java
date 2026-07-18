@@ -66,11 +66,9 @@ final class OfflineMusicIdentityStore {
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
-        ArrayList<Long> localTrackIds = new ArrayList<>(tracks.size());
         for (TrackEntity track : tracks) {
             long recordingId = ensureTrack(track, now);
             if (track != null && track.getId() != null) {
-                localTrackIds.add(track.getId());
                 if (identityTags != null) {
                     TrackIdentityTags tags = identityTags.get(track.getId());
                     if (tags != null && !tags.isEmpty()) {
@@ -78,9 +76,6 @@ final class OfflineMusicIdentityStore {
                     }
                 }
             }
-        }
-        if (database != null && !localTrackIds.isEmpty()) {
-            new SourceIdentityIngestor(database).ingestLocalTracks(localTrackIds);
         }
     }
 
@@ -203,7 +198,7 @@ final class OfflineMusicIdentityStore {
                 return recordingId;
             }
             CanonicalRecording merged = new RoomRecordingIdentityRepository(database)
-                    .mergeRecordings(recordingId, existing.getRecordingId());
+                    .mergeRecordingsInCurrentTransaction(recordingId, existing.getRecordingId());
             recordingId = merged.getRecordingId();
         }
         CanonicalRecordingEntity recording = dao.recording(recordingId);
@@ -405,11 +400,13 @@ final class OfflineMusicIdentityStore {
                     artist.getArtistType(),
                     artist.getCountryCode(),
                     mbid,
+                    artist.getAvatarUrl(),
                     "CONFIRMED",
                     1.0d,
                     "EMBEDDED_TAG",
                     artist.getCreatedAt(),
-                    Math.max(now, artist.getUpdatedAt())
+                    Math.max(now, artist.getUpdatedAt()),
+                    artist.getDescription()
             ));
             dao.upsert(new ArtistSourceMappingEntity(
                     null,
@@ -541,11 +538,13 @@ final class OfflineMusicIdentityStore {
                 "UNKNOWN",
                 "",
                 "",
+                "",
                 STATUS_UNRESOLVED,
                 0.0d,
                 METADATA_SOURCE,
                 now,
-                now
+                now,
+                ""
         ));
         if (inserted <= 0L) {
             CanonicalArtistEntity existing = dao.canonicalArtist(artistUuid);

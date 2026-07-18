@@ -351,7 +351,14 @@ internal fun NowBarProgressSection(
     onSeek: SeekAction
 ) {
     val p = EchoTheme.colors()
-    if (!waveformExpanded) {
+    if (waveformExpanded) {
+        ExpandedWaveformProgress(
+            slice = slice,
+            scrub = scrub,
+            onSeek = onSeek,
+            modifier = Modifier.fillMaxWidth()
+        )
+    } else {
         CollapsedProgress(
             scrub = scrub,
             cachedProgress = slice.waveformCachedProgress,
@@ -378,35 +385,29 @@ internal fun NowBarProgressSection(
 }
 
 @Composable
-internal fun BottomWaveformProgress(
+internal fun ExpandedWaveformProgress(
     slice: NowBarProgressSlice,
     scrub: ScrubbablePlaybackPosition,
     onSeek: SeekAction,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    WaveformProgress(
+        scrub = scrub,
+        durationMs = slice.durationMs,
+        playing = slice.playing,
+        trackId = slice.trackId,
+        contentUriString = slice.contentUriString,
+        dataPath = slice.dataPath,
+        serviceWaveformBars = slice.waveformBars,
+        serviceWaveformGeneratedBars = slice.waveformGeneratedBars,
+        serviceWaveformCachedProgress = slice.waveformCachedProgress,
+        progressLabel = slice.playbackProgressLabel,
+        onSeek = onSeek,
         modifier = modifier
-            .height(18.dp)
+            .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
             .clipToBounds()
             .testTag("waveform-progress")
-    ) {
-        WaveformProgress(
-            scrub = scrub,
-            durationMs = slice.durationMs,
-            playing = slice.playing,
-            trackId = slice.trackId,
-            contentUriString = slice.contentUriString,
-            dataPath = slice.dataPath,
-            serviceWaveformBars = slice.waveformBars,
-            serviceWaveformGeneratedBars = slice.waveformGeneratedBars,
-            serviceWaveformCachedProgress = slice.waveformCachedProgress,
-            progressLabel = slice.playbackProgressLabel,
-            onSeek = onSeek,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-        )
-    }
+    )
 }
 
 @Composable

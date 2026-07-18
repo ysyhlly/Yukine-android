@@ -340,7 +340,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(database.contains("abstract class YukineDatabase : RoomDatabase()"));
         assertTrue(database.contains(".addMigrations(*YukineMigrations.all)"));
         assertFalse(database.contains("fallbackToDestructiveMigration"));
-        assertTrue(migrations.contains("TARGET_VERSION: Int = 25"));
+        assertTrue(migrations.contains("TARGET_VERSION: Int = 28"));
         assertTrue(migrations.contains("(1 until TARGET_VERSION)"));
         assertFalse(libraryFacade.contains("SQLiteDatabase"));
         assertFalse(libraryFacade.contains("rawQuery"));
@@ -357,6 +357,15 @@ public final class MainActivityArchitectureContractTest {
             assertTrue(Files.isRegularFile(root().resolve(
                     "feature/data/src/main/java/app/yukine/data/" + repository)));
         }
+    }
+
+    @Test
+    public void identityEnhancementRunsEveryFifteenMinutesAndCapsEachBatchAtOneHundred() throws Exception {
+        String worker = read("app/src/main/java/app/yukine/IdentityEnhancementWorker.kt");
+
+        assertTrue(worker.contains("MAX_JOBS_PER_RUN = 100"));
+        assertTrue(worker.contains("PERIODIC_INTERVAL_MINUTES = 15L"));
+        assertTrue(worker.contains("TimeUnit.MINUTES"));
     }
 
     @Test

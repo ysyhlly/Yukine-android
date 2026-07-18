@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
+import app.yukine.ui.HomeDashboardLayout
 
 /** Appearance page commands and their runtime/persistence effects. */
 class AppearanceSettingsStateOwner internal constructor(private val context: SettingsMutationContext) {
@@ -87,6 +88,11 @@ class AppearanceSettingsStateOwner internal constructor(private val context: Set
     fun setCompactSettingsCards(enabled: Boolean) {
         context.updatePreferences { it.copy(compactSettingsCards = enabled) }
         context.save(SettingsPreferenceKey.CompactSettingsCards, enabled)
+    }
+
+    fun setHomeDashboardLayout(layout: HomeDashboardLayout) {
+        context.updatePreferences { it.copy(homeDashboardLayout = layout) }
+        context.save(SettingsPreferenceKey.HomeDashboardLayout, layout.storageValue)
     }
 
     fun choosePageBackground(page: String) {
@@ -230,6 +236,18 @@ class LyricsSettingsStateOwner internal constructor(private val context: Setting
 
     fun reloadCurrentLyrics() {
         context.emit(SettingsEffect.ReloadCurrentLyrics)
+    }
+
+    fun importCurrentLyrics() {
+        context.emit(SettingsEffect.ImportCurrentLyrics)
+    }
+
+    fun importLyricsDirectory() {
+        context.emit(SettingsEffect.ImportLyricsDirectory)
+    }
+
+    fun viewLyricsImportReport() {
+        context.emit(SettingsEffect.ViewLyricsImportReport)
     }
 
     fun applyLyricsOffset(offsetMs: Long) {

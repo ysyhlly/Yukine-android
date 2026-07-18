@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Track
+import app.yukine.model.LyricsTrackRole
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.LyricUiLine
 import app.yukine.ui.NowBarArtworkState
@@ -27,10 +28,26 @@ object NowBarStateFactory {
             playbackState = playbackState,
             favoriteIds = favoriteIds,
             languageMode = languageMode,
-            lyrics = state.lines,
+            lyrics = preferredLegacyLines(state),
             lyricsStatus = LyricsStatusText.status(languageMode, state.statusKind, state.loadedLineCount),
             lyricsOffsetMs = state.offsetMs
         )
+    }
+
+    private fun preferredLegacyLines(state: LyricsState): List<app.yukine.model.LyricsLine> {
+        val visibility = state.trackVisibility
+        val track = listOf(
+            LyricsTrackRole.PRIMARY,
+            LyricsTrackRole.TRANSLATION,
+            LyricsTrackRole.ROMANIZATION
+        ).firstNotNullOfOrNull { role ->
+            state.document.track(role)?.takeIf { visibility.enabled(role) }
+        }
+        return track?.lines?.map { line ->
+            app.yukine.model.LyricsLine(line.startMs, line.text)
+        }.orEmpty().ifEmpty {
+            state.lines.takeIf { visibility.primary }.orEmpty()
+        }
     }
 
     @JvmStatic

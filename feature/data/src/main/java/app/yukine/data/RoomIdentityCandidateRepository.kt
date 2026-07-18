@@ -83,7 +83,7 @@ class RoomIdentityCandidateRepository(
                 if (ownerRecordingId != null) {
                     val sourceRecordingId = maxOf(candidate.targetId, ownerRecordingId)
                     val targetRecordingId = minOf(candidate.targetId, ownerRecordingId)
-                    RoomRecordingIdentityRepository(database).mergeRecordings(
+                    RoomRecordingIdentityRepository(database).mergeRecordingsInTransaction(
                         sourceRecordingId,
                         targetRecordingId
                     )
@@ -287,6 +287,19 @@ class RoomIdentityCandidateRepository(
         val mapped = dao.artistForProvider(candidate.provider, candidate.providerItemId)
         require(mapped == null || mapped.id == artist.id) {
             "Provider artist already belongs to another canonical artist"
+        }
+        val evidence = runCatching { JSONObject(candidate.evidenceJson) }.getOrDefault(JSONObject())
+        val avatarUrl = evidence.optString("avatarUrl").trim().takeIf {
+            it.startsWith("https://", ignoreCase = true)
+        }.orEmpty()
+        if (artist.avatarUrl.isBlank() && avatarUrl.isNotBlank()) {
+            dao.update(
+                artist.copy(
+                    avatarUrl = avatarUrl,
+                    metadataSource = candidate.provider,
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
         }
         dao.upsert(
             ArtistSourceMappingEntity(

@@ -76,6 +76,27 @@ class StreamingPlaybackAdapterTest {
     }
 
     @Test
+    fun resolvedTrackCarriesPlaybackMimeTypeInItsPersistentDataPath() {
+        val resolved = StreamingPlaybackAdapter.toTrack(
+            source = StreamingPlaybackSource(
+                provider = StreamingProviderName.BILIBILI,
+                providerTrackId = "video:BV1TEST:cid:42",
+                url = "https://cdn.example/audio.m4s",
+                mimeType = "audio/mp4"
+            )
+        )
+
+        assertEquals(
+            "audio/mp4",
+            app.yukine.common.StreamingDataPathMetadata.playbackMimeType(resolved.dataPath)
+        )
+        assertEquals(
+            "video:BV1TEST:cid:42",
+            StreamingPlaybackAdapter.providerTrackId(resolved.dataPath)
+        )
+    }
+
+    @Test
     fun luoxueProviderTrackIdPreservesSourcePrefixColon() {
         // 洛雪音源的 providerTrackId 形如 "kw:12345"，冒号是 ID 的一部分，不能被截断。
         val track = StreamingTrack(

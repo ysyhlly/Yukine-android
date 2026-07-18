@@ -22,6 +22,8 @@ interface ArtistIdentityRepository {
     fun artistForProvider(provider: String, providerArtistId: String): CanonicalArtist?
     fun aliases(artistKey: Long): List<ArtistAlias>
     fun creditsForRecording(recordingId: Long): List<ArtistCredit>
+    fun updateAvatarIfMissing(artistKey: Long, avatarUrl: String, source: String) = Unit
+    fun updateDescriptionIfMissing(artistKey: Long, description: String, source: String) = Unit
     fun confirmAlias(artistKey: Long, alias: ArtistAlias)
     fun mergeArtists(sourceArtistKey: Long, targetArtistKey: Long): CanonicalArtist
     fun splitArtistMapping(mappingId: Long): CanonicalArtist

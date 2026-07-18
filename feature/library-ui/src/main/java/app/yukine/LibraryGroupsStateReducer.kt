@@ -1,5 +1,6 @@
 package app.yukine
 
+import android.net.Uri
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
@@ -33,7 +34,8 @@ data class LibraryGroupTrackListRequest(
     val tracks: ArrayList<Track>,
     val headerMetrics: ArrayList<TrackListHeaderMetric>,
     val headerActions: ArrayList<TrackListHeaderAction>,
-    val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
+    val footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList(),
+    val context: LibraryListContext = LibraryListContext.Songs
 )
 
 class LibraryGroupsStateReducer @JvmOverloads constructor(
@@ -75,7 +77,8 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
             tracks: ArrayList<Track>,
             headerMetrics: ArrayList<TrackListHeaderMetric>,
             headerActions: ArrayList<TrackListHeaderAction>,
-            footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList()
+            footerAlbums: ArrayList<TrackListAlbumCardUiState> = ArrayList(),
+            context: LibraryListContext = LibraryListContext.Songs
         )
     }
 
@@ -154,7 +157,15 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
                 )
             )
         }
-        for ((key, tracks) in groups) {
+        val sortedGroups = LibraryGroupSortPolicy.sort(
+            items = groups.entries.toList(),
+            sort = viewModel.libraryUi.value.groupSort,
+            languageMode = languageMode,
+            stableId = { entry -> entry.key },
+            title = { entry -> LibraryGrouping.groupTitle(entry.key, libraryMode, languageMode) },
+            trackCount = { entry -> entry.value.size }
+        )
+        for ((key, tracks) in sortedGroups) {
             val title = LibraryGrouping.groupTitle(key, libraryMode, languageMode)
             val rowId = "$libraryMode:${if (key.isEmpty()) "unknown" else key}"
             groupRows.add(
@@ -162,7 +173,9 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
                     rowId,
                     title,
                     LibraryGrouping.groupSubtitle(tracks, libraryMode, languageMode),
-                    LibraryGrouping.groupArtworkUri(tracks, libraryMode)
+                    groupArtworkUri(key, tracks, libraryMode),
+                    tracks.size,
+                    key
                 )
             )
             groupActions.add(
@@ -170,7 +183,7 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
                     Runnable { listener.selectLibraryGroup(key, title) },
                     Runnable { listener.playTrackList(tracks, 0) },
                     true,
-                    Runnable { viewModel.presentation.onAction(LibraryAction.ToggleGroupSelection(rowId)) }
+                    null
                 )
             )
         }
@@ -207,7 +220,9 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
             headerMetrics.add(
                 TrackListHeaderMetric(
                     AppLanguage.text(languageMode, "artist.info"),
-                    artistIntro(languageMode, selectedLibraryGroupTitle, tracks, cachedInfo)
+                    artistIntro(languageMode, selectedLibraryGroupTitle, tracks, cachedInfo),
+                    artistAvatarUri(selectedLibraryGroupKey, tracks, cachedInfo),
+                    selectedLibraryGroupTitle
                 )
             )
             if (cachedInfo != null) {
@@ -243,7 +258,8 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
             tracks,
             headerMetrics,
             headerActions,
-            artistAlbumCards(languageMode, cachedInfo)
+            artistAlbumCards(languageMode, cachedInfo),
+            listContext(libraryMode)
         )
         if (libraryMode == LibraryGrouping.ARTISTS) {
             loadLocalArtistInfo(
@@ -296,11 +312,60 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         info: ArtistInfo?
     ) {
         val headerMetrics = ArrayList<TrackListHeaderMetric>()
-        headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "artist.info"), artistIntro(languageMode, artist, tracks, info)))
+        headerMetrics.add(
+            TrackListHeaderMetric(
+                AppLanguage.text(languageMode, "artist.info"),
+                artistIntro(languageMode, artist, tracks, info),
+                info?.avatarUrl.toAvatarUri(),
+                artist
+            )
+        )
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "data.source"), info?.source ?: AppLanguage.text(languageMode, "local.identity.pending")))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "albums"), LibraryGrouping.albumCount(tracks).toString()))
         headerMetrics.add(TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), tracks.size.toString()))
-        listener.publishTrackList(artist, tracks, headerMetrics, headerActions, artistAlbumCards(languageMode, info))
+        listener.publishTrackList(
+            artist,
+            tracks,
+            headerMetrics,
+            headerActions,
+            artistAlbumCards(languageMode, info),
+            LibraryListContext.Artist
+        )
+    }
+
+    private fun listContext(libraryMode: String): LibraryListContext = when (libraryMode) {
+        LibraryGrouping.ALBUMS -> LibraryListContext.Album
+        LibraryGrouping.ARTISTS -> LibraryListContext.Artist
+        LibraryGrouping.FOLDERS -> LibraryListContext.Folder
+        LibraryGrouping.PLAYLISTS -> LibraryListContext.Playlist
+        else -> LibraryListContext.Songs
+    }
+
+    private fun groupArtworkUri(key: String, tracks: List<Track>, libraryMode: String): Uri? {
+        if (libraryMode != LibraryGrouping.ARTISTS) {
+            return LibraryGrouping.groupArtworkUri(tracks, libraryMode)
+        }
+        return tracks.asSequence()
+            .flatMap { viewModel.dataOwner().artistIdentitiesFor(it).asSequence() }
+            .firstOrNull { identity -> identity.groupKey == key && identity.avatarUrl.isNotBlank() }
+            ?.avatarUrl
+            .toAvatarUri()
+    }
+
+    private fun artistAvatarUri(
+        artistGroupKey: String,
+        tracks: List<Track>,
+        info: ArtistInfo?
+    ): Uri? = info?.avatarUrl.toAvatarUri() ?: groupArtworkUri(
+        artistGroupKey,
+        tracks,
+        LibraryGrouping.ARTISTS
+    )
+
+    private fun String?.toAvatarUri(): Uri? {
+        val value = this?.trim().orEmpty()
+        if (!value.startsWith("https://", ignoreCase = true)) return null
+        return Uri.parse(value)
     }
 
     private fun artistInfoLookupKey(artist: String): String =

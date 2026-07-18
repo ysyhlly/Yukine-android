@@ -36,6 +36,22 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providersShareApplicationAudioCacheUntilEveryOwnerReleasesIt() {
+        val first = provider(FakeStreamingPlaybackHeaderStore())
+        val second = provider(FakeStreamingPlaybackHeaderStore())
+        try {
+            val sharedCache = first.audioCache()
+
+            assertSame(sharedCache, second.audioCache())
+            first.releaseAudioCache()
+            assertSame(sharedCache, second.audioCache())
+        } finally {
+            first.releaseAudioCache()
+            second.releaseAudioCache()
+        }
+    }
+
+    @Test
     fun parsesRangeProbeContentLengthSafely() {
         assertEquals(8_388_608L, PlaybackMediaSourceProvider.contentLengthFromContentRange("bytes 524288-524288/8388608"))
         assertEquals(-1L, PlaybackMediaSourceProvider.contentLengthFromContentRange("bytes */*"))
@@ -75,6 +91,42 @@ class PlaybackMediaSourceProviderTest {
             "streaming:netease:42|url=https://audio.example/current.flac",
             PlaybackMediaSourceProvider.mediaCacheKey("streaming:netease:42", "https://audio.example/current.flac")
         )
+    }
+
+    @Test
+    fun playbackMediaItemForBilibiliM4sUsesResolvedAudioMimeType() {
+        val uri = Uri.parse("https://cdn.example/audio.m4s?deadline=1999999999")
+        val track = Track(
+            43L,
+            "Bilibili Video",
+            "UP 主",
+            "Bilibili",
+            180_000L,
+            uri,
+            "streaming:bilibili:video:BV1TEST:cid:42?playbackMime=audio%2Fmp4"
+        )
+
+        val mediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null)
+
+        assertEquals(uri, mediaItem.localConfiguration?.uri)
+        assertEquals("audio/mp4", mediaItem.localConfiguration?.mimeType)
+    }
+
+    @Test
+    fun playbackMediaItemForLegacyBilibiliTrackDefaultsToAudioMp4() {
+        val track = Track(
+            44L,
+            "Legacy Bilibili Video",
+            "UP 主",
+            "Bilibili",
+            180_000L,
+            Uri.parse("https://cdn.example/legacy-audio.m4s"),
+            "streaming:bilibili:video:BV1LEGACY:cid:7"
+        )
+
+        val mediaItem = PlaybackMediaSourceProvider.playbackMediaItemForTrack(track, null)
+
+        assertEquals("audio/mp4", mediaItem.localConfiguration?.mimeType)
     }
 
     @Test

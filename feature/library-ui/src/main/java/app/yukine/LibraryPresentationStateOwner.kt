@@ -50,6 +50,10 @@ class LibraryPresentationStateOwner internal constructor(
                 uiState.value = uiState.value.copy(sort = action.sort, revealedRowKey = null)
                 publishInteractionState()
             }
+            is LibraryAction.GroupSortChanged -> {
+                uiState.value = uiState.value.copy(groupSort = action.sort, revealedRowKey = null)
+                publishInteractionState()
+            }
             is LibraryAction.FilterChanged -> {
                 uiState.value = uiState.value.copy(
                     filter = action.filter,
@@ -241,7 +245,8 @@ class LibraryPresentationStateOwner internal constructor(
         headerActions: List<TrackListHeaderAction>,
         emptyText: String,
         modeActions: List<TrackListModeAction>,
-        labels: TrackListLabels
+        labels: TrackListLabels,
+        context: LibraryListContext = LibraryListContext.Songs
     ) {
         trackListState.value = trackListState.value.copy(
             title = title,
@@ -253,7 +258,8 @@ class LibraryPresentationStateOwner internal constructor(
             emptyText = emptyText,
             modeActions = modeActions,
             labels = labels,
-            libraryUi = uiState.value
+            libraryUi = uiState.value,
+            context = context
         )
     }
 

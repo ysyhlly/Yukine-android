@@ -45,10 +45,10 @@ object StreamingPlaylistLinkParser {
                 return ParsedPlaylistRef(StreamingProviderName.KUGOU, it)
             }
         }
-        // Bilibili: space favlist / medialist ml123
+        // Bilibili: video / multi-P / favorite folder / b23 short link.
         if (lower.contains("bilibili.com") || lower.contains("b23.tv")) {
-            extractId(raw, listOf("fid=", "media_id=", "id="), listOf("/medialist/detail/ml", "/favlist?fid="))?.let {
-                return ParsedPlaylistRef(StreamingProviderName.BILIBILI, it)
+            BilibiliLinkParser.parse(raw)?.let {
+                return ParsedPlaylistRef(StreamingProviderName.BILIBILI, it.providerPlaylistId)
             }
         }
         // YouTube / YouTube Music: ...?list=PLxxxx
@@ -88,6 +88,11 @@ object StreamingPlaylistLinkParser {
         if (!raw.contains("://") && !raw.contains(" ")) {
             parseLuoxueRawId(raw)?.let {
                 return ParsedPlaylistRef(StreamingProviderName.LUOXUE, it)
+            }
+            if (fallbackProvider == StreamingProviderName.BILIBILI) {
+                BilibiliLinkParser.parse(raw)?.let {
+                    return ParsedPlaylistRef(StreamingProviderName.BILIBILI, it.providerPlaylistId)
+                }
             }
             val cleaned = raw.removePrefix("ml") // bilibili medialist often prefixed with ml
             if (cleaned.isNotEmpty()) {

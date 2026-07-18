@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylistImporter
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingRepository
 import app.yukine.streaming.StreamingTrack
@@ -103,6 +104,51 @@ internal class StreamingPlaylistDataCoordinator(
         return withContext(ioDispatcherProvider()) {
             operations.syncStreamingPlaylist(link, tracks)
         }
+    }
+
+    suspend fun syncLinkedPlaylist(
+        link: StreamingPlaylistSyncStore.LinkedPlaylist
+    ): StreamingLocalPlaylistSyncResult {
+        if (link.direction == StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL) {
+            return syncPlaylistToLocal(link)
+        }
+        val operations = localOperationsProvider()
+            ?: error("Streaming local playlist operations are not bound")
+        val snapshot = withContext(ioDispatcherProvider()) {
+            operations.localPlaylistSnapshot(link.localPlaylistId)
+        } ?: return StreamingLocalPlaylistSyncResult(
+            playlistId = link.localPlaylistId,
+            empty = true,
+            errorMessage = "Local playlist is unavailable"
+        )
+        val importer = StreamingPlaylistImporter(repositoryProvider())
+        val summary = importer.importToStreaming(
+            provider = link.provider,
+            playlistName = snapshot.playlistName,
+            localTracks = snapshot.tracks
+        )
+        if (summary.errors.isNotEmpty() || summary.unresolvedTracks.isNotEmpty()) {
+            val problemCount = summary.errors.size + summary.unresolvedTracks.size
+            return StreamingLocalPlaylistSyncResult(
+                playlistId = link.localPlaylistId,
+                empty = true,
+                errorMessage = "$problemCount track(s) could not be matched; the remote playlist was not changed"
+            )
+        }
+        importer.syncRemotePlaylist(
+            provider = link.provider,
+            providerPlaylistId = link.providerPlaylistId,
+            title = snapshot.playlistName,
+            desiredTracks = summary.matchedTracks
+        )
+        withContext(ioDispatcherProvider()) {
+            operations.markPlaylistSynced(link.localPlaylistId)
+        }
+        return StreamingLocalPlaylistSyncResult(
+            playlistId = link.localPlaylistId,
+            syncedCount = snapshot.tracks.size,
+            empty = false
+        )
     }
 
     suspend fun ensureLoginPlaylist(

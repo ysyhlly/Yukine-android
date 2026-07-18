@@ -59,13 +59,26 @@ class SettingsPageStateBuilderTest {
         assertEquals(7, content.actions.size)
         assertEquals(SettingsCategoryId.PlaybackAudio, content.actions[0].categoryId)
         assertEquals("1.25x · 70%", content.actions[0].value)
-        assertEquals(SettingsCategoryId.DownloadsStorageBackup, content.actions[4].categoryId)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.section.categories"), content.actions[0].section)
+        val downloadsAction = content.actions.first {
+            it.categoryId == SettingsCategoryId.DownloadsStorageBackup
+        }
+        assertEquals(
+            listOf(
+                "Listening experience",
+                "Listening experience",
+                "Listening experience",
+                "Library & connections",
+                "Library & connections",
+                "Library & connections",
+                "System & support"
+            ),
+            content.actions.map { it.section }
+        )
         assertEquals(SettingsActionStyle.Navigation, content.actions[0].style)
         assertTrue(content.uiState.searchEntries.isNotEmpty())
 
         content.actions[0].onClick.run()
-        content.actions[4].onClick.run()
+        downloadsAction.onClick.run()
         content.uiState.searchEntries.first { it.id == SettingsEntryId.Theme }.onClick.run()
 
         assertEquals(listOf(SettingsPage.PlaybackGroup, SettingsPage.Downloads), navigated)
@@ -203,29 +216,32 @@ class SettingsPageStateBuilderTest {
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.appearance"), content.uiState.title)
         assertEquals(5, content.uiState.metrics.size)
         assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "page.background.custom.count"), content.uiState.metrics[3].value)
-        assertEquals(13, content.actions.size)
+        assertEquals(14, content.actions.size)
+        fun action(id: SettingsEntryId) = content.actions.first { it.entryId == id }
+        val backgroundBlurIntensity = action(SettingsEntryId.BackgroundBlurIntensity)
+        val glassBlurIntensity = action(SettingsEntryId.GlassBlurIntensity)
+        val glassSurfaceOpacity = action(SettingsEntryId.GlassSurfaceOpacity)
 
-        content.actions[0].onClick.run()
-        content.actions[4].onClick.run()
-        content.actions[5].onClick.run()
-        content.actions[6].onClick.run()
-        content.actions[7].onSliderValueChange?.invoke(36f)
-        content.actions[8].onClick.run()
-        content.actions[9].onSliderValueChange?.invoke(28f)
+        content.actions.first { it.isBack }.onClick.run()
+        action(SettingsEntryId.PageBackground).onClick.run()
+        action(SettingsEntryId.CompactSettingsCards).onClick.run()
+        action(SettingsEntryId.BackgroundBlur).onClick.run()
+        backgroundBlurIntensity.onSliderValueChange?.invoke(36f)
+        action(SettingsEntryId.GlassBlur).onClick.run()
+        glassBlurIntensity.onSliderValueChange?.invoke(28f)
 
         assertEquals(listOf(SettingsPage.Home, SettingsPage.PageBackground), navigated)
         assertEquals(true, compactSettingsCards)
-        assertEquals(SettingsEntryId.CompactSettingsCards, content.actions[5].entryId)
         assertEquals(false, backgroundBlurEnabled)
         assertEquals(36f, backgroundBlurRadius)
         assertEquals(false, blurEnabled)
         assertEquals(28f, blurRadius)
-        assertEquals("Default: 24 dp", content.actions[7].sliderDefaultLabel)
-        assertEquals("Restore default", content.actions[7].sliderResetLabel)
+        assertEquals("Default: 24 dp", backgroundBlurIntensity.sliderDefaultLabel)
+        assertEquals("Restore default", backgroundBlurIntensity.sliderResetLabel)
 
-        content.actions[7].onSliderReset?.run()
-        content.actions[9].onSliderReset?.run()
-        content.actions[10].onSliderReset?.run()
+        backgroundBlurIntensity.onSliderReset?.run()
+        glassBlurIntensity.onSliderReset?.run()
+        glassSurfaceOpacity.onSliderReset?.run()
 
         assertEquals(app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP, backgroundBlurRadius)
         assertEquals(app.yukine.ui.EchoGlassDefaults.BLUR_RADIUS_DP, blurRadius)

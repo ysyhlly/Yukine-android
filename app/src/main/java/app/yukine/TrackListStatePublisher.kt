@@ -29,7 +29,8 @@ internal class TrackListStatePublisher(
             showPlaylistAction = true,
             headerMetrics = request.headerMetrics,
             headerActions = request.headerActions,
-            footerAlbums = request.footerAlbums
+            footerAlbums = request.footerAlbums,
+            context = request.context
         )
     }
 
@@ -41,7 +42,8 @@ internal class TrackListStatePublisher(
             headerMetrics = request.headerMetrics,
             headerActions = request.headerActions,
             emptyText = request.emptyText,
-            modeActions = request.modeActions
+            modeActions = request.modeActions,
+            context = request.context
         )
     }
 
@@ -71,7 +73,8 @@ internal class TrackListStatePublisher(
         modeActions: List<TrackListModeAction> = emptyList(),
         labels: TrackListLabels = labels(settingsState.value.preferences.languageMode),
         playbackState: PlaybackStateSnapshot = playbackReadModel.state.value,
-        footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
+        footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
+        context: LibraryListContext = LibraryListContext.Songs
     ) {
         controller.reduce(
             title = title,
@@ -86,7 +89,8 @@ internal class TrackListStatePublisher(
             labels = labels,
             playbackState = playbackState,
             favoriteIds = libraryState.value.favoriteTrackIds,
-            footerAlbums = footerAlbums
+            footerAlbums = footerAlbums,
+            context = context
         )
     }
 
@@ -101,6 +105,7 @@ internal class TrackListStatePublisher(
         AppLanguage.text(languageMode, "all.albums"),
         AppLanguage.text(languageMode, "play.all"),
         AppLanguage.text(languageMode, "shuffle"),
-        AppLanguage.text(languageMode, "recording.match.manage")
+        AppLanguage.text(languageMode, "recording.match.manage"),
+        AppLanguage.text(languageMode, "songs")
     )
 }

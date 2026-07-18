@@ -101,6 +101,12 @@ internal class NavigationFeatureBinding(
     fun navigateToNetworkTabPage(page: NetworkPage) = routeController.navigateToNetworkPageFromCurrent(page)
     fun navigateToTab(tab: TabRoute, userInitiated: Boolean = true) =
         intentOwner.navigateToTab(tab, userInitiated)
+    fun openQueueSheet() {
+        navHostState?.setQueueSheetVisibility(true)
+    }
+    fun openPlayHistory() {
+        openPlayHistoryRoute(routeController, settingsStore.languageMode())
+    }
     fun handleBack(): Boolean = intentOwner.handleBack()
 
     private fun createNavHostState(
@@ -137,6 +143,7 @@ internal class NavigationFeatureBinding(
             ).actions(),
             searchState = viewModels.searchViewModel.uiState,
             libraryActionHandler = viewModels.libraryViewModel.presentation::onAction,
+            openPlayHistoryAction = Runnable(::openPlayHistory),
             openNetworkSourcesAction = Runnable { navigateToNetworkTabPage(NetworkPage.Sources) },
             recordingMatchStateProvider = viewModels.recordingMatchViewModel
         ),
@@ -160,4 +167,12 @@ internal class NavigationFeatureBinding(
             }
         })
     }
+}
+
+internal fun openPlayHistoryRoute(routeController: MainRouteController, languageMode: String) {
+    routeController.setLibraryMode(LibraryGrouping.PLAYLISTS)
+    routeController.selectLibraryGroup(
+        LibraryPlaylistsStateReducer.HISTORY_GROUP_KEY,
+        AppLanguage.text(languageMode, "play.history.playlist")
+    )
 }

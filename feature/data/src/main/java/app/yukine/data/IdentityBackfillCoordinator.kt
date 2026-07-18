@@ -54,12 +54,12 @@ class IdentityBackfillCoordinator(
     fun runBatch(
         checkpoint: IdentityBackfillCheckpoint,
         maxRecordings: Int = DEFAULT_BATCH_SIZE
-    ): IdentityBackfillBatchResult {
+    ): IdentityBackfillBatchResult = IdentityMutationGate.withLock {
         val batchSize = maxRecordings.coerceIn(1, DEFAULT_BATCH_SIZE)
         val current = checkpoint.takeIf {
             it.algorithmVersion == IdentityBackfillCheckpoint.CURRENT_ALGORITHM_VERSION
         } ?: IdentityBackfillCheckpoint()
-        return when (current.stage) {
+        when (current.stage) {
             IdentityBackfillStage.NORMALIZE -> normalizeBatch(current, batchSize)
             IdentityBackfillStage.CLASSIFY -> classifyBatch(current, batchSize)
             IdentityBackfillStage.INGEST -> ingestBatch(current, batchSize)

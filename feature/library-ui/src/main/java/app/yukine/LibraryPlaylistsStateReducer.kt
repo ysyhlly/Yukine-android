@@ -11,6 +11,7 @@ import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.EchoIconKind
+import app.yukine.ui.LibraryFilter
 import app.yukine.streaming.StreamingProviderName
 import java.util.ArrayList
 import java.util.LinkedHashMap
@@ -20,7 +21,7 @@ class LibraryPlaylistsStateReducer(
     private val listener: Listener
 ) {
     private val favoritesKey = "virtual:favorites"
-    private val historyKey = "virtual:play-history"
+    private val historyKey = HISTORY_GROUP_KEY
 
     interface Listener {
         fun openFavoritePlaylist(title: String)
@@ -84,7 +85,9 @@ class LibraryPlaylistsStateReducer(
             LibraryGroupUiState(
                 favoritesKey,
                 favoriteTitle,
-                CollectionRowStateFactory.trackCountLabel(favoriteTracks.size, languageMode)
+                CollectionRowStateFactory.trackCountLabel(favoriteTracks.size, languageMode),
+                trackCount = favoriteTracks.size,
+                groupKey = favoritesKey
             )
         )
         actions.add(
@@ -101,7 +104,9 @@ class LibraryPlaylistsStateReducer(
             LibraryGroupUiState(
                 historyKey,
                 historyTitle,
-                CollectionRowStateFactory.trackCountLabel(historyTracks.size, languageMode)
+                CollectionRowStateFactory.trackCountLabel(historyTracks.size, languageMode),
+                trackCount = historyTracks.size,
+                groupKey = historyKey
             )
         )
         actions.add(
@@ -116,11 +121,34 @@ class LibraryPlaylistsStateReducer(
             StreamingProviderName?,
             MutableList<Pair<LibraryPlaylistFolderEntryUiState, Int>>
         >()
-        for (playlist in playlists) {
+        val uiState = viewModel.libraryUi.value
+        val visiblePlaylists = playlists.filter { playlist ->
+            val queryMatches = uiState.query.isBlank() ||
+                playlist.name.contains(uiState.query, ignoreCase = true)
+            val provider = playlistSources[playlist.id]
+            val filterMatches = when (uiState.filter) {
+                LibraryFilter.All -> true
+                LibraryFilter.Favorites -> false
+                LibraryFilter.Local -> provider == null
+                LibraryFilter.Network -> provider != null
+            }
+            queryMatches && filterMatches
+        }
+        val sortedPlaylists = LibraryGroupSortPolicy.sort(
+            items = visiblePlaylists,
+            sort = uiState.groupSort,
+            languageMode = languageMode,
+            stableId = { playlist -> playlist.id.toString() },
+            title = { playlist -> playlist.name },
+            trackCount = { playlist -> playlist.trackCount }
+        )
+        for (playlist in sortedPlaylists) {
             val row = LibraryGroupUiState(
                 "playlist:${playlist.id}",
                 playlist.name,
-                CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode)
+                CollectionRowStateFactory.trackCountLabel(playlist.trackCount, languageMode),
+                trackCount = playlist.trackCount,
+                groupKey = playlist.id.toString()
             )
             val actionIndex = actions.size
             actions.add(
@@ -313,6 +341,10 @@ class LibraryPlaylistsStateReducer(
         }
         return tracks
     }
+
+    companion object {
+        const val HISTORY_GROUP_KEY = "virtual:play-history"
+    }
 }
 
 data class LibraryPlaylistTrackListRequest(
@@ -321,5 +353,6 @@ data class LibraryPlaylistTrackListRequest(
     val headerMetrics: ArrayList<TrackListHeaderMetric>,
     val headerActions: ArrayList<TrackListHeaderAction>,
     val emptyText: String,
-    val modeActions: ArrayList<TrackListModeAction>
+    val modeActions: ArrayList<TrackListModeAction>,
+    val context: LibraryListContext = LibraryListContext.Playlist
 )

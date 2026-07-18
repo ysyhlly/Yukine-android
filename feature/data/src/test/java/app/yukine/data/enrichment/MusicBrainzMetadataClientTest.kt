@@ -131,6 +131,34 @@ class MusicBrainzMetadataClientTest {
     }
 
     @Test
+    fun artistAvatarUsesStrongDeezerRelationFromMusicBrainzLookup() {
+        val calls = mutableListOf<String>()
+        val client = client(FakeCache(), MetadataHttpTransport { url, _ ->
+            calls += url
+            MetadataHttpResponse(200, ARTIST_RELATIONS_RESPONSE)
+        })
+
+        val avatarUrl = client.artistAvatarUrl("8fb646cc-61e0-4fd6-8a72-1f5684cfba08")
+
+        assertTrue(calls.single().contains(
+            "artist/8fb646cc-61e0-4fd6-8a72-1f5684cfba08?inc=url-rels&fmt=json"
+        ))
+        assertEquals("https://api.deezer.com/artist/74702872/image?size=big", avatarUrl)
+    }
+
+    @Test
+    fun artistAvatarRejectsInvalidMbidWithoutNetwork() {
+        var calls = 0
+        val client = client(FakeCache(), MetadataHttpTransport { _, _ ->
+            calls++
+            MetadataHttpResponse(200, ARTIST_RELATIONS_RESPONSE)
+        })
+
+        assertEquals("", client.artistAvatarUrl("../private"))
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun retriesEveryEndpointThenReturnsExplicitOfflineFallbackSignal() {
         val cache = FakeCache()
         val calls = mutableListOf<String>()
@@ -269,6 +297,18 @@ class MusicBrainzMetadataClientTest {
                 "country": "CN",
                 "type": "Person",
                 "aliases": [{"name": "憨色"}, {"name": "Hanser"}]
+              }]
+            }
+        """
+        const val ARTIST_RELATIONS_RESPONSE = """
+            {
+              "id": "8fb646cc-61e0-4fd6-8a72-1f5684cfba08",
+              "relations": [{
+                "type": "free streaming",
+                "url": {"resource": "https://www.deezer.com/artist/74702872"}
+              }, {
+                "type": "image",
+                "url": {"resource": "https://web.archive.org/web/0/https://i.scdn.co/image/avatar"}
               }]
             }
         """

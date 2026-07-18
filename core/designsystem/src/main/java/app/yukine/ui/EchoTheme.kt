@@ -487,7 +487,7 @@ object EchoTheme {
         accentSoft = accent.copy(alpha = if (dark) 0.18f else 0.11f),
         highlight = accent.copy(alpha = if (dark) 0.13f else 0.08f),
         accentStrong = accent,
-        onAccent = if (accent.luminance() > 0.48f) Color.Black else Color.White
+        onAccent = readableOnAccent(accent)
     )
 
     private fun colorSchemeFrom(p: EchoPalette): ColorScheme = when {
@@ -541,27 +541,27 @@ object EchoTheme {
     private fun defaultPalette(dark: Boolean, accent: Color): EchoPalette {
         val a = accent
         return if (dark) EchoPalette(
-            background = blendWithAccent(Color(0xFF0C1018), a, 0.16f),
-            surface = blendWithAccent(Color(0xFF141820), a, 0.14f),
-            surfaceVariant = blendWithAccent(Color(0xFF1A2028), a, 0.15f),
-            panel = blendWithAccent(Color(0xFF1E2530), a, 0.14f),
+            background = blendWithAccent(Color(0xFF080C13), a, 0.12f),
+            surface = blendWithAccent(Color(0xFF181E29), a, 0.10f),
+            surfaceVariant = blendWithAccent(Color(0xFF222A36), a, 0.11f),
+            panel = blendWithAccent(Color(0xFF293342), a, 0.10f),
             accent = a, accentSoft = a.copy(alpha = 0.18f),
-            text = Color(0xFFE4E8F0), muted = Color(0xFF9AA3B4),
+            text = Color(0xFFF2F5FA), muted = Color(0xFFB5BECD),
             highlight = a.copy(alpha = 0.13f),
-            border = blendWithAccent(Color(0xFF283040), a, 0.14f),
-            onAccent = Color.White,
-            backgroundAlt = blendWithAccent(Color(0xFF101620), a, 0.18f)
+            border = blendWithAccent(Color(0xFF394455), a, 0.10f),
+            onAccent = readableOnAccent(a),
+            backgroundAlt = blendWithAccent(Color(0xFF0D141E), a, 0.12f)
         ) else EchoPalette(
-            background = blendWithAccent(Color(0xFFFBFCFF), a, 0.03f),
+            background = blendWithAccent(Color(0xFFF2F5FA), a, 0.02f),
             surface = Color(0xFFFFFFFF),
-            surfaceVariant = blendWithAccent(Color(0xFFF4F7FF), a, 0.05f),
-            panel = blendWithAccent(Color(0xFFEDF1FA), a, 0.05f),
+            surfaceVariant = blendWithAccent(Color(0xFFEAF0F8), a, 0.03f),
+            panel = blendWithAccent(Color(0xFFE2E9F3), a, 0.03f),
             accent = a, accentSoft = a.copy(alpha = 0.10f),
-            text = Color(0xFF2A3040), muted = Color(0xFF8892A8),
+            text = Color(0xFF1F2735), muted = Color(0xFF606B7D),
             highlight = a.copy(alpha = 0.08f),
-            border = blendWithAccent(Color(0xFFE6EAF4), a, 0.06f),
-            onAccent = Color.White,
-            backgroundAlt = Color(0xFFFDFEFF)
+            border = blendWithAccent(Color(0xFFCBD4E2), a, 0.03f),
+            onAccent = readableOnAccent(a),
+            backgroundAlt = Color(0xFFF7F9FC)
         )
     }
 
@@ -576,13 +576,24 @@ object EchoTheme {
         )
     }
 
+    /**
+     * Chooses the foreground with the higher WCAG contrast ratio. A luminance threshold alone
+     * can leave white labels faint on medium-bright dynamic colors.
+     */
+    private fun readableOnAccent(accent: Color): Color {
+        val luminance = accent.luminance()
+        val blackContrast = (luminance + 0.05f) / 0.05f
+        val whiteContrast = 1.05f / (luminance + 0.05f)
+        return if (blackContrast >= whiteContrast) Color.Black else Color.White
+    }
+
     private fun amoledPalette(accent: Color): EchoPalette {
         val a = accent
         return EchoPalette(background = Color(0xFF000000), surface = Color(0xFF08090C),
             surfaceVariant = Color(0xFF101318), panel = Color(0xFF151820), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFF5F7FA),
             muted = Color(0xFFB2BDCC), highlight = Color(0xFF1E2330),
-            border = Color(0xFF262A36), onAccent = Color.Black)
+            border = Color(0xFF262A36), onAccent = readableOnAccent(a))
     }
 
     private fun contrastPalette(accent: Color): EchoPalette {
@@ -591,7 +602,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFF191D27), panel = Color(0xFF242B3A), accent = a,
             accentSoft = a.copy(alpha = 0.2f), text = Color(0xFFFFFFFF),
             muted = Color(0xFFD0DAE8), highlight = Color(0xFF30394D),
-            border = Color(0xFF353D50), onAccent = Color.Black)
+            border = Color(0xFF353D50), onAccent = readableOnAccent(a))
     }
 
     private fun graphitePalette(accent: Color): EchoPalette {
@@ -600,7 +611,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFF222528), panel = Color(0xFF292D31), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFF1F3F5),
             muted = Color(0xFFAAB1B8), highlight = Color(0xFF30363B),
-            border = Color(0xFF353A3F), onAccent = Color.Black)
+            border = Color(0xFF353A3F), onAccent = readableOnAccent(a))
     }
 
     private fun mistPalette(accent: Color): EchoPalette {
@@ -609,7 +620,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFFE8EDEB), panel = Color(0xFFE1E8E5), accent = a,
             accentSoft = a.copy(alpha = 0.12f), text = Color(0xFF17201D),
             muted = Color(0xFF5F6D68), highlight = Color(0xFFDDE7E3),
-            border = Color(0xFFD5DCD9), onAccent = Color.White)
+            border = Color(0xFFD5DCD9), onAccent = readableOnAccent(a))
     }
 
     private fun midnightPalette(accent: Color): EchoPalette {
@@ -618,7 +629,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFF1A2238), panel = Color(0xFF1E293B), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFEAF0FF),
             muted = Color(0xFF9AA8C7), highlight = Color(0xFF263449),
-            border = Color(0xFF2D3B54), onAccent = Color.Black)
+            border = Color(0xFF2D3B54), onAccent = readableOnAccent(a))
     }
 
     private fun forestPalette(accent: Color): EchoPalette {
@@ -627,7 +638,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFF182B22), panel = Color(0xFF1C3328), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFE8F3ED),
             muted = Color(0xFFA1B7AA), highlight = Color(0xFF274537),
-            border = Color(0xFF2C4D3E), onAccent = Color.Black)
+            border = Color(0xFF2C4D3E), onAccent = readableOnAccent(a))
     }
 
     private fun oceanPalette(accent: Color): EchoPalette {
@@ -636,7 +647,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFF152E40), panel = Color(0xFF17384B), accent = a,
             accentSoft = a.copy(alpha = 0.18f), text = Color(0xFFE6F5FB),
             muted = Color(0xFF9BC0CD), highlight = Color(0xFF204A61),
-            border = Color(0xFF254F68), onAccent = Color.Black)
+            border = Color(0xFF254F68), onAccent = readableOnAccent(a))
     }
 
     private fun daylightPalette(accent: Color): EchoPalette {
@@ -645,7 +656,7 @@ object EchoTheme {
             surfaceVariant = Color(0xFFF0F3ED), panel = Color(0xFFEAF0E7), accent = a,
             accentSoft = a.copy(alpha = 0.12f), text = Color(0xFF18201A),
             muted = Color(0xFF667268), highlight = Color(0xFFE1E9DC),
-            border = Color(0xFFD8DFD4), onAccent = Color.White)
+            border = Color(0xFFD8DFD4), onAccent = readableOnAccent(a))
     }
 }
 

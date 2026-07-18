@@ -49,6 +49,43 @@ class RoomArtistIdentityRepository(
         }
     }
 
+    override fun updateAvatarIfMissing(artistKey: Long, avatarUrl: String, source: String) {
+        val normalizedUrl = avatarUrl.trim().takeIf {
+            it.startsWith("https://", ignoreCase = true)
+        } ?: return
+        database.runInTransaction {
+            val artist = requireArtist(artistKey)
+            if (artist.avatarUrl.isNotBlank()) return@runInTransaction
+            dao.update(
+                artist.copy(
+                    avatarUrl = normalizedUrl,
+                    metadataSource = source.trim().ifBlank { artist.metadataSource },
+                    updatedAt = maxOf(System.currentTimeMillis(), artist.updatedAt)
+                )
+            )
+        }
+    }
+
+    override fun updateDescriptionIfMissing(
+        artistKey: Long,
+        description: String,
+        source: String
+    ) {
+        val normalizedDescription = description.trim().take(MAX_ARTIST_DESCRIPTION_LENGTH)
+        if (normalizedDescription.isBlank()) return
+        database.runInTransaction {
+            val artist = requireArtist(artistKey)
+            if (artist.description.isNotBlank()) return@runInTransaction
+            dao.update(
+                artist.copy(
+                    description = normalizedDescription,
+                    metadataSource = source.trim().ifBlank { artist.metadataSource },
+                    updatedAt = maxOf(System.currentTimeMillis(), artist.updatedAt)
+                )
+            )
+        }
+    }
+
     override fun confirmAlias(artistKey: Long, alias: ArtistAlias) {
         database.runInTransaction {
             val artist = requireArtist(artistKey)
@@ -91,6 +128,8 @@ class RoomArtistIdentityRepository(
                 musicBrainzArtistId = target.musicBrainzArtistId.ifBlank {
                     source.musicBrainzArtistId
                 },
+                avatarUrl = target.avatarUrl.ifBlank { source.avatarUrl },
+                description = target.description.ifBlank { source.description },
                 confidence = max(target.confidence, source.confidence),
                 updatedAt = maxOf(System.currentTimeMillis(), target.updatedAt, source.updatedAt)
             )
@@ -134,6 +173,7 @@ class RoomArtistIdentityRepository(
                     } else {
                         ""
                     },
+                    avatarUrl = "",
                     matchStatus = IdentityMatchStatus.UNRESOLVED.name,
                     confidence = 0.0,
                     metadataSource = "USER_SPLIT",
@@ -243,5 +283,9 @@ class RoomArtistIdentityRepository(
             else -> 0.0
         }
         return statusBoost + candidate.score.coerceIn(0.0, 1.0)
+    }
+
+    private companion object {
+        const val MAX_ARTIST_DESCRIPTION_LENGTH = 1_000
     }
 }

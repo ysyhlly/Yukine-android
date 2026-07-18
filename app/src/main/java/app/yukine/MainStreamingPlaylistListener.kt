@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingTrack
 
 internal fun interface StreamingPlaylistIdSource {
     fun selectedPlaylistId(): Long
@@ -48,6 +49,15 @@ internal fun interface StreamingPlaylistLoadedDialogPresenter {
     fun showStreamingPlaylistLoadedDialog(message: String)
 }
 
+internal fun interface StreamingPlaylistImportPreviewPresenter {
+    fun showStreamingPlaylistImportPreview(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        playlistName: String,
+        tracks: List<StreamingTrack>
+    )
+}
+
 internal fun interface StreamingAccountPlaylistImportPickerPresenter {
     fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>)
 }
@@ -68,6 +78,7 @@ internal class MainStreamingPlaylistListener(
     private val providerPickerPresenter: StreamingProviderPickerPresenter,
     private val navigationSink: StreamingNavigationSink,
     private val loadedDialogPresenter: StreamingPlaylistLoadedDialogPresenter,
+    private val importPreviewPresenter: StreamingPlaylistImportPreviewPresenter,
     private val accountPlaylistPickerPresenter: StreamingAccountPlaylistImportPickerPresenter,
     private val statusSink: StreamingPlaylistStatusSink
 ) : StreamingPlaylistController.Listener {
@@ -108,6 +119,20 @@ internal class MainStreamingPlaylistListener(
 
     override fun showStreamingPlaylistLoadedDialog(message: String) {
         loadedDialogPresenter.showStreamingPlaylistLoadedDialog(message)
+    }
+
+    override fun showStreamingPlaylistImportPreview(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        playlistName: String,
+        tracks: List<StreamingTrack>
+    ) {
+        importPreviewPresenter.showStreamingPlaylistImportPreview(
+            provider,
+            providerPlaylistId,
+            playlistName,
+            tracks
+        )
     }
 
     override fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>) {

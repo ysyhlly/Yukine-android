@@ -73,7 +73,14 @@ class LibraryGroupsActionAdapterTest {
         )
         val listener = listener(mutableListOf(), trackListPublisher = { request = it })
 
-        listener.publishTrackList("Album", tracks, metrics, headerActions, footerAlbums)
+        listener.publishTrackList(
+            "Album",
+            tracks,
+            metrics,
+            headerActions,
+            footerAlbums,
+            LibraryListContext.Album
+        )
 
         val rendered = requireNotNull(request)
         assertEquals("Album", rendered.title)
@@ -104,7 +111,8 @@ class LibraryGroupsActionAdapterTest {
             ArrayList(listOf(track(3L))),
             ArrayList(),
             ArrayList(),
-            ArrayList()
+            ArrayList(),
+            LibraryListContext.Songs
         )
 
         assertEquals(

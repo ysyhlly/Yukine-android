@@ -1,6 +1,7 @@
 package app.yukine.data;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.net.Uri;
@@ -53,6 +54,49 @@ public final class LyricsRepositoryTest {
         assertEquals(lyrics.toFile().getAbsolutePath(), saved.get(0).getProviderLyricId());
         assertEquals(64, saved.get(0).getChecksum().length());
         assertTrue(saved.get(0).getSynced());
+    }
+
+    @Test
+    public void gatewayLyricsRunAfterLocalSourcesAndNeverPersistProviderBinding() throws Exception {
+        ArrayList<LyricSourceBinding> saved = new ArrayList<>();
+        int[] gatewayCalls = new int[]{0};
+        LyricsRepository repository = new LyricsRepository(
+                new LyricsRepository.BindingStore() {
+                    @Override
+                    public List<LyricSourceBinding> load(long trackId) {
+                        return Collections.emptyList();
+                    }
+
+                    @Override
+                    public void save(long trackId, LyricSourceBinding binding) {
+                        saved.add(binding);
+                    }
+                },
+                track -> {
+                    gatewayCalls[0]++;
+                    return new LyricsRepository.ProviderLyrics("[00:01.00]Gateway", "");
+                }
+        );
+
+        List<app.yukine.model.LyricsLine> lines =
+                repository.loadForTrack(track("Song", "Artist", "Album"), true, "");
+
+        assertEquals(1, gatewayCalls[0]);
+        assertEquals(1, lines.size());
+        assertEquals("Gateway", lines.get(0).text);
+        assertTrue(saved.isEmpty());
+    }
+
+    @Test
+    public void offlineLyricsDoNotCallGateway() {
+        int[] gatewayCalls = new int[]{0};
+        LyricsRepository repository = new LyricsRepository(null, track -> {
+            gatewayCalls[0]++;
+            return new LyricsRepository.ProviderLyrics("[00:01.00]Gateway", "");
+        });
+
+        assertTrue(repository.loadForTrack(track("Song", "Artist", "Album"), false, "").isEmpty());
+        assertEquals(0, gatewayCalls[0]);
     }
 
     @Test
@@ -135,6 +179,33 @@ public final class LyricsRepositoryTest {
         );
 
         assertEquals("260603", method.invoke(repository, track));
+    }
+
+    @Test
+    public void neteaseSearchDoesNotCacheEmptyMatches() throws Exception {
+        LyricsRepository repository = new LyricsRepository();
+        Track track = track("No cache " + System.nanoTime(), "Artist", "Album");
+        Method onlineCacheKey = LyricsRepository.class.getDeclaredMethod("onlineCacheKey", Track.class);
+        Method cache = LyricsRepository.class.getDeclaredMethod(
+                "cacheNeteaseSearchTrackId",
+                String.class,
+                String.class
+        );
+        Method cached = LyricsRepository.class.getDeclaredMethod(
+                "cachedNeteaseSearchTrackId",
+                String.class
+        );
+        onlineCacheKey.setAccessible(true);
+        cache.setAccessible(true);
+        cached.setAccessible(true);
+        String cacheKey = "netease-search\n" + onlineCacheKey.invoke(repository, track);
+
+        assertNull(cached.invoke(repository, cacheKey));
+        assertEquals("", cache.invoke(repository, cacheKey, ""));
+        assertNull(cached.invoke(repository, cacheKey));
+
+        assertEquals("260604", cache.invoke(repository, cacheKey, "260604"));
+        assertEquals("260604", cached.invoke(repository, cacheKey));
     }
 
     private static Track track(String title, String artist, String album) {

@@ -119,7 +119,8 @@ final class LibraryFeatureBinding {
                         identity.getArtistId(),
                         identity.getDisplayName().isBlank()
                                 ? identity.getCreditedName()
-                                : identity.getDisplayName()
+                                : identity.getDisplayName(),
+                        identity.getAvatarUrl()
                 ))
                 .toList());
         this.collectionsOwner = new LibraryCollectionsOwner(
@@ -369,7 +370,7 @@ final class LibraryFeatureBinding {
                 () -> navigation.navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
                 (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),
                 () -> importOwner.loadLibrary(true),
-                () -> navigation.navigateToTab(app.yukine.navigation.QueueTab.INSTANCE, true),
+                navigation::openQueueSheet,
                 () -> navigation.navigateToNetworkTabPage(NetworkPage.StreamingHub),
                 () -> navigation.navigateToTab(app.yukine.navigation.SearchTab.INSTANCE, true),
                 () -> streaming.runRecommendationAction(
@@ -377,7 +378,8 @@ final class LibraryFeatureBinding {
                 ),
                 () -> streaming.runRecommendationAction(
                         new RecommendationAction.PlayHeartbeat(app.yukine.streaming.StreamingProviderName.NETEASE)
-                )
+                ),
+                playback.getNowPlayingViewModel()::skipToNext
         );
         return streamingSearchStateReducer;
     }

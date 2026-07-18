@@ -12,6 +12,8 @@ import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingPlaylistDetail
 import app.yukine.streaming.StreamingPlaylistRequest
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
+import app.yukine.streaming.StreamingProviderCapability
 import app.yukine.streaming.StreamingProvider
 import app.yukine.streaming.StreamingProviderCapabilities
 import app.yukine.streaming.StreamingProviderDescriptor
@@ -133,15 +135,116 @@ class StreamingPlaylistControllerTest {
         assertTrue(listener.events.contains("refreshLibrary"))
     }
 
+    @Test
+    fun bilibiliProviderReferenceLoadsPreviewBeforeImport() = runTest {
+        val gateway = FakeGateway(userPlaylistsResult = emptyList())
+        gateway.playlistDetail = StreamingPlaylistDetail(
+            provider = StreamingProviderName.BILIBILI,
+            providerPlaylistId = "favorite:42",
+            playlist = StreamingPlaylist(
+                StreamingProviderName.BILIBILI,
+                "favorite:42",
+                "音乐收藏"
+            ),
+            tracks = listOf(
+                StreamingTrack(
+                    provider = StreamingProviderName.BILIBILI,
+                    providerTrackId = "video:BV1U64y1a785:cid:101",
+                    title = "收藏视频",
+                    artist = "测试 UP"
+                )
+            ),
+            total = 1,
+            hasMore = false
+        )
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        val listener = FakeStreamingPlaylistListener()
+        val controller = StreamingPlaylistController(
+            viewModel,
+            StreamingPlaylistController.LanguageProvider { AppLanguage.MODE_CHINESE },
+            listener
+        )
+
+        controller.importStreamingPlaylistFromProviderRef(
+            StreamingProviderName.BILIBILI,
+            "favorite:42"
+        )
+        assertTrue(listener.awaitPreview())
+
+        assertEquals(
+            listOf("preview:bilibili:favorite:42:音乐收藏:1"),
+            listener.events.filter { it.startsWith("preview:") }
+        )
+    }
+
+    @Test
+    fun successfulLocalPlaylistExportLinksQqMirrorForFutureSync() = runTest {
+        val matched = StreamingTrack(
+            provider = StreamingProviderName.QQ_MUSIC,
+            providerTrackId = "qq-1",
+            title = "Local song",
+            artist = "Artist"
+        )
+        val gateway = FakeGateway(
+            userPlaylistsResult = emptyList(),
+            searchTracksResult = listOf(matched),
+            providerCapabilitiesResult = listOf(
+                StreamingProviderCapability(
+                    provider = StreamingProviderName.QQ_MUSIC,
+                    displayName = "QQ 音乐",
+                    enabled = true,
+                    supportsSearch = true,
+                    supportsPlayback = false,
+                    supportsPlaylists = true,
+                    supportsPlaylistCreate = true,
+                    supportsPlaylistWrite = true
+                )
+            )
+        )
+        val operations = FakeStreamingLocalPlaylistOperations()
+        val viewModel = StreamingViewModel()
+        viewModel.bindStreamingRepository(StreamingRepository(gateway))
+        viewModel.playlists.bindLocalPlaylistOperations(operations)
+        val listener = FakeStreamingPlaylistListener().apply {
+            selectedPlaylistIdValue = 42L
+            selectedPlaylistTracksValue = listOf(
+                Track(1L, "Local song", "Artist", "Album", 180_000L, null, "")
+            )
+        }
+        val controller = StreamingPlaylistController(
+            viewModel,
+            StreamingPlaylistController.LanguageProvider { AppLanguage.MODE_CHINESE },
+            listener
+        )
+
+        controller.importSelectedPlaylistToStreaming()
+        controller.runStreamingPlaylistImport(
+            StreamingProviderName.QQ_MUSIC,
+            "Local",
+            listener.selectedPlaylistTracksValue
+        )
+
+        assertTrue(operations.awaitLink())
+        assertEquals(
+            listOf("42:qqmusic:qq-playlist:LOCAL_TO_REMOTE"),
+            operations.linkedMirrors
+        )
+    }
+
     private class FakeStreamingPlaylistListener : StreamingPlaylistController.Listener {
         val events = mutableListOf<String>()
         var selectedPlaylistIdValue = -1L
+        var selectedPlaylistTracksValue: List<Track> = emptyList()
         private val pickerLatch = CountDownLatch(1)
         private val refreshLatch = CountDownLatch(1)
+        private val previewLatch = CountDownLatch(1)
 
         fun awaitPicker(): Boolean = pickerLatch.await(2, TimeUnit.SECONDS)
 
         fun awaitRefresh(): Boolean = refreshLatch.await(2, TimeUnit.SECONDS)
+
+        fun awaitPreview(): Boolean = previewLatch.await(2, TimeUnit.SECONDS)
 
         override fun selectedPlaylistId(): Long = selectedPlaylistIdValue
 
@@ -161,7 +264,7 @@ class StreamingPlaylistControllerTest {
 
         override fun selectedPlaylistName(): String = "Local"
 
-        override fun selectedPlaylistTracks(): List<Track> = emptyList()
+        override fun selectedPlaylistTracks(): List<Track> = selectedPlaylistTracksValue
 
         override fun favoriteTracks(): List<Track> = emptyList()
 
@@ -179,6 +282,16 @@ class StreamingPlaylistControllerTest {
             events += "dialog:$message"
         }
 
+        override fun showStreamingPlaylistImportPreview(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            playlistName: String,
+            tracks: List<StreamingTrack>
+        ) {
+            events += "preview:${provider.wireName}:$providerPlaylistId:$playlistName:${tracks.size}"
+            previewLatch.countDown()
+        }
+
         override fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>) {
             events += "picker:${provider.wireName}:${playlists.joinToString("|") { it.providerPlaylistId }}"
             pickerLatch.countDown()
@@ -194,6 +307,8 @@ class StreamingPlaylistControllerTest {
         val ensureProviders = mutableListOf<StreamingProviderName>()
         val importProviderPlaylistIds = mutableListOf<String>()
         val syncPlaylistIds = mutableListOf<Long>()
+        val linkedMirrors = mutableListOf<String>()
+        private val linkLatch = CountDownLatch(1)
         var linkedPlaylist: StreamingPlaylistSyncStore.LinkedPlaylist? = null
 
         override fun playlistExists(localPlaylistId: Long): Boolean =
@@ -234,10 +349,24 @@ class StreamingPlaylistControllerTest {
             providerPlaylistId: String
         ): StreamingPlaylistSyncStore.LinkedPlaylist? =
             linkedPlaylist?.takeIf { it.provider == provider && it.providerPlaylistId == providerPlaylistId }
+
+        override fun linkPlaylist(
+            localPlaylistId: Long,
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            direction: StreamingPlaylistSyncDirection
+        ) {
+            linkedMirrors += "$localPlaylistId:${provider.wireName}:$providerPlaylistId:${direction.name}"
+            linkLatch.countDown()
+        }
+
+        fun awaitLink(): Boolean = linkLatch.await(2, TimeUnit.SECONDS)
     }
 
     private class FakeGateway(
-        private val userPlaylistsResult: List<StreamingPlaylist>
+        private val userPlaylistsResult: List<StreamingPlaylist>,
+        private val searchTracksResult: List<StreamingTrack> = emptyList(),
+        private val providerCapabilitiesResult: List<StreamingProviderCapability> = emptyList()
     ) : StreamingGateway {
         val userPlaylistProviders = mutableListOf<StreamingProviderName>()
         private val provider = FakeProvider()
@@ -245,11 +374,18 @@ class StreamingPlaylistControllerTest {
 
         override suspend fun providers(): List<StreamingProviderDescriptor> = listOf(provider.descriptor)
 
-        override suspend fun providerCapabilities() = emptyList<app.yukine.streaming.StreamingProviderCapability>()
+        override suspend fun providerCapabilities() = providerCapabilitiesResult
 
         override suspend fun providersHealth() = emptyList<app.yukine.streaming.StreamingProviderHealth>()
 
-        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult = provider.search(request)
+        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult =
+            StreamingSearchResult(
+                provider = request.provider,
+                query = request.query,
+                page = request.page,
+                pageSize = request.pageSize,
+                tracks = searchTracksResult
+            )
 
         override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail =
             playlistDetail ?: StreamingPlaylistDetail(
@@ -285,6 +421,18 @@ class StreamingPlaylistControllerTest {
 
         override suspend fun signOut(provider: StreamingProviderName): StreamingAuthState =
             this.provider.signOut()
+
+        override suspend fun createUserPlaylist(
+            provider: StreamingProviderName,
+            title: String
+        ): StreamingPlaylist = StreamingPlaylist(provider, "qq-playlist", title)
+
+        override suspend fun mutateUserPlaylistTracks(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            providerTrackIds: List<String>,
+            add: Boolean
+        ) = Unit
     }
 
     private class FakeProvider : StreamingProvider {

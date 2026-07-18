@@ -181,8 +181,7 @@ class RegistryStreamingGateway(
     }
 
     override suspend fun userPlaylists(provider: StreamingProviderName): List<StreamingPlaylist> {
-        // The registry-backed (offline) gateway has no concept of remote user accounts.
-        return emptyList()
+        return requireProvider(provider).userPlaylists()
     }
 
     override suspend fun userLikedTracks(provider: StreamingProviderName): List<StreamingTrack> {
@@ -258,7 +257,8 @@ class RemoteStreamingGateway(
         neteaseClient = localNeteaseClient,
         qqMusicClient = localQqMusicClient
     ),
-    private val luoxueSourceStore: LuoxueSourceStore? = null
+    private val luoxueSourceStore: LuoxueSourceStore? = null,
+    private val localBilibiliClient: LocalBilibiliStreamingClient = LocalBilibiliStreamingClient(localAuthStore)
 ) : StreamingGateway {
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
@@ -269,7 +269,8 @@ class RemoteStreamingGateway(
         localNeteaseClient,
         localQqMusicClient,
         localLuoxueClient,
-        luoxueSourceStore
+        luoxueSourceStore,
+        localBilibiliClient
     )
 
     override suspend fun providers(): List<StreamingProviderDescriptor> {
@@ -497,6 +498,9 @@ class RemoteStreamingGateway(
         if (!configured() && provider == StreamingProviderName.QQ_MUSIC) {
             return localQqMusicClient.userPlaylists()
         }
+        if (!configured() && provider == StreamingProviderName.BILIBILI) {
+            return localBilibiliClient.userPlaylists()
+        }
         requireConfigured()
         return try {
             StreamingGatewayJson.userPlaylists(
@@ -513,6 +517,9 @@ class RemoteStreamingGateway(
                 error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
                     provider == StreamingProviderName.QQ_MUSIC ->
                     localQqMusicClient.userPlaylists()
+                error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE &&
+                    provider == StreamingProviderName.BILIBILI ->
+                    localBilibiliClient.userPlaylists()
                 else -> throw error
             }
         }
@@ -739,7 +746,11 @@ class RemoteStreamingGateway(
         force: Boolean
     ): StreamingAuthState {
         val store = localAuthStore ?: return authState(provider)
-        if (provider != StreamingProviderName.NETEASE && provider != StreamingProviderName.QQ_MUSIC) {
+        if (
+            provider != StreamingProviderName.NETEASE &&
+            provider != StreamingProviderName.QQ_MUSIC &&
+            provider != StreamingProviderName.BILIBILI
+        ) {
             return authState(provider)
         }
         if (!store.hasStoredCredential(provider)) {
@@ -766,6 +777,7 @@ class RemoteStreamingGateway(
             state = when (provider) {
                 StreamingProviderName.NETEASE -> refreshNeteaseSession(store, now)
                 StreamingProviderName.QQ_MUSIC -> verifyQqMusicSession(store, now)
+                StreamingProviderName.BILIBILI -> verifyBilibiliSession(store, now)
                 else -> state
             }
             state
@@ -775,7 +787,11 @@ class RemoteStreamingGateway(
     /** Ensures account-only actions and restricted playback do not rely on an unverified cookie. */
     private suspend fun requireCurrentLocalSession(provider: StreamingProviderName) {
         if (
-            (provider != StreamingProviderName.NETEASE && provider != StreamingProviderName.QQ_MUSIC) ||
+            (
+                provider != StreamingProviderName.NETEASE &&
+                    provider != StreamingProviderName.QQ_MUSIC &&
+                    provider != StreamingProviderName.BILIBILI
+                ) ||
             localAuthStore?.hasStoredCredential(provider) != true
         ) {
             return
@@ -850,6 +866,34 @@ class RemoteStreamingGateway(
             store.markPendingVerification(
                 StreamingProviderName.QQ_MUSIC,
                 message = "QQ 音乐登录待验证（网络暂不可用）"
+            )
+        }
+    }
+
+    private fun verifyBilibiliSession(
+        store: StreamingLocalAuthStore,
+        now: Long
+    ): StreamingAuthState {
+        return try {
+            localBilibiliClient.verifySession()
+            store.markVerified(StreamingProviderName.BILIBILI, now)
+        } catch (error: StreamingGatewayException) {
+            if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
+                store.markInvalid(
+                    StreamingProviderName.BILIBILI,
+                    message = "哔哩哔哩登录已失效，请重新登录",
+                    checkedAtEpochMs = now
+                )
+            } else {
+                store.markPendingVerification(
+                    StreamingProviderName.BILIBILI,
+                    message = "哔哩哔哩登录待验证（网络暂不可用）"
+                )
+            }
+        } catch (_: Throwable) {
+            store.markPendingVerification(
+                StreamingProviderName.BILIBILI,
+                message = "哔哩哔哩登录待验证（网络暂不可用）"
             )
         }
     }

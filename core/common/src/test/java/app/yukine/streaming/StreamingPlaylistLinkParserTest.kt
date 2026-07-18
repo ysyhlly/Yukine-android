@@ -47,6 +47,47 @@ class StreamingPlaylistLinkParserTest {
     }
 
     @Test
+    fun parsesBilibiliVideoAndPage() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "https://www.bilibili.com/video/BV1U64y1a785?p=2",
+            StreamingProviderName.MOCK
+        )
+        assertEquals(StreamingProviderName.BILIBILI, ref?.provider)
+        assertEquals("video:BV1U64y1a785:p:2", ref?.providerPlaylistId)
+    }
+
+    @Test
+    fun parsesBilibiliFavoriteFolder() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "https://space.bilibili.com/123/favlist?fid=456789",
+            StreamingProviderName.MOCK
+        )
+        assertEquals(StreamingProviderName.BILIBILI, ref?.provider)
+        assertEquals("favorite:456789", ref?.providerPlaylistId)
+    }
+
+    @Test
+    fun parsesBilibiliShortLinkFromShareText() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "分享视频 https://b23.tv/AbCd123",
+            StreamingProviderName.MOCK
+        )
+        assertEquals(StreamingProviderName.BILIBILI, ref?.provider)
+        val target = BilibiliLinkParser.decodeProviderPlaylistId(ref?.providerPlaylistId.orEmpty())
+        assertEquals(BilibiliTarget.ShortLink("https://b23.tv/AbCd123"), target)
+    }
+
+    @Test
+    fun rawBvidUsesBilibiliFallback() {
+        val ref = StreamingPlaylistLinkParser.parse(
+            "BV1U64y1a785",
+            StreamingProviderName.BILIBILI
+        )
+        assertEquals(StreamingProviderName.BILIBILI, ref?.provider)
+        assertEquals("video:BV1U64y1a785", ref?.providerPlaylistId)
+    }
+
+    @Test
     fun parsesLuoxuePlaylistSchemeWithSource() {
         val ref = StreamingPlaylistLinkParser.parse(
             "lxmusic://playlist/kw/123456",

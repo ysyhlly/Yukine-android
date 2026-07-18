@@ -82,20 +82,22 @@ fun LibraryOverviewScreen(
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    compactCards: Boolean = true
 ) {
     val overview = remember(library, downloads) { buildOverviewState(library, downloads) }
     val labels = remember(modeActions) { overviewLabels(modeActions) }
     val modeLabels = remember(modeActions) { modeActions.associate { it.mode to it.label } }
+    val density = libraryCardDensityTokens(compactCards)
 
     LazyColumn(
         contentPadding = PaddingValues(
-            start = 18.dp,
+            start = density.pageHorizontalPadding,
             top = 8.dp,
-            end = 18.dp,
+            end = density.pageHorizontalPadding,
             bottom = echoPageBottomPadding()
         ),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(density.sectionSpacing)
     ) {
         item("overview-search") {
             YukineSearchBar(
@@ -113,7 +115,8 @@ fun LibraryOverviewScreen(
                 overview = overview,
                 labels = labels,
                 modeLabels = modeLabels,
-                onOpenMode = onOpenMode
+                onOpenMode = onOpenMode,
+                density = density
             )
         }
 
@@ -125,12 +128,13 @@ fun LibraryOverviewScreen(
                 labels = labels,
                 onOpenFavorites = onOpenFavorites,
                 onOpenRecent = onOpenRecent,
-                onOpenDownloads = onOpenDownloads
+                onOpenDownloads = onOpenDownloads,
+                density = density
             )
         }
 
         item("overview-sources") {
-            MusicSourcesCard(overview, labels, onOpenSources)
+            MusicSourcesCard(overview, labels, onOpenSources, density)
         }
     }
 }
@@ -146,30 +150,54 @@ private fun BrowseLibraryCard(
     overview: LibraryOverviewUiState,
     labels: LibraryOverviewLabels,
     modeLabels: Map<String, String>,
-    onOpenMode: (String) -> Unit
+    onOpenMode: (String) -> Unit,
+    density: LibraryCardDensityTokens
 ) {
     val p = EchoTheme.colors()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .echoFloatingLayer(p, EchoShapes.large)
-            .echoGlassLayer(p, EchoShapes.large),
+            .then(
+                if (density.independentCards) {
+                    Modifier
+                } else {
+                    Modifier
+                        .echoFloatingLayer(p, EchoShapes.large)
+                        .echoGlassLayer(p, EchoShapes.large)
+                }
+            ),
         shape = EchoShapes.large,
         color = Color.Transparent
     ) {
-        Column {
+        Column(
+            verticalArrangement = if (density.independentCards) {
+                Arrangement.spacedBy(8.dp)
+            } else {
+                Arrangement.Top
+            }
+        ) {
             Surface(
                 onClick = { onOpenMode(LibraryGrouping.SONGS) },
+                modifier = Modifier.then(
+                    if (density.independentCards) {
+                        Modifier
+                            .echoFloatingLayer(p, EchoShapes.large)
+                            .echoGlassLayer(p, EchoShapes.large)
+                    } else {
+                        Modifier
+                    }
+                ),
+                shape = EchoShapes.large,
                 color = Color.Transparent
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(104.dp)
+                        .height(density.allSongsHeight)
                         .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LibraryCoverStack(overview.artworkUris)
+                    LibraryCoverStack(overview.artworkUris, density.coverSize)
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -186,44 +214,66 @@ private fun BrowseLibraryCard(
                     EchoIcon(EchoIconKind.ChevronRight, Modifier.size(18.dp), p.muted)
                 }
             }
-            LibraryOverviewDivider()
-            Row(modifier = Modifier.fillMaxWidth()) {
+            if (!density.independentCards) LibraryOverviewDivider()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (density.independentCards) {
+                    Arrangement.spacedBy(8.dp)
+                } else {
+                    Arrangement.Start
+                }
+            ) {
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.ALBUMS,
                     label = modeLabels[LibraryGrouping.ALBUMS] ?: labels.albums,
                     count = overview.albumCount,
                     icon = EchoIconKind.Collections,
-                    onOpenMode = onOpenMode
+                    onOpenMode = onOpenMode,
+                    density = density
                 )
-                LibraryOverviewVerticalDivider()
+                if (!density.independentCards) {
+                    LibraryOverviewVerticalDivider(density.browseCellHeight)
+                }
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.ARTISTS,
                     label = modeLabels[LibraryGrouping.ARTISTS] ?: labels.artists,
                     count = overview.artistCount,
                     icon = EchoIconKind.Artist,
-                    onOpenMode = onOpenMode
+                    onOpenMode = onOpenMode,
+                    density = density
                 )
             }
-            LibraryOverviewDivider()
-            Row(modifier = Modifier.fillMaxWidth()) {
+            if (!density.independentCards) LibraryOverviewDivider()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (density.independentCards) {
+                    Arrangement.spacedBy(8.dp)
+                } else {
+                    Arrangement.Start
+                }
+            ) {
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.PLAYLISTS,
                     label = modeLabels[LibraryGrouping.PLAYLISTS] ?: labels.playlists,
                     count = overview.playlistCount,
                     icon = EchoIconKind.PlaylistAdd,
-                    onOpenMode = onOpenMode
+                    onOpenMode = onOpenMode,
+                    density = density
                 )
-                LibraryOverviewVerticalDivider()
+                if (!density.independentCards) {
+                    LibraryOverviewVerticalDivider(density.browseCellHeight)
+                }
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.FOLDERS,
                     label = modeLabels[LibraryGrouping.FOLDERS] ?: labels.folders,
                     count = overview.folderCount,
                     icon = EchoIconKind.Folder,
-                    onOpenMode = onOpenMode
+                    onOpenMode = onOpenMode,
+                    density = density
                 )
             }
         }
@@ -237,12 +287,24 @@ private fun BrowseModeCell(
     label: String,
     count: Int,
     icon: EchoIconKind,
-    onOpenMode: (String) -> Unit
+    onOpenMode: (String) -> Unit,
+    density: LibraryCardDensityTokens
 ) {
     val p = EchoTheme.colors()
     Surface(
         onClick = { onOpenMode(mode) },
-        modifier = modifier.height(82.dp),
+        modifier = modifier
+            .height(density.browseCellHeight)
+            .then(
+                if (density.independentCards) {
+                    Modifier
+                        .echoFloatingLayer(p, EchoShapes.medium)
+                        .echoGlassLayer(p, EchoShapes.medium)
+                } else {
+                    Modifier
+                }
+            ),
+        shape = EchoShapes.medium,
         color = Color.Transparent
     ) {
         Row(
@@ -275,20 +337,21 @@ private fun BrowseModeCell(
 }
 
 @Composable
-private fun LibraryCoverStack(artworkUris: List<Uri>) {
+private fun LibraryCoverStack(artworkUris: List<Uri>, coverSize: androidx.compose.ui.unit.Dp) {
     val p = EchoTheme.colors()
-    Box(modifier = Modifier.size(width = 112.dp, height = 64.dp)) {
+    val coverOffset = coverSize * 0.375f
+    Box(modifier = Modifier.size(width = coverSize + coverOffset * 2f, height = coverSize)) {
         for (index in 2 downTo 0) {
             AsyncArtwork(
                 uri = artworkUris.getOrNull(index),
                 title = "Library ${index + 1}",
                 subtitle = "",
                 modifier = Modifier
-                    .offset(x = (index * 24).dp)
-                    .size(64.dp),
+                    .offset(x = coverOffset * index)
+                    .size(coverSize),
                 cornerRadius = 12.dp,
                 fallbackTextSize = 14.sp,
-                targetSize = 72.dp,
+                targetSize = coverSize,
                 backgroundColor = p.surfaceVariant,
                 fallbackResId = R.drawable.ic_stat_echo
             )
@@ -302,37 +365,57 @@ private fun PersonalMusicCard(
     labels: LibraryOverviewLabels,
     onOpenFavorites: () -> Unit,
     onOpenRecent: () -> Unit,
-    onOpenDownloads: () -> Unit
+    onOpenDownloads: () -> Unit,
+    density: LibraryCardDensityTokens
 ) {
     val p = EchoTheme.colors()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .echoFloatingLayer(p, EchoShapes.large)
-            .echoGlassLayer(p, EchoShapes.large),
+            .then(
+                if (density.independentCards) {
+                    Modifier
+                } else {
+                    Modifier
+                        .echoFloatingLayer(p, EchoShapes.large)
+                        .echoGlassLayer(p, EchoShapes.large)
+                }
+            ),
         shape = EchoShapes.large,
         color = Color.Transparent
     ) {
-        Column {
+        Column(
+            verticalArrangement = if (density.independentCards) {
+                Arrangement.spacedBy(8.dp)
+            } else {
+                Arrangement.Top
+            }
+        ) {
             PersonalMusicRow(
                 label = labels.favorites,
                 count = songCount(overview.favoriteCount, labels),
                 icon = EchoIconKind.Heart,
-                onClick = onOpenFavorites
+                onClick = onOpenFavorites,
+                rowHeight = density.personalRowHeight,
+                independentCard = density.independentCards
             )
-            LibraryOverviewDivider(horizontalPadding = 14.dp)
+            if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
             PersonalMusicRow(
                 label = labels.recent,
                 count = songCount(overview.recentCount, labels),
                 icon = EchoIconKind.Timer,
-                onClick = onOpenRecent
+                onClick = onOpenRecent,
+                rowHeight = density.personalRowHeight,
+                independentCard = density.independentCards
             )
-            LibraryOverviewDivider(horizontalPadding = 14.dp)
+            if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
             PersonalMusicRow(
                 label = labels.downloaded,
                 count = songCount(overview.downloadedCount, labels),
                 icon = EchoIconKind.Download,
-                onClick = onOpenDownloads
+                onClick = onOpenDownloads,
+                rowHeight = density.personalRowHeight,
+                independentCard = density.independentCards
             )
         }
     }
@@ -343,14 +426,29 @@ private fun PersonalMusicRow(
     label: String,
     count: String,
     icon: EchoIconKind,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    rowHeight: androidx.compose.ui.unit.Dp,
+    independentCard: Boolean
 ) {
     val p = EchoTheme.colors()
-    Surface(onClick = onClick, color = Color.Transparent) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.then(
+            if (independentCard) {
+                Modifier
+                    .echoFloatingLayer(p, EchoShapes.medium)
+                    .echoGlassLayer(p, EchoShapes.medium)
+            } else {
+                Modifier
+            }
+        ),
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(rowHeight)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -373,7 +471,8 @@ private fun PersonalMusicRow(
 private fun MusicSourcesCard(
     overview: LibraryOverviewUiState,
     labels: LibraryOverviewLabels,
-    onOpenSources: () -> Unit
+    onOpenSources: () -> Unit,
+    density: LibraryCardDensityTokens
 ) {
     val p = EchoTheme.colors()
     Surface(
@@ -388,7 +487,7 @@ private fun MusicSourcesCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(density.sourceRowHeight)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -436,12 +535,12 @@ private fun LibraryOverviewDivider(horizontalPadding: androidx.compose.ui.unit.D
 }
 
 @Composable
-private fun LibraryOverviewVerticalDivider() {
+private fun LibraryOverviewVerticalDivider(height: androidx.compose.ui.unit.Dp) {
     val p = EchoTheme.colors()
     Box(
         modifier = Modifier
             .width(1.dp)
-            .height(82.dp)
+            .height(height)
             .background(p.border.copy(alpha = 0.72f))
     )
 }

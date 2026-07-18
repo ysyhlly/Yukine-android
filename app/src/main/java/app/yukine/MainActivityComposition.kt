@@ -10,6 +10,26 @@ internal class MainActivityComposition @Inject constructor(
     fun create(activity: ComponentActivity): MainActivityFeatureBindings {
         val deps = dependencies
         val viewModels = MainActivityViewModels.from(activity)
+        viewModels.lyricsViewModel.bindTrackVisibilityGateway(object : LyricsTrackVisibilityGateway {
+            override suspend fun load(): LyricsTrackVisibility {
+                val preferences = dependencies.customLyricsRepository.loadDisplayPreferences()
+                return LyricsTrackVisibility(
+                    primary = preferences.primary,
+                    translation = preferences.translation,
+                    romanization = preferences.romanization
+                )
+            }
+
+            override suspend fun save(visibility: LyricsTrackVisibility) {
+                dependencies.customLyricsRepository.saveDisplayPreferences(
+                    app.yukine.data.LyricsDisplayPreferences(
+                        primary = visibility.primary,
+                        translation = visibility.translation,
+                        romanization = visibility.romanization
+                    )
+                )
+            }
+        })
         val settings = SettingsFeatureBinding(
             viewModels,
             deps.settingsStore,
@@ -27,7 +47,9 @@ internal class MainActivityComposition @Inject constructor(
             deps.trackDownloadManager,
             deps.resolveStreamingPlaybackUseCase,
             deps.libraryDeletionUseCase,
-            deps.luoxueSourceStore
+            deps.luoxueSourceStore,
+            deps.customLyricsRepository,
+            deps.repository
         )
         val navigation = NavigationFeatureBinding(
             activity,
@@ -49,6 +71,7 @@ internal class MainActivityComposition @Inject constructor(
             deps.resolveStreamingPlaybackUseCase,
             deps.streamingTrackMatchUseCase,
             deps.streamingLocalPlaylistOperations,
+            deps.streamingPlaylistSyncStore,
             deps.luoxueTrackMetadataResolver,
             deps.repository
         )
@@ -112,6 +135,9 @@ internal class MainActivityComposition @Inject constructor(
             streaming::recoverBuffering,
             streaming::resolveCurrentQueueTrackIfNeeded
         )
+        playback.nowPlayingViewModel.bindLyricsVisibilitySetter(
+            viewModels.lyricsViewModel::setTrackVisible
+        )
         platform.bindFeatures(library, playback, streaming)
         val network = NetworkFeatureBinding(
             activity,
@@ -166,7 +192,10 @@ internal class MainActivityComposition @Inject constructor(
             viewModels.navigationViewModel,
             deps.streamingGatewaySettingsStore,
             deps.luoxueSourceStore,
-            deps.repository
+            deps.repository,
+            { platform.importCurrentLyrics(playback) },
+            platform::importLyricsDirectory,
+            platform::showLyricsImportReport
         )
         network.bindUi(streamingSearch, platform.documentPickerController(), settings)
         library.bindPlaybackStateSources(playback, streaming, viewModels.lyricsViewModel)

@@ -133,7 +133,7 @@ object LibraryGrouping {
 
     @JvmStatic
     fun groupArtworkUri(tracks: List<Track>, mode: String): Uri? {
-        if (ALBUMS != mode && ARTISTS != mode) {
+        if (ALBUMS != mode) {
             return null
         }
         return tracks.firstOrNull { it.albumArtUri != null }?.albumArtUri
@@ -251,6 +251,10 @@ object LibraryGrouping {
     private const val ARTIST_LABEL_SEPARATOR = '\u001f'
 }
 
-data class LibraryArtistGroupIdentity(val artistId: String, val displayName: String) {
+data class LibraryArtistGroupIdentity(
+    val artistId: String,
+    val displayName: String,
+    val avatarUrl: String = ""
+) {
     val groupKey: String = "artist:$artistId\u001f$displayName"
 }

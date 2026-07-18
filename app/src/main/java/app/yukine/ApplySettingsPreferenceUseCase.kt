@@ -28,6 +28,7 @@ internal interface SettingsPreferenceOperations {
     fun saveGlassBlurRadiusDp(radiusDp: Float)
     fun saveGlassSurfaceOpacity(opacity: Float)
     fun saveCompactSettingsCards(enabled: Boolean)
+    fun saveHomeDashboardLayout(layout: String)
     fun saveShareStyle(style: String)
     fun savePageBackgrounds(backgrounds: PageBackgrounds)
 }
@@ -96,6 +97,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
     override fun saveCompactSettingsCards(enabled: Boolean) =
         repository.saveCompactSettingsCards(enabled)
 
+    override fun saveHomeDashboardLayout(layout: String) =
+        repository.saveHomeDashboardLayout(layout)
+
     override fun saveShareStyle(style: String) =
         repository.saveShareStyle(style)
 
@@ -151,6 +155,8 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.saveGlassSurfaceOpacity(update.value as Float)
                 SettingsPreferenceKey.CompactSettingsCards ->
                     operations.saveCompactSettingsCards(update.value as Boolean)
+                SettingsPreferenceKey.HomeDashboardLayout ->
+                    operations.saveHomeDashboardLayout(update.value as String)
                 SettingsPreferenceKey.ShareStyle ->
                     operations.saveShareStyle(update.value as String)
                 SettingsPreferenceKey.PageBackgrounds ->

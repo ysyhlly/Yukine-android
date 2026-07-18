@@ -65,7 +65,10 @@ final class SettingsFeatureBinding {
             NavigationViewModel navigationViewModel,
             StreamingGatewaySettingsStore streamingGatewaySettingsStore,
             LuoxueSourceStore luoxueSourceStore,
-            MusicLibraryRepository repository
+            MusicLibraryRepository repository,
+            Runnable importCurrentLyrics,
+            Runnable importLyricsDirectory,
+            Runnable viewLyricsImportReport
     ) {
         this.mainHandler = mainHandler;
         this.executors = executors;
@@ -129,7 +132,10 @@ final class SettingsFeatureBinding {
                         () -> playback.applyActionResult(
                                 playback.getNowPlayingViewModel().cancelSleepTimer()
                         ),
-                        viewModel.lyricsOwner()::openFloatingLyricsPermission
+                        viewModel.lyricsOwner()::openFloatingLyricsPermission,
+                        importCurrentLyrics,
+                        importLyricsDirectory,
+                        viewLyricsImportReport
                 ),
                 new SettingsFileEffectActions(
                         backgroundImagePickerController::open,

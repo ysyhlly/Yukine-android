@@ -33,12 +33,12 @@ class YukineDatabaseMigrationTest {
     }
 
     @Test
-    fun roomDoesNotEnableWalForFileCopyBackupCompatibility() {
+    fun roomEnablesWalForConcurrentLibraryReads() {
         val name = databaseName("journal")
         val database = YukineDatabase.open(context, name)
         val sqlite = database.openHelper.writableDatabase
 
-        assertTrue(!stringValue(sqlite, "PRAGMA journal_mode").equals("wal", ignoreCase = true))
+        assertTrue(stringValue(sqlite, "PRAGMA journal_mode").equals("wal", ignoreCase = true))
         database.close()
     }
 
@@ -669,6 +669,151 @@ class YukineDatabaseMigrationTest {
         assertEquals(0L, rowCount(sqlite, "PRAGMA foreign_key_check"))
         assertEquals("ok", stringValue(sqlite, "PRAGMA integrity_check"))
         migrated.close()
+    }
+
+    @Test
+    fun v25ToV26AddsArtistAvatarAndRequeuesMissingAvatarEnrichment() {
+        val name = databaseName("v25-artist-avatar")
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(25) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "CREATE TABLE canonical_artists(" +
+                                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                    "artist_uuid TEXT NOT NULL,display_name TEXT NOT NULL," +
+                                    "sort_name TEXT NOT NULL DEFAULT ''," +
+                                    "artist_type TEXT NOT NULL DEFAULT 'UNKNOWN'," +
+                                    "country_code TEXT NOT NULL DEFAULT ''," +
+                                    "musicbrainz_artist_id TEXT NOT NULL DEFAULT ''," +
+                                    "match_status TEXT NOT NULL DEFAULT 'UNRESOLVED'," +
+                                    "confidence REAL NOT NULL DEFAULT 0," +
+                                    "metadata_source TEXT NOT NULL DEFAULT ''," +
+                                    "created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE identity_resolution_jobs(" +
+                                    "job_id TEXT NOT NULL PRIMARY KEY,target_type TEXT NOT NULL," +
+                                    "target_id INTEGER NOT NULL,priority INTEGER NOT NULL DEFAULT 0," +
+                                    "reason TEXT NOT NULL DEFAULT 'NEW_TRACK'," +
+                                    "attempt_count INTEGER NOT NULL DEFAULT 0," +
+                                    "next_attempt_at INTEGER NOT NULL DEFAULT 0," +
+                                    "last_error TEXT NOT NULL DEFAULT ''," +
+                                    "status TEXT NOT NULL DEFAULT 'PENDING'," +
+                                    "created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)"
+                            )
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+        db.execSQL(
+            "INSERT INTO canonical_artists(id,artist_uuid,display_name,created_at,updated_at) " +
+                "VALUES(2601,'00000000-0000-4000-8000-000000002601','Avatar Artist',1,1)"
+        )
+        db.execSQL(
+            "INSERT INTO identity_resolution_jobs(job_id,target_type,target_id,status,created_at,updated_at) " +
+                "VALUES('old-avatar-job','ARTIST',2601,'SUCCEEDED',1,1)"
+        )
+        YukineMigrations.normalizeV26(db)
+        db.version = YukineMigrations.TARGET_VERSION
+
+        assertEquals(YukineMigrations.TARGET_VERSION, db.version)
+        assertTrue(columnExists(db, "canonical_artists", "avatar_url"))
+        assertEquals("", stringValue(db, "SELECT avatar_url FROM canonical_artists WHERE id=2601"))
+        assertEquals(
+            1L,
+            longValue(
+                db,
+                "SELECT COUNT(*) FROM identity_resolution_jobs WHERE target_type='ARTIST' " +
+                    "AND target_id=2601 AND status='PENDING' AND reason='MISSING_ARTIST_AVATAR'"
+            )
+        )
+        assertEquals("ok", stringValue(db, "PRAGMA integrity_check"))
+        helper.close()
+    }
+
+    @Test
+    fun v27ToV28AddsArtistDescriptionAndRequeuesMissingProfileEnrichment() {
+        val name = databaseName("v27-artist-description")
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(27) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "CREATE TABLE canonical_artists(" +
+                                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                    "artist_uuid TEXT NOT NULL,display_name TEXT NOT NULL," +
+                                    "sort_name TEXT NOT NULL DEFAULT ''," +
+                                    "artist_type TEXT NOT NULL DEFAULT 'UNKNOWN'," +
+                                    "country_code TEXT NOT NULL DEFAULT ''," +
+                                    "musicbrainz_artist_id TEXT NOT NULL DEFAULT ''," +
+                                    "avatar_url TEXT NOT NULL DEFAULT ''," +
+                                    "match_status TEXT NOT NULL DEFAULT 'UNRESOLVED'," +
+                                    "confidence REAL NOT NULL DEFAULT 0," +
+                                    "metadata_source TEXT NOT NULL DEFAULT ''," +
+                                    "created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE identity_resolution_jobs(" +
+                                    "job_id TEXT NOT NULL PRIMARY KEY,target_type TEXT NOT NULL," +
+                                    "target_id INTEGER NOT NULL,priority INTEGER NOT NULL DEFAULT 0," +
+                                    "reason TEXT NOT NULL DEFAULT 'NEW_TRACK'," +
+                                    "attempt_count INTEGER NOT NULL DEFAULT 0," +
+                                    "next_attempt_at INTEGER NOT NULL DEFAULT 0," +
+                                    "last_error TEXT NOT NULL DEFAULT ''," +
+                                    "status TEXT NOT NULL DEFAULT 'PENDING'," +
+                                    "created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)"
+                            )
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+        db.execSQL(
+            "INSERT INTO canonical_artists(id,artist_uuid,display_name,created_at,updated_at) " +
+                "VALUES(2801,'00000000-0000-4000-8000-000000002801','Profile Artist',1,1)"
+        )
+        db.execSQL(
+            "INSERT INTO identity_resolution_jobs(job_id,target_type,target_id,status,created_at,updated_at) " +
+                "VALUES('old-profile-job','ARTIST',2801,'SUCCEEDED',1,1)"
+        )
+
+        YukineMigrations.normalizeV28(db)
+        db.version = YukineMigrations.TARGET_VERSION
+
+        assertEquals(YukineMigrations.TARGET_VERSION, db.version)
+        assertTrue(columnExists(db, "canonical_artists", "description"))
+        assertEquals("", stringValue(db, "SELECT description FROM canonical_artists WHERE id=2801"))
+        assertEquals(
+            1L,
+            longValue(
+                db,
+                "SELECT COUNT(*) FROM identity_resolution_jobs WHERE target_type='ARTIST' " +
+                    "AND target_id=2801 AND status='PENDING' " +
+                    "AND reason='MISSING_ARTIST_DESCRIPTION'"
+            )
+        )
+        assertEquals("ok", stringValue(db, "PRAGMA integrity_check"))
+        helper.close()
     }
 
     private fun createVersionOneFixture(name: String) {

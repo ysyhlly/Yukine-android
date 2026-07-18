@@ -3,6 +3,7 @@ import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.ui.HomeDashboardLayout
 
 internal data class LoadedSettingsPreferences(
     val themeMode: String,
@@ -27,6 +28,7 @@ internal data class LoadedSettingsPreferences(
     val glassBlurRadiusDp: Float,
     val glassSurfaceOpacity: Float,
     val compactSettingsCards: Boolean,
+    val homeDashboardLayout: HomeDashboardLayout,
     val shareStyle: String,
     val pageBackgrounds: PageBackgrounds
 )
@@ -54,6 +56,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadGlassBlurRadiusDp(): Float
     fun loadGlassSurfaceOpacity(): Float
     fun loadCompactSettingsCards(): Boolean
+    fun loadHomeDashboardLayout(): String
     fun loadShareStyle(): String
     fun loadPageBackgrounds(): PageBackgrounds
 }
@@ -114,6 +117,7 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
     override fun loadGlassBlurRadiusDp(): Float = repository.loadGlassBlurRadiusDp()
     override fun loadGlassSurfaceOpacity(): Float = repository.loadGlassSurfaceOpacity()
     override fun loadCompactSettingsCards(): Boolean = repository.loadCompactSettingsCards()
+    override fun loadHomeDashboardLayout(): String = repository.loadHomeDashboardLayout()
 
     override fun loadShareStyle(): String = repository.loadShareStyle()
 
@@ -171,6 +175,7 @@ internal class LoadSettingsPreferencesUseCase(
             glassBlurRadiusDp = app.yukine.ui.EchoGlassDefaults.normalizeBlurRadius(operations.loadGlassBlurRadiusDp()),
             glassSurfaceOpacity = app.yukine.ui.EchoGlassDefaults.normalizeSurfaceOpacity(operations.loadGlassSurfaceOpacity()),
             compactSettingsCards = operations.loadCompactSettingsCards(),
+            homeDashboardLayout = HomeDashboardLayout.normalize(operations.loadHomeDashboardLayout()),
             shareStyle = TrackShareStyle.normalize(operations.loadShareStyle()),
             pageBackgrounds = operations.loadPageBackgrounds()
         )

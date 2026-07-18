@@ -510,6 +510,75 @@ class EchoScaffoldTest {
     }
 
     @Test
+    fun expandedWaveformStaysAboveBottomNavigation() {
+        var waveformExpanded by mutableStateOf(false)
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoScaffold(
+                    tabs = tabs,
+                    selectedTab = HomeTab,
+                    onTabSelected = {},
+                    nowBar = {
+                        NowBar(
+                            state = nowBarEmptyState().let { state ->
+                                state.copy(
+                                    track = state.track.copy(
+                                        title = "Waveform gap track",
+                                        canExpand = true
+                                    ),
+                                    progress = state.progress.copy(
+                                        positionMs = 25_000L,
+                                        durationMs = 100_000L
+                                    ),
+                                    labels = state.labels.copy(
+                                        playbackProgress = "Playback progress",
+                                        expandWaveform = "Expand waveform"
+                                    )
+                                )
+                            },
+                            waveformExpanded = waveformExpanded,
+                            onExpandWaveform = { waveformExpanded = true },
+                            onCollapseWaveform = { waveformExpanded = false },
+                            onPrevious = Runnable {},
+                            onPlayPause = Runnable {},
+                            onNext = Runnable {},
+                            onFavorite = Runnable {},
+                            onShuffle = Runnable {},
+                            onRepeat = Runnable {},
+                            onOpenNowPlaying = Runnable {},
+                            onOpenQueue = Runnable {},
+                            onSeek = SeekAction {}
+                        )
+                    }
+                ) { contentModifier ->
+                    Box(contentModifier)
+                }
+            }
+        }
+
+        val collapsedProgressBounds = composeRule
+            .onNodeWithContentDescription("Playback progress")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        composeRule.onNodeWithContentDescription("Expand waveform").performClick()
+        composeRule.waitForIdle()
+
+        val expandedWaveformBounds = composeRule
+            .onNodeWithTag("waveform-progress")
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val bottomNavBounds = composeRule
+            .onNodeWithTag("echo-bottom-nav-surface")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertEquals(collapsedProgressBounds.top, expandedWaveformBounds.top, 0.5f)
+        assertEquals(collapsedProgressBounds.bottom, expandedWaveformBounds.bottom, 0.5f)
+        assertTrue(expandedWaveformBounds.bottom < bottomNavBounds.top)
+    }
+
+    @Test
     fun floatingChromeBlocksClicksFromReachingContentBehindIt() {
         var contentClicks = 0
         composeRule.setContent {

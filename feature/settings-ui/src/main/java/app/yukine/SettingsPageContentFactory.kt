@@ -53,6 +53,10 @@ internal object SettingsPageContentFactory {
                     compactSettingsCards = preferences.compactSettingsCards,
                     onCompactSettingsCardsChange = { enabled ->
                         appearance.setCompactSettingsCards(enabled)
+                    },
+                    homeDashboardLayout = preferences.homeDashboardLayout,
+                    onHomeDashboardLayoutChange = { layout ->
+                        appearance.setHomeDashboardLayout(layout)
                     }
                 )
             SettingsPage.PlaybackGroup ->
@@ -114,6 +118,9 @@ internal object SettingsPageContentFactory {
                         lyrics.setStatusBarLyricsEnabled(enabled)
                     },
                     onReloadLyrics = { lyrics.reloadCurrentLyrics() },
+                    onImportCurrentLyrics = { lyrics.importCurrentLyrics() },
+                    onImportLyricsDirectory = { lyrics.importLyricsDirectory() },
+                    onViewLyricsImportReport = { lyrics.viewLyricsImportReport() },
                     onApplyLyricsOffset = { offset -> lyrics.applyLyricsOffset(offset) }
                 )
             SettingsPage.SourcesGroup ->
@@ -278,6 +285,9 @@ internal object SettingsPageContentFactory {
                         lyrics.setStatusBarLyricsEnabled(enabled)
                     },
                     onReloadLyrics = { lyrics.reloadCurrentLyrics() },
+                    onImportCurrentLyrics = { lyrics.importCurrentLyrics() },
+                    onImportLyricsDirectory = { lyrics.importLyricsDirectory() },
+                    onViewLyricsImportReport = { lyrics.viewLyricsImportReport() },
                     onApplyLyricsOffset = { offset -> lyrics.applyLyricsOffset(offset) }
                 )
             SettingsPage.StatusBarLyrics ->

@@ -2,6 +2,7 @@ package app.yukine.data
 
 import app.yukine.data.room.CanonicalRecordingEntity
 import app.yukine.data.room.CanonicalWorkEntity
+import app.yukine.data.room.CustomLyricsEntity
 import app.yukine.data.room.IdentityCandidateEntity
 import app.yukine.data.room.IdentityOperationEntity
 import app.yukine.data.room.IdentityResolutionJobEntity
@@ -71,6 +72,8 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         }
         val lyrics = ids.flatMap(dao::lyricBindings)
             .sortedWith(compareBy({ it.recordingId }, { it.provider }))
+        val customLyrics = ids.flatMap(dao::customLyricsForRecording)
+            .sortedWith(compareBy({ it.recordingId }, { it.identityKey }))
         val candidates = ids.flatMap { dao.candidates("RECORDING", it) }
             .map { it.copy(evidenceJson = sanitizeSnapshotEvidence(it.evidenceJson)) }
             .sortedBy { it.candidateId }
@@ -94,6 +97,7 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
             variants = variants,
             relations = relations,
             lyrics = lyrics,
+            customLyrics = customLyrics,
             candidates = candidates,
             jobs = jobs,
             favorites = favorites,
@@ -218,6 +222,7 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
             dao.deleteCredits(recordingId)
             dao.deleteVariants(recordingId)
             dao.deleteLyricBindings(recordingId)
+            dao.deleteCustomLyricsForRecording(recordingId)
             dao.deleteCandidates("RECORDING", recordingId)
             dao.deleteJobs("RECORDING", recordingId)
             database.libraryDao().deleteRecordingFavorite(recordingId)
@@ -234,6 +239,7 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         before.variants.forEach(dao::upsert)
         if (before.relations.isNotEmpty()) dao.upsertRecordingRelations(before.relations)
         before.lyrics.forEach(dao::upsert)
+        before.customLyrics.forEach(dao::upsert)
         before.candidates.forEach(dao::upsert)
         before.jobs.forEach(dao::upsert)
         before.favorites.forEach(database.libraryDao()::putRecordingFavorite)
@@ -374,6 +380,7 @@ internal data class IdentityStateSnapshot(
     val variants: List<RecordingVariantEntity>,
     val relations: List<RecordingRelationEntity>,
     val lyrics: List<LyricBindingEntity>,
+    val customLyrics: List<CustomLyricsEntity>,
     val candidates: List<IdentityCandidateEntity>,
     val jobs: List<IdentityResolutionJobEntity>,
     val favorites: List<RecordingFavoriteEntity>,
@@ -395,6 +402,7 @@ private object IdentityStateSnapshotCodec {
         .put("variants", array(value.variants, ::variantJson))
         .put("relations", array(value.relations, ::relationJson))
         .put("lyrics", array(value.lyrics, ::lyricJson))
+        .put("customLyrics", array(value.customLyrics, ::customLyricsJson))
         .put("candidates", array(value.candidates, ::candidateJson))
         .put("jobs", array(value.jobs, ::jobJson))
         .put("favorites", array(value.favorites, ::favoriteJson))
@@ -417,6 +425,7 @@ private object IdentityStateSnapshotCodec {
             variants = list(json, "variants", ::variant),
             relations = optionalList(json, "relations", ::relation),
             lyrics = list(json, "lyrics", ::lyric),
+            customLyrics = optionalList(json, "customLyrics", ::customLyrics),
             candidates = list(json, "candidates", ::candidate),
             jobs = list(json, "jobs", ::job),
             favorites = list(json, "favorites", ::favorite),
@@ -510,6 +519,28 @@ private object IdentityStateSnapshotCodec {
         .put("providerId", v.providerLyricId).put("synced", v.synced).put("duration", v.durationMs)
         .put("checksum", v.checksum).put("updated", v.updatedAt)
     private fun lyric(j: JSONObject) = LyricBindingEntity(j.getLong("recording"), j.getString("provider"), j.getString("providerId"), j.getBoolean("synced"), j.getLong("duration"), j.getString("checksum"), j.getLong("updated"))
+
+    private fun customLyricsJson(v: CustomLyricsEntity) = JSONObject()
+        .put("identityKey", v.identityKey)
+        .putNullable("recording", v.recordingId)
+        .put("provider", v.provider)
+        .put("providerId", v.providerTrackId)
+        .put("sourceName", v.sourceName)
+        .put("format", v.format)
+        .put("document", v.documentJson)
+        .put("checksum", v.checksum)
+        .put("updated", v.updatedAt)
+    private fun customLyrics(j: JSONObject) = CustomLyricsEntity(
+        identityKey = j.getString("identityKey"),
+        recordingId = j.nullableLong("recording"),
+        provider = j.optString("provider"),
+        providerTrackId = j.optString("providerId"),
+        sourceName = j.optString("sourceName"),
+        format = j.optString("format"),
+        documentJson = j.getString("document"),
+        checksum = j.optString("checksum"),
+        updatedAt = j.getLong("updated")
+    )
 
     private fun candidateJson(v: IdentityCandidateEntity) = JSONObject().put("id", v.candidateId).put("targetType", v.targetType)
         .put("target", v.targetId).put("provider", v.provider).put("providerId", v.providerItemId).put("title", v.title)

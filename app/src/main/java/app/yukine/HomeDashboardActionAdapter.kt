@@ -13,7 +13,8 @@ internal class HomeDashboardActionAdapter(
     private val streamingOpener: StreamingOpener,
     private val searchOpener: SearchOpener,
     private val dailyRecommendationsPlayer: DailyRecommendationsPlayer,
-    private val heartbeatRecommendationsPlayer: HeartbeatRecommendationsPlayer
+    private val heartbeatRecommendationsPlayer: HeartbeatRecommendationsPlayer,
+    private val nextTrackPlayer: NextTrackPlayer = NextTrackPlayer { }
 ) : HomeDashboardIntentHandler {
     fun interface LibraryModeOpener {
         fun openLibraryMode(mode: String)
@@ -55,6 +56,10 @@ internal class HomeDashboardActionAdapter(
         fun playHeartbeatRecommendations()
     }
 
+    fun interface NextTrackPlayer {
+        fun nextTrack()
+    }
+
     override fun openLibraryMode(mode: String) {
         libraryModeOpener.openLibraryMode(mode)
     }
@@ -77,6 +82,10 @@ internal class HomeDashboardActionAdapter(
 
     override fun openQueue() {
         queueOpener.openQueue()
+    }
+
+    override fun nextTrack() {
+        nextTrackPlayer.nextTrack()
     }
 
     override fun shuffleAll(tracks: List<Track>) {

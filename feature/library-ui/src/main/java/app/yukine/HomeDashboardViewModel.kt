@@ -25,6 +25,7 @@ interface HomeDashboardIntentHandler {
     fun playTrack(track: Track)
     fun refreshLibrary()
     fun openQueue()
+    fun nextTrack()
     fun shuffleAll(tracks: List<Track>)
     fun openStreaming()
     fun openSearch()
@@ -42,6 +43,8 @@ class HomeDashboardViewModel @JvmOverloads constructor(
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
     private var playbackBinding: Job? = null
     private var dashboardBinding: Job? = null
+    private var latestQueueTracks: List<Track> = emptyList()
+    private var latestLanguageMode: String = AppLanguage.MODE_SYSTEM
 
     fun bindRepository(repository: HomeDashboardRepository?) {
         dashboardRepository = repository
@@ -55,10 +58,16 @@ class HomeDashboardViewModel @JvmOverloads constructor(
         playbackBinding = null
         if (playbackReadModel == null || languageMode == null) return
         playbackBinding = viewModelScope.launch {
-            combine(playbackReadModel.state, languageMode) { playback, languageMode ->
-                playback to languageMode
-            }.collect { (playback, languageMode) ->
-                updatePlayback(playback, languageMode)
+            combine(
+                playbackReadModel.state,
+                playbackReadModel.queue,
+                languageMode
+            ) { playback, queue, language ->
+                DashboardPlaybackInputs(playback, queue.tracks, language)
+            }.collect { inputs ->
+                latestQueueTracks = inputs.queueTracks
+                latestLanguageMode = inputs.languageMode
+                updatePlayback(inputs.playback, inputs.queueTracks, inputs.languageMode)
             }
         }
     }
@@ -125,9 +134,14 @@ class HomeDashboardViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun updatePlayback(snapshot: PlaybackStateSnapshot?, languageMode: String) {
+    private fun updatePlayback(
+        snapshot: PlaybackStateSnapshot?,
+        queueTracks: List<Track>,
+        languageMode: String
+    ) {
         val playback = snapshot ?: PlaybackStateSnapshot.empty()
         val track = playback.currentTrack ?: return
+        val nextTrack = upcomingTrack(playback, queueTracks)
         val durationMs = when {
             playback.durationMs > 0L -> playback.durationMs
             track.durationMs > 0L -> track.durationMs
@@ -155,9 +169,26 @@ class HomeDashboardViewModel @JvmOverloads constructor(
                 },
                 continueAlbumArtUri = track.albumArtUri,
                 continueProgress = progress,
-                continuePlaying = playback.playing
+                continuePlaying = playback.playing,
+                nextTitle = nextTrack?.title.orEmpty(),
+                nextSubtitle = nextTrack?.subtitle().orEmpty(),
+                nextAlbumArtUri = nextTrack?.albumArtUri
             )
         )
+    }
+
+    private fun upcomingTrack(
+        playback: PlaybackStateSnapshot,
+        queueTracks: List<Track>
+    ): Track? {
+        if (queueTracks.size < 2) return null
+        val currentIndex = playback.currentIndex
+            .takeIf { it in queueTracks.indices }
+            ?: queueTracks.indexOfFirst { it.id == playback.currentTrack?.id }
+                .takeIf { it >= 0 }
+            ?: return null
+        val nextIndex = if (currentIndex < queueTracks.lastIndex) currentIndex + 1 else 0
+        return queueTracks.getOrNull(nextIndex)
     }
 
     private fun text(languageMode: String, key: String): String = AppLanguage.text(languageMode, key)
@@ -198,6 +229,7 @@ class HomeDashboardViewModel @JvmOverloads constructor(
             _uiState.value = _uiState.value.copy(
                 content = state.copy(streamingConnected = streamingConnected)
             )
+            updatePlayback(localPlayback, latestQueueTracks, latestLanguageMode)
         } finally {
             _loading.value = false
         }
@@ -230,6 +262,7 @@ class HomeDashboardViewModel @JvmOverloads constructor(
                 onPlayRecent = recentTracks.map { track -> Runnable { intentHandler.playTrack(track) } },
                 onRefresh = Runnable { intentHandler.refreshLibrary() },
                 onViewQueue = Runnable { intentHandler.openQueue() },
+                onNext = Runnable { intentHandler.nextTrack() },
                 onShuffleAll = Runnable { intentHandler.shuffleAll(inputs.allTracks) },
                 onRecentTabChanged = {},
                 onDailyRecommend = Runnable { intentHandler.playDailyRecommendations() },
@@ -254,5 +287,11 @@ class HomeDashboardViewModel @JvmOverloads constructor(
     private data class DashboardInputs(
         val library: DashboardLibraryInputs,
         val streamingConnected: Boolean
+    )
+
+    private data class DashboardPlaybackInputs(
+        val playback: PlaybackStateSnapshot,
+        val queueTracks: List<Track>,
+        val languageMode: String
     )
 }

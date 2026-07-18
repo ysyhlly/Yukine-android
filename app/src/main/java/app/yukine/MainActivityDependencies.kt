@@ -2,9 +2,11 @@ package app.yukine
 
 import android.os.Handler
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.data.CustomLyricsRepository
 import app.yukine.data.RecordingMatchRepository
 import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.LuoxueTrackMetadataResolver
+import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.cache.StreamingCacheRepository
 import javax.inject.Inject
 
@@ -30,11 +32,13 @@ internal class MainActivityDependencies @Inject constructor(
     val loadSettingsPreferencesUseCase: LoadSettingsPreferencesUseCase,
     val applySettingsPreferenceUseCase: ApplySettingsPreferenceUseCase,
     val streamingLocalPlaylistOperations: StreamingLocalPlaylistOperations,
+    val streamingPlaylistSyncStore: StreamingPlaylistSyncStore,
     val loadLyricsSettingsUseCase: LoadLyricsSettingsUseCase,
     val lyricsLoader: LyricsLoader,
     val networkActionUseCases: NetworkActionUseCases,
     val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
     val repository: MusicLibraryRepository,
+    val customLyricsRepository: CustomLyricsRepository,
     val recordingMatchRepository: RecordingMatchRepository,
     val trackDownloadManager: TrackDownloadManager,
     val trackShareOperations: TrackShareOperations,

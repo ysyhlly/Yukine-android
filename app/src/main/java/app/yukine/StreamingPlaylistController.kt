@@ -3,12 +3,15 @@ package app.yukine
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingPlaylist
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.streaming.StreamingTrack
 
 internal class StreamingPlaylistController(
     private val streamingViewModel: StreamingViewModel,
     private val languageProvider: LanguageProvider,
     private val listener: Listener
 ) {
+    private var pendingExportLocalPlaylistId: Long = -1L
+
     fun interface LanguageProvider {
         fun languageMode(): String
     }
@@ -36,6 +39,13 @@ internal class StreamingPlaylistController(
 
         fun showStreamingPlaylistLoadedDialog(message: String)
 
+        fun showStreamingPlaylistImportPreview(
+            provider: StreamingProviderName,
+            providerPlaylistId: String,
+            playlistName: String,
+            tracks: List<StreamingTrack>
+        )
+
         fun showAccountPlaylistImportPicker(provider: StreamingProviderName, playlists: List<StreamingPlaylist>)
 
         fun setStatus(status: String)
@@ -52,6 +62,7 @@ internal class StreamingPlaylistController(
         if (!request.valid) {
             return
         }
+        pendingExportLocalPlaylistId = listener.selectedPlaylistId()
         listener.showStreamingProviderPicker(request.playlistName, request.tracks)
     }
 
@@ -64,6 +75,7 @@ internal class StreamingPlaylistController(
         if (!request.valid) {
             return
         }
+        pendingExportLocalPlaylistId = -1L
         listener.showStreamingProviderPicker(request.playlistName, request.tracks)
     }
 
@@ -77,7 +89,14 @@ internal class StreamingPlaylistController(
             streamingViewModel.playlists.prepareStreamingPlaylistExportRequest(playlistName, tracks, languageMode).status
         )
         listener.navigateToStreaming()
-        streamingViewModel.playlists.importPlaylistToStreaming(provider, playlistName, tracks) { summary ->
+        val localPlaylistId = pendingExportLocalPlaylistId
+        pendingExportLocalPlaylistId = -1L
+        streamingViewModel.playlists.importPlaylistToStreaming(
+            provider = provider,
+            playlistName = playlistName,
+            localTracks = tracks,
+            localPlaylistId = localPlaylistId
+        ) { summary ->
             val importStatus = streamingViewModel.playlists.streamingPlaylistImportStatus(summary)
             listener.setStatus(
                 streamingViewModel.playlists.prepareStreamingPlaylistExportPresentation(importStatus, languageMode).status
@@ -97,7 +116,11 @@ internal class StreamingPlaylistController(
             listener.setStatus(request.invalidStatus)
             return
         }
-        importStreamingPlaylist(provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        if (provider == StreamingProviderName.BILIBILI) {
+            previewStreamingPlaylist(provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        } else {
+            importStreamingPlaylist(provider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        }
     }
 
     fun importStreamingPlaylistFromProviderRef(
@@ -115,7 +138,16 @@ internal class StreamingPlaylistController(
             listener.setStatus(request.invalidStatus)
             return
         }
-        importStreamingPlaylist(requestProvider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        if (requestProvider == StreamingProviderName.BILIBILI) {
+            previewStreamingPlaylist(
+                requestProvider,
+                request.providerPlaylistId,
+                request.resolvingStatus,
+                languageMode
+            )
+        } else {
+            importStreamingPlaylist(requestProvider, request.providerPlaylistId, request.resolvingStatus, languageMode)
+        }
     }
 
     fun importStreamingLikedTracks(provider: StreamingProviderName?) {
@@ -160,11 +192,11 @@ internal class StreamingPlaylistController(
         link: StreamingPlaylistSyncStore.LinkedPlaylist,
         languageMode: String
     ) {
-        streamingViewModel.playlists.syncStreamingPlaylistToLocal(link) { result ->
+        streamingViewModel.playlists.syncStreamingPlaylist(link) syncComplete@{ result ->
             val presentation = streamingViewModel.playlists.prepareStreamingPlaylistSyncPresentation(result, languageMode)
             listener.setStatus(presentation.status)
             if (presentation.empty) {
-                return@syncStreamingPlaylistToLocal
+                return@syncComplete
             }
             listener.refreshLibraryAfterStreamingImport()
         }
@@ -179,6 +211,51 @@ internal class StreamingPlaylistController(
         listener.setStatus(resolvingStatus)
         streamingViewModel.playlists.importStreamingPlaylistToLocal(provider, providerPlaylistId) { result ->
             val presentation = streamingViewModel.playlists.prepareStreamingPlaylistImportPresentation(result, languageMode)
+            handleImportPresentation(presentation)
+        }
+    }
+
+    private fun previewStreamingPlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        resolvingStatus: String,
+        languageMode: String
+    ) {
+        listener.setStatus(resolvingStatus)
+        streamingViewModel.playlists.fetchStreamingPlaylistTracks(provider, providerPlaylistId) { playlistName, tracks ->
+            if (tracks.isEmpty()) {
+                listener.setStatus(AppLanguage.text(languageMode, "streaming.playlist.empty"))
+                return@fetchStreamingPlaylistTracks
+            }
+            listener.showStreamingPlaylistImportPreview(
+                provider,
+                providerPlaylistId,
+                playlistName,
+                tracks
+            )
+        }
+    }
+
+    fun importSelectedStreamingPlaylistTracks(
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        playlistName: String,
+        tracks: List<StreamingTrack>,
+        linkToProviderPlaylist: Boolean
+    ) {
+        val languageMode = languageProvider.languageMode()
+        listener.setStatus(AppLanguage.text(languageMode, "streaming.resolving"))
+        streamingViewModel.playlists.importSelectedStreamingTracksToLocal(
+            playlistName,
+            provider,
+            providerPlaylistId,
+            tracks,
+            linkToProviderPlaylist
+        ) { result ->
+            val presentation = streamingViewModel.playlists.prepareStreamingPlaylistImportPresentation(
+                result,
+                languageMode
+            )
             handleImportPresentation(presentation)
         }
     }

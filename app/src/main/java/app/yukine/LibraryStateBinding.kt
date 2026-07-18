@@ -69,8 +69,11 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             return
         }
         val route = routeState.map(::libraryBindingRoute).distinctUntilChanged()
+        val presentation = viewModel.presentation.ui
+            .map { LibraryPresentationProjection(it.sort, it.groupSort, it.filter) }
+            .distinctUntilChanged()
         bindingJob = scope.launch {
-            combine(
+            val content = combine(
                 route,
                 libraryState,
                 settingsState.map { it.preferences.languageMode }.distinctUntilChanged(),
@@ -78,7 +81,8 @@ internal class LibraryStateBinding @JvmOverloads constructor(
                 playlistSources
             ) { route, library, languageMode, _, sources ->
                 LibraryBindingInputs(route, library, languageMode, sources)
-            }.collect { inputs ->
+            }
+            combine(content, presentation) { inputs, _ -> inputs }.collect { inputs ->
                 if (inputs.route.active) {
                     publish(inputs)
                 }
@@ -123,7 +127,6 @@ internal class LibraryStateBinding @JvmOverloads constructor(
                 AppLanguage.text(languageMode, "no.music") + ": " +
                     AppLanguage.text(languageMode, "no.music.description")
             )
-            return
         }
         val modeActions = libraryModeActions(languageMode, route.libraryMode)
         when (route.libraryMode) {
@@ -143,7 +146,7 @@ internal class LibraryStateBinding @JvmOverloads constructor(
 
     private fun publishSongs(inputs: LibraryBindingInputs, modeActions: List<TrackListModeAction>) {
         trackListReducer.reduce(
-            AppLanguage.text(inputs.languageMode, "songs"),
+            AppLanguage.text(inputs.languageMode, "library.allSongs"),
             inputs.library.visibleTracks,
             true,
             emptyList(),
@@ -154,7 +157,8 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             modeActions,
             trackListLabels(inputs.languageMode),
             playbackReadModel?.state?.value,
-            inputs.library.favoriteTrackIds
+            inputs.library.favoriteTrackIds,
+            context = LibraryListContext.Songs
         )
     }
 
@@ -245,6 +249,8 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
     selectedSuffix = AppLanguage.text(languageMode, "library.selected.suffix"),
     sortTitleAscending = AppLanguage.text(languageMode, "library.sort.title.asc"),
     sortTitleDescending = AppLanguage.text(languageMode, "library.sort.title.desc"),
+    sortTrackCountDescending = AppLanguage.text(languageMode, "library.sort.track.count.desc"),
+    sortTrackCountAscending = AppLanguage.text(languageMode, "library.sort.track.count.asc"),
     sortArtist = AppLanguage.text(languageMode, "library.sort.artist"),
     sortAlbum = AppLanguage.text(languageMode, "library.sort.album"),
     sortDurationAscending = AppLanguage.text(languageMode, "library.sort.duration.asc"),
@@ -252,7 +258,24 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
     syncLibrary = AppLanguage.text(languageMode, "library.sync.title"),
     syncLibraryDescription = AppLanguage.text(languageMode, "library.sync.description"),
     syncingLibrary = AppLanguage.text(languageMode, "library.sync.in.progress"),
-    autoSync = AppLanguage.text(languageMode, "library.auto.sync")
+    autoSync = AppLanguage.text(languageMode, "library.auto.sync"),
+    scanLibrary = AppLanguage.text(languageMode, "scan.library"),
+    importFiles = AppLanguage.text(languageMode, "import.audio.files"),
+    clearSearch = AppLanguage.text(languageMode, "library.search.clear"),
+    resetFilter = AppLanguage.text(languageMode, "library.filter.reset"),
+    emptySearch = AppLanguage.text(languageMode, "library.empty.search"),
+    emptyFilter = AppLanguage.text(languageMode, "library.empty.filter"),
+    emptyGroupSearch = AppLanguage.text(languageMode, "library.empty.group.search"),
+    emptyGroupFilter = AppLanguage.text(languageMode, "library.empty.group.filter"),
+    emptyLibrary = AppLanguage.text(languageMode, "no.music"),
+    groupCountSuffix = AppLanguage.text(languageMode, "library.group.count.suffix"),
+    back = AppLanguage.text(languageMode, "back")
+)
+
+private data class LibraryPresentationProjection(
+    val sort: app.yukine.ui.LibrarySort,
+    val groupSort: app.yukine.ui.LibraryGroupSort,
+    val filter: app.yukine.ui.LibraryFilter
 )
 
 private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLabels(
@@ -266,5 +289,6 @@ private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLa
     AppLanguage.text(languageMode, "all.albums"),
     AppLanguage.text(languageMode, "play.all"),
     AppLanguage.text(languageMode, "shuffle"),
-    AppLanguage.text(languageMode, "recording.match.manage")
+    AppLanguage.text(languageMode, "recording.match.manage"),
+    AppLanguage.text(languageMode, "songs")
 )

@@ -21,7 +21,7 @@ class DashboardRepositoryTest {
         val state = repo.fetchHome(
             listOf(recent, old),
             listOf(
-                TrackPlayRecord(recent, now - 60_000L, 2),
+                TrackPlayRecord(recent, now, 2),
                 TrackPlayRecord(old, now - 8L * 24L * 60L * 60L * 1000L, 10)
             ),
             PlaybackStateSnapshot.empty()
@@ -32,6 +32,9 @@ class DashboardRepositoryTest {
         assertTrue(state.weeklyBars.any { it > 0.08f })
         assertTrue(state.heatmap.any { it.count == 2 })
         assertTrue(state.activeDays > 0)
+        assertEquals(24, state.todayListeningPoints.size)
+        assertEquals(360_000L, state.todayListeningPoints.sumOf { it.durationMs })
+        assertEquals("6 分钟", state.todayListeningDuration)
     }
 
     @Test
@@ -45,7 +48,7 @@ class DashboardRepositoryTest {
 
         val state = repo.fetchHome(
             listOf(recent),
-            listOf(TrackPlayRecord(recent, now - 60_000L, 3)),
+            listOf(TrackPlayRecord(recent, now, 3)),
             PlaybackStateSnapshot.empty()
         )
 
@@ -53,6 +56,9 @@ class DashboardRepositoryTest {
         assertEquals("12 分钟", state.weeklyDuration)
         assertTrue(state.weeklyBars.any { it > 0.08f })
         assertTrue(state.activeDays > 0)
+        assertEquals(24, state.todayListeningPoints.size)
+        assertEquals(720_000L, state.todayListeningPoints.sumOf { it.durationMs })
+        assertEquals("12 分钟", state.todayListeningDuration)
     }
 
     private fun track(id: Long, title: String, durationMs: Long): Track {

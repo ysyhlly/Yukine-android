@@ -1,12 +1,20 @@
 package app.yukine
 
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncDirection
 import app.yukine.streaming.StreamingProviderName
 
 internal interface StreamingPlaylistLinkOperations {
     fun getLink(localPlaylistId: Long): StreamingPlaylistSyncStore.LinkedPlaylist?
 
     fun getLink(provider: StreamingProviderName, providerPlaylistId: String): StreamingPlaylistSyncStore.LinkedPlaylist?
+
+    fun linkPlaylist(
+        localPlaylistId: Long,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        direction: StreamingPlaylistSyncDirection
+    ) = Unit
 }
 
 internal class StreamingPlaylistSyncStoreLinkOperations(
@@ -20,6 +28,15 @@ internal class StreamingPlaylistSyncStoreLinkOperations(
         providerPlaylistId: String
     ): StreamingPlaylistSyncStore.LinkedPlaylist? =
         syncStore.getLink(provider, providerPlaylistId)
+
+    override fun linkPlaylist(
+        localPlaylistId: Long,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        direction: StreamingPlaylistSyncDirection
+    ) {
+        syncStore.linkPlaylist(localPlaylistId, provider, providerPlaylistId, direction)
+    }
 }
 
 internal class GetStreamingPlaylistLinkUseCase(
@@ -38,5 +55,18 @@ internal class GetStreamingPlaylistLinkUseCase(
             return null
         }
         return operations.getLink(provider, cleanProviderPlaylistId)
+    }
+
+    fun link(
+        localPlaylistId: Long,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        direction: StreamingPlaylistSyncDirection
+    ) {
+        val cleanProviderPlaylistId = providerPlaylistId.trim()
+        if (localPlaylistId < 0L || cleanProviderPlaylistId.isEmpty()) {
+            return
+        }
+        operations.linkPlaylist(localPlaylistId, provider, cleanProviderPlaylistId, direction)
     }
 }

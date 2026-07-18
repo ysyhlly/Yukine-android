@@ -8,6 +8,7 @@ import app.yukine.identity.AnonymousRecordingMetadataProvider
 import app.yukine.identity.ArtistAlias
 import app.yukine.identity.CanonicalArtist
 import app.yukine.identity.CanonicalRecording
+import app.yukine.identity.IdentityTextNormalizer
 import org.json.JSONObject
 
 class MetadataGatewayRecordingProvider(
@@ -21,12 +22,41 @@ class MetadataGatewayRecordingProvider(
 }
 
 class MetadataGatewayArtistProvider(
-    private val client: MetadataGatewayClient
+    private val client: MetadataGatewayClient,
+    private val avatarLookup: ArtistAvatarLookup = ArtistAvatarLookup { "" }
 ) : AnonymousArtistMetadataProvider {
     override val providerName: String = MetadataGatewayClient.PROVIDER
 
-    override fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>): AnonymousArtistProviderResult =
-        client.searchArtist(artist, aliases.map(ArtistAlias::alias))
+    override fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>): AnonymousArtistProviderResult {
+        val result = client.searchArtist(artist, aliases.map(ArtistAlias::alias))
+        if (result.candidates.any { it.avatarUrl.isNotBlank() }) return result
+        val targetMbid = artist.musicBrainzArtistId.trim()
+        val preferred = if (targetMbid.isNotBlank()) {
+            result.candidates.singleOrNull { it.artistMbid.equals(targetMbid, ignoreCase = true) }
+        } else {
+            val normalizedName = IdentityTextNormalizer.normalizeForSearch(artist.displayName)
+            result.candidates.filter { candidate ->
+                candidate.artistMbid.isNotBlank() &&
+                    candidate.providerScore >= 0.95 &&
+                    IdentityTextNormalizer.normalizeForSearch(candidate.displayName) == normalizedName
+            }.singleOrNull()
+        } ?: return result
+        val avatarUrl = runCatching { avatarLookup.forArtistMbid(preferred.artistMbid) }
+            .getOrDefault("")
+            .trim()
+            .takeIf { it.startsWith("https://", ignoreCase = true) }
+            .orEmpty()
+        if (avatarUrl.isBlank()) return result
+        return result.copy(
+            candidates = result.candidates.map { candidate ->
+                if (candidate === preferred) candidate.copy(avatarUrl = avatarUrl) else candidate
+            }
+        )
+    }
+}
+
+fun interface ArtistAvatarLookup {
+    fun forArtistMbid(artistMbid: String): String
 }
 
 fun interface RecordingFingerprintLookup {

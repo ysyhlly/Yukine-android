@@ -11,6 +11,7 @@ import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoIconKind
+import app.yukine.ui.HomeDashboardLayout
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
@@ -22,6 +23,16 @@ data class SettingsPageStateContent(
 )
 
 object SettingsPageStateBuilder {
+    private val homeCategoryOrder = listOf(
+        SettingsCategoryId.PlaybackAudio,
+        SettingsCategoryId.LyricsSystemDisplay,
+        SettingsCategoryId.AppearanceInteraction,
+        SettingsCategoryId.LibraryMetadata,
+        SettingsCategoryId.SourcesAccountsSync,
+        SettingsCategoryId.DownloadsStorageBackup,
+        SettingsCategoryId.SystemPrivacyHelp
+    )
+
     fun build(
         title: String,
         metrics: List<SettingsMetric>,
@@ -67,7 +78,9 @@ object SettingsPageStateBuilder {
         onRequestNeededPermissions: () -> Unit,
         onOpenOverlayPermission: () -> Unit
     ): SettingsPageStateContent {
-        val actions = SettingsInformationArchitecture.categories.map { category ->
+        val actions = SettingsInformationArchitecture.categories
+            .sortedBy { category -> homeCategoryOrder.indexOf(category.id).takeIf { it >= 0 } ?: Int.MAX_VALUE }
+            .map { category ->
             SettingsAction(
                 label = groupTitle(languageMode, category.groupKey),
                 onClick = Runnable { onNavigate(category.page) },
@@ -75,7 +88,7 @@ object SettingsPageStateBuilder {
                 value = homeCategorySummary(category.id, languageMode, preferences, runtime),
                 style = SettingsActionStyle.Navigation,
                 icon = category.icon,
-                section = text(languageMode, "settings.section.categories"),
+                section = text(languageMode, homeCategorySectionKey(category.id)),
                 categoryId = category.id
             )
         }
@@ -132,6 +145,18 @@ object SettingsPageStateBuilder {
             searchResultsTitle = text(languageMode, "settings.search.results"),
             searchEmptyMessage = text(languageMode, "settings.search.no.results")
         )
+    }
+
+    private fun homeCategorySectionKey(categoryId: SettingsCategoryId): String = when (categoryId) {
+        SettingsCategoryId.PlaybackAudio,
+        SettingsCategoryId.LyricsSystemDisplay,
+        SettingsCategoryId.AppearanceInteraction -> "settings.section.listening"
+
+        SettingsCategoryId.LibraryMetadata,
+        SettingsCategoryId.SourcesAccountsSync,
+        SettingsCategoryId.DownloadsStorageBackup -> "settings.section.library.connections"
+
+        SettingsCategoryId.SystemPrivacyHelp -> "settings.section.system.support"
     }
 
     fun aboutGroup(
@@ -273,7 +298,9 @@ object SettingsPageStateBuilder {
         shareStyle: String = TrackShareStyle.defaultValue(),
         onNowPlayingGesturesEnabledChange: (Boolean) -> Unit = {},
         compactSettingsCards: Boolean = false,
-        onCompactSettingsCardsChange: (Boolean) -> Unit = {}
+        onCompactSettingsCardsChange: (Boolean) -> Unit = {},
+        homeDashboardLayout: HomeDashboardLayout = HomeDashboardLayout.Classic,
+        onHomeDashboardLayoutChange: (HomeDashboardLayout) -> Unit = {}
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "theme"), AppLanguage.themeLabel(themeMode, languageMode)),
@@ -323,6 +350,32 @@ object SettingsPageStateBuilder {
             ).copy(
                 section = text(languageMode, "settings.section.appearance"),
                 entryId = SettingsEntryId.PageBackground
+            ),
+            SettingsAction(
+                label = text(languageMode, "home.layout"),
+                onClick = Runnable {
+                    onHomeDashboardLayoutChange(
+                        if (homeDashboardLayout == HomeDashboardLayout.Classic) {
+                            HomeDashboardLayout.Content
+                        } else {
+                            HomeDashboardLayout.Classic
+                        }
+                    )
+                },
+                description = text(languageMode, "home.layout.hint"),
+                value = text(
+                    languageMode,
+                    if (homeDashboardLayout == HomeDashboardLayout.Classic) {
+                        "home.layout.classic"
+                    } else {
+                        "home.layout.content"
+                    }
+                ),
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Library,
+                checked = homeDashboardLayout == HomeDashboardLayout.Content,
+                section = text(languageMode, "settings.section.layout"),
+                entryId = SettingsEntryId.HomeDashboardLayout
             ),
             SettingsAction(
                 label = text(languageMode, "settings.compact.cards"),
@@ -1272,6 +1325,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)? = null,
+        onImportLyricsDirectory: (() -> Unit)? = null,
+        onViewLyricsImportReport: (() -> Unit)? = null,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
         title = groupTitle(languageMode, "lyrics"),
@@ -1288,6 +1344,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
+        onImportCurrentLyrics = onImportCurrentLyrics,
+        onImportLyricsDirectory = onImportLyricsDirectory,
+        onViewLyricsImportReport = onViewLyricsImportReport,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
 
@@ -1304,6 +1363,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit = {},
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)? = null,
+        onImportLyricsDirectory: (() -> Unit)? = null,
+        onViewLyricsImportReport: (() -> Unit)? = null,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent = lyricsContent(
         title = text(languageMode, "lyrics"),
@@ -1320,6 +1382,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange = onSystemMediaLyricsTitleEnabledChange,
         onStatusBarLyricsEnabledChange = onStatusBarLyricsEnabledChange,
         onReloadLyrics = onReloadLyrics,
+        onImportCurrentLyrics = onImportCurrentLyrics,
+        onImportLyricsDirectory = onImportLyricsDirectory,
+        onViewLyricsImportReport = onViewLyricsImportReport,
         onApplyLyricsOffset = onApplyLyricsOffset
     )
 
@@ -1338,6 +1403,9 @@ object SettingsPageStateBuilder {
         onSystemMediaLyricsTitleEnabledChange: (Boolean) -> Unit,
         onStatusBarLyricsEnabledChange: (Boolean) -> Unit,
         onReloadLyrics: () -> Unit,
+        onImportCurrentLyrics: (() -> Unit)?,
+        onImportLyricsDirectory: (() -> Unit)?,
+        onViewLyricsImportReport: (() -> Unit)?,
         onApplyLyricsOffset: (Long) -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
@@ -1370,6 +1438,35 @@ object SettingsPageStateBuilder {
                 section = text(languageMode, "settings.section.lyrics"),
                 entryId = SettingsEntryId.ReloadLyrics
             ))
+            if (onImportCurrentLyrics != null) add(
+                SettingsAction(
+                    label = "导入/替换当前歌曲歌词",
+                    description = "支持 LRC、TTML、XML 与 TXT",
+                    onClick = Runnable(onImportCurrentLyrics),
+                    icon = EchoIconKind.Import,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.ImportCurrentLyrics
+                )
+            )
+            if (onImportLyricsDirectory != null) add(
+                SettingsAction(
+                    label = "批量导入歌词目录",
+                    description = "递归扫描并仅写入安全的唯一匹配",
+                    onClick = Runnable(onImportLyricsDirectory),
+                    icon = EchoIconKind.Folder,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.ImportLyricsDirectory
+                )
+            )
+            if (onViewLyricsImportReport != null) add(
+                SettingsAction(
+                    label = "查看最近批量报告",
+                    onClick = Runnable(onViewLyricsImportReport),
+                    icon = EchoIconKind.Info,
+                    section = text(languageMode, "settings.section.lyrics"),
+                    entryId = SettingsEntryId.LyricsImportReport
+                )
+            )
             add(
                 SettingsAction(
                     label = text(languageMode, "status.bar.lyrics"),

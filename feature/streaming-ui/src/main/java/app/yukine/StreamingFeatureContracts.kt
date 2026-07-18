@@ -229,12 +229,30 @@ interface StreamingLocalPlaylistOperations {
         provider: StreamingProviderName,
         providerPlaylistId: String
     ): StreamingPlaylistSyncStore.LinkedPlaylist?
+
+    fun linkPlaylist(
+        localPlaylistId: Long,
+        provider: StreamingProviderName,
+        providerPlaylistId: String,
+        direction: app.yukine.streaming.StreamingPlaylistSyncDirection
+    ) = Unit
+
+    fun localPlaylistSnapshot(localPlaylistId: Long): StreamingLocalPlaylistSnapshot? = null
+
+    fun markPlaylistSynced(localPlaylistId: Long) = Unit
 }
+
+data class StreamingLocalPlaylistSnapshot(
+    val playlistId: Long,
+    val playlistName: String,
+    val tracks: List<Track>
+)
 
 data class StreamingLocalPlaylistSyncResult(
     val playlistId: Long = -1L,
     val syncedCount: Int = 0,
-    val empty: Boolean = false
+    val empty: Boolean = false,
+    val errorMessage: String = ""
 )
 
 data class StreamingPlaylistSyncTarget(

@@ -24,6 +24,7 @@ import app.yukine.model.TrackIdentity
 import app.yukine.model.RemoteSource
 import app.yukine.playback.PlaybackCachedMediaReader
 import app.yukine.streaming.StreamingPlaybackHeaderStore
+import app.yukine.streaming.StreamingProviderName
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -47,6 +48,7 @@ internal class PlaybackMediaSourceProvider(
     ) : this(context, LongFunction(repository::loadRemoteSource), streamingPlaybackHeaderStore)
 
     private var audioCache: SimpleCache? = null
+    private var audioCacheKey: String? = null
 
     fun mediaSourceFactory(track: Track): DefaultMediaSourceFactory {
         val httpFactory = httpDataSourceFactory(headersForTrack(track))
@@ -195,28 +197,49 @@ internal class PlaybackMediaSourceProvider(
         }
     }
 
-    fun audioCache(): SimpleCache {
-        audioCache?.let { return it }
+    fun audioCache(): SimpleCache = synchronized(AUDIO_CACHE_LOCK) {
+        audioCache?.let { return@synchronized it }
         val cacheDir = File(context.cacheDir, "streaming-audio-cache")
-        val cache = try {
+        val cacheKey = cacheDir.absolutePath
+        val shared = sharedAudioCaches[cacheKey] ?: SharedAudioCache(
+            cache = createAudioCache(cacheDir),
+            ownerCount = 0
+        ).also { sharedAudioCaches[cacheKey] = it }
+        shared.ownerCount += 1
+        audioCache = shared.cache
+        audioCacheKey = cacheKey
+        shared.cache
+    }
+
+    fun releaseAudioCache() = synchronized(AUDIO_CACHE_LOCK) {
+        val cache = audioCache ?: return@synchronized
+        val cacheKey = audioCacheKey
+        audioCache = null
+        audioCacheKey = null
+        val shared = cacheKey?.let(sharedAudioCaches::get)
+        if (shared == null || shared.cache !== cache) {
+            return@synchronized
+        }
+        shared.ownerCount -= 1
+        if (shared.ownerCount > 0) {
+            return@synchronized
+        }
+        sharedAudioCaches.remove(cacheKey)
+        try {
+            shared.cache.release()
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Unable to release audio cache", error)
+        }
+    }
+
+    private fun createAudioCache(cacheDir: File): SimpleCache {
+        return try {
             SimpleCache(cacheDir, LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES))
         } catch (error: RuntimeException) {
             Log.w(TAG, "Audio cache corrupted; clearing and rebuilding", error)
             deleteRecursively(cacheDir)
             SimpleCache(cacheDir, LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES))
         }
-        audioCache = cache
-        return cache
-    }
-
-    fun releaseAudioCache() {
-        val cache = audioCache ?: return
-        try {
-            cache.release()
-        } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to release audio cache", error)
-        }
-        audioCache = null
     }
 
     fun headersForTrack(track: Track): Map<String, String> {
@@ -344,6 +367,13 @@ internal class PlaybackMediaSourceProvider(
         private const val TAG = "PlaybackMediaSource"
         private const val AUDIO_CACHE_MAX_BYTES = 1024L * 1024L * 1024L
         private const val CACHED_PREFIX_COPY_BUFFER_BYTES = 64 * 1024
+        private val AUDIO_CACHE_LOCK = Any()
+        private val sharedAudioCaches = HashMap<String, SharedAudioCache>()
+
+        private data class SharedAudioCache(
+            val cache: SimpleCache,
+            var ownerCount: Int
+        )
 
         @JvmStatic
         fun hasPlayableMediaUri(track: Track?): Boolean {
@@ -413,12 +443,23 @@ internal class PlaybackMediaSourceProvider(
 
         @JvmStatic
         fun playbackMediaItemForTrack(track: Track, metadata: MediaMetadata?): MediaItem {
-            return MediaItem.Builder()
+            val builder = MediaItem.Builder()
                 .setUri(track.contentUri)
                 .setMediaId(track.id.toString())
                 .setCustomCacheKey(mediaCacheKey(track))
                 .setMediaMetadata(metadata ?: MediaMetadata.Builder().build())
-                .build()
+            val playbackMimeType = StreamingDataPathMetadata.playbackMimeType(track.dataPath)
+                .ifBlank {
+                    if (StreamingDataPathMetadata.provider(track.dataPath) == StreamingProviderName.BILIBILI) {
+                        "audio/mp4"
+                    } else {
+                        ""
+                    }
+                }
+            if (playbackMimeType.isNotBlank()) {
+                builder.setMimeType(playbackMimeType)
+            }
+            return builder.build()
         }
 
         @JvmStatic

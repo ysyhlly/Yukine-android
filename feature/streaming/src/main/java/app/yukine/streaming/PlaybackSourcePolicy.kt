@@ -1,8 +1,14 @@
 package app.yukine.streaming
 
 data class PlaybackSourcePolicySnapshot(
-    val enabledRemoteProviders: Set<StreamingProviderName> = setOf(StreamingProviderName.LUOXUE),
-    val remotePriority: List<StreamingProviderName> = listOf(StreamingProviderName.LUOXUE)
+    val enabledRemoteProviders: Set<StreamingProviderName> = setOf(
+        StreamingProviderName.LUOXUE,
+        StreamingProviderName.BILIBILI
+    ),
+    val remotePriority: List<StreamingProviderName> = listOf(
+        StreamingProviderName.LUOXUE,
+        StreamingProviderName.BILIBILI
+    )
 ) {
     fun isEnabled(provider: StreamingProviderName): Boolean =
         provider != StreamingProviderName.QQ_MUSIC && provider in enabledRemoteProviders

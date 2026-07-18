@@ -2,8 +2,15 @@ package app.yukine.ui
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -89,6 +96,67 @@ class NowBarProgressTest {
         composeRule.onNodeWithContentDescription("Expand waveform").performClick()
 
         composeRule.runOnIdle { assertTrue(waveformExpanded) }
+    }
+
+    @Test
+    fun expandedWaveformMatchesReservedProgressHeight() {
+        composeRule.setContent {
+            var waveformExpanded by remember { mutableStateOf(false) }
+
+            EchoTheme.EchoTheme {
+                NowBar(
+                    state = progressState().let { state ->
+                        state.copy(
+                            modes = state.modes.copy(favoriteEnabled = true),
+                            labels = state.labels.copy(
+                                favorite = "Favorite",
+                                inOrder = "In order",
+                                repeatOff = "Repeat off",
+                                queue = "Queue"
+                            )
+                        )
+                    },
+                    waveformExpanded = waveformExpanded,
+                    onExpandWaveform = { waveformExpanded = true },
+                    onCollapseWaveform = { waveformExpanded = false },
+                    onPrevious = Runnable { },
+                    onPlayPause = Runnable { },
+                    onNext = Runnable { },
+                    onFavorite = Runnable { },
+                    onShuffle = Runnable { },
+                    onRepeat = Runnable { },
+                    onOpenNowPlaying = Runnable { },
+                    onOpenQueue = Runnable { },
+                    onSeek = SeekAction { }
+                )
+            }
+        }
+
+        val collapsedProgressBounds = composeRule
+            .onNodeWithContentDescription("Playback progress")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        composeRule.onNodeWithContentDescription("Expand waveform").performClick()
+        composeRule.waitForIdle()
+
+        val expandedWaveform = composeRule
+            .onNodeWithTag("waveform-progress")
+            .assertHeightIsEqualTo(EchoMobileLayoutMetrics.nowBarProgressHeight)
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val trackBounds = composeRule
+            .onNodeWithText("Track")
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertEquals(collapsedProgressBounds.top, expandedWaveform.top, 0.5f)
+        assertEquals(collapsedProgressBounds.bottom, expandedWaveform.bottom, 0.5f)
+        assertTrue(expandedWaveform.bottom <= trackBounds.top)
+        composeRule.onNodeWithText("Favorite").assertIsDisplayed()
+        composeRule.onNodeWithText("In order").assertIsDisplayed()
+        composeRule.onNodeWithText("Repeat off").assertIsDisplayed()
+        composeRule.onNodeWithText("Queue").assertIsDisplayed()
     }
 
     @Test

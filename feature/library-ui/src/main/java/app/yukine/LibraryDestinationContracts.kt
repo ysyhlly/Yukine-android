@@ -12,6 +12,14 @@ import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.LibraryUiState
 import app.yukine.ui.LibraryPlaylistFolderUiState
 
+enum class LibraryListContext {
+    Songs,
+    Album,
+    Artist,
+    Folder,
+    Playlist
+}
+
 data class LibraryTrackListDestinationState @JvmOverloads constructor(
     val title: String = "",
     val rows: List<TrackRowUiState> = emptyList(),
@@ -22,7 +30,8 @@ data class LibraryTrackListDestinationState @JvmOverloads constructor(
     val emptyText: String = "",
     val modeActions: List<TrackListModeAction> = emptyList(),
     val labels: TrackListLabels = TrackListLabels(),
-    val libraryUi: LibraryUiState = LibraryUiState()
+    val libraryUi: LibraryUiState = LibraryUiState(),
+    val context: LibraryListContext = LibraryListContext.Songs
 )
 
 data class LibraryGroupsDestinationState @JvmOverloads constructor(

@@ -4,6 +4,9 @@ import android.net.Uri
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingProviderName
+import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryGroupSort
+import app.yukine.ui.LibraryFilter
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
@@ -53,7 +56,7 @@ class LibraryPlaylistsStateReducerTest {
             listOf("Favorites"),
             viewModel.libraryGroups.value.playlistFolders[1].entries.map { it.group.title }
         )
-        assertEquals(listOf(3, 2), viewModel.libraryGroups.value.playlistFolders.map { it.entries.single().actionIndex })
+        assertEquals(listOf(2, 3), viewModel.libraryGroups.value.playlistFolders.map { it.entries.single().actionIndex })
         assertEquals("No playlists", listener.chromeState?.emptyText)
         assertEquals(modeActions, listener.chromeState?.modeActions)
         assertNotSame(modeActions, listener.chromeState?.modeActions)
@@ -63,13 +66,55 @@ class LibraryPlaylistsStateReducerTest {
         listener.chromeState?.actions?.get(2)?.onOpen?.run()
         listener.chromeState?.actions?.get(2)?.onPlay?.run()
         listener.chromeState?.actions?.get(3)?.onPlay?.run()
-        listener.chromeState?.actions?.get(2)?.onLongPress?.run()
+        listener.chromeState?.actions?.get(2)?.onDelete?.run()
 
         assertEquals(
-            listOf("favorite:Favorite playlist", "playTracks:1:0", "open:7:Favorites", "playPlaylist:7", "playPlaylist:8", "delete:7"),
+            listOf("favorite:Favorite playlist", "playTracks:1:0", "open:8:Empty", "playPlaylist:8", "playPlaylist:7", "delete:8"),
             listener.calls
         )
-        assertEquals(false, listener.chromeState?.actions?.get(3)?.playEnabled)
+        assertEquals(false, listener.chromeState?.actions?.get(2)?.playEnabled)
+        assertEquals(true, listener.chromeState?.actions?.get(3)?.playEnabled)
+    }
+
+    @Test
+    fun filtersBySourceAndSortsInsideTheFixedSourceSection() {
+        val listener = RecordingListener()
+        val viewModel = LibraryViewModel()
+        viewModel.presentation.onAction(LibraryAction.FilterChanged(LibraryFilter.Network))
+        viewModel.presentation.onAction(
+            LibraryAction.GroupSortChanged(LibraryGroupSort.TrackCountDescending)
+        )
+        val controller = LibraryPlaylistsStateReducer(viewModel, listener)
+
+        controller.reduce(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playlists = listOf(
+                Playlist(1L, "Local", 99, 0L, 0L),
+                Playlist(2L, "Small", 2, 0L, 0L),
+                Playlist(3L, "Large", 8, 0L, 0L)
+            ),
+            selectedPlaylistId = -1L,
+            selectedLibraryGroupKey = "",
+            selectedPlaylistName = "",
+            selectedPlaylistTracks = emptyList(),
+            favoriteTracks = emptyList(),
+            recentRecords = emptyList(),
+            modeActions = emptyList(),
+            playlistSources = mapOf(
+                2L to StreamingProviderName.NETEASE,
+                3L to StreamingProviderName.NETEASE
+            )
+        )
+
+        assertEquals(listOf("netease"), viewModel.libraryGroups.value.playlistFolders.map { it.key })
+        assertEquals(
+            listOf("Large", "Small"),
+            viewModel.libraryGroups.value.playlistFolders.single().entries.map { it.group.title }
+        )
+        assertEquals(
+            listOf(8, 2),
+            viewModel.libraryGroups.value.playlistFolders.single().entries.map { it.group.trackCount }
+        )
     }
 
     @Test
@@ -98,6 +143,7 @@ class LibraryPlaylistsStateReducerTest {
         assertEquals(listOf("Back to playlists", "Play playlist"), request?.headerActions?.map { it.label })
         assertEquals("No tracks in this playlist", request?.emptyText)
         assertEquals(modeActions, request?.modeActions)
+        assertEquals(LibraryListContext.Playlist, request?.context)
         assertNotSame(modeActions, request?.modeActions)
 
         request?.headerActions?.get(0)?.onClick?.run()

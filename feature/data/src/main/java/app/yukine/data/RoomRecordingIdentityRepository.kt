@@ -29,15 +29,16 @@ class RoomRecordingIdentityRepository(
 
     override fun ensureCanonicalForTrack(track: Track): CanonicalRecording {
         val now = System.currentTimeMillis()
-        return database.runInTransaction(Callable {
+        database.runInTransaction {
             val entity = TrackEntityMapper.entity(track, now)
             database.libraryDao().upsertTracks(listOf(entity))
             OfflineMusicIdentityStore(database).ensureTracks(listOf(entity), now)
-            val recordingId = requireNotNull(dao.recordingIdForLocalTrack(track.id)) {
-                "Track ${track.id} has no recording identity after persistence"
-            }
-            requireRecording(recordingId).toModel()
-        })
+        }
+        SourceIdentityIngestor(database).ingestLocalTracks(listOf(track.id))
+        val recordingId = requireNotNull(dao.recordingIdForLocalTrack(track.id)) {
+            "Track ${track.id} has no recording identity after persistence"
+        }
+        return requireRecording(recordingId).toModel()
     }
 
     override fun canonicalForRecording(recordingId: Long): CanonicalRecording? =
@@ -128,6 +129,27 @@ class RoomRecordingIdentityRepository(
             throw IllegalArgumentException("Work MBID conflict")
         }
         return database.runInTransaction(Callable {
+            mergeRecordingsInTransaction(sourceRecordingId, targetRecordingId)
+        })
+    }
+
+    /**
+     * Performs the merge on the caller's current transaction.
+     *
+     * Candidate confirmation already owns the transaction that must atomically cover both the
+     * recording merge and the candidate status update. Starting another Room transaction there
+     * can strand the only rollback-journal connection, so that path reuses this implementation.
+     */
+    fun mergeRecordingsInCurrentTransaction(
+        sourceRecordingId: Long,
+        targetRecordingId: Long
+    ): CanonicalRecording = mergeRecordingsInTransaction(sourceRecordingId, targetRecordingId)
+
+    internal fun mergeRecordingsInTransaction(
+        sourceRecordingId: Long,
+        targetRecordingId: Long
+    ): CanonicalRecording {
+        check(database.inTransaction()) { "Recording merge requires an active transaction" }
         require(sourceRecordingId != targetRecordingId) { "Source and target recording are identical" }
         val source = requireRecording(sourceRecordingId)
         val target = requireRecording(targetRecordingId)
@@ -156,6 +178,19 @@ class RoomRecordingIdentityRepository(
             }
         }
         dao.deleteLyricBindings(sourceRecordingId)
+        val targetCustomLyrics = dao.customLyricsForRecording(targetRecordingId).maxByOrNull { it.updatedAt }
+        val sourceCustomLyrics = dao.customLyricsForRecording(sourceRecordingId).maxByOrNull { it.updatedAt }
+        if (sourceCustomLyrics != null &&
+            (targetCustomLyrics == null || sourceCustomLyrics.updatedAt > targetCustomLyrics.updatedAt)
+        ) {
+            dao.upsert(
+                sourceCustomLyrics.copy(
+                    identityKey = "recording:$targetRecordingId",
+                    recordingId = targetRecordingId
+                )
+            )
+        }
+        dao.deleteCustomLyricsForRecording(sourceRecordingId)
         moveCanonicalBusinessReferences(sourceRecordingId, targetRecordingId)
         moveCandidates("RECORDING", sourceRecordingId, targetRecordingId)
         dao.deleteSelfOwnedPendingRecordingCandidates()
@@ -178,8 +213,7 @@ class RoomRecordingIdentityRepository(
             targetRecordingId,
             before
         )
-        requireRecording(targetRecordingId).toModel()
-        })
+        return requireRecording(targetRecordingId).toModel()
     }
 
     override fun splitSource(sourceId: Long): CanonicalRecording =

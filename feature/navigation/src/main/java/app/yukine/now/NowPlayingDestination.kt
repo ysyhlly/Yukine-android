@@ -8,6 +8,7 @@ import app.yukine.NowPlayingEvent
 import app.yukine.TrackDownloadItem
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.model.Track
+import app.yukine.model.LyricsTrackRole
 import app.yukine.model.TrackIdentity
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingAudioCapabilityPolicy
@@ -91,8 +92,25 @@ fun NowPlayingDestination(
             playbackQuality = playbackQuality,
             audioMotion = audioMotion,
             appVolume = uiState.progress.appVolume,
+            trackId = uiState.track.trackId,
+            playing = uiState.progress.playing,
+            positionMs = uiState.progress.positionMs,
+            primaryVisible = uiState.lyrics.primaryVisible,
+            translationVisible = uiState.lyrics.translationVisible,
+            romanizationVisible = uiState.lyrics.romanizationVisible,
             onShare = Runnable { onEvent(NowPlayingEvent.ShareCurrentTrack) },
-            onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) }
+            onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) },
+            onImportLyrics = Runnable { onEvent(NowPlayingEvent.ImportCurrentLyrics) },
+            onClearLyrics = Runnable { onEvent(NowPlayingEvent.ClearCurrentLyrics) },
+            onPrimaryVisibleChange = {
+                onEvent(NowPlayingEvent.SetLyricsTrackVisible(LyricsTrackRole.PRIMARY, it))
+            },
+            onTranslationVisibleChange = {
+                onEvent(NowPlayingEvent.SetLyricsTrackVisible(LyricsTrackRole.TRANSLATION, it))
+            },
+            onRomanizationVisibleChange = {
+                onEvent(NowPlayingEvent.SetLyricsTrackVisible(LyricsTrackRole.ROMANIZATION, it))
+            }
         ),
         immersive = immersive,
         onImmersiveChanged = onImmersiveChanged,
@@ -138,8 +156,13 @@ private fun sourceOptions(
         onSwitchSource = onSwitchSource,
         onSwitchLocalSource = onSwitchLocalSource
     )
-    val localCandidates = (listOf(track) + libraryCandidates)
-        .filter { StreamingDataPathMetadata.provider(it.dataPath) == null }
+    val currentProvider = StreamingDataPathMetadata.provider(track.dataPath)
+    val localCandidates = if (currentProvider == StreamingProviderName.BILIBILI) {
+        emptyList()
+    } else {
+        (listOf(track) + libraryCandidates)
+            .filter { StreamingDataPathMetadata.provider(it.dataPath) == null }
+    }
     val localOptions = if (localCandidates.size < 2) {
         emptyList()
     } else {
@@ -182,7 +205,9 @@ private fun streamingSourceOptions(
                 provider = provider,
                 providerTrackId = providerTrackId,
                 quality = quality,
-                label = item.optString("label").ifBlank { providerLabel(provider) },
+                label = decodePercentEncodedDisplayText(
+                    item.optString("label").ifBlank { providerLabel(provider) }
+                ),
                 available = item.optBoolean("available", true),
                 sourceTrack = null
             )
@@ -227,11 +252,23 @@ private fun streamingSourceOptions(
             )
         }
     val candidates = closestLuoxueCandidateOnly(track, groupedCandidates)
+        .filter { candidate ->
+            if (currentProvider == StreamingProviderName.BILIBILI) {
+                candidate.provider == StreamingProviderName.BILIBILI
+            } else {
+                candidate.provider != StreamingProviderName.BILIBILI
+            }
+        }
     val addedProviders = providers
         .filter {
             it.enabled && it.status != StreamingProviderStatus.DISABLED &&
                 (it.capabilities.supportsAudioResolve ||
-                    it.name == StreamingProviderName.QQ_MUSIC)
+                    it.name == StreamingProviderName.QQ_MUSIC) &&
+                if (currentProvider == StreamingProviderName.BILIBILI) {
+                    it.name == StreamingProviderName.BILIBILI
+                } else {
+                    it.name != StreamingProviderName.BILIBILI
+                }
         }
         .distinctBy { it.name }
     val descriptorByProvider = addedProviders.associateBy { it.name }
@@ -464,9 +501,24 @@ private fun queryParam(dataPath: String, key: String): String {
     return query.split('&')
         .firstOrNull { it.substringBefore('=') == key }
         ?.substringAfter('=', "")
-        ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }
+        ?.let { encoded ->
+            runCatching {
+                URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
+            }.getOrDefault("")
+        }
         .orEmpty()
 }
+
+private fun decodePercentEncodedDisplayText(value: String): String {
+    if (!PERCENT_BYTE.containsMatchIn(value)) {
+        return value
+    }
+    return runCatching {
+        URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+    }.getOrDefault(value)
+}
+
+private val PERCENT_BYTE = Regex("%[0-9a-fA-F]{2}")
 
 private fun providerLabel(provider: StreamingProviderName): String = when (provider) {
     StreamingProviderName.NETEASE -> "网易云音乐"

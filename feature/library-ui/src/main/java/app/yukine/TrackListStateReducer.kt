@@ -69,7 +69,8 @@ class TrackListStateReducer(
         labels: TrackListLabels,
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>,
-        footerAlbums: List<TrackListAlbumCardUiState> = emptyList()
+        footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
+        context: LibraryListContext = LibraryListContext.Songs
     ) {
         val libraryUi = viewModel.libraryUi.value
         latestCurrentTrackId = playbackState?.currentTrack?.id
@@ -86,7 +87,8 @@ class TrackListStateReducer(
             labels,
             footerAlbums,
             libraryUi,
-            favoriteIds
+            favoriteIds,
+            context
         )
         if (fastSignature != null && tracks === fastPatchTracks && fastSignature == fastPatchSignature) {
             patchPublishedRowFlags()
@@ -118,7 +120,8 @@ class TrackListStateReducer(
                 playbackState,
                 favoriteIds,
                 footerAlbums,
-                libraryUi.mode
+                libraryUi.mode,
+                context
             )
         }
     }
@@ -150,7 +153,8 @@ class TrackListStateReducer(
             AppLanguage.text(languageMode, "all.albums"),
             AppLanguage.text(languageMode, "play.all"),
             AppLanguage.text(languageMode, "shuffle"),
-            AppLanguage.text(languageMode, "recording.match.manage")
+            AppLanguage.text(languageMode, "recording.match.manage"),
+            AppLanguage.text(languageMode, "songs")
         )
         publishTrackList(title, tracks.size, false) {
             buildRecommendationContent(tracks, headerMetrics, headerActions, labels)
@@ -193,7 +197,8 @@ class TrackListStateReducer(
             content.headerActions,
             content.emptyText,
             content.modeActions,
-            content.labels
+            content.labels,
+            content.context
         )
     }
 
@@ -281,7 +286,8 @@ class TrackListStateReducer(
         labels: TrackListLabels,
         footerAlbums: List<TrackListAlbumCardUiState>,
         libraryUi: LibraryUiState,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        context: LibraryListContext
     ): SongRowsSignature? {
         if (libraryUi.mode != LibraryMode.Songs || modeActions.isEmpty() || details.isNotEmpty() ||
             headerMetrics.isNotEmpty() || headerActions.isNotEmpty() || footerAlbums.isNotEmpty()
@@ -295,7 +301,8 @@ class TrackListStateReducer(
             emptyText,
             labels,
             libraryUi,
-            if (libraryUi.filter == LibraryFilter.Favorites) favoriteIds else null
+            if (libraryUi.filter == LibraryFilter.Favorites) favoriteIds else null,
+            context
         )
     }
 
@@ -312,7 +319,8 @@ class TrackListStateReducer(
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>,
         footerAlbums: List<TrackListAlbumCardUiState>,
-        libraryMode: LibraryMode
+        libraryMode: LibraryMode,
+        context: LibraryListContext
     ): BuiltTrackListContent {
         val rows = ArrayList<TrackRowUiState>(tracks.size)
         val actions = ArrayList<TrackRowActions>(tracks.size)
@@ -391,7 +399,8 @@ class TrackListStateReducer(
             effectiveHeaderActions,
             emptyText,
             modeActions,
-            labels
+            labels,
+            context
         )
     }
 
@@ -432,7 +441,8 @@ class TrackListStateReducer(
             headerActions,
             "",
             emptyList(),
-            labels
+            labels,
+            LibraryListContext.Songs
         )
     }
 
@@ -448,7 +458,8 @@ class TrackListStateReducer(
         val headerActions: List<TrackListHeaderAction>,
         val emptyText: String,
         val modeActions: List<TrackListModeAction>,
-        val labels: TrackListLabels
+        val labels: TrackListLabels,
+        val context: LibraryListContext
     )
 
     private fun rowIndices(rows: List<TrackRowUiState>): Map<Long, List<Int>> {
@@ -466,7 +477,8 @@ class TrackListStateReducer(
         val emptyText: String,
         val labels: TrackListLabels,
         val libraryUi: LibraryUiState,
-        val favoriteFilterIds: Set<Long>?
+        val favoriteFilterIds: Set<Long>?,
+        val context: LibraryListContext
     )
 
     private companion object {

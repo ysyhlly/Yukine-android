@@ -277,7 +277,13 @@ fun EchoNavGraph(
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                 }
             }
         } else {
@@ -288,7 +294,13 @@ fun EchoNavGraph(
             ) { page ->
                 val tab = pagerTabs[page]
                 when (tab) {
-                    HomeTab -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    HomeTab -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                     LibraryTab -> LibraryDestination(
                         groupsState = hostState.library.libraryGroupsState,
                         trackListState = hostState.library.libraryTrackListState,
@@ -296,11 +308,13 @@ fun EchoNavGraph(
                         downloadsState = hostState.library.downloadsState,
                         openSearchAction = openSearchAction,
                         openDownloadsAction = openDownloadsAction,
+                        openPlayHistoryAction = hostState.library.openPlayHistoryAction,
                         openNetworkSourcesAction = hostState.library.openNetworkSourcesAction,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion,
                         actionHandler = hostState.library.libraryActionHandler,
+                        compactCards = settingsChromeState.compactSettingsCards,
                         recordingMatchStateProvider = hostState.library.recordingMatchStateProvider
                     )
                     QueueTab -> NowPlayingDestination(
@@ -334,7 +348,13 @@ fun EchoNavGraph(
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion
                     )
-                    else -> HomeDestination(hostState.library.homeDashboardState, activeDownload, playbackQuality, audioMotion)
+                    else -> HomeDestination(
+                        hostState.library.homeDashboardState,
+                        activeDownload,
+                        playbackQuality,
+                        audioMotion,
+                        settingsChromeState.homeDashboardLayout
+                    )
                 }
             }
         }
@@ -363,11 +383,13 @@ private fun LibraryDestination(
     downloadsState: StateFlow<DownloadsUiState>,
     openSearchAction: Runnable,
     openDownloadsAction: Runnable,
+    openPlayHistoryAction: Runnable,
     openNetworkSourcesAction: Runnable,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion,
     actionHandler: LibraryActionHandler,
+    compactCards: Boolean,
     recordingMatchStateProvider: app.yukine.RecordingMatchDestinationStateProvider?
 ) {
     var showOverview by rememberSaveable { mutableStateOf(true) }
@@ -401,14 +423,19 @@ private fun LibraryDestination(
                     showOverview = false
                 }
             },
-            onOpenRecent = { openMode(app.yukine.LibraryGrouping.SONGS) },
+            onOpenRecent = {
+                actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
+                openPlayHistoryAction.run()
+                showOverview = false
+            },
             onOpenDownloads = { openDownloadsAction.run() },
             onOpenSources = { openNetworkSourcesAction.run() },
             onManageLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
             onSearch = openSearchAction,
             activeDownload = activeDownload,
             playbackQuality = playbackQuality,
-            audioMotion = audioMotion
+            audioMotion = audioMotion,
+            compactCards = compactCards
         )
         return
     }
@@ -420,12 +447,6 @@ private fun LibraryDestination(
     val hasTrackList by remember(trackListState) {
         trackListState.map { it.title.isNotBlank() }.distinctUntilChanged()
     }.collectAsState(initial = false)
-    val hasTrackListBack by remember(trackListState) {
-        trackListState.map { state -> state.headerActions.any { it.isBack } }.distinctUntilChanged()
-    }.collectAsState(initial = false)
-    BackHandler(enabled = !hasTrackListBack) {
-        showOverview = true
-    }
     val renderGroups = hasGroups && !hasTrackList
     if (renderGroups) {
         LibraryGroupsDestination(
@@ -435,7 +456,9 @@ private fun LibraryDestination(
             playbackQuality = playbackQuality,
             audioMotion = audioMotion,
             actionHandler = actionHandler,
-            libraryControlsEnabled = true
+            libraryControlsEnabled = true,
+            compactCards = compactCards,
+            onNavigateUp = Runnable { showOverview = true }
         )
         return
     }
@@ -446,7 +469,9 @@ private fun LibraryDestination(
         playbackQuality = playbackQuality,
         audioMotion = audioMotion,
         actionHandler = actionHandler,
-        libraryControlsEnabled = true
+        libraryControlsEnabled = true,
+        compactCards = compactCards,
+        onNavigateUp = Runnable { showOverview = true }
     )
 }
 

@@ -33,7 +33,8 @@ class StreamingPlaylistSyncStore(context: Context) {
         val localPlaylistId: Long,
         val provider: StreamingProviderName,
         val providerPlaylistId: String,
-        val lastSyncMs: Long
+        val lastSyncMs: Long,
+        val direction: StreamingPlaylistSyncDirection = StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL
     )
 
     /**
@@ -44,7 +45,8 @@ class StreamingPlaylistSyncStore(context: Context) {
     fun linkPlaylist(
         localPlaylistId: Long,
         provider: StreamingProviderName,
-        providerPlaylistId: String = ""
+        providerPlaylistId: String = "",
+        direction: StreamingPlaylistSyncDirection = StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL
     ) {
         if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) return
         val links = loadLinksMap().toMutableMap()
@@ -52,6 +54,7 @@ class StreamingPlaylistSyncStore(context: Context) {
             put("provider", provider.wireName)
             put("providerPlaylistId", providerPlaylistId)
             put("lastSyncMs", 0L)
+            put("direction", direction.name)
         }.toString()
         saveLinksMap(links)
     }
@@ -168,10 +171,23 @@ class StreamingPlaylistSyncStore(context: Context) {
                 localPlaylistId = localPlaylistId,
                 provider = provider,
                 providerPlaylistId = json.optString("providerPlaylistId", ""),
-                lastSyncMs = json.optLong("lastSyncMs", 0L)
+                lastSyncMs = json.optLong("lastSyncMs", 0L),
+                direction = runCatching {
+                    StreamingPlaylistSyncDirection.valueOf(
+                        json.optString(
+                            "direction",
+                            StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL.name
+                        )
+                    )
+                }.getOrDefault(StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL)
             )
         } catch (_: Exception) {
             null
         }
     }
+}
+
+enum class StreamingPlaylistSyncDirection {
+    REMOTE_TO_LOCAL,
+    LOCAL_TO_REMOTE
 }
