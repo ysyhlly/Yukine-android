@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: Version name embedded in the APK (for example 0.2.0-rc.1)
+        description: Version name embedded in the APK (for example 0.2.1)
         required: true
-        default: 0.2.0-rc.1
+        default: 0.2.1
         type: string
       version_code:
         description: Monotonically increasing Android version code
         required: true
-        default: '7'
+        default: '8'
         type: string
 
 jobs:
@@ -36,8 +36,8 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # assembleRelease：未提供签名环境变量时会使用 debug 签名（AGP 默认行为），
-      # APK 本身未签名发布，但 R8 混淆和 mapping.txt 生成流程完全一致，足以归档。
+      # assembleRelease：未提供签名环境变量时会生成未签名 APK，
+      # R8 混淆和 mapping.txt 生成流程仍然完整，足以归档。
       # 若签名密钥已配置为 Repository Secrets，可在 env 块取消注释以启用正式签名。
       - name: Assemble release APK (generate mapping.txt)
         run: ./gradlew --no-daemon :app:assembleRelease --console=plain
