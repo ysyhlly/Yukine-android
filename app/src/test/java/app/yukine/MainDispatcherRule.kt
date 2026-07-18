@@ -24,6 +24,7 @@ class MainDispatcherRule : TestRule {
                 try {
                     base.evaluate()
                 } finally {
+                    testScheduler.advanceUntilIdle()
                     Dispatchers.resetMain()
                 }
             }

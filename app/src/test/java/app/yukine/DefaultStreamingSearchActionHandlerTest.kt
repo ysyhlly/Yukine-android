@@ -21,6 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.CopyOnWriteArrayList
 
 class DefaultStreamingSearchActionHandlerTest {
     @get:Rule
@@ -148,12 +149,14 @@ class DefaultStreamingSearchActionHandlerTest {
             )
         )
 
-        waitUntil { luoxue.playbackRequests.isNotEmpty() }
+        waitUntil { streamingViewModel.streaming.value.resolvedPlaybackSource != null }
         assertEquals(listOf("lx-song"), luoxue.playbackRequests.map { it.providerTrackId })
     }
 
     @Test
-    fun playStreamingTrackResolvesThroughStreamingViewModelRepository() = runTest {
+    fun playStreamingTrackResolvesThroughStreamingViewModelRepository() = runTest(
+        mainDispatcherRule.testScheduler
+    ) {
         val newProvider = FakeProvider(StreamingProviderName.NETEASE)
         val streamingViewModel = StreamingViewModel()
         streamingViewModel.bindStreamingRepository(repository(newProvider))
@@ -235,8 +238,8 @@ class DefaultStreamingSearchActionHandlerTest {
         provider: StreamingProviderName,
         private val searchTrackId: String = ""
     ) : StreamingProvider {
-        val searchRequests = mutableListOf<StreamingSearchRequest>()
-        val playbackRequests = mutableListOf<StreamingPlaybackRequest>()
+        val searchRequests = CopyOnWriteArrayList<StreamingSearchRequest>()
+        val playbackRequests = CopyOnWriteArrayList<StreamingPlaybackRequest>()
 
         override val descriptor: StreamingProviderDescriptor =
             StreamingProviderDescriptor(
@@ -283,12 +286,13 @@ class DefaultStreamingSearchActionHandlerTest {
         StreamingRepository(RegistryStreamingGateway(StreamingProviderRegistry(providers.toList())))
 
     private fun waitUntil(condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + 1_000L
+        val deadline = System.currentTimeMillis() + 5_000L
         while (System.currentTimeMillis() < deadline) {
             if (condition()) {
                 return
             }
             Thread.sleep(10L)
         }
+        assertTrue("Condition was not met within 5 seconds", condition())
     }
 }
