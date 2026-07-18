@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import app.yukine.playback.PlaybackRepeatMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -107,7 +108,10 @@ class NowBarProgressTest {
                 NowBar(
                     state = progressState().let { state ->
                         state.copy(
-                            modes = state.modes.copy(favoriteEnabled = true),
+                            modes = state.modes.copy(
+                                favoriteEnabled = true,
+                                repeatMode = PlaybackRepeatMode.REPEAT_OFF
+                            ),
                             labels = state.labels.copy(
                                 favorite = "Favorite",
                                 inOrder = "In order",

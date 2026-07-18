@@ -149,7 +149,7 @@ internal data class HomePlaybackCardState(
     val albumArtUri: Uri?,
     val progress: Float
 ) {
-    fun action(actions: HomeDashboardActions): Runnable = actions.onContinue
+    fun action(actions: HomeDashboardActions): Runnable = actions.onNext
 }
 
 internal class HomePlaybackCardStabilizer(

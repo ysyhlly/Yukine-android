@@ -2,10 +2,11 @@ package app.yukine.home
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import app.yukine.HomeDashboardDestinationState
 import app.yukine.emptyHomeDashboardActions
 import app.yukine.ui.EchoTheme
@@ -135,9 +136,9 @@ class HomeDestinationTest {
             }
         }
 
-        composeRule.onAllNodes(hasScrollAction())[0].performScrollToIndex(3)
+        composeRule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("今日聆听轨迹"))
         composeRule.onNodeWithText("今日聆听轨迹").assertIsDisplayed()
-        composeRule.onAllNodes(hasScrollAction())[0].performScrollToIndex(4)
+        composeRule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("最近播放"))
         composeRule.onNodeWithText("最近播放").assertIsDisplayed()
     }
 
