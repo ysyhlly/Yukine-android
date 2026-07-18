@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.TextView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -18,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /** Activity entry point for devices whose vendor broadcast queue delays debug probe receivers. */
+@UnstableApi
 class TxPlaybackProbeActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

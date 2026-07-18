@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import app.yukine.data.MusicLibraryRepository;
@@ -33,6 +32,7 @@ final class LibraryFeatureBinding {
     private final LibraryDocumentGateway documentGateway;
     private final LibraryPlaylistActionGateway playlistActionGateway;
     private final Handler mainHandler;
+    private final MainExecutors executors;
     private final LibraryMultiSourceSyncCoordinator multiSourceSync;
     private final FavoriteSyncRuntimeOwner favoriteSyncRuntime;
     private final FavoriteSyncCoordinator favoriteSyncCoordinator;
@@ -82,6 +82,7 @@ final class LibraryFeatureBinding {
             LibraryPlaylistActionGateway playlistActionGateway,
             HomeDashboardRepository homeDashboardRepository,
             Handler mainHandler,
+            MainExecutors executors,
             RecordingMatchRepository recordingMatchRepository,
             LibraryMultiSourceSyncCoordinator multiSourceSync,
             FavoriteSyncCoordinator favoriteSyncCoordinator
@@ -101,6 +102,7 @@ final class LibraryFeatureBinding {
         this.playlistActionGateway = playlistActionGateway;
         this.favoriteSyncCoordinator = favoriteSyncCoordinator;
         this.mainHandler = mainHandler;
+        this.executors = executors;
         this.recordingMatchRepository = recordingMatchRepository;
         this.recordingMatchViewModel = viewModels.getRecordingMatchViewModel();
         this.recordingMatchViewModel.bindDataSource(recordingMatchRepository);
@@ -212,15 +214,20 @@ final class LibraryFeatureBinding {
                 audioVerificationOwner::schedule
         );
         recordingMatchViewModel.bindIdentityChangedListener(() ->
-                CompletableFuture.runAsync(() -> {
-                    multiSourceSync.refreshIdentitySnapshot();
-                    favoriteSyncCoordinator.reconcileCanonicalState();
-                })
-                        .whenComplete((ignored, error) -> mainHandler.post(() -> {
+                executors.io(() -> {
+                    try {
+                        multiSourceSync.refreshIdentitySnapshot();
+                        favoriteSyncCoordinator.reconcileCanonicalState();
+                    } catch (RuntimeException ignored) {
+                        // Refresh the visible library even if identity reconciliation fails.
+                    } finally {
+                        mainHandler.post(() -> {
                             navigation.getRouteController().clearLibraryGroup();
                             importOwner.loadLibrary(false);
                             collectionsOwner.load();
-                        }))
+                        });
+                    }
+                })
         );
         deletionCompletionOwner = new LibraryDeletionCompletionOwner(
                 playback.getNowPlayingViewModel()::removeQueueTracks,

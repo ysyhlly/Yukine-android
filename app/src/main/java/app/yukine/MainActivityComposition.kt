@@ -103,6 +103,7 @@ internal class MainActivityComposition @Inject constructor(
             deps.libraryPlaylistActionGateway,
             deps.homeDashboardRepository,
             deps.mainHandler,
+            deps.executors,
             deps.recordingMatchRepository,
             LibraryMultiSourceSyncCoordinator(
                 MusicLibraryMultiSourceSyncOperations(
