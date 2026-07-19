@@ -118,7 +118,7 @@ class LibraryTrackMergePolicyTest {
     }
 
     @Test
-    fun mergesEquivalentLocalTracksWithNormalizedMetadataAndCloseDuration() {
+    fun metadataOnlyLocalTracksRemainSeparateWithoutPersistedIdentity() {
         val result = LibraryTrackMergePolicy.merge(
             listOf(
                 track(
@@ -140,11 +140,11 @@ class LibraryTrackMergePolicyTest {
             )
         )
 
-        assertEquals(listOf(1L), result.map { it.id })
+        assertEquals(listOf(1L, 2L), result.map { it.id })
     }
 
     @Test
-    fun mergesArtistOrderButDoesNotChainDurationsPastTheClusterTolerance() {
+    fun metadataOnlyRowsDoNotChainAcrossDurationNeighbors() {
         val tracks = listOf(
             track(1L, "Echo", "Artist A / Artist B", "Album", 180_000L, "/Music/echo.flac"),
             track(2L, "Echo", "Artist B feat. Artist A", "Album", 182_500L, "document:echo.mp3"),
@@ -153,12 +153,12 @@ class LibraryTrackMergePolicyTest {
 
         val snapshot = LibraryTrackMergePolicy.snapshot(tracks)
 
-        assertEquals(listOf(1L, 3L), snapshot.mergedTracks.map { it.id })
-        assertEquals(listOf(1L, 2L), snapshot.sourceCandidatesByTrackId.getValue(1L).map { it.id })
+        assertEquals(listOf(1L, 2L, 3L), snapshot.mergedTracks.map { it.id })
+        assertEquals(emptyMap<Long, List<Track>>(), snapshot.sourceCandidatesByTrackId)
     }
 
     @Test
-    fun mergesWebDavAndStreamingCopiesAcrossArtistAliasesAndCatalogAlbums() {
+    fun metadataAliasesRemainSeparateUntilCanonicalIdentityIsPersisted() {
         val tracks = listOf(
             track(
                 1L,
@@ -188,12 +188,12 @@ class LibraryTrackMergePolicyTest {
 
         val snapshot = LibraryTrackMergePolicy.snapshot(tracks)
 
-        assertEquals(listOf(1L), snapshot.mergedTracks.map { it.id })
-        assertEquals(listOf(1L, 2L, 3L), snapshot.sourceCandidatesByTrackId.getValue(1L).map { it.id })
+        assertEquals(listOf(1L, 2L, 3L), snapshot.mergedTracks.map { it.id })
+        assertEquals(emptyMap<Long, List<Track>>(), snapshot.sourceCandidatesByTrackId)
     }
 
     @Test
-    fun mergesTranslatedAliasesAcrossMetadataAndFeaturedSuffixes() {
+    fun translatedMetadataAliasesRequireCanonicalIdentityBeforeMerging() {
         val tracks = listOf(
             track(
                 1L,
@@ -239,13 +239,12 @@ class LibraryTrackMergePolicyTest {
 
         val snapshot = LibraryTrackMergePolicy.snapshot(tracks)
 
-        assertEquals(listOf(1L, 3L), snapshot.mergedTracks.map { it.id })
-        assertEquals(listOf(1L, 2L), snapshot.sourceCandidatesByTrackId[1L]?.map { it.id })
-        assertEquals(listOf(3L, 5L, 4L), snapshot.sourceCandidatesByTrackId[3L]?.map { it.id })
+        assertEquals(listOf(1L, 2L, 3L, 4L, 5L), snapshot.mergedTracks.map { it.id })
+        assertEquals(emptyMap<Long, List<Track>>(), snapshot.sourceCandidatesByTrackId)
     }
 
     @Test
-    fun mergesWeakAlbumAndSafeDurationDriftButKeepsVersionsAndIncompleteMetadataSeparate() {
+    fun metadataOnlyRowsRemainSeparateEvenWhenAlbumAndDurationAreCompatible() {
         val tracks = listOf(
                 track(1L, "Echo", "Artist", "Album", 180_000L, "/Music/echo.flac"),
                 track(2L, "Echo (Remix)", "Artist", "Album", 180_000L, "/Music/echo-remix.flac"),
@@ -264,19 +263,8 @@ class LibraryTrackMergePolicyTest {
             )
         val result = LibraryTrackMergePolicy.merge(tracks)
 
-        assertEquals(listOf(1L, 2L, 5L, 8L, 11L, 13L, 14L), result.map { it.id })
-        assertEquals(
-            listOf(1L, 3L, 4L, 6L, 7L),
-            LibraryTrackMergePolicy.sourceCandidatesFor(result.first(), tracks).map { it.id }
-        )
-        assertEquals(
-            listOf(2L, 9L, 12L),
-            LibraryTrackMergePolicy.sourceCandidatesFor(result[1], tracks).map { it.id }
-        )
-        assertEquals(
-            listOf(8L, 10L),
-            LibraryTrackMergePolicy.sourceCandidatesFor(result[3], tracks).map { it.id }
-        )
+        assertEquals((1L..14L).toList(), result.map { it.id })
+        assertEquals(emptyMap<Long, List<Track>>(), LibraryTrackMergePolicy.sourceCandidateIndex(tracks))
     }
 
     @Test

@@ -246,7 +246,7 @@ class StreamingViewModelTest {
                         provider = StreamingProviderName.QQ_MUSIC,
                         title = "Echo",
                         artist = "Guest feat. Artist",
-                        durationMs = 214_500L,
+                        durationMs = 214_000L,
                         playbackCandidates = listOf(
                             StreamingPlaybackCandidate(
                                 provider = StreamingProviderName.QQ_MUSIC,
