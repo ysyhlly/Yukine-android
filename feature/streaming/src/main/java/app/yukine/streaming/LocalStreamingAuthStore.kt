@@ -37,7 +37,15 @@ interface StreamingLocalAuthStore {
 
     fun markSessionMaintenanceStarted(provider: StreamingProviderName, nowEpochMs: Long) = Unit
 
-    fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState = authState(provider)
+    fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState =
+        authState(provider)
+
+    fun markVerified(
+        provider: StreamingProviderName,
+        verifiedAtEpochMs: Long,
+        accountId: String?,
+        displayName: String?
+    ): StreamingAuthState = markVerified(provider, verifiedAtEpochMs)
 
     fun markPendingVerification(
         provider: StreamingProviderName,
@@ -64,6 +72,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         val storedCookie = preferences.getString(keyCookie(provider), null)
         val cookie = SecureSecretStore.decryptOrPlain(storedCookie)
         val displayName = preferences.getString(keyDisplayName(provider), null)
+        val accountId = preferences.getString(keyAccountId(provider), null)
         val hasCookie = !cookie.isNullOrBlank()
         val usableCookie = hasUsableCookie(provider, cookie)
         val decryptionFailed = SecureSecretStore.isVersionedCiphertext(storedCookie) && cookie == null
@@ -87,6 +96,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         return StreamingAuthState(
             kind = providerAuthKind(provider),
             connected = isConnected,
+            accountId = accountId?.takeIf { it.isNotBlank() },
             accountDisplayName = displayName?.takeIf { it.isNotBlank() },
             statusMessage = when {
                 credentialState == StreamingCredentialState.VALID -> "本地登录有效"
@@ -155,6 +165,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             .remove(keyConnected(provider))
             .remove(keyCookie(provider))
             .remove(keyDisplayName(provider))
+            .remove(keyAccountId(provider))
             .remove(keyCredentialState(provider))
             .remove(keyLastVerified(provider))
             .remove(keyLastMaintenanceAttempt(provider))
@@ -193,7 +204,15 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
         preferences.edit().putLong(keyLastMaintenanceAttempt(provider), nowEpochMs).apply()
     }
 
-    override fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState {
+    override fun markVerified(provider: StreamingProviderName, verifiedAtEpochMs: Long): StreamingAuthState =
+        markVerified(provider, verifiedAtEpochMs, null, null)
+
+    override fun markVerified(
+        provider: StreamingProviderName,
+        verifiedAtEpochMs: Long,
+        accountId: String?,
+        displayName: String?
+    ): StreamingAuthState {
         val cookie = cookieHeader(provider)
         if (!hasUsableCookie(provider, cookie)) {
             return markInvalid(provider, checkedAtEpochMs = verifiedAtEpochMs)
@@ -203,6 +222,10 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             .putString(keyCredentialState(provider), StreamingCredentialState.VALID.wireName)
             .putLong(keyLastVerified(provider), verifiedAtEpochMs)
             .remove(keyStatusMessage(provider))
+            .apply {
+                if (!accountId.isNullOrBlank()) putString(keyAccountId(provider), accountId.trim())
+                if (!displayName.isNullOrBlank()) putString(keyDisplayName(provider), displayName.trim())
+            }
             .commit()
         return authState(provider)
     }
@@ -274,6 +297,7 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
     private fun keyConnected(provider: StreamingProviderName) = "connected:${provider.wireName}"
     private fun keyCookie(provider: StreamingProviderName) = "cookie:${provider.wireName}"
     private fun keyDisplayName(provider: StreamingProviderName) = "display:${provider.wireName}"
+    private fun keyAccountId(provider: StreamingProviderName) = "account_id:${provider.wireName}"
     private fun keyCredentialState(provider: StreamingProviderName) = "credential_state:${provider.wireName}"
     private fun keyLastVerified(provider: StreamingProviderName) = "last_verified:${provider.wireName}"
     private fun keyLastMaintenanceAttempt(provider: StreamingProviderName) = "last_maintenance_attempt:${provider.wireName}"

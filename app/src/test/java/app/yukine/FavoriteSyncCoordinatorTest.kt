@@ -5,14 +5,9 @@ import app.yukine.model.Track
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 import java.io.IOException
-import java.util.Collections
-import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,26 +25,11 @@ class FavoriteSyncCoordinatorTest {
         fixture.coordinator.onLocalFavoriteChanged(fixture.library.track, true)
 
         assertEquals("recording:$canonicalId", fixture.repository.state.value.favorites.single().unifiedId)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun neteaseIncrementPropagatesToLocalAndQq() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertTrue(fixture.library.isFavorite(1L))
-        assertEquals(listOf(QQ to "qq-1"), fixture.providers.added)
-        assertEquals(FavoriteSyncStatus.SYNCED, fixture.mapping(QQ)?.status)
-    }
-
-    @Test
-    fun noCorrespondingSourceKeepsLocalFavoriteAndRecordsNoSource() = runTest {
+    fun remoteFavoritesMergeLocallyWithoutAnyProviderWrite() = runTest {
         val fixture = fixture(
             capabilities = listOf(source(NETEASE), target(QQ)),
             remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
@@ -58,328 +38,230 @@ class FavoriteSyncCoordinatorTest {
         fixture.coordinator.syncIncremental()
 
         assertTrue(fixture.library.isFavorite(1L))
-        assertEquals(FavoriteSyncStatus.NO_SOURCE, fixture.mapping(QQ)?.status)
-        assertTrue(fixture.providers.added.isEmpty())
+        assertEquals(1, fixture.library.importCount)
+        assertEquals(NETEASE, fixture.repository.state.value.mappings.single().provider)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun loggedOutTargetIsAuthRequiredWithoutBlockingLocalMerge() = runTest {
+    fun loginTriggeredSyncPullsOnlyTheAuthenticatedProvider() = runTest {
         val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ).copy(loggedIn = false, authorized = false)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1")))
+            capabilities = listOf(source(NETEASE), source(QQ)),
+            remote = mutableMapOf(
+                NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")),
+                QQ to mutableListOf(remoteTrack(QQ, "qq-1"))
+            ),
+            uniqueImports = true
         )
 
-        fixture.coordinator.syncIncremental()
+        fixture.coordinator.syncIncremental(QQ)
 
-        assertTrue(fixture.library.isFavorite(1L))
-        assertEquals(FavoriteSyncStatus.AUTH_REQUIRED, fixture.mapping(QQ)?.status)
-        assertTrue(fixture.providers.added.isEmpty())
+        assertEquals(setOf(QQ), fixture.repository.state.value.mappings.map { it.provider }.toSet())
+        assertEquals(1, fixture.library.importCount)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun readOnlyTargetIsRecordedSeparately() = runTest {
+    fun repeatedSnapshotIsIdempotent() = runTest {
         val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ).copy(canAddFavorite = false)),
+            capabilities = listOf(source(NETEASE)),
             remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertEquals(FavoriteSyncStatus.READ_ONLY, fixture.mapping(QQ)?.status)
-        assertTrue(fixture.providers.added.isEmpty())
-    }
-
-    @Test
-    fun repeatedIncrementIsIdempotent() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
         )
 
         fixture.coordinator.syncIncremental()
         fixture.coordinator.syncIncremental()
 
         assertEquals(1, fixture.library.importCount)
-        assertEquals(1, fixture.providers.added.count { it.first == QQ })
         assertEquals(1, fixture.repository.state.value.favorites.size)
+        assertEquals(1, fixture.repository.state.value.mappings.size)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
     fun largeRemoteLibraryIsMergedCompletelyInOneSync() = runTest {
-        val tracks = (1..40).map { index -> remoteTrack(NETEASE, "netease-$index") }.toMutableList()
+        val tracks = (1..40).map { remoteTrack(NETEASE, "netease-$it") }.toMutableList()
         val fixture = fixture(
             capabilities = listOf(source(NETEASE)),
-            remote = mutableMapOf(NETEASE to tracks)
+            remote = mutableMapOf(NETEASE to tracks),
+            uniqueImports = true
         )
 
         fixture.coordinator.syncIncremental()
 
         assertEquals(40, fixture.library.importCount)
         assertEquals(40, fixture.repository.state.value.cursors.single().seenProviderTrackIds.size)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun oneSyncWritesEveryMatchedFavoriteWithoutProviderBudgetDeferral() = runTest {
-        val neteaseTracks = (1..20).map { index ->
-            remoteTrack(NETEASE, "netease-$index").copy(
-                title = "歌曲 $index",
-                isrc = "TEST-ISRC-$index"
-            )
-        }.toMutableList()
-        val qqTracks = (1..20).map { index ->
-            remoteTrack(QQ, "qq-$index").copy(
-                title = "歌曲 $index",
-                isrc = "TEST-ISRC-$index"
+    fun unionRemovesLocalOnlyAfterEverySourceIsMissingTwice() = runTest {
+        val remote = mutableMapOf(
+            NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")),
+            QQ to mutableListOf(remoteTrack(QQ, "qq-1"))
+        )
+        val fixture = fixture(
+            capabilities = listOf(source(NETEASE), source(QQ)),
+            remote = remote
+        )
+        fixture.coordinator.syncIncremental()
+        assertEquals(2, fixture.repository.state.value.mappings.size)
+
+        remote.getValue(NETEASE).clear()
+        fixture.coordinator.syncIncremental()
+        fixture.coordinator.syncIncremental()
+
+        assertFalse(fixture.mapping(NETEASE)!!.active)
+        assertTrue(fixture.mapping(QQ)!!.active)
+        assertTrue(fixture.library.isFavorite(1L))
+
+        remote.getValue(QQ).clear()
+        fixture.coordinator.syncIncremental()
+        assertTrue(fixture.library.isFavorite(1L))
+        fixture.coordinator.syncIncremental()
+
+        assertFalse(fixture.mapping(QQ)!!.active)
+        assertFalse(fixture.library.isFavorite(1L))
+        fixture.assertNoRemoteWrites()
+    }
+
+    @Test
+    fun localOwnedFavoriteSurvivesAllRemoteSourcesDisappearing() = runTest {
+        val remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        val fixture = fixture(listOf(source(NETEASE)), remote)
+        fixture.coordinator.syncIncremental()
+        fixture.coordinator.onLocalFavoriteChanged(fixture.library.track, true)
+
+        remote.getValue(NETEASE).clear()
+        fixture.coordinator.syncIncremental()
+        fixture.coordinator.syncIncremental()
+
+        assertFalse(fixture.mapping(NETEASE)!!.active)
+        assertTrue(fixture.repository.state.value.favorites.single().localOwned)
+        assertTrue(fixture.library.isFavorite(1L))
+        fixture.assertNoRemoteWrites()
+    }
+
+    @Test
+    fun localRemovalIsRestoredWhenRemoteSourceStillContainsTrack() = runTest {
+        val fixture = fixture(
+            capabilities = listOf(source(NETEASE)),
+            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        )
+        fixture.coordinator.syncIncremental()
+        fixture.library.setFavorite(fixture.library.track, false)
+        fixture.coordinator.onLocalFavoriteChanged(fixture.library.track, false)
+        assertFalse(fixture.library.isFavorite(1L))
+
+        fixture.coordinator.syncIncremental()
+
+        assertTrue(fixture.library.isFavorite(1L))
+        fixture.assertNoRemoteWrites()
+    }
+
+    @Test
+    fun firstSnapshotIsOnlyABaselineAndCannotDeleteLegacyMapping() = runTest {
+        val capability = source(NETEASE)
+        val fixture = fixture(listOf(capability))
+        fixture.library.setFavorite(fixture.library.track, true)
+        fixture.repository.update {
+            it.copy(
+                favorites = listOf(unified(localOwned = false)),
+                mappings = listOf(mapping(capability, "netease-legacy"))
             )
         }
+
+        fixture.coordinator.syncIncremental()
+
+        val mapping = fixture.mapping(NETEASE)!!
+        assertTrue(mapping.active)
+        assertEquals(0, mapping.consecutiveMissing)
+        assertTrue(fixture.library.isFavorite(1L))
+    }
+
+    @Test
+    fun missingStableAccountIdAllowsAdditionsButNeverDeletion() = runTest {
+        val capability = source(NETEASE, accountId = "")
+        val remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        val fixture = fixture(listOf(capability), remote)
+        fixture.coordinator.syncIncremental()
+
+        remote.getValue(NETEASE).clear()
+        repeat(3) { fixture.coordinator.syncIncremental() }
+
+        assertTrue(fixture.mapping(NETEASE)!!.active)
+        assertTrue(fixture.library.isFavorite(1L))
+    }
+
+    @Test
+    fun accountSwitchFreezesPreviousAccountMembership() = runTest {
+        val remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        val fixture = fixture(listOf(source(NETEASE, "account-a")), remote)
+        fixture.coordinator.syncIncremental()
+
+        fixture.providers.providerCapabilities = listOf(source(NETEASE, "account-b"))
+        remote.getValue(NETEASE).clear()
+        repeat(3) { fixture.coordinator.syncIncremental() }
+
+        val oldMapping = fixture.repository.state.value.mappings.single { it.accountId == "account-a" }
+        assertTrue(oldMapping.active)
+        assertTrue(fixture.library.isFavorite(1L))
+    }
+
+    @Test
+    fun incompleteSnapshotCannotIncreaseMissingCount() = runTest {
+        val remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        val fixture = fixture(listOf(source(NETEASE)), remote)
+        fixture.coordinator.syncIncremental()
+        remote.getValue(NETEASE).clear()
+        fixture.providers.completeSnapshots[NETEASE] = false
+
+        repeat(3) { fixture.coordinator.syncIncremental() }
+
+        assertEquals(0, fixture.mapping(NETEASE)!!.consecutiveMissing)
+        assertTrue(fixture.library.isFavorite(1L))
+    }
+
+    @Test
+    fun providerFailureDoesNotBecomeAnEmptySnapshot() = runTest {
+        val remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")))
+        val fixture = fixture(listOf(source(NETEASE)), remote)
+        fixture.coordinator.syncIncremental()
+        remote.getValue(NETEASE).clear()
+        fixture.providers.failingPulls += NETEASE
+
+        repeat(3) { fixture.coordinator.syncIncremental() }
+
+        assertEquals(0, fixture.mapping(NETEASE)!!.consecutiveMissing)
+        assertTrue(fixture.library.isFavorite(1L))
+        assertTrue(fixture.coordinator.dashboard.value.failureCount > 0)
+    }
+
+    @Test
+    fun uncertainCrossProviderTracksRemainSeparateFavorites() = runTest {
         val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to neteaseTracks),
-            search = mutableMapOf(QQ to qqTracks),
-            confirmedProviderMatchesByRecording = (1..20).associate { index ->
-                (100L + index to QQ) to "qq-$index"
-            },
+            capabilities = listOf(source(NETEASE), source(QQ)),
+            remote = mutableMapOf(
+                NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1").copy(isrc = null)),
+                QQ to mutableListOf(
+                    remoteTrack(QQ, "qq-1").copy(
+                        artist = "另一位歌手",
+                        durationMs = 230_000L,
+                        isrc = null
+                    )
+                )
+            ),
             uniqueImports = true
         )
 
         fixture.coordinator.syncIncremental()
 
-        assertEquals(20, fixture.library.importCount)
-        assertEquals(20, fixture.providers.added.size)
-        assertTrue(fixture.repository.state.value.operations.all { it.status == FavoriteSyncStatus.SYNCED })
+        assertEquals(2, fixture.repository.state.value.favorites.size)
+        assertEquals(2, fixture.repository.state.value.mappings.size)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun confirmedFavoriteBatchUsesBoundedParallelProviderWrites() = runTest {
-        val count = 8
-        val neteaseTracks = (1..count).map { index ->
-            remoteTrack(NETEASE, "netease-$index").copy(
-                title = "歌曲 $index",
-                isrc = "BATCH-ISRC-$index"
-            )
-        }.toMutableList()
-        val qqTracks = (1..count).map { index ->
-            remoteTrack(QQ, "qq-$index").copy(
-                title = "歌曲 $index",
-                isrc = "BATCH-ISRC-$index"
-            )
-        }
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to neteaseTracks),
-            search = mutableMapOf(QQ to qqTracks),
-            confirmedProviderMatchesByRecording = (1..count).associate { index ->
-                (100L + index to QQ) to "qq-$index"
-            },
-            uniqueImports = true,
-            addDelayMs = 100L
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertEquals(count, fixture.providers.added.size)
-        assertTrue(fixture.providers.maxConcurrentAdds.get() > 1)
-        assertTrue(fixture.providers.maxConcurrentAdds.get() <= 4)
-    }
-
-    @Test
-    fun confirmedCanonicalProviderSourceSkipsNetworkSearch() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-search"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-confirmed")
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertEquals(listOf(QQ to "qq-confirmed"), fixture.providers.added)
-        assertEquals(0, fixture.providers.searchCalls[QQ] ?: 0)
-    }
-
-    @Test
-    fun previouslySyncedLegacyMappingIsRevalidatedAgainstCanonicalSource() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(target(QQ)),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-search")))
-        )
-        fixture.repository.update { state ->
-            state.copy(
-                mappings = listOf(
-                    ProviderFavoriteMapping(
-                        unifiedId = "legacy-favorite",
-                        provider = QQ,
-                        providerTrackId = "qq-legacy",
-                        status = FavoriteSyncStatus.SYNCED,
-                        confidence = 0.99f,
-                        recordingId = 1L
-                    )
-                )
-            )
-        }
-
-        fixture.coordinator.onLocalFavoriteChanged(fixture.library.track, true)
-
-        assertTrue(fixture.providers.added.isEmpty())
-        assertEquals(0, fixture.providers.searchCalls[QQ] ?: 0)
-        assertEquals(FavoriteSyncStatus.NEEDS_CONFIRMATION, fixture.mapping(QQ)?.status)
-        assertEquals("qq-legacy", fixture.repository.state.value.conflicts.single().candidateProviderTrackId)
-        assertEquals(FavoriteRecordSyncState.NEEDS_CONFIRMATION, fixture.library.syncState(1L))
-    }
-
-    @Test
-    fun searchAndLegacyMatchCannotBypassCanonicalConfirmation() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-isrc"))),
-            storedMatches = mapOf(QQ to "qq-stale")
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertTrue(fixture.providers.added.isEmpty())
-        assertEquals(0, fixture.providers.searchCalls[QQ] ?: 0)
-        assertEquals(FavoriteSyncStatus.NEEDS_CONFIRMATION, fixture.mapping(QQ)?.status)
-        assertEquals("qq-stale", fixture.repository.state.value.conflicts.single().candidateProviderTrackId)
-    }
-
-    @Test
-    fun targetAcknowledgementPreventsProviderLoop() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), source(QQ).copy(canAddFavorite = true, canRemoveFavorite = true)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        assertEquals(1, fixture.library.importCount)
-        assertEquals(listOf(QQ to "qq-1"), fixture.providers.added)
-        assertFalse(fixture.providers.added.any { it.first == NETEASE })
-    }
-
-    @Test
-    fun explicitLocalRemovalPropagatesWhenEnabled() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(target(QQ)),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
-        )
-        val local = fixture.library.track
-
-        fixture.coordinator.onLocalFavoriteChanged(local, true)
-        fixture.repository.update {
-            it.copy(preferences = it.preferences.copy(propagateRemovals = true))
-        }
-        fixture.coordinator.onLocalFavoriteChanged(local, false)
-
-        assertEquals(listOf(QQ to "qq-1"), fixture.providers.removed)
-        assertEquals(false, fixture.repository.state.value.favorites.single().active)
-        assertEquals(false, fixture.mapping(QQ)?.active)
-    }
-
-    @Test
-    fun remoteRemovalPropagatesToLocalAndOtherProvider() = runTest {
-        val remote = mutableMapOf(
-            NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1")),
-            QQ to mutableListOf<StreamingTrack>()
-        )
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), source(QQ).copy(canAddFavorite = true, canRemoveFavorite = true)),
-            remote = remote,
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
-        )
-        fixture.coordinator.syncIncremental()
-        remote.getValue(NETEASE).clear()
-
-        fixture.coordinator.syncIncremental()
-
-        assertFalse(fixture.library.isFavorite(1L))
-        assertEquals(listOf(QQ to "qq-1"), fixture.providers.removed)
-        assertEquals(false, fixture.mapping(NETEASE)?.active)
-        assertEquals(false, fixture.mapping(QQ)?.active)
-    }
-
-    @Test
-    fun providerFailurePreservesFavoritesAndUnsupportedTargetIsSkipped() = runTest {
-        val unsupportedProvider = StreamingProviderName.BILIBILI
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ), target(unsupportedProvider)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(
-                QQ to listOf(remoteTrack(QQ, "qq-1")),
-                unsupportedProvider to listOf(remoteTrack(unsupportedProvider, "unsupported-1"))
-            ),
-            confirmedProviderMatches = mapOf(
-                QQ to "qq-1",
-                unsupportedProvider to "unsupported-1"
-            ),
-            failingAdds = setOf(QQ)
-        )
-        fixture.library.addExistingFavorite()
-
-        fixture.coordinator.syncIncremental()
-
-        assertEquals(FavoriteSyncStatus.RETRYABLE_ERROR, fixture.mapping(QQ)?.status)
-        assertNull(fixture.mapping(unsupportedProvider))
-        assertTrue(fixture.library.isFavorite(99L))
-        assertTrue(fixture.library.isFavorite(1L))
-        assertNotNull(fixture.repository.state.value.favorites.singleOrNull { it.localTrackId == 1L })
-        assertEquals(FavoriteRecordSyncState.RETRY, fixture.library.syncState(1L))
-    }
-
-    @Test
-    fun legacyCandidateNeverWritesEvenWhenConfirmationPreferenceIsDisabled() = runTest {
-        val lowConfidence = remoteTrack(QQ, "qq-low").copy(
-            artist = "Different Artist",
-            album = "Different Album",
-            durationMs = 240_000L,
-            isrc = null
-        )
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
-            search = mutableMapOf(QQ to listOf(lowConfidence)),
-            storedMatches = mapOf(QQ to "qq-low")
-        )
-        fixture.repository.update {
-            it.copy(preferences = it.preferences.copy(confirmLowConfidence = false))
-        }
-
-        fixture.coordinator.syncIncremental()
-
-        assertTrue(fixture.providers.added.isEmpty())
-        assertEquals(0, fixture.providers.searchCalls[QQ] ?: 0)
-        assertEquals(FavoriteSyncStatus.NEEDS_CONFIRMATION, fixture.mapping(QQ)?.status)
-        assertEquals(1, fixture.repository.state.value.conflicts.size)
-        assertEquals(FavoriteRecordSyncState.NEEDS_CONFIRMATION, fixture.library.syncState(1L))
-    }
-
-    @Test
-    fun unmatchedProviderFavoriteRemainsInPendingImportQueue() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(NETEASE)),
-            remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "pending-1"))),
-            failImportAttempts = 1
-        )
-
-        fixture.coordinator.syncIncremental()
-
-        val pending = fixture.repository.state.value.pendingImports.single()
-        assertEquals(NETEASE, pending.provider)
-        assertEquals("pending-1", pending.providerTrackId)
-        assertEquals(1, pending.attemptCount)
-        assertTrue(fixture.coordinator.dashboard.value.pendingCount > 0)
-    }
-
-    @Test
-    fun pendingProviderFavoriteRetriesBeforeCursorAdvances() = runTest {
+    fun pendingRemoteImportRetriesBeforeCursorAdvances() = runTest {
         val fixture = fixture(
             capabilities = listOf(source(NETEASE)),
             remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "retry-1"))),
@@ -398,131 +280,82 @@ class FavoriteSyncCoordinatorTest {
     }
 
     @Test
-    fun localLuoxueFavoriteMapsToCanonicalRecordingAndPropagatesToWritableAccountProvider() = runTest {
-        val fixture = fixture(
-            capabilities = listOf(source(LUOXUE), target(QQ)),
-            search = mutableMapOf(QQ to listOf(remoteTrack(QQ, "qq-1"))),
-            confirmedProviderMatches = mapOf(QQ to "qq-1")
-        )
-        val lxTrack = Track(
-            1L,
-            "夜空",
-            "歌手",
-            "专辑",
-            180_000L,
-            Uri.EMPTY,
-            "streaming:luoxue:kw:lx-1"
-        )
-
-        fixture.coordinator.onLocalFavoriteChanged(lxTrack, true)
-
-        assertEquals(1L, fixture.mapping(LUOXUE)?.recordingId)
-        assertEquals("kw:lx-1", fixture.mapping(LUOXUE)?.providerTrackId)
-        assertEquals(listOf(QQ to "qq-1"), fixture.providers.added)
-    }
-
-    @Test
-    fun canonicalRekeyRewritesPendingOperationIdWithoutDuplication() = runTest {
-        val fixture = fixture(capabilities = emptyList(), canonicalId = "stable-uuid")
-        fixture.repository.update { state ->
-            state.copy(
-                favorites = listOf(
-                    UnifiedFavorite(
-                        unifiedId = "meta:legacy",
-                        localTrackId = 1L,
-                        title = "夜空",
-                        artist = "歌手",
-                        album = "专辑",
-                        durationMs = 180_000L
-                    )
-                ),
+    fun legacyPendingWriteOperationIsPreservedButNeverRetried() = runTest {
+        val fixture = fixture(listOf(target(QQ)))
+        fixture.repository.update {
+            it.copy(
+                favorites = listOf(unified(localOwned = true)),
                 operations = listOf(
                     FavoriteSyncOperation(
-                        operationId = "ADD:meta:legacy:qqmusic",
-                        unifiedId = "meta:legacy",
+                        operationId = "ADD:recording-id:1:qqmusic",
+                        unifiedId = "recording-id:1",
                         action = FavoriteSyncAction.ADD,
                         targetProvider = QQ,
-                        batchId = "legacy"
+                        batchId = "legacy",
+                        recordingId = 1L
                     )
                 )
             )
         }
 
-        fixture.coordinator.onLocalFavoriteChanged(fixture.library.track, true)
+        fixture.coordinator.syncIncremental()
 
-        val operation = fixture.repository.state.value.operations.single()
-        assertEquals(1L, operation.recordingId)
-        assertEquals("ADD:recording-id:1:qqmusic", operation.operationId)
+        assertEquals(FavoriteSyncStatus.PENDING, fixture.repository.state.value.operations.single().status)
+        fixture.assertNoRemoteWrites()
     }
 
     @Test
-    fun canonicalReconcilerRepairsPersistedFavoriteReferencesIdempotently() {
+    fun headlessRunnerCloseDoesNotUnbindForegroundFavoriteEvents() {
+        val eventBus = FavoriteSyncEventBus()
+        var received = 0
+        eventBus.bind { _, _ -> received++ }
+        val fixture = fixture(capabilities = emptyList(), eventBus = eventBus)
+
+        fixture.coordinator.close()
+        eventBus.publish(fixture.library.track, true)
+
+        assertEquals(1, received)
+    }
+
+    @Test
+    fun canonicalReconcilerKeepsMembershipsFromDifferentSources() {
         val fixture = fixture(capabilities = emptyList(), canonicalId = "current-uuid")
         fixture.repository.update { state ->
             state.copy(
-                favorites = listOf(
-                    UnifiedFavorite(
-                        unifiedId = "recording:stale-uuid",
-                        localTrackId = 1L,
-                        title = "夜空",
-                        artist = "歌手",
-                        album = "专辑",
-                        durationMs = 180_000L,
-                        recordingId = 99L,
-                        canonicalUuid = "stale-uuid"
-                    )
-                ),
-                operations = listOf(
-                    FavoriteSyncOperation(
-                        operationId = "ADD:recording-id:99:qqmusic",
-                        unifiedId = "recording:stale-uuid",
-                        action = FavoriteSyncAction.ADD,
-                        targetProvider = QQ,
-                        batchId = "old",
-                        recordingId = 99L
-                    )
+                favorites = listOf(unified().copy(unifiedId = "recording:stale", recordingId = 99L)),
+                mappings = listOf(
+                    mapping(source(NETEASE, "account-a"), "netease-1")
+                        .copy(unifiedId = "recording:stale", recordingId = 99L),
+                    mapping(source(NETEASE, "account-b"), "netease-1")
+                        .copy(unifiedId = "recording:stale", recordingId = 99L)
                 )
             )
         }
+
         val reconciler = FavoriteSyncCanonicalReconciler(fixture.repository, fixture.library)
 
         assertEquals(1, reconciler.reconcile())
-        assertEquals(0, reconciler.reconcile())
-        val favorite = fixture.repository.state.value.favorites.single()
-        assertEquals(1L, favorite.recordingId)
-        assertEquals("recording:current-uuid", favorite.unifiedId)
-        assertEquals("ADD:recording-id:1:qqmusic", fixture.repository.state.value.operations.single().operationId)
+        assertEquals(2, fixture.repository.state.value.mappings.size)
+        assertEquals(setOf("account-a", "account-b"), fixture.repository.state.value.mappings.map { it.accountId }.toSet())
     }
 
     private fun fixture(
         capabilities: List<ProviderCapability>,
         remote: MutableMap<StreamingProviderName, MutableList<StreamingTrack>> = mutableMapOf(),
-        search: MutableMap<StreamingProviderName, List<StreamingTrack>> = mutableMapOf(),
-        failingAdds: Set<StreamingProviderName> = emptySet(),
-        storedMatches: Map<StreamingProviderName, String> = emptyMap(),
-        confirmedProviderMatches: Map<StreamingProviderName, String> = emptyMap(),
-        confirmedProviderMatchesByRecording: Map<Pair<Long, StreamingProviderName>, String> = emptyMap(),
         canonicalId: String? = null,
         failImportAttempts: Int = 0,
         uniqueImports: Boolean = false,
-        addDelayMs: Long = 0L
+        eventBus: FavoriteSyncEventBus = FavoriteSyncEventBus()
     ): Fixture {
         val repository = InMemoryFavoriteSyncRepository()
-        val providers = FakeProviderAdapter(capabilities, remote, search, failingAdds, addDelayMs)
-        val library = FakeLibrary(
-            canonicalId,
-            failImportAttempts,
-            confirmedProviderMatches,
-            confirmedProviderMatchesByRecording,
-            uniqueImports
-        )
-        val matchOperations = FakeMatchOperations(storedMatches)
+        val providers = FakeProviderAdapter(capabilities, remote)
+        val library = FakeLibrary(canonicalId, failImportAttempts, uniqueImports)
         val coordinator = FavoriteSyncCoordinator(
             repository = repository,
             providers = providers,
             library = library,
-            trackMatches = StreamingTrackMatchUseCase(matchOperations),
-            eventBus = FavoriteSyncEventBus(),
+            trackMatches = StreamingTrackMatchUseCase(FakeMatchOperations()),
+            eventBus = eventBus,
             clockMs = { 1_000L }
         )
         return Fixture(repository, providers, library, coordinator)
@@ -536,22 +369,21 @@ class FavoriteSyncCoordinatorTest {
     ) {
         fun mapping(provider: StreamingProviderName): ProviderFavoriteMapping? =
             repository.state.value.mappings.firstOrNull { it.provider == provider }
+
+        fun assertNoRemoteWrites() {
+            assertTrue(providers.added.isEmpty())
+            assertTrue(providers.removed.isEmpty())
+        }
     }
 
     private class FakeProviderAdapter(
-        private val providerCapabilities: List<ProviderCapability>,
-        private val remote: MutableMap<StreamingProviderName, MutableList<StreamingTrack>>,
-        private val searchResults: MutableMap<StreamingProviderName, List<StreamingTrack>>,
-        private val failingAdds: Set<StreamingProviderName>,
-        private val addDelayMs: Long
+        var providerCapabilities: List<ProviderCapability>,
+        private val remote: MutableMap<StreamingProviderName, MutableList<StreamingTrack>>
     ) : FavoriteProviderAdapter {
-        val added: MutableList<Pair<StreamingProviderName, String>> =
-            Collections.synchronizedList(mutableListOf())
-        val removed: MutableList<Pair<StreamingProviderName, String>> =
-            Collections.synchronizedList(mutableListOf())
-        val searchCalls = mutableMapOf<StreamingProviderName, Int>()
-        val maxConcurrentAdds = AtomicInteger()
-        private val activeAdds = AtomicInteger()
+        val added = mutableListOf<Pair<StreamingProviderName, String>>()
+        val removed = mutableListOf<Pair<StreamingProviderName, String>>()
+        val completeSnapshots = mutableMapOf<StreamingProviderName, Boolean>()
+        val failingPulls = mutableSetOf<StreamingProviderName>()
 
         override suspend fun capabilities(): List<ProviderCapability> = providerCapabilities
 
@@ -559,57 +391,40 @@ class FavoriteSyncCoordinatorTest {
             provider: StreamingProviderName,
             cursor: FavoriteSyncCursor?
         ): FavoritePullDelta {
+            if (provider in failingPulls) throw IOException("temporary $provider failure")
             val all = remote[provider].orEmpty()
-            val unseen = all.filterNot { it.providerTrackId in cursor?.seenProviderTrackIds.orEmpty() }
             val observed = all.map { it.providerTrackId }.toSet()
             return FavoritePullDelta(
-                unseen,
-                "cursor-${all.size}",
-                observed,
-                cursor?.seenProviderTrackIds.orEmpty() - observed
+                added = all.filterNot { it.providerTrackId in cursor?.seenProviderTrackIds.orEmpty() },
+                cursor = "cursor-${all.size}",
+                observedProviderTrackIds = observed,
+                removedProviderTrackIds = cursor?.seenProviderTrackIds.orEmpty() - observed,
+                completeSnapshot = completeSnapshots[provider] ?: true
             )
         }
 
         override suspend fun addFavorite(provider: StreamingProviderName, providerTrackId: String) {
-            val concurrent = activeAdds.incrementAndGet()
-            maxConcurrentAdds.updateAndGet { current -> maxOf(current, concurrent) }
-            try {
-                if (addDelayMs > 0L) delay(addDelayMs)
-                if (provider in failingAdds) throw IOException("temporary $provider failure")
-                added += provider to providerTrackId
-                val matched = searchResults[provider].orEmpty().firstOrNull { it.providerTrackId == providerTrackId }
-                if (matched != null) synchronized(remote) {
-                    if (remote.getOrPut(provider) { mutableListOf() }.none { it.providerTrackId == providerTrackId }) {
-                        remote.getValue(provider) += matched
-                    }
-                }
-            } finally {
-                activeAdds.decrementAndGet()
-            }
+            added += provider to providerTrackId
         }
 
         override suspend fun removeFavorite(provider: StreamingProviderName, providerTrackId: String) {
             removed += provider to providerTrackId
-            remote[provider]?.removeAll { it.providerTrackId == providerTrackId }
         }
 
-        override suspend fun search(provider: StreamingProviderName, track: UnifiedFavorite): List<StreamingTrack> {
-            searchCalls[provider] = (searchCalls[provider] ?: 0) + 1
-            return searchResults[provider].orEmpty()
-        }
+        override suspend fun search(
+            provider: StreamingProviderName,
+            track: UnifiedFavorite
+        ): List<StreamingTrack> = emptyList()
     }
 
     private class FakeLibrary(
         private val canonicalId: String? = null,
         failImportAttempts: Int = 0,
-        private val confirmedProviderMatches: Map<StreamingProviderName, String> = emptyMap(),
-        private val confirmedProviderMatchesByRecording: Map<Pair<Long, StreamingProviderName>, String> = emptyMap(),
         private val uniqueImports: Boolean = false
     ) : UnifiedFavoriteLibrary {
         val track = Track(1L, "夜空", "歌手", "专辑", 180_000L, Uri.EMPTY, "source.flac")
         private val tracks = linkedMapOf<Long, Track>(track.id to track)
         private val favorites = linkedSetOf<Long>()
-        private val syncStates = mutableMapOf<Long, String>()
         var importCount = 0
             private set
         private var remainingImportFailures = failImportAttempts
@@ -655,10 +470,6 @@ class FavoriteSyncCoordinatorTest {
         @Synchronized
         override fun recordingId(localTrackId: Long): Long = if (localTrackId in tracks) localTrackId else 0L
 
-        override fun confirmedProviderTrackId(recordingId: Long, provider: StreamingProviderName): String =
-            confirmedProviderMatchesByRecording[recordingId to provider]
-                ?: confirmedProviderMatches[provider].orEmpty()
-
         override fun confirmDirectProviderSource(
             localTrackId: Long,
             provider: StreamingProviderName,
@@ -667,40 +478,25 @@ class FavoriteSyncCoordinatorTest {
 
         @Synchronized
         override fun favoriteTracks(): List<Track> = tracks.values.filter { it.id in favorites }
-
-        @Synchronized
-        override fun updateFavoriteSyncState(recordingId: Long, syncState: String) {
-            syncStates[recordingId] = syncState
-        }
-
-        fun syncState(recordingId: Long): String? = syncStates[recordingId]
-
-        fun addExistingFavorite() {
-            val existing = Track(99L, "已收藏", "歌手", "专辑", 200_000L, Uri.EMPTY, "existing.flac")
-            tracks[existing.id] = existing
-            favorites += existing.id
-        }
     }
 
-    private class FakeMatchOperations(storedMatches: Map<StreamingProviderName, String>) : StreamingTrackMatchOperations {
-        private val matches = storedMatches.mapKeys { (provider, _) -> "1:${provider.wireName}" }.toMutableMap()
-
-        override fun loadStreamingTrackMatch(track: Track, provider: String): String =
-            matches["${track.id}:$provider"].orEmpty()
-
-        override fun saveStreamingTrackMatch(track: Track, provider: String, providerTrackId: String) {
-            matches["${track.id}:$provider"] = providerTrackId
-        }
+    private class FakeMatchOperations : StreamingTrackMatchOperations {
+        override fun loadStreamingTrackMatch(track: Track, provider: String): String = ""
+        override fun saveStreamingTrackMatch(track: Track, provider: String, providerTrackId: String) = Unit
     }
 
-    private fun source(provider: StreamingProviderName) = ProviderCapability(
+    private fun source(
+        provider: StreamingProviderName,
+        accountId: String = "${provider.wireName}-account"
+    ) = ProviderCapability(
         provider = provider,
         displayName = provider.wireName,
         enabled = true,
         loggedIn = true,
         canPullFavorites = true,
         canAddFavorite = false,
-        canRemoveFavorite = false
+        canRemoveFavorite = false,
+        accountId = accountId
     )
 
     private fun target(provider: StreamingProviderName) = ProviderCapability(
@@ -710,7 +506,33 @@ class FavoriteSyncCoordinatorTest {
         loggedIn = true,
         canPullFavorites = false,
         canAddFavorite = true,
-        canRemoveFavorite = true
+        canRemoveFavorite = true,
+        accountId = "${provider.wireName}-account"
+    )
+
+    private fun unified(localOwned: Boolean = false) = UnifiedFavorite(
+        unifiedId = "recording-id:1",
+        localTrackId = 1L,
+        title = "夜空",
+        artist = "歌手",
+        album = "专辑",
+        durationMs = 180_000L,
+        recordingId = 1L,
+        localOwned = localOwned
+    )
+
+    private fun mapping(
+        capability: ProviderCapability,
+        providerTrackId: String
+    ) = ProviderFavoriteMapping(
+        unifiedId = "recording-id:1",
+        provider = capability.provider,
+        providerTrackId = providerTrackId,
+        status = FavoriteSyncStatus.SYNCED,
+        confidence = 1f,
+        recordingId = 1L,
+        sourceKey = favoriteSourceKey(capability.provider, capability.accountId, "liked"),
+        accountId = capability.accountId
     )
 
     private fun remoteTrack(provider: StreamingProviderName, id: String) = StreamingTrack(
@@ -726,7 +548,5 @@ class FavoriteSyncCoordinatorTest {
     private companion object {
         val NETEASE = StreamingProviderName.NETEASE
         val QQ = StreamingProviderName.QQ_MUSIC
-        val KUGOU = StreamingProviderName.KUGOU
-        val LUOXUE = StreamingProviderName.LUOXUE
     }
 }

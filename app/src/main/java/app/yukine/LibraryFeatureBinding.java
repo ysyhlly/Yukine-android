@@ -131,6 +131,7 @@ final class LibraryFeatureBinding {
                 store
         );
         this.favoriteSyncRuntime = new FavoriteSyncRuntimeOwner(
+                activity,
                 activity.getLifecycle(),
                 favoriteSyncCoordinator,
                 viewModels.getFavoriteSyncViewModel(),
@@ -148,6 +149,10 @@ final class LibraryFeatureBinding {
 
     LibraryCollectionsOwner collectionsOwner() {
         return collectionsOwner;
+    }
+
+    void syncFavoriteProvider(app.yukine.streaming.StreamingProviderName provider) {
+        favoriteSyncCoordinator.requestProviderSync(provider);
     }
 
     LibraryImportOwner importOwner() {

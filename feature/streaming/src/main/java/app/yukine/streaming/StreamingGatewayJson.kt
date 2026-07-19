@@ -475,6 +475,7 @@ internal object StreamingGatewayJson {
         return StreamingAuthState(
             kind = authKind(value.optString("kind")) ?: catalogAuth?.kind ?: StreamingAuthKind.REMOTE_GATEWAY,
             connected = value.optBoolean("connected", false),
+            accountId = value.optionalString("accountId"),
             accountDisplayName = value.optionalString("accountDisplayName"),
             accountUsername = value.optionalString("accountUsername"),
             accountAvatarUrl = value.optionalString("accountAvatarUrl"),
@@ -970,6 +971,7 @@ internal object StreamingGatewayJson {
         return JSONObject()
             .put("kind", state.kind.wireName)
             .put("connected", state.connected)
+            .put("accountId", state.accountId)
             .put("accountDisplayName", state.accountDisplayName)
             .put("accountUsername", state.accountUsername)
             .put("accountAvatarUrl", state.accountAvatarUrl)

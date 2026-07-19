@@ -65,7 +65,8 @@ internal data class UnifiedFavorite(
     val lastBatchId: String = "",
     val updatedAtMs: Long = 0L,
     val recordingId: Long = 0L,
-    val canonicalUuid: String = ""
+    val canonicalUuid: String = "",
+    val localOwned: Boolean = false
 )
 
 internal data class ProviderFavoriteMapping(
@@ -78,14 +79,22 @@ internal data class ProviderFavoriteMapping(
     val errorMessage: String = "",
     val updatedAtMs: Long = 0L,
     val active: Boolean = true,
-    val recordingId: Long = 0L
+    val recordingId: Long = 0L,
+    val sourceKey: String = "",
+    val accountId: String = "",
+    val collectionId: String = "liked",
+    val consecutiveMissing: Int = 0
 )
 
 internal data class FavoriteSyncCursor(
     val provider: StreamingProviderName,
     val cursor: String = "",
     val seenProviderTrackIds: Set<String> = emptySet(),
-    val lastSyncAtMs: Long = 0L
+    val lastSyncAtMs: Long = 0L,
+    val sourceKey: String = "",
+    val accountId: String = "",
+    val collectionId: String = "liked",
+    val baselineEstablished: Boolean = false
 )
 
 internal data class FavoriteSyncOperation(
@@ -143,7 +152,44 @@ internal data class ProviderCapability(
     val authorized: Boolean = loggedIn,
     val canPullFavorites: Boolean,
     val canAddFavorite: Boolean,
-    val canRemoveFavorite: Boolean
+    val canRemoveFavorite: Boolean,
+    val accountId: String = "",
+    val canListCollections: Boolean = false,
+    val statusMessage: String = ""
+)
+
+internal data class FavoriteSyncSource(
+    val key: String,
+    val provider: StreamingProviderName,
+    val accountId: String,
+    val collectionId: String,
+    val displayName: String,
+    val implicitLiked: Boolean,
+    val deletionSafe: Boolean = accountId.isNotBlank()
+)
+
+internal fun favoriteSourceKey(
+    provider: StreamingProviderName,
+    accountId: String,
+    collectionId: String
+): String = listOf(
+    provider.wireName,
+    accountId.trim().ifBlank { "unknown" },
+    collectionId.trim().ifBlank { "liked" }
+).joinToString(":")
+
+internal data class FavoriteSyncSourceRecord(
+    val sourceKey: String,
+    val provider: StreamingProviderName,
+    val providerName: String,
+    val sourceName: String,
+    val accountId: String = "",
+    val collectionId: String = "",
+    val selected: Boolean = false,
+    val supported: Boolean = false,
+    val loggedIn: Boolean = false,
+    val statusText: String = "",
+    val lastSyncAtMs: Long = 0L
 )
 
 internal data class FavoriteSyncStoreState(
@@ -154,6 +200,7 @@ internal data class FavoriteSyncStoreState(
     val conflicts: List<FavoriteSyncConflict> = emptyList(),
     val pendingImports: List<PendingProviderFavorite> = emptyList(),
     val logs: List<FavoriteSyncTaskLog> = emptyList(),
+    val sources: List<FavoriteSyncSourceRecord> = emptyList(),
     val preferences: FavoriteSyncPreferences = FavoriteSyncPreferences(),
     val lastSyncAtMs: Long = 0L
 )
@@ -208,7 +255,9 @@ internal class FavoriteSyncCanonicalReconciler(
                     replacement(mapping.recordingId, mapping.unifiedId)?.let { new ->
                         mapping.copy(unifiedId = new.unifiedId, recordingId = new.recordingId)
                     } ?: mapping
-                }.groupBy { "${it.provider.wireName}:${favoriteIdentityKey(it.recordingId, it.unifiedId)}" }
+                }.groupBy {
+                    "${it.provider.wireName}:${it.sourceKey}:${favoriteIdentityKey(it.recordingId, it.unifiedId)}"
+                }
                     .values.map { values -> values.maxBy { it.updatedAtMs } },
                 operations = state.operations.map { operation ->
                     replacement(operation.recordingId, operation.unifiedId)?.let { new ->
@@ -256,12 +305,29 @@ internal data class FavoritePullDelta(
     val added: List<StreamingTrack>,
     val cursor: String = "",
     val observedProviderTrackIds: Set<String> = emptySet(),
-    val removedProviderTrackIds: Set<String> = emptySet()
+    val removedProviderTrackIds: Set<String> = emptySet(),
+    val completeSnapshot: Boolean = true
 )
 
 internal interface FavoriteProviderAdapter {
     suspend fun capabilities(): List<ProviderCapability>
     suspend fun pullFavoriteDelta(provider: StreamingProviderName, cursor: FavoriteSyncCursor?): FavoritePullDelta
+    suspend fun sources(capability: ProviderCapability): List<FavoriteSyncSource> {
+        if (!capability.canPullFavorites) return emptyList()
+        val accountId = capability.accountId
+        return listOf(
+            FavoriteSyncSource(
+                key = favoriteSourceKey(capability.provider, accountId, "liked"),
+                provider = capability.provider,
+                accountId = accountId,
+                collectionId = "liked",
+                displayName = "我喜欢",
+                implicitLiked = true
+            )
+        )
+    }
+    suspend fun pullFavoriteDelta(source: FavoriteSyncSource, cursor: FavoriteSyncCursor?): FavoritePullDelta =
+        pullFavoriteDelta(source.provider, cursor)
     suspend fun addFavorite(provider: StreamingProviderName, providerTrackId: String)
     suspend fun removeFavorite(provider: StreamingProviderName, providerTrackId: String)
     suspend fun search(provider: StreamingProviderName, track: UnifiedFavorite): List<StreamingTrack>
@@ -338,6 +404,7 @@ internal class FavoriteSyncCoordinator(
     override val dashboard: StateFlow<FavoriteSyncDashboard> = mutableDashboard.asStateFlow()
     private var refreshLibrary: Runnable? = null
     private var activeJob: Job? = null
+    private var eventBusBound = false
     private val boundedSyncParallelism = syncParallelism.coerceIn(1, 8)
 
     fun start(refreshLibrary: Runnable? = null) {
@@ -345,12 +412,27 @@ internal class FavoriteSyncCoordinator(
         eventBus.bind { track, favorite ->
             scope.launch { onLocalFavoriteChanged(track, favorite) }
         }
+        eventBusBound = true
         refreshDashboard(false)
         scope.launch {
             syncMutex.withLock {
                 canonicalReconciler?.reconcile()
                 library.favoriteTracks().forEach { track ->
-                    upsertLocalFavorite(track, true, "bootstrap")
+                    val existing = findUnified(track, null)
+                    val hasRemoteSource = existing != null && repository.state.value.mappings.any {
+                        it.active && sameFavoriteIdentity(
+                            it.recordingId,
+                            it.unifiedId,
+                            existing.recordingId,
+                            existing.unifiedId
+                        )
+                    }
+                    upsertLocalFavorite(
+                        track,
+                        favorite = true,
+                        batchId = "bootstrap",
+                        localOwned = existing?.localOwned ?: !hasRemoteSource
+                    )
                 }
                 library.flushConfirmedSources()
                 refreshDashboard(false)
@@ -363,13 +445,20 @@ internal class FavoriteSyncCoordinator(
         activeJob = scope.launch { syncIncremental() }
     }
 
+    fun requestProviderSync(provider: StreamingProviderName) {
+        if (activeJob?.isActive == true) return
+        activeJob = scope.launch { syncIncremental(provider) }
+    }
+
     fun reconcileCanonicalState(): Int {
         val changed = canonicalReconciler?.reconcile() ?: 0
         if (changed > 0) refreshDashboard(false)
         return changed
     }
 
-    suspend fun syncIncremental(): FavoriteSyncDashboard = syncMutex.withLock {
+    suspend fun syncIncremental(
+        onlyProvider: StreamingProviderName? = null
+    ): FavoriteSyncDashboard = syncMutex.withLock {
         canonicalReconciler?.reconcile()
         repository.beginBatch()
         try {
@@ -384,22 +473,41 @@ internal class FavoriteSyncCoordinator(
                 appendLog(batchId, null, safeSyncMessage(error.message.orEmpty()), FavoriteSyncStatus.RETRYABLE_ERROR)
                 return@withLock finishSync()
             }
-            for (capability in capabilities.filter { it.enabled && it.canPullFavorites }) {
-                if (!capability.loggedIn || !capability.authorized) {
-                    appendLog(batchId, capability.provider, "Authentication required", FavoriteSyncStatus.AUTH_REQUIRED)
+            for (capability in capabilities.filter { onlyProvider == null || it.provider == onlyProvider }) {
+                val discovered = when {
+                    !capability.enabled -> emptyList()
+                    !capability.loggedIn || !capability.authorized -> emptyList()
+                    else -> runCatching { providers.sources(capability) }
+                        .onFailure { error ->
+                            appendLog(
+                                batchId,
+                                capability.provider,
+                                safeSyncMessage(error.message.orEmpty()),
+                                error.syncFailureStatus()
+                            )
+                        }
+                        .getOrDefault(emptyList())
+                }
+                publishSources(capability, discovered)
+                if (!capability.enabled || !capability.loggedIn || !capability.authorized) {
+                    if (capability.enabled && (capability.canPullFavorites || capability.canListCollections)) {
+                        appendLog(batchId, capability.provider, "Authentication required", FavoriteSyncStatus.AUTH_REQUIRED)
+                    }
                     continue
                 }
-                runCatching { pullProviderIncrement(capability, capabilities, batchId) }
-                    .onFailure { error ->
-                        appendLog(
-                            batchId,
-                            capability.provider,
-                            safeSyncMessage(error.message.orEmpty()),
-                            error.syncFailureStatus()
-                        )
-                    }
+                for (source in discovered.filter(::sourceSelected)) {
+                    runCatching { pullProviderIncrement(source, capability, batchId) }
+                        .onFailure { error ->
+                            updateSourceStatus(source.key, safeSyncMessage(error.message.orEmpty()), clockMs())
+                            appendLog(
+                                batchId,
+                                capability.provider,
+                                safeSyncMessage(error.message.orEmpty()),
+                                error.syncFailureStatus()
+                            )
+                        }
+                }
             }
-            retryPendingOperations(capabilities, batchId)
             finishSync()
         } finally {
             library.flushConfirmedSources()
@@ -409,24 +517,18 @@ internal class FavoriteSyncCoordinator(
 
     suspend fun onLocalFavoriteChanged(track: Track, favorite: Boolean) = syncMutex.withLock {
         val batchId = batchId()
-        val unified = upsertLocalFavorite(track, favorite, batchId)
+        val unified = upsertLocalFavorite(track, favorite, batchId, localOwned = favorite)
         library.flushConfirmedSources()
-        if (favorite) {
-            library.updateFavoriteSyncState(unified.recordingId, FavoriteRecordSyncState.PENDING)
-        }
-        if (!favorite && !repository.state.value.preferences.propagateRemovals) {
-            appendLog(batchId, null, "Local removal retained without remote propagation", FavoriteSyncStatus.SYNCED)
-            refreshLibrary?.run()
-            refreshDashboard(false)
-            return@withLock
-        }
-        val capabilities = runCatching { providers.capabilities() }.getOrElse { emptyList() }
-        propagate(
-            unified,
-            if (favorite) FavoriteSyncAction.ADD else FavoriteSyncAction.REMOVE,
-            unified.sourceProvider,
-            capabilities,
-            batchId
+        library.updateFavoriteSyncState(
+            unified.recordingId,
+            if (favorite) FavoriteRecordSyncState.LOCAL_ONLY else FavoriteRecordSyncState.SYNCED
+        )
+        appendLog(
+            batchId,
+            null,
+            if (favorite) "Local favorite retained as a protected source"
+            else "Local favorite removed without writing to remote providers",
+            FavoriteSyncStatus.SYNCED
         )
         refreshFavoriteSyncState(unified, if (favorite) FavoriteSyncAction.ADD else FavoriteSyncAction.REMOVE)
         refreshLibrary?.run()
@@ -435,46 +537,157 @@ internal class FavoriteSyncCoordinator(
 
     override fun updatePreferences(transform: (FavoriteSyncPreferences) -> FavoriteSyncPreferences) {
         repository.update { state ->
-            state.copy(preferences = transform(state.preferences).copy(confirmLowConfidence = true))
+            state.copy(
+                preferences = transform(state.preferences).copy(
+                    mode = FavoriteSyncMode.REMOTE_TO_LOCAL,
+                    confirmLowConfidence = true
+                )
+            )
         }
         refreshDashboard(activeJob?.isActive == true)
     }
 
+    override fun setSourceEnabled(sourceKey: String, enabled: Boolean) {
+        val key = sourceKey.trim()
+        if (key.isBlank()) return
+        repository.update { state ->
+            val selected = if (enabled) {
+                state.preferences.selectedSourceKeys + key
+            } else {
+                state.preferences.selectedSourceKeys - key
+            }
+            state.copy(
+                preferences = state.preferences.copy(selectedSourceKeys = selected),
+                sources = state.sources.map {
+                    if (it.sourceKey == key) it.copy(selected = enabled) else it
+                }
+            )
+        }
+        refreshDashboard(activeJob?.isActive == true)
+    }
+
+    override fun clearSource(sourceKey: String) {
+        val key = sourceKey.trim()
+        if (key.isBlank()) return
+        scope.launch {
+            syncMutex.withLock {
+                val state = repository.state.value
+                val removedMappings = state.mappings.filter { it.sourceKey == key }
+                repository.update { current ->
+                    current.copy(
+                        mappings = current.mappings.filterNot { it.sourceKey == key },
+                        cursors = current.cursors.filterNot { it.sourceKey == key },
+                        sources = current.sources.filterNot { it.sourceKey == key },
+                        preferences = current.preferences.copy(
+                            selectedSourceKeys = current.preferences.selectedSourceKeys - key
+                        )
+                    )
+                }
+                removedMappings
+                    .distinctBy { favoriteIdentityKey(it.recordingId, it.unifiedId) }
+                    .forEach(::removeLocalFavoriteWhenUnreferenced)
+                refreshLibrary?.run()
+                refreshDashboard(false)
+            }
+        }
+    }
+
     fun close() {
-        eventBus.unbind()
+        if (eventBusBound) {
+            eventBus.unbind()
+            eventBusBound = false
+        }
         activeJob?.cancel()
         scope.cancel()
     }
 
     private suspend fun pullProviderIncrement(
+        source: FavoriteSyncSource,
         capability: ProviderCapability,
-        allCapabilities: List<ProviderCapability>,
         batchId: String
     ) {
-        val cursor = repository.state.value.cursors.firstOrNull { it.provider == capability.provider }
-        val delta = providers.pullFavoriteDelta(capability.provider, cursor)
-        val removals = delta.removedProviderTrackIds
+        val cursor = repository.state.value.cursors.firstOrNull {
+            it.sourceKey == source.key ||
+                (it.sourceKey.isBlank() && it.provider == source.provider && source.implicitLiked)
+        }
+        val delta = providers.pullFavoriteDelta(source, cursor)
         val additions = delta.added
         forEachConcurrent(additions) { track ->
-            ingestExternalFavorite(track, allCapabilities, batchId)
+            ingestExternalFavorite(track, source, batchId)
         }
-        if (repository.state.value.preferences.propagateRemovals) {
-            forEachConcurrent(removals.toList()) { providerTrackId ->
-                ingestExternalRemoval(capability.provider, providerTrackId, allCapabilities, batchId)
+        val observed = delta.observedProviderTrackIds
+        repository.state.value.mappings
+            .filter {
+                it.provider == source.provider &&
+                    (it.sourceKey == source.key || (it.sourceKey.isBlank() && source.implicitLiked))
             }
-        }
+            .forEach { mapping ->
+                if (mapping.providerTrackId in observed) {
+                    repository.state.value.favorites.firstOrNull {
+                        sameFavoriteIdentity(
+                            it.recordingId,
+                            it.unifiedId,
+                            mapping.recordingId,
+                            mapping.unifiedId
+                        )
+                    }?.let { unified ->
+                        library.localTrack(unified.localTrackId)?.let { localTrack ->
+                            if (!library.isFavorite(localTrack.id)) {
+                                library.setFavorite(localTrack, true)
+                            }
+                            if (!unified.active) {
+                                upsertUnified(unified.copy(active = true, updatedAtMs = clockMs()))
+                            }
+                        }
+                    }
+                    upsertMapping(
+                        mapping.copy(
+                            sourceKey = source.key,
+                            accountId = source.accountId,
+                            collectionId = source.collectionId,
+                            consecutiveMissing = 0,
+                            active = true,
+                            updatedAtMs = clockMs()
+                        )
+                    )
+                } else if (
+                    cursor?.baselineEstablished == true &&
+                    delta.completeSnapshot &&
+                    source.deletionSafe &&
+                    repository.state.value.preferences.propagateRemovals
+                ) {
+                    val missing = mapping.copy(
+                        sourceKey = source.key,
+                        accountId = source.accountId,
+                        collectionId = source.collectionId,
+                        consecutiveMissing = mapping.consecutiveMissing + 1,
+                        lastBatchId = batchId,
+                        updatedAtMs = clockMs()
+                    )
+                    if (missing.consecutiveMissing >= REQUIRED_MISSING_OBSERVATIONS) {
+                        ingestExternalRemoval(missing, batchId)
+                    } else {
+                        upsertMapping(missing)
+                    }
+                }
+            }
         upsertCursor(
             FavoriteSyncCursor(
-                provider = capability.provider,
+                provider = source.provider,
                 cursor = delta.cursor,
-                seenProviderTrackIds = delta.observedProviderTrackIds,
-                lastSyncAtMs = clockMs()
+                seenProviderTrackIds = observed,
+                lastSyncAtMs = clockMs(),
+                sourceKey = source.key,
+                accountId = source.accountId,
+                collectionId = source.collectionId,
+                baselineEstablished = true
             )
         )
+        updateSourceStatus(source.key, "已同步 ${observed.size} 首", clockMs())
         appendLog(
             batchId,
             capability.provider,
-            "Merged ${additions.size} new favorites and ${removals.size} removals",
+            "Merged ${additions.size} new favorites from ${source.displayName}",
             FavoriteSyncStatus.SYNCED
         )
     }
@@ -505,14 +718,32 @@ internal class FavoriteSyncCoordinator(
 
     private suspend fun ingestExternalFavorite(
         source: StreamingTrack,
-        capabilities: List<ProviderCapability>,
+        favoriteSource: FavoriteSyncSource,
         batchId: String
     ) {
         val existingMapping = repository.state.value.mappings.firstOrNull {
-            it.provider == source.provider && it.providerTrackId == source.providerTrackId
+            it.provider == source.provider &&
+                it.providerTrackId == source.providerTrackId &&
+                (it.sourceKey == favoriteSource.key || it.sourceKey.isBlank())
         }
         if (existingMapping?.active == true) {
-            acknowledge(source.provider, source.providerTrackId)
+            val existingUnified = repository.state.value.favorites.firstOrNull {
+                sameFavoriteIdentity(it.recordingId, it.unifiedId, existingMapping.recordingId, existingMapping.unifiedId)
+            }
+            val localTrack = existingUnified?.let { library.localTrack(it.localTrackId) }
+            if (existingUnified != null && localTrack != null && !library.isFavorite(localTrack.id)) {
+                library.setFavorite(localTrack, true)
+                upsertUnified(existingUnified.copy(active = true, updatedAtMs = clockMs()))
+            }
+            upsertMapping(
+                existingMapping.copy(
+                    sourceKey = favoriteSource.key,
+                    accountId = favoriteSource.accountId,
+                    collectionId = favoriteSource.collectionId,
+                    consecutiveMissing = 0,
+                    updatedAtMs = clockMs()
+                )
+            )
             return
         }
         if (existingMapping != null) {
@@ -534,11 +765,13 @@ internal class FavoriteSyncCoordinator(
                     unifiedId = reactivated.unifiedId,
                     recordingId = reactivated.recordingId,
                     active = true,
+                    sourceKey = favoriteSource.key,
+                    accountId = favoriteSource.accountId,
+                    collectionId = favoriteSource.collectionId,
+                    consecutiveMissing = 0,
                     lastBatchId = batchId,
                     updatedAtMs = clockMs()
                 ))
-                acknowledge(source.provider, source.providerTrackId)
-                propagate(reactivated, FavoriteSyncAction.ADD, source.provider, capabilities, batchId)
                 refreshFavoriteSyncState(reactivated, FavoriteSyncAction.ADD)
                 return
             }
@@ -559,7 +792,8 @@ internal class FavoriteSyncCoordinator(
             sourceProvider = source.provider,
             sourceProviderTrackId = source.providerTrackId,
             lastBatchId = batchId,
-            updatedAtMs = clockMs()
+            updatedAtMs = clockMs(),
+            localOwned = existing?.localOwned ?: false
         )
         if (unified.recordingId <= 0L) {
             upsertPendingImport(source, "Canonical recording is not available")
@@ -576,45 +810,36 @@ internal class FavoriteSyncCoordinator(
                 confidence = 1f,
                 lastBatchId = batchId,
                 updatedAtMs = clockMs(),
-                recordingId = unified.recordingId
+                recordingId = unified.recordingId,
+                sourceKey = favoriteSource.key,
+                accountId = favoriteSource.accountId,
+                collectionId = favoriteSource.collectionId
             )
         )
         trackMatches.saveProviderTrackId(localTrack, source.provider, source.providerTrackId)
-        acknowledge(source.provider, source.providerTrackId)
-        propagate(unified, FavoriteSyncAction.ADD, source.provider, capabilities, batchId)
         refreshFavoriteSyncState(unified, FavoriteSyncAction.ADD)
     }
 
-    private suspend fun ingestExternalRemoval(
-        sourceProvider: StreamingProviderName,
-        providerTrackId: String,
-        capabilities: List<ProviderCapability>,
+    private fun ingestExternalRemoval(
+        sourceMapping: ProviderFavoriteMapping,
         batchId: String
     ) {
-        val sourceMapping = repository.state.value.mappings.firstOrNull {
-            it.provider == sourceProvider && it.providerTrackId == providerTrackId && it.active
-        } ?: return
         val unified = repository.state.value.favorites.firstOrNull {
             sameFavoriteIdentity(it.recordingId, it.unifiedId, sourceMapping.recordingId, sourceMapping.unifiedId)
         } ?: return
-        val inactive = unified.copy(
-            active = false,
-            sourceProvider = sourceProvider,
-            sourceProviderTrackId = providerTrackId,
-            lastBatchId = batchId,
-            updatedAtMs = clockMs()
+        upsertMapping(
+            sourceMapping.copy(
+                active = false,
+                consecutiveMissing = REQUIRED_MISSING_OBSERVATIONS,
+                lastBatchId = batchId,
+                updatedAtMs = clockMs()
+            )
         )
-        upsertUnified(inactive)
-        upsertMapping(sourceMapping.copy(active = false, lastBatchId = batchId, updatedAtMs = clockMs()))
-        library.localTrack(unified.localTrackId)?.let { localTrack ->
-            if (library.isFavorite(localTrack.id)) {
-                library.setFavorite(localTrack, false)
-            }
-        }
-        propagate(inactive, FavoriteSyncAction.REMOVE, sourceProvider, capabilities, batchId)
+        removeLocalFavoriteWhenUnreferenced(sourceMapping)
     }
 
     private suspend fun retryPendingOperations(capabilities: List<ProviderCapability>, batchId: String) {
+        if (repository.state.value.preferences.mode == FavoriteSyncMode.REMOTE_TO_LOCAL) return
         val retryable = repository.state.value.operations.filter {
             it.batchId != batchId && when (it.status) {
                 FavoriteSyncStatus.PENDING, FavoriteSyncStatus.AUTH_REQUIRED -> true
@@ -638,6 +863,7 @@ internal class FavoriteSyncCoordinator(
         capabilities: List<ProviderCapability>,
         batchId: String
     ) {
+        if (repository.state.value.preferences.mode == FavoriteSyncMode.REMOTE_TO_LOCAL) return
         if (unified.recordingId <= 0L) {
             library.updateFavoriteSyncState(unified.recordingId, FavoriteRecordSyncState.PENDING)
             return
@@ -771,7 +997,12 @@ internal class FavoriteSyncCoordinator(
         )
     }
 
-    private fun upsertLocalFavorite(track: Track, favorite: Boolean, batchId: String): UnifiedFavorite {
+    private fun upsertLocalFavorite(
+        track: Track,
+        favorite: Boolean,
+        batchId: String,
+        localOwned: Boolean = favorite
+    ): UnifiedFavorite {
         val existing = findUnified(track, null)
         val provider = StreamingDataPathMetadata.provider(track.dataPath)
         val providerTrackId = StreamingDataPathMetadata.providerTrackId(track.dataPath)
@@ -781,7 +1012,8 @@ internal class FavoriteSyncCoordinator(
             sourceProviderTrackId = providerTrackId.takeIf { it.isNotBlank() }
                 ?: existing?.sourceProviderTrackId,
             lastBatchId = batchId,
-            updatedAtMs = clockMs()
+            updatedAtMs = clockMs(),
+            localOwned = localOwned
         )
         upsertUnified(unified)
         if (provider != null && providerTrackId.isNotBlank() && unified.recordingId > 0L) {
@@ -941,13 +1173,17 @@ internal class FavoriteSyncCoordinator(
     private fun upsertMapping(value: ProviderFavoriteMapping) {
         repository.update { state ->
             state.copy(mappings = state.mappings.upsertBy({
-                "${favoriteIdentityKey(it.recordingId, it.unifiedId)}:${it.provider.wireName}"
+                "${favoriteIdentityKey(it.recordingId, it.unifiedId)}:${it.provider.wireName}:${it.sourceKey}"
             }, value))
         }
     }
 
     private fun upsertCursor(value: FavoriteSyncCursor) {
-        repository.update { state -> state.copy(cursors = state.cursors.upsertBy({ it.provider.wireName }, value)) }
+        repository.update { state ->
+            state.copy(cursors = state.cursors.upsertBy({
+                it.sourceKey.ifBlank { "${it.provider.wireName}:legacy" }
+            }, value))
+        }
     }
 
     private fun upsertOperation(value: FavoriteSyncOperation) {
@@ -1086,6 +1322,103 @@ internal class FavoriteSyncCoordinator(
         library.updateFavoriteSyncState(unified.recordingId, syncState)
     }
 
+    private fun sourceSelected(source: FavoriteSyncSource): Boolean =
+        source.implicitLiked || source.key in repository.state.value.preferences.selectedSourceKeys
+
+    private fun publishSources(
+        capability: ProviderCapability,
+        discovered: List<FavoriteSyncSource>
+    ) {
+        val previous = repository.state.value.sources.associateBy { it.sourceKey }
+        val records = if (discovered.isEmpty()) {
+            listOf(
+                FavoriteSyncSourceRecord(
+                    sourceKey = favoriteSourceKey(capability.provider, capability.accountId, "unavailable"),
+                    provider = capability.provider,
+                    providerName = capability.displayName,
+                    sourceName = "收藏来源",
+                    accountId = capability.accountId,
+                    collectionId = "unavailable",
+                    selected = false,
+                    supported = capability.canPullFavorites || capability.canListCollections,
+                    loggedIn = capability.loggedIn && capability.authorized,
+                    statusText = when {
+                        !capability.enabled -> "渠道未启用"
+                        !capability.loggedIn || !capability.authorized -> "需要登录"
+                        capability.statusMessage.isNotBlank() -> capability.statusMessage
+                        else -> "当前渠道暂不支持读取收藏"
+                    }
+                )
+            )
+        } else {
+            discovered.map { source ->
+                val old = previous[source.key]
+                FavoriteSyncSourceRecord(
+                    sourceKey = source.key,
+                    provider = source.provider,
+                    providerName = capability.displayName,
+                    sourceName = source.displayName,
+                    accountId = source.accountId,
+                    collectionId = source.collectionId,
+                    selected = sourceSelected(source),
+                    supported = true,
+                    loggedIn = capability.loggedIn && capability.authorized,
+                    statusText = old?.statusText?.takeIf { it.isNotBlank() } ?: "等待同步",
+                    lastSyncAtMs = old?.lastSyncAtMs ?: 0L
+                )
+            }
+        }
+        repository.update { state ->
+            val currentAccount = capability.accountId
+            state.copy(
+                sources = (
+                    state.sources.filterNot {
+                        it.provider == capability.provider &&
+                            (it.accountId == currentAccount || it.accountId.isBlank() || currentAccount.isBlank())
+                    } + records
+                ).distinctBy { it.sourceKey }
+            )
+        }
+        refreshDashboard(activeJob?.isActive == true)
+    }
+
+    private fun updateSourceStatus(sourceKey: String, message: String, atMs: Long) {
+        repository.update { state ->
+            state.copy(
+                sources = state.sources.map {
+                    if (it.sourceKey == sourceKey) {
+                        it.copy(statusText = message, lastSyncAtMs = atMs)
+                    } else it
+                }
+            )
+        }
+    }
+
+    private fun removeLocalFavoriteWhenUnreferenced(mapping: ProviderFavoriteMapping) {
+        val unified = repository.state.value.favorites.firstOrNull {
+            sameFavoriteIdentity(it.recordingId, it.unifiedId, mapping.recordingId, mapping.unifiedId)
+        } ?: return
+        val hasActiveRemoteSource = repository.state.value.mappings.any {
+            it.active && sameFavoriteIdentity(
+                it.recordingId,
+                it.unifiedId,
+                unified.recordingId,
+                unified.unifiedId
+            )
+        }
+        if (unified.localOwned || hasActiveRemoteSource) {
+            upsertUnified(unified.copy(active = true, updatedAtMs = clockMs()))
+            return
+        }
+        upsertUnified(unified.copy(active = false, updatedAtMs = clockMs()))
+        library.localTrack(unified.localTrackId)?.let { localTrack ->
+            if (library.isFavorite(localTrack.id)) {
+                library.setFavorite(localTrack, false)
+            }
+        }
+        library.updateFavoriteSyncState(unified.recordingId, FavoriteRecordSyncState.SYNCED)
+    }
+
     private fun appendLog(batchId: String, provider: StreamingProviderName?, message: String, status: FavoriteSyncStatus) {
         repository.update { state ->
             state.copy(
@@ -1109,12 +1442,29 @@ internal class FavoriteSyncCoordinator(
     private fun batchId(): String = "${clockMs()}-${UUID.randomUUID()}"
 
     private fun dashboard(state: FavoriteSyncStoreState, running: Boolean): FavoriteSyncDashboard {
-        val pending = state.pendingImports.size + state.operations.count {
-            it.status == FavoriteSyncStatus.PENDING || it.status == FavoriteSyncStatus.MATCHING ||
-                it.status == FavoriteSyncStatus.AUTH_REQUIRED || it.status == FavoriteSyncStatus.NEEDS_CONFIRMATION
+        val pending = state.pendingImports.size + state.conflicts.count {
+            it.status == FavoriteSyncStatus.NEEDS_CONFIRMATION
         }
-        val failures = state.operations.count { it.status == FavoriteSyncStatus.RETRYABLE_ERROR }
-        return FavoriteSyncDashboard(state.lastSyncAtMs, pending, failures, running, state.preferences)
+        val failures = state.logs.count { it.status == FavoriteSyncStatus.RETRYABLE_ERROR }
+        return FavoriteSyncDashboard(
+            state.lastSyncAtMs,
+            pending,
+            failures,
+            running,
+            state.preferences,
+            state.sources.map {
+                FavoriteSyncSourceStatus(
+                    sourceKey = it.sourceKey,
+                    providerName = it.providerName,
+                    sourceName = it.sourceName,
+                    selected = it.selected,
+                    supported = it.supported,
+                    loggedIn = it.loggedIn,
+                    statusText = it.statusText,
+                    lastSyncAtMs = it.lastSyncAtMs
+                )
+            }
+        )
     }
 
     private fun Throwable.syncFailureStatus(): FavoriteSyncStatus {
@@ -1134,6 +1484,10 @@ internal class FavoriteSyncCoordinator(
         .trim()
         .take(240)
         .ifBlank { "Favorite synchronization failed" }
+
+    private companion object {
+        const val REQUIRED_MISSING_OBSERVATIONS = 2
+    }
 
     private fun UnifiedFavorite.toTrack(): Track = Track(
         localTrackId,

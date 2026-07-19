@@ -213,9 +213,11 @@ class LocalQqMusicStreamingClient(
      * Validates the current QQ web session with an account endpoint. An empty playlist list is a
      * valid account result and therefore must not be interpreted as a logout.
      */
-    fun verifySession() {
+    fun verifySession(): String {
         val cookie = requireCookie()
-        createdPlaylists(uinFromCookie(cookie), cookie)
+        val uin = uinFromCookie(cookie)
+        createdPlaylists(uin, cookie)
+        return uin
     }
 
     fun userPlaylists(): List<StreamingPlaylist> {

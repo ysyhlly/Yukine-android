@@ -75,17 +75,13 @@ internal class MainActivityComposition @Inject constructor(
             deps.luoxueTrackMetadataResolver,
             deps.repository
         )
-        val favoriteSyncRepository = SharedPreferencesFavoriteSyncRepository(activity)
-        val favoriteSyncLibrary = MusicLibraryUnifiedFavoriteLibrary(deps.repository)
-        val favoriteSyncCoordinator = FavoriteSyncCoordinator(
-            favoriteSyncRepository,
-            StreamingFavoriteProviderAdapter(deps.streamingRepositorySource),
-            favoriteSyncLibrary,
-            deps.streamingTrackMatchUseCase,
+        val favoriteSyncCoordinator = FavoriteSyncRunner(
+            activity,
+            deps.repository,
+            deps.streamingRepositorySource,
             deps.favoriteSyncEventBus,
-            AndroidFavoriteSyncNetworkPolicy(activity),
-            FavoriteSyncCanonicalReconciler(favoriteSyncRepository, favoriteSyncLibrary)
-        )
+            deps.streamingTrackMatchUseCase
+        ).createCoordinator()
         val library = LibraryFeatureBinding(
             activity,
             viewModels,
@@ -155,7 +151,8 @@ internal class MainActivityComposition @Inject constructor(
             navigation,
             library.store(),
             viewModels.lyricsViewModel,
-            network::confirmClearQueue
+            network::confirmClearQueue,
+            library::syncFavoriteProvider
         )
         streaming.bindDialogs(
             library.collectionsOwner(),

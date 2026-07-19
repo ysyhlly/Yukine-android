@@ -22,7 +22,9 @@ import org.json.JSONObject
 internal class SharedPreferencesFavoriteSyncRepository(context: Context) : FavoriteSyncRepository {
     private val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val lock = Any()
-    private val mutableState = MutableStateFlow(decode(preferences.getString(KEY_STATE, null)))
+    private val mutableState = MutableStateFlow(
+        decode(preferences.getString(KEY_STATE, null) ?: preferences.getString(LEGACY_KEY_STATE, null))
+    )
     private var batchDepth = 0
     private var batchDirty = false
     override val state: StateFlow<FavoriteSyncStoreState> = mutableState.asStateFlow()
@@ -68,7 +70,9 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
             .put("wifiOnly", state.preferences.wifiOnly)
             .put("propagateRemovals", state.preferences.propagateRemovals)
             .put("confirmLowConfidence", state.preferences.confirmLowConfidence)
-            .put("intervalMinutes", state.preferences.intervalMinutes))
+            .put("intervalMinutes", state.preferences.intervalMinutes)
+            .put("mode", state.preferences.mode.name)
+            .put("selectedSourceKeys", JSONArray(state.preferences.selectedSourceKeys.toList())))
         .put("favorites", JSONArray(state.favorites.map { value -> JSONObject()
             .put("unifiedId", value.unifiedId).put("localTrackId", value.localTrackId)
             .put("recordingId", value.recordingId).put("canonicalUuid", value.canonicalUuid)
@@ -76,17 +80,24 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
             .put("durationMs", value.durationMs).put("isrc", value.isrc).put("active", value.active)
             .put("sourceProvider", value.sourceProvider?.wireName)
             .put("sourceProviderTrackId", value.sourceProviderTrackId)
-            .put("lastBatchId", value.lastBatchId).put("updatedAtMs", value.updatedAtMs) }))
+            .put("lastBatchId", value.lastBatchId).put("updatedAtMs", value.updatedAtMs)
+            .put("localOwned", value.localOwned) }))
         .put("mappings", JSONArray(state.mappings.map { value -> JSONObject()
             .put("unifiedId", value.unifiedId).put("provider", value.provider.wireName)
             .put("providerTrackId", value.providerTrackId).put("status", value.status.name)
             .put("confidence", value.confidence.toDouble()).put("lastBatchId", value.lastBatchId)
             .put("errorMessage", value.errorMessage).put("updatedAtMs", value.updatedAtMs)
-            .put("active", value.active).put("recordingId", value.recordingId) }))
+            .put("active", value.active).put("recordingId", value.recordingId)
+            .put("sourceKey", value.sourceKey).put("accountId", value.accountId)
+            .put("collectionId", value.collectionId)
+            .put("consecutiveMissing", value.consecutiveMissing) }))
         .put("cursors", JSONArray(state.cursors.map { value -> JSONObject()
             .put("provider", value.provider.wireName).put("cursor", value.cursor)
             .put("seenProviderTrackIds", JSONArray(value.seenProviderTrackIds.toList()))
-            .put("lastSyncAtMs", value.lastSyncAtMs) }))
+            .put("lastSyncAtMs", value.lastSyncAtMs)
+            .put("sourceKey", value.sourceKey).put("accountId", value.accountId)
+            .put("collectionId", value.collectionId)
+            .put("baselineEstablished", value.baselineEstablished) }))
         .put("operations", JSONArray(state.operations.map { value -> JSONObject()
             .put("operationId", value.operationId).put("unifiedId", value.unifiedId)
             .put("action", value.action.name).put("sourceProvider", value.sourceProvider?.wireName)
@@ -109,6 +120,13 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
             .put("batchId", value.batchId).put("provider", value.provider?.wireName)
             .put("message", value.message).put("status", value.status.name)
             .put("createdAtMs", value.createdAtMs) }))
+        .put("sources", JSONArray(state.sources.map { value -> JSONObject()
+            .put("sourceKey", value.sourceKey).put("provider", value.provider.wireName)
+            .put("providerName", value.providerName).put("sourceName", value.sourceName)
+            .put("accountId", value.accountId).put("collectionId", value.collectionId)
+            .put("selected", value.selected).put("supported", value.supported)
+            .put("loggedIn", value.loggedIn).put("statusText", value.statusText)
+            .put("lastSyncAtMs", value.lastSyncAtMs) }))
 
     private fun decode(raw: String?): FavoriteSyncStoreState {
         if (raw.isNullOrBlank()) return FavoriteSyncStoreState()
@@ -127,18 +145,31 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
                     recordingId = value.optLong("recordingId"),
                     canonicalUuid = value.optString("canonicalUuid").ifBlank {
                         value.optString("unifiedId").removePrefix("recording:")
-                    }) },
+                    },
+                    localOwned = value.optBoolean("localOwned", false)) },
                 mappings = root.objects("mappings").mapNotNull { value -> value.provider("provider")?.let { provider ->
                     ProviderFavoriteMapping(
                         unifiedId = value.optString("unifiedId"), provider = provider,
                         providerTrackId = value.optString("providerTrackId"), status = value.syncStatus(),
                         confidence = value.optDouble("confidence").toFloat(), lastBatchId = value.optString("lastBatchId"),
                         errorMessage = value.optString("errorMessage"), updatedAtMs = value.optLong("updatedAtMs"),
-                        active = value.optBoolean("active", true), recordingId = value.optLong("recordingId")
+                        active = value.optBoolean("active", true), recordingId = value.optLong("recordingId"),
+                        sourceKey = value.optString("sourceKey"),
+                        accountId = value.optString("accountId"),
+                        collectionId = value.optString("collectionId", "liked"),
+                        consecutiveMissing = value.optInt("consecutiveMissing")
                     ) } },
                 cursors = root.objects("cursors").mapNotNull { value -> value.provider("provider")?.let { provider ->
-                    FavoriteSyncCursor(provider, value.optString("cursor"), value.strings("seenProviderTrackIds").toSet(),
-                        value.optLong("lastSyncAtMs")) } },
+                    FavoriteSyncCursor(
+                        provider = provider,
+                        cursor = value.optString("cursor"),
+                        seenProviderTrackIds = value.strings("seenProviderTrackIds").toSet(),
+                        lastSyncAtMs = value.optLong("lastSyncAtMs"),
+                        sourceKey = value.optString("sourceKey"),
+                        accountId = value.optString("accountId"),
+                        collectionId = value.optString("collectionId", "liked"),
+                        baselineEstablished = value.optBoolean("baselineEstablished", storedVersion >= CURRENT_VERSION)
+                    ) } },
                 operations = root.objects("operations").mapNotNull { value -> value.provider("targetProvider")?.let { target ->
                     FavoriteSyncOperation(
                         operationId = value.optString("operationId"), unifiedId = value.optString("unifiedId"),
@@ -168,16 +199,33 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
                 },
                 logs = root.objects("logs").map { value -> FavoriteSyncTaskLog(value.optString("batchId"),
                     value.provider("provider"), value.optString("message"), value.syncStatus(), value.optLong("createdAtMs")) },
+                sources = root.objects("sources").mapNotNull { value ->
+                    value.provider("provider")?.let { provider -> FavoriteSyncSourceRecord(
+                        sourceKey = value.optString("sourceKey"),
+                        provider = provider,
+                        providerName = value.optString("providerName"),
+                        sourceName = value.optString("sourceName"),
+                        accountId = value.optString("accountId"),
+                        collectionId = value.optString("collectionId"),
+                        selected = value.optBoolean("selected"),
+                        supported = value.optBoolean("supported"),
+                        loggedIn = value.optBoolean("loggedIn"),
+                        statusText = value.optString("statusText"),
+                        lastSyncAtMs = value.optLong("lastSyncAtMs")
+                    ) }
+                },
                 preferences = FavoriteSyncPreferences(
                     autoSyncEnabled = if (storedVersion < 2) true
                         else preferenceJson.optBoolean("autoSyncEnabled", true),
                     syncOnForeground = preferenceJson.optBoolean("syncOnForeground", true),
-                    periodicSyncEnabled = preferenceJson.optBoolean("periodicSyncEnabled", true),
+                    periodicSyncEnabled = preferenceJson.optBoolean("periodicSyncEnabled", false),
                     wifiOnly = preferenceJson.optBoolean("wifiOnly", false),
                     propagateRemovals = if (storedVersion < 2) true
                         else preferenceJson.optBoolean("propagateRemovals", true),
                     confirmLowConfidence = true,
-                    intervalMinutes = preferenceJson.optInt("intervalMinutes", 30).coerceAtLeast(15)),
+                    intervalMinutes = preferenceJson.optInt("intervalMinutes", 30).coerceAtLeast(15),
+                    mode = FavoriteSyncMode.REMOTE_TO_LOCAL,
+                    selectedSourceKeys = preferenceJson.strings("selectedSourceKeys").toSet()),
                 lastSyncAtMs = root.optLong("lastSyncAtMs")
             )
         }.getOrDefault(FavoriteSyncStoreState())
@@ -185,8 +233,9 @@ internal class SharedPreferencesFavoriteSyncRepository(context: Context) : Favor
 
     private companion object {
         const val PREFS_NAME = "cross_provider_favorite_sync"
-        const val KEY_STATE = "state_v1"
-        const val CURRENT_VERSION = 3
+        const val KEY_STATE = "state_v2"
+        const val LEGACY_KEY_STATE = "state_v1"
+        const val CURRENT_VERSION = 4
     }
 }
 
@@ -210,14 +259,52 @@ internal class StreamingFavoriteProviderAdapter(
                 enabled = descriptor.enabled,
                 loggedIn = !descriptor.capabilities.supportsAuth || auth.connected,
                 authorized = !descriptor.capabilities.supportsAuth || auth.connected,
-                canPullFavorites = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
-                    capability.supportsFavoritesRead,
+                canPullFavorites = capability.supportsFavoritesRead,
                 canAddFavorite = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
                     capability.supportsFavoritesWrite,
                 canRemoveFavorite = ProviderRolePolicy.canSyncFavorites(descriptor.name.wireName) &&
-                    capability.supportsFavoritesWrite
+                    capability.supportsFavoritesWrite,
+                accountId = auth.accountId.orEmpty(),
+                canListCollections = capability.supportsPlaylistReadSync,
+                statusMessage = descriptor.statusMessage ?: auth.statusMessage.orEmpty()
             )
         }
+    }
+
+    override suspend fun sources(capability: ProviderCapability): List<FavoriteSyncSource> {
+        val result = ArrayList<FavoriteSyncSource>()
+        if (capability.canPullFavorites) {
+            result += FavoriteSyncSource(
+                key = favoriteSourceKey(capability.provider, capability.accountId, "liked"),
+                provider = capability.provider,
+                accountId = capability.accountId,
+                collectionId = "liked",
+                displayName = "我喜欢",
+                implicitLiked = true
+            )
+        }
+        if (capability.canListCollections && capability.loggedIn) {
+            val playlists = repository().userPlaylists(capability.provider)
+            if (!capability.canPullFavorites || capability.provider == StreamingProviderName.BILIBILI) {
+                result += playlists
+                    .filter { it.providerPlaylistId.isNotBlank() }
+                    .map { playlist ->
+                        FavoriteSyncSource(
+                            key = favoriteSourceKey(
+                                capability.provider,
+                                capability.accountId,
+                                playlist.providerPlaylistId
+                            ),
+                            provider = capability.provider,
+                            accountId = capability.accountId,
+                            collectionId = playlist.providerPlaylistId,
+                            displayName = playlist.title.ifBlank { "收藏夹" },
+                            implicitLiked = false
+                        )
+                    }
+            }
+        }
+        return result.distinctBy { it.key }
     }
 
     override suspend fun pullFavoriteDelta(
@@ -235,6 +322,40 @@ internal class StreamingFavoriteProviderAdapter(
         )
     }
 
+    override suspend fun pullFavoriteDelta(
+        source: FavoriteSyncSource,
+        cursor: FavoriteSyncCursor?
+    ): FavoritePullDelta {
+        if (source.implicitLiked) return pullFavoriteDelta(source.provider, cursor)
+        val tracks = ArrayList<StreamingTrack>()
+        var page = 1
+        var complete = false
+        while (page <= MAX_PLAYLIST_PAGES) {
+            val detail = repository().playlist(
+                provider = source.provider,
+                providerPlaylistId = source.collectionId,
+                page = page,
+                pageSize = PLAYLIST_PAGE_SIZE,
+                useCache = false
+            )
+            tracks += detail.tracks
+            if (!detail.hasMore) {
+                complete = true
+                break
+            }
+            page++
+        }
+        val current = tracks.distinctBy { it.providerTrackId }
+        val observed = current.mapTo(linkedSetOf()) { it.providerTrackId }
+        return FavoritePullDelta(
+            added = current.filterNot { it.providerTrackId in cursor?.seenProviderTrackIds.orEmpty() },
+            cursor = observed.sorted().joinToString("|").hashCode().toString(),
+            observedProviderTrackIds = observed,
+            removedProviderTrackIds = cursor?.seenProviderTrackIds.orEmpty() - observed,
+            completeSnapshot = complete
+        )
+    }
+
     override suspend fun addFavorite(provider: StreamingProviderName, providerTrackId: String) {
         repository().setUserTrackFavorite(provider, providerTrackId, true)
     }
@@ -247,6 +368,11 @@ internal class StreamingFavoriteProviderAdapter(
         val query = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" ")
         if (query.isBlank()) return emptyList()
         return repository().search(provider, query, setOf(StreamingMediaType.TRACK), pageSize = 10).tracks
+    }
+
+    private companion object {
+        const val PLAYLIST_PAGE_SIZE = 40
+        const val MAX_PLAYLIST_PAGES = 200
     }
 }
 

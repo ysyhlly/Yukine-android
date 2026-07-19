@@ -15,6 +15,7 @@ class EchoApplication : Application() {
         }
         CrashLogger.install(this)
         StreamingSessionMaintenanceScheduler.schedule(this)
+        FavoriteSyncBackgroundScheduler.restore(this)
         KugouPlaylistSyncScheduler.schedule(this)
         IdentityEnhancementScheduler.schedule(this)
         IdentityBackfillScheduler.scheduleAutomatic(this)

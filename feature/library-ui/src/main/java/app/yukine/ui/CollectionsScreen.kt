@@ -76,10 +76,21 @@ data class FavoriteSyncUiState(
     val running: Boolean = false,
     val autoSync: Boolean = false,
     val syncOnForeground: Boolean = true,
-    val periodicSync: Boolean = true,
+    val periodicSync: Boolean = false,
     val wifiOnly: Boolean = false,
     val propagateRemovals: Boolean = false,
-    val confirmLowConfidence: Boolean = true
+    val confirmLowConfidence: Boolean = true,
+    val sources: List<FavoriteSyncSourceUiState> = emptyList()
+)
+
+data class FavoriteSyncSourceUiState(
+    val sourceKey: String,
+    val providerName: String,
+    val sourceName: String,
+    val selected: Boolean,
+    val supported: Boolean,
+    val loggedIn: Boolean,
+    val statusText: String
 )
 
 data class FavoriteSyncActions(
@@ -89,7 +100,9 @@ data class FavoriteSyncActions(
     val onPeriodicChanged: (Boolean) -> Unit = {},
     val onWifiOnlyChanged: (Boolean) -> Unit = {},
     val onPropagateRemovalsChanged: (Boolean) -> Unit = {},
-    val onConfirmLowConfidenceChanged: (Boolean) -> Unit = {}
+    val onConfirmLowConfidenceChanged: (Boolean) -> Unit = {},
+    val onSourceChanged: (String, Boolean) -> Unit = { _, _ -> },
+    val onClearSource: (String) -> Unit = {}
 )
 
 data class CollectionsUiState(
@@ -304,11 +317,53 @@ private fun FavoriteSyncPanel(state: FavoriteSyncUiState, actions: FavoriteSyncA
             }
             FavoriteSyncSwitch("自动同步", state.autoSync, actions.onAutoSyncChanged)
             if (state.autoSync) {
-                FavoriteSyncSwitch("App 启动或回到前台时同步", state.syncOnForeground, actions.onForegroundChanged)
-                FavoriteSyncSwitch("定时增量同步", state.periodicSync, actions.onPeriodicChanged)
+                FavoriteSyncSwitch("回到前台且超过 30 分钟时同步", state.syncOnForeground, actions.onForegroundChanged)
+                FavoriteSyncSwitch("允许后台每 30 分钟同步", state.periodicSync, actions.onPeriodicChanged)
                 FavoriteSyncSwitch("仅 Wi-Fi", state.wifiOnly, actions.onWifiOnlyChanged)
-                FavoriteSyncSwitch("传播取消红心", state.propagateRemovals, actions.onPropagateRemovalsChanged)
+                FavoriteSyncSwitch("全部远端来源消失后取消本地收藏", state.propagateRemovals, actions.onPropagateRemovalsChanged)
                 FavoriteSyncSwitch("低置信度匹配要求确认", state.confirmLowConfidence, actions.onConfirmLowConfidenceChanged)
+            }
+            if (state.sources.isNotEmpty()) {
+                Text("收藏来源", color = colors.text, fontWeight = FontWeight.SemiBold)
+                state.sources.forEach { source ->
+                    FavoriteSyncSourceRow(source, actions)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteSyncSourceRow(source: FavoriteSyncSourceUiState, actions: FavoriteSyncActions) {
+    val colors = EchoTheme.colors()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "${source.providerName} · ${source.sourceName}",
+                color = colors.text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                source.statusText,
+                color = colors.muted,
+                fontSize = 12.sp
+            )
+        }
+        if (source.supported && source.loggedIn) {
+            val selectable = !source.sourceKey.endsWith(":liked")
+            Switch(
+                checked = source.selected,
+                enabled = selectable,
+                onCheckedChange = { actions.onSourceChanged(source.sourceKey, it) }
+            )
+            if (selectable) {
+                TextButton(onClick = { actions.onClearSource(source.sourceKey) }) {
+                    Text("清除")
+                }
             }
         }
     }

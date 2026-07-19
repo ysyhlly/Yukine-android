@@ -140,7 +140,8 @@ final class StreamingFeatureBinding {
             NavigationFeatureBinding navigation,
             LibraryDataStateOwner libraryStore,
             LyricsViewModel lyricsViewModel,
-            QueueClearQueueConfirmer clearQueueConfirmer
+            QueueClearQueueConfirmer clearQueueConfirmer,
+            java.util.function.Consumer<StreamingProviderName> favoriteSyncAfterLogin
     ) {
         this.playback = playback;
         this.navigation = navigation;
@@ -154,6 +155,7 @@ final class StreamingFeatureBinding {
                     if (playlistController != null) {
                         playlistController.onStreamingLoginSuccess(provider);
                     }
+                    favoriteSyncAfterLogin.accept(provider);
                 },
                 viewModel.authOwner()::selectProvider,
                 () -> {

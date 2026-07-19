@@ -17,6 +17,7 @@ import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoIconKind
 import app.yukine.ui.FavoriteSyncActions
+import app.yukine.ui.FavoriteSyncSourceUiState
 import app.yukine.ui.FavoriteSyncUiState
 import app.yukine.ui.PlaylistRowActions
 import app.yukine.ui.PlaylistRowUiState
@@ -391,7 +392,18 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 periodicSync = favoriteSync.preferences.periodicSyncEnabled,
                 wifiOnly = favoriteSync.preferences.wifiOnly,
                 propagateRemovals = favoriteSync.preferences.propagateRemovals,
-                confirmLowConfidence = favoriteSync.preferences.confirmLowConfidence
+                confirmLowConfidence = favoriteSync.preferences.confirmLowConfidence,
+                sources = favoriteSync.sources.map { source ->
+                    FavoriteSyncSourceUiState(
+                        sourceKey = source.sourceKey,
+                        providerName = source.providerName,
+                        sourceName = source.sourceName,
+                        selected = source.selected,
+                        supported = source.supported,
+                        loggedIn = source.loggedIn,
+                        statusText = source.statusText
+                    )
+                }
             )
         )
         val actions = CollectionsActions(
@@ -408,7 +420,11 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 onPeriodicChanged = { favoriteSyncViewModel?.setPeriodicSync(it) },
                 onWifiOnlyChanged = { favoriteSyncViewModel?.setWifiOnly(it) },
                 onPropagateRemovalsChanged = { favoriteSyncViewModel?.setPropagateRemovals(it) },
-                onConfirmLowConfidenceChanged = { favoriteSyncViewModel?.setConfirmLowConfidence(it) }
+                onConfirmLowConfidenceChanged = { favoriteSyncViewModel?.setConfirmLowConfidence(it) },
+                onSourceChanged = { sourceKey, enabled ->
+                    favoriteSyncViewModel?.setSourceEnabled(sourceKey, enabled)
+                },
+                onClearSource = { sourceKey -> favoriteSyncViewModel?.clearSource(sourceKey) }
             )
         )
         viewModel.updateScreenWithActions(state, actions)

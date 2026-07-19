@@ -11,11 +11,26 @@ import kotlinx.coroutines.launch
 data class FavoriteSyncPreferences(
     val autoSyncEnabled: Boolean = true,
     val syncOnForeground: Boolean = true,
-    val periodicSyncEnabled: Boolean = true,
+    val periodicSyncEnabled: Boolean = false,
     val wifiOnly: Boolean = false,
     val propagateRemovals: Boolean = true,
     val confirmLowConfidence: Boolean = true,
-    val intervalMinutes: Int = 30
+    val intervalMinutes: Int = 30,
+    val mode: FavoriteSyncMode = FavoriteSyncMode.REMOTE_TO_LOCAL,
+    val selectedSourceKeys: Set<String> = emptySet()
+)
+
+enum class FavoriteSyncMode { REMOTE_TO_LOCAL }
+
+data class FavoriteSyncSourceStatus(
+    val sourceKey: String,
+    val providerName: String,
+    val sourceName: String,
+    val selected: Boolean,
+    val supported: Boolean,
+    val loggedIn: Boolean,
+    val statusText: String,
+    val lastSyncAtMs: Long = 0L
 )
 
 data class FavoriteSyncDashboard(
@@ -23,13 +38,16 @@ data class FavoriteSyncDashboard(
     val pendingCount: Int = 0,
     val failureCount: Int = 0,
     val running: Boolean = false,
-    val preferences: FavoriteSyncPreferences = FavoriteSyncPreferences()
+    val preferences: FavoriteSyncPreferences = FavoriteSyncPreferences(),
+    val sources: List<FavoriteSyncSourceStatus> = emptyList()
 )
 
 interface FavoriteSyncController {
     val dashboard: StateFlow<FavoriteSyncDashboard>
     fun requestIncrementalSync()
     fun updatePreferences(transform: (FavoriteSyncPreferences) -> FavoriteSyncPreferences)
+    fun setSourceEnabled(sourceKey: String, enabled: Boolean)
+    fun clearSource(sourceKey: String)
 }
 
 class FavoriteSyncViewModel : ViewModel() {
@@ -54,6 +72,8 @@ class FavoriteSyncViewModel : ViewModel() {
     fun setWifiOnly(value: Boolean) = update { it.copy(wifiOnly = value) }
     fun setPropagateRemovals(value: Boolean) = update { it.copy(propagateRemovals = value) }
     fun setConfirmLowConfidence(value: Boolean) = update { it.copy(confirmLowConfidence = value) }
+    fun setSourceEnabled(sourceKey: String, enabled: Boolean) = controller?.setSourceEnabled(sourceKey, enabled)
+    fun clearSource(sourceKey: String) = controller?.clearSource(sourceKey)
 
     private fun update(transform: (FavoriteSyncPreferences) -> FavoriteSyncPreferences) {
         controller?.updatePreferences(transform)

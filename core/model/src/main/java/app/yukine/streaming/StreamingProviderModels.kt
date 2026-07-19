@@ -27,6 +27,7 @@ data class StreamingProviderCapabilities(
 data class StreamingAuthState(
     val kind: StreamingAuthKind = StreamingAuthKind.NONE,
     val connected: Boolean = false,
+    val accountId: String? = null,
     val accountDisplayName: String? = null,
     val accountUsername: String? = null,
     val accountAvatarUrl: String? = null,

@@ -839,8 +839,13 @@ class RemoteStreamingGateway(
             ?.takeIf { it.changed }
             ?.let { refreshed -> store.mergeRefreshedCookie(StreamingProviderName.NETEASE, refreshed.cookieHeader) }
         return try {
-            localNeteaseClient.verifySession()
-            store.markVerified(StreamingProviderName.NETEASE, now)
+            val accountId = localNeteaseClient.verifySession()
+            store.markVerified(
+                StreamingProviderName.NETEASE,
+                now,
+                accountId = accountId,
+                displayName = null
+            )
         } catch (error: StreamingGatewayException) {
             if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
                 store.markInvalid(
@@ -870,8 +875,13 @@ class RemoteStreamingGateway(
             // A browser Cookie does not reliably contain QQ's refresh_key/refresh_token pair. We
             // therefore verify it and automatically sync any WebView-rotated key, but never fake
             // a full-token refresh from an incomplete Cookie header.
-            localQqMusicClient.verifySession()
-            store.markVerified(StreamingProviderName.QQ_MUSIC, now)
+            val accountId = localQqMusicClient.verifySession()
+            store.markVerified(
+                StreamingProviderName.QQ_MUSIC,
+                now,
+                accountId = accountId,
+                displayName = null
+            )
         } catch (error: StreamingGatewayException) {
             if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
                 store.markInvalid(
@@ -898,8 +908,13 @@ class RemoteStreamingGateway(
         now: Long
     ): StreamingAuthState {
         return try {
-            localBilibiliClient.verifySession()
-            store.markVerified(StreamingProviderName.BILIBILI, now)
+            val account = localBilibiliClient.verifySession()
+            store.markVerified(
+                StreamingProviderName.BILIBILI,
+                now,
+                accountId = account.mid.toString(),
+                displayName = account.displayName
+            )
         } catch (error: StreamingGatewayException) {
             if (error.code == StreamingErrorCode.AUTH_REQUIRED) {
                 store.markInvalid(
