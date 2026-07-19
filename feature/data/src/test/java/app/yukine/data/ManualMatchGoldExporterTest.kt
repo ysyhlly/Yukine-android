@@ -45,9 +45,18 @@ class ManualMatchGoldExporterTest {
     fun exportsOnlyWhitelistedMetadataWithPerExportOpaquePairIds() {
         val recordings = RoomRecordingIdentityRepository(database)
         val first = recordings.ensureCanonicalForTrack(track(901L, "同一首歌", "/private/left.flac"))
-        val second = recordings.ensureCanonicalForTrack(track(902L, "同一首歌 专辑版", "/private/right.flac"))
-
-        RecordingMatchRepository(database).mergeRecordings(first.recordingId, second.recordingId)
+        val second = recordings.ensureCanonicalForTrack(
+            track(902L, "同一首歌 专辑版", "/private/right.flac")
+        )
+        val decisions = ManualMatchDecisionStore(database)
+        decisions.record(
+            label = ManualMatchLabel.SAME,
+            left = checkNotNull(decisions.representative(first.recordingId)),
+            right = checkNotNull(decisions.representative(second.recordingId)),
+            note = "TEST_EXPORT",
+            sourceRecordingId = first.recordingId,
+            targetRecordingId = second.recordingId
+        )
 
         val firstExport = ManualMatchGoldExporter(database, SecureRandom()).exportJsonl()
         val secondExport = ManualMatchGoldExporter(database, SecureRandom()).exportJsonl()
