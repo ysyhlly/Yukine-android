@@ -20,20 +20,65 @@ class RecordingMatchEvaluatorV2Test {
 
     @Test
     fun usesDurationRelativeToleranceWithSafeBounds() {
-        assertEquals(2_500L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(60_000L, 61_000L))
-        assertEquals(7_500L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(300_000L, 301_000L))
-        assertEquals(8_000L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(600_000L, 601_000L))
+        assertEquals(2_000L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(60_000L, 61_000L))
+        assertEquals(6_000L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(300_000L, 301_000L))
+        assertEquals(6_000L, RecordingMatchEvaluatorV2.dynamicDurationToleranceMs(600_000L, 601_000L))
     }
 
     @Test
     fun safeDurationDriftCanReachTheStrictMergeFloorButLargerDriftCannot() {
-        val reference = reference(durationMs = 180_000L)
-        val safe = evaluate(reference, reference(durationMs = 184_001L))
-        val outside = evaluate(reference, reference(durationMs = 188_001L))
+        val reference = reference(
+            durationMs = 240_000L,
+            canonicalWorkId = "work-echo",
+            canonicalWorkConfirmed = true
+        )
+        val safe = evaluate(
+            reference,
+            reference(
+                durationMs = 243_700L,
+                canonicalWorkId = "work-echo",
+                canonicalWorkConfirmed = true
+            )
+        )
+        val outside = evaluate(
+            reference,
+            reference(
+                durationMs = 243_900L,
+                canonicalWorkId = "work-echo",
+                canonicalWorkConfirmed = true
+            )
+        )
 
         assertFalse(safe.hasHardConflict)
         assertTrue(safe.similarityScore >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
         assertTrue(outside.similarityScore < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+    }
+
+    @Test
+    fun confirmedCanonicalWorkIsRequiredForMetadataOnlyAutoMerge() {
+        val unresolved = evaluate(reference(), reference())
+        val resolved = evaluate(
+            reference(canonicalWorkId = "work-echo", canonicalWorkConfirmed = true),
+            reference(canonicalWorkId = "work-echo", canonicalWorkConfirmed = true)
+        )
+
+        assertEquals(0.91, unresolved.recordingConfidenceCeiling, 0.0001)
+        assertTrue(unresolved.similarityScore < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+        assertEquals(1.0, resolved.canonicalWorkIdentityScore, 0.0001)
+        assertTrue("canonical_work" in resolved.identifierEvidence)
+        assertTrue(resolved.similarityScore >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+    }
+
+    @Test
+    fun conflictingCanonicalWorkIdsAreHardSeparated() {
+        val result = evaluate(
+            reference(canonicalWorkId = "work-left", canonicalWorkConfirmed = true),
+            reference(canonicalWorkId = "work-right", canonicalWorkConfirmed = true)
+        )
+
+        assertTrue(RecordingMatchHardConflict.CANONICAL_WORK in result.hardConflicts)
+        assertEquals(0.0, result.canonicalWorkIdentityScore, 0.0001)
+        assertTrue(result.sameRecordingProbability <= 0.30)
     }
 
     @Test
@@ -44,6 +89,20 @@ class RecordingMatchEvaluatorV2Test {
         assertEquals(RecordingVersionType.COVER, RecordingVersionClassifier.classify("Echo（翻唱）"))
         assertEquals(RecordingVersionType.REMASTER, RecordingVersionClassifier.classify("Echo (2024 Remastered)"))
         assertEquals(RecordingVersionType.ALTERNATE_TAKE, RecordingVersionClassifier.classify("Echo (2023 Ver.)"))
+        assertEquals("echo", RecordingVersionClassifier.coreTitle("Echo Live at Tokyo"))
+        assertEquals("echo", RecordingVersionClassifier.coreTitle("Echo - 2024 Remastered"))
+        assertEquals("同一首歌", RecordingVersionClassifier.coreTitle("同一首歌 专辑版"))
+        assertEquals("echo", RecordingVersionClassifier.coreTitle("Echo (Album Version)"))
+    }
+
+    @Test
+    fun albumOnlyVersionWordsAreWeakEvidenceAndCannotCreateAConflict() {
+        val original = reference()
+        val albumOnlyLive = evaluate(original, reference(album = "Echo Live Deluxe"))
+
+        assertEquals(VersionEvidenceSource.ALBUM, albumOnlyLive.versionEvidence.source)
+        assertFalse(albumOnlyLive.versionEvidence.strongForConflict)
+        assertFalse(RecordingMatchHardConflict.VERSION in albumOnlyLive.hardConflicts)
     }
 
     @Test
@@ -163,13 +222,21 @@ class RecordingMatchEvaluatorV2Test {
         album: String = "Album",
         durationMs: Long = 180_000L,
         isrc: String = "",
-        workMbid: String = ""
+        workMbid: String = "",
+        canonicalWorkId: String = "",
+        canonicalWorkConfirmed: Boolean = false,
+        canonicalAlbumId: String = "",
+        canonicalAlbumConfirmed: Boolean = false
     ) = StreamingTrackMatchPolicy.Reference(
         title = title,
         artist = artist,
         album = album,
         durationMs = durationMs,
         isrc = isrc,
-        workMbid = workMbid
+        workMbid = workMbid,
+        canonicalWorkId = canonicalWorkId,
+        canonicalWorkConfirmed = canonicalWorkConfirmed,
+        canonicalAlbumId = canonicalAlbumId,
+        canonicalAlbumConfirmed = canonicalAlbumConfirmed
     )
 }

@@ -27,17 +27,23 @@ internal class MainSettingsFloatingLyricsControls(
     private val context: Context,
     private val permissionControllerProvider: () -> MainPermissionController?
 ) : SettingsFloatingLyricsControls {
+    private val settingsStore = FloatingLyricsOverlaySettingsStore(context)
+    private val enableRequestStore = FloatingLyricsEnableRequestStore(context)
+
     override fun apply(enabled: Boolean): Boolean {
         if (!enabled) {
+            enableRequestStore.clear()
             FloatingLyricsService.stop(context)
             return true
         }
         val permissionController = permissionControllerProvider() ?: return false
         if (!permissionController.hasOverlayPermission()) {
             FloatingLyricsService.stop(context)
+            enableRequestStore.markPending()
             permissionController.openOverlayPermissionSettings()
             return false
         }
+        enableRequestStore.clear()
         FloatingLyricsService.start(context)
         return true
     }
@@ -46,6 +52,50 @@ internal class MainSettingsFloatingLyricsControls(
         val permissionController = permissionControllerProvider() ?: return false
         permissionController.openOverlayPermissionSettings()
         return true
+    }
+
+    override fun updateTextSize(textSizeSp: Int): Boolean =
+        updateSettings { it.copy(textSizeSp = textSizeSp) }
+
+    override fun updateWidth(widthPercent: Int): Boolean =
+        updateSettings { it.copy(widthPercent = widthPercent) }
+
+    override fun updateBackgroundOpacity(opacityPercent: Int): Boolean =
+        updateSettings {
+            it.copy(
+                backgroundOpacityPercent = opacityPercent,
+                transparentBackground = false
+            )
+        }
+
+    override fun updateTransparentBackground(enabled: Boolean): Boolean =
+        updateSettings { it.copy(transparentBackground = enabled) }
+
+    override fun show(): Boolean = FloatingLyricsService.show(context)
+
+    override fun unlock(): Boolean = FloatingLyricsService.unlock(context)
+
+    override fun resetLayout(): Boolean {
+        settingsStore.reset()
+        return refreshRunningService(FloatingLyricsService::resetLayout)
+    }
+
+    private fun updateSettings(
+        transform: (FloatingLyricsOverlaySettings) -> FloatingLyricsOverlaySettings
+    ): Boolean {
+        settingsStore.save(transform(settingsStore.load()))
+        return refreshRunningService(FloatingLyricsService::refreshSettings)
+    }
+
+    private fun refreshRunningService(
+        action: (Context) -> Boolean
+    ): Boolean {
+        return when (FloatingLyricsService.runtimeStatus()) {
+            FloatingLyricsRuntimeStatus.Waiting,
+            FloatingLyricsRuntimeStatus.Visible,
+            FloatingLyricsRuntimeStatus.Hidden -> action(context)
+            else -> true
+        }
     }
 }
 
@@ -110,6 +160,24 @@ internal class SettingsRuntimeApplier(
                     it.openPermissionSettings()
                 } ?: false
             }
+            is SettingsRuntimeEffect.UpdateFloatingLyricsTextSize ->
+                floatingLyricsControlsProvider.controls()
+                    ?.updateTextSize(effect.textSizeSp) != false
+            is SettingsRuntimeEffect.UpdateFloatingLyricsWidth ->
+                floatingLyricsControlsProvider.controls()
+                    ?.updateWidth(effect.widthPercent) != false
+            is SettingsRuntimeEffect.UpdateFloatingLyricsBackgroundOpacity ->
+                floatingLyricsControlsProvider.controls()
+                    ?.updateBackgroundOpacity(effect.opacityPercent) != false
+            is SettingsRuntimeEffect.UpdateFloatingLyricsTransparentBackground ->
+                floatingLyricsControlsProvider.controls()
+                    ?.updateTransparentBackground(effect.enabled) != false
+            SettingsRuntimeEffect.ShowFloatingLyrics ->
+                floatingLyricsControlsProvider.controls()?.show() != false
+            SettingsRuntimeEffect.UnlockFloatingLyrics ->
+                floatingLyricsControlsProvider.controls()?.unlock() != false
+            SettingsRuntimeEffect.ResetFloatingLyricsLayout ->
+                floatingLyricsControlsProvider.controls()?.resetLayout() != false
             is SettingsRuntimeEffect.SetPlaybackRestoreEnabled -> {
                 playbackServiceControlsProvider.controls()?.let {
                     it.setPlaybackRestoreEnabled(effect.enabled)

@@ -370,10 +370,7 @@ final class LibraryFeatureBinding {
                 settingsViewModel::refreshSettingsContext
         );
         homeDashboardIntentHandler = new HomeDashboardActionAdapter(
-                mode -> {
-                    navigation.getRouteController().setLibraryMode(mode);
-                    navigation.navigateToTab(app.yukine.navigation.LibraryTab.INSTANCE, true);
-                },
+                mode -> navigation.getRouteController().openLibraryMode(mode),
                 playback::continueDashboardPlayback,
                 () -> navigation.navigateToTab(app.yukine.navigation.NowTab.INSTANCE, true),
                 (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),

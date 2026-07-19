@@ -7,6 +7,7 @@ import app.yukine.navigation.TabRoute
 /** Persists only typed navigation state; feature policy remains outside the Activity. */
 object NavigationRouteStateStore {
     private const val SELECTED_TAB = "selectedTab"
+    private const val LIBRARY_PAGE = "libraryPage"
     private const val LIBRARY_MODE = "libraryMode"
     private const val SELECTED_LIBRARY_GROUP_KEY = "selectedLibraryGroupKey"
     private const val SELECTED_LIBRARY_GROUP_TITLE = "selectedLibraryGroupTitle"
@@ -21,18 +22,30 @@ object NavigationRouteStateStore {
     fun restore(savedStateHandle: SavedStateHandle): NavigationRouteState {
         val restoredTab = savedStateHandle[SELECTED_TAB] ?: MainRoutes.TAB_HOME
         val restoredLibraryMode = savedStateHandle[LIBRARY_MODE] ?: DEFAULT_LIBRARY_MODE
+        val selectedLibraryGroupKey = savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] ?: ""
+        val selectedPlaylistId = savedStateHandle[SELECTED_PLAYLIST_ID] ?: -1L
         val selectedTab = when {
             restoredTab == MainRoutes.TAB_NOW -> HomeTab
             restoredTab == MainRoutes.TAB_LIBRARY && restoredLibraryMode == LEGACY_HOME_LIBRARY_MODE -> HomeTab
             else -> TabRoute.fromKey(restoredTab) ?: HomeTab
         }
+        val libraryPage = LibraryPage.fromRoute(savedStateHandle[LIBRARY_PAGE])
+            ?: if (
+                selectedTab.route == MainRoutes.TAB_LIBRARY &&
+                (selectedLibraryGroupKey.isNotEmpty() || selectedPlaylistId >= 0L)
+            ) {
+                LibraryPage.Browse
+            } else {
+                LibraryPage.Overview
+            }
         return NavigationRouteState(
             selectedTab = selectedTab,
+            libraryPage = libraryPage,
             libraryMode = restoredLibraryMode.takeUnless { it == LEGACY_HOME_LIBRARY_MODE }
                 ?: DEFAULT_LIBRARY_MODE,
-            selectedLibraryGroupKey = savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] ?: "",
+            selectedLibraryGroupKey = selectedLibraryGroupKey,
             selectedLibraryGroupTitle = savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] ?: "",
-            selectedPlaylistId = savedStateHandle[SELECTED_PLAYLIST_ID] ?: -1L,
+            selectedPlaylistId = selectedPlaylistId,
             searchQuery = savedStateHandle[SEARCH_QUERY] ?: "",
             networkPage = NetworkPage.fromRoute(savedStateHandle[NETWORK_PAGE]),
             settingsPage = SettingsPage.fromRoute(savedStateHandle[SETTINGS_PAGE]),
@@ -42,6 +55,7 @@ object NavigationRouteStateStore {
 
     fun save(savedStateHandle: SavedStateHandle, state: NavigationRouteState) {
         savedStateHandle[SELECTED_TAB] = state.selectedTab.route
+        savedStateHandle[LIBRARY_PAGE] = state.libraryPage.route
         savedStateHandle[LIBRARY_MODE] = state.libraryMode
         savedStateHandle[SELECTED_LIBRARY_GROUP_KEY] = state.selectedLibraryGroupKey
         savedStateHandle[SELECTED_LIBRARY_GROUP_TITLE] = state.selectedLibraryGroupTitle

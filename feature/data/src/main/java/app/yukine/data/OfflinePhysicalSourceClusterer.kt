@@ -7,6 +7,7 @@ import app.yukine.data.room.SourceRecordingCandidateEntity
 import app.yukine.data.room.TrackSourceMappingEntity
 import app.yukine.data.room.YukineDatabase
 import app.yukine.identity.MusicIdentityDiagnostics
+import app.yukine.identity.IdentityMatchStatus
 import app.yukine.fingerprint.AudioMatchRefiner
 import app.yukine.fingerprint.ChromaprintAlignment
 import app.yukine.fingerprint.ChromaprintSegmentAligner
@@ -677,20 +678,26 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     private fun reference(
         source: TrackSourceMappingEntity,
         recording: CanonicalRecordingEntity
-    ) = StreamingTrackMatchPolicy.Reference(
-        title = source.title,
-        artist = source.artist,
-        album = source.album,
-        durationMs = source.durationMs.takeIf { it > 0L },
-        isrc = recording.isrc,
-        recordingMbid = recording.musicBrainzRecordingId,
-        workMbid = recording.musicBrainzWorkId,
-        canonicalWorkId = recording.workId?.toString().orEmpty(),
-        canonicalWorkConfirmed = recording.workId != null && source.matchStatus == "CONFIRMED",
-        canonicalAlbumId = source.albumId?.toString().orEmpty(),
-        canonicalAlbumConfirmed = source.albumId != null,
-        fingerprint = recording.acoustId
-    )
+    ): StreamingTrackMatchPolicy.Reference {
+        val work = recording.workId?.let(dao::work)
+        val album = source.albumId?.let(dao::album)
+        return StreamingTrackMatchPolicy.Reference(
+            title = source.title,
+            artist = source.artist,
+            album = source.album,
+            durationMs = source.durationMs.takeIf { it > 0L },
+            isrc = recording.isrc,
+            recordingMbid = recording.musicBrainzRecordingId,
+            workMbid = recording.musicBrainzWorkId,
+            canonicalWorkId = work?.canonicalUuid.orEmpty(),
+            canonicalWorkConfirmed = work != null &&
+                work.primaryCreatorId != null &&
+                source.matchStatus == IdentityMatchStatus.CONFIRMED.name,
+            canonicalAlbumId = album?.albumUuid.orEmpty(),
+            canonicalAlbumConfirmed = album?.matchStatus == IdentityMatchStatus.CONFIRMED.name,
+            fingerprint = recording.acoustId
+        )
+    }
 
     private fun combineRelationship(
         current: RecordingRelationship,
@@ -937,7 +944,7 @@ internal class SourceIdentityCandidateIndex(
 
 /** Shared feature schema policy. Bump [ALGORITHM_VERSION] whenever normalization semantics change. */
 internal object SourceMatchFeaturePolicy {
-    const val ALGORITHM_VERSION = 2
+    const val ALGORITHM_VERSION = 3
     private const val DURATION_BUCKET_MS = 10_000L
     private const val FEATURE_SEPARATOR = "\u001F"
     private const val SIGNATURE_SEPARATOR = "\u001E"

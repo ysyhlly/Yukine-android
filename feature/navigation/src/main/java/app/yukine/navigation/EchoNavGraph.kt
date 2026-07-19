@@ -4,9 +4,11 @@ import app.yukine.NetworkPage
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -15,15 +17,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import app.yukine.LibraryGrouping
 import app.yukine.TrackDownloadItem
 import app.yukine.NowPlayingEvent
 import app.yukine.MainRoutes
+import app.yukine.LibraryPage
+import app.yukine.NavigationRouteState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import app.yukine.LibraryGroupsDestinationState
 import app.yukine.LibraryStoreState
 import app.yukine.DownloadsUiState
@@ -32,6 +37,7 @@ import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.LibraryActionHandler
 import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryFilter
+import app.yukine.ui.LibraryMode
 import app.yukine.ui.LibraryOverviewScreen
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.downloads.DownloadsDestination
@@ -288,6 +294,7 @@ fun EchoNavGraph(
                         settingsChromeState.homeDashboardLayout
                     )
                     LibraryTab -> LibraryDestination(
+                        route = route,
                         groupsState = hostState.library.libraryGroupsState,
                         trackListState = hostState.library.libraryTrackListState,
                         libraryState = hostState.library.libraryStoreState,
@@ -301,6 +308,7 @@ fun EchoNavGraph(
                         audioMotion = audioMotion,
                         actionHandler = hostState.library.libraryActionHandler,
                         compactCards = settingsChromeState.compactSettingsCards,
+                        navigateUpAction = hostState.library.navigateUpAction,
                         recordingMatchStateProvider = hostState.library.recordingMatchStateProvider
                     )
                     QueueTab -> NowPlayingDestination(
@@ -363,6 +371,7 @@ fun EchoNavGraph(
 
 @Composable
 private fun LibraryDestination(
+    route: NavigationRouteState,
     groupsState: StateFlow<LibraryGroupsDestinationState>,
     trackListState: StateFlow<LibraryTrackListDestinationState>,
     libraryState: StateFlow<LibraryStoreState>,
@@ -376,15 +385,15 @@ private fun LibraryDestination(
     audioMotion: YukineOrbAudioMotion,
     actionHandler: LibraryActionHandler,
     compactCards: Boolean,
+    navigateUpAction: Runnable,
     recordingMatchStateProvider: app.yukine.RecordingMatchDestinationStateProvider?
 ) {
-    var showOverview by rememberSaveable { mutableStateOf(true) }
     val recordingMatchState = recordingMatchStateProvider?.uiState?.collectAsState()
     if (recordingMatchState?.value?.visible == true) {
         RecordingMatchDestination(recordingMatchState.value, recordingMatchStateProvider)
         return
     }
-    if (showOverview) {
+    if (route.libraryPage == LibraryPage.Overview) {
         val library by libraryState.collectAsState()
         val downloads by downloadsState.collectAsState()
         val groups by groupsState.collectAsState()
@@ -394,7 +403,6 @@ private fun LibraryDestination(
             modeActions.firstOrNull { it.mode == mode }?.let { action ->
                 actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
                 action.onClick.run()
-                showOverview = false
             }
         }
         LibraryOverviewScreen(
@@ -404,15 +412,13 @@ private fun LibraryDestination(
             onOpenMode = openMode,
             onOpenFavorites = {
                 modeActions.firstOrNull { it.mode == app.yukine.LibraryGrouping.SONGS }?.let { action ->
-                    action.onClick.run()
                     actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.Favorites))
-                    showOverview = false
+                    action.onClick.run()
                 }
             },
             onOpenRecent = {
                 actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
                 openPlayHistoryAction.run()
-                showOverview = false
             },
             onOpenDownloads = { openDownloadsAction.run() },
             onOpenSources = { openNetworkSourcesAction.run() },
@@ -425,22 +431,45 @@ private fun LibraryDestination(
         )
         return
     }
-    // The child destinations own full list collection. The parent only needs to know which
-    // destination is active, so row/action updates in a large list do not recompose this branch.
-    val hasGroups by remember(groupsState) {
-        groupsState.map { it.title.isNotBlank() }.distinctUntilChanged()
-    }.collectAsState(initial = false)
-    val hasTrackList by remember(trackListState) {
-        trackListState.map { it.title.isNotBlank() }.distinctUntilChanged()
-    }.collectAsState(initial = false)
-    val renderGroups = hasGroups && !hasTrackList
+    val renderGroups =
+        route.selectedLibraryGroupKey.isBlank() &&
+            route.selectedPlaylistId < 0L &&
+            route.libraryMode != LibraryGrouping.SONGS
     if (renderGroups) {
+        val groupsReady by remember(groupsState, route.libraryMode) {
+            groupsState.map { state ->
+                state.title.isNotBlank() &&
+                    state.libraryUi.mode == LibraryMode.fromRouteKey(route.libraryMode)
+            }.distinctUntilChanged()
+        }.collectAsState(initial = false)
+        if (!groupsReady) {
+            LibraryDestinationLoading()
+            return
+        }
         LibraryGroupsDestination(
             state = groupsState,
             actionHandler = actionHandler,
             compactCards = compactCards,
-            onNavigateUp = Runnable { showOverview = true }
+            onNavigateUp = navigateUpAction
         )
+        return
+    }
+    val trackListReady by remember(
+        trackListState,
+        route.libraryMode,
+        route.selectedLibraryGroupTitle
+    ) {
+        trackListState.map { state ->
+            state.title.isNotBlank() &&
+                state.libraryUi.mode == LibraryMode.fromRouteKey(route.libraryMode) &&
+                (
+                    route.selectedLibraryGroupTitle.isBlank() ||
+                        state.title == route.selectedLibraryGroupTitle
+                    )
+        }.distinctUntilChanged()
+    }.collectAsState(initial = false)
+    if (!trackListReady) {
+        LibraryDestinationLoading()
         return
     }
     LibraryTrackListDestination(
@@ -452,8 +481,18 @@ private fun LibraryDestination(
         actionHandler = actionHandler,
         libraryControlsEnabled = true,
         compactCards = compactCards,
-        onNavigateUp = Runnable { showOverview = true }
+        onNavigateUp = navigateUpAction
     )
+}
+
+@Composable
+private fun LibraryDestinationLoading() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
 }
 
 private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {

@@ -311,6 +311,56 @@ class LyricsSettingsStateOwner internal constructor(private val context: Setting
         context.applyRuntime(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings)
         context.emitStatus(context.currentStatus().floatingLyricsPermissionRequired)
     }
+
+    fun setFloatingLyricsTextSize(textSizeSp: Int) {
+        context.applyRuntime(SettingsRuntimeEffect.UpdateFloatingLyricsTextSize(textSizeSp))
+        context.updateRuntime { it.copy(floatingLyricsTextSizeSp = textSizeSp.coerceIn(12, 30)) }
+    }
+
+    fun setFloatingLyricsWidth(widthPercent: Int) {
+        context.applyRuntime(SettingsRuntimeEffect.UpdateFloatingLyricsWidth(widthPercent))
+        context.updateRuntime { it.copy(floatingLyricsWidthPercent = widthPercent.coerceIn(40, 100)) }
+    }
+
+    fun setFloatingLyricsBackgroundOpacity(opacityPercent: Int) {
+        context.applyRuntime(
+            SettingsRuntimeEffect.UpdateFloatingLyricsBackgroundOpacity(opacityPercent)
+        )
+        context.updateRuntime {
+            it.copy(
+                floatingLyricsBackgroundOpacityPercent = opacityPercent.coerceIn(0, 100),
+                floatingLyricsTransparentBackground = false
+            )
+        }
+    }
+
+    fun setFloatingLyricsTransparentBackground(enabled: Boolean) {
+        context.applyRuntime(
+            SettingsRuntimeEffect.UpdateFloatingLyricsTransparentBackground(enabled)
+        )
+        context.updateRuntime { it.copy(floatingLyricsTransparentBackground = enabled) }
+    }
+
+    fun showFloatingLyrics() {
+        context.applyRuntime(SettingsRuntimeEffect.ShowFloatingLyrics)
+        context.updateRuntime { it.copy(floatingLyricsRuntimeStatus = "Waiting") }
+    }
+
+    fun unlockFloatingLyrics() {
+        context.applyRuntime(SettingsRuntimeEffect.UnlockFloatingLyrics)
+    }
+
+    fun resetFloatingLyricsLayout() {
+        context.applyRuntime(SettingsRuntimeEffect.ResetFloatingLyricsLayout)
+        context.updateRuntime {
+            it.copy(
+                floatingLyricsTextSizeSp = 16,
+                floatingLyricsWidthPercent = 88,
+                floatingLyricsBackgroundOpacityPercent = 92,
+                floatingLyricsTransparentBackground = false
+            )
+        }
+    }
 }
 
 class LibrarySettingsStateOwner internal constructor(private val context: SettingsMutationContext) {

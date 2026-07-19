@@ -4,6 +4,8 @@ package app.yukine.identity
 data class CanonicalRecording(
     val recordingId: Long,
     val canonicalId: String,
+    val canonicalWorkId: String = "",
+    val canonicalWorkConfirmed: Boolean = false,
     val musicBrainzRecordingId: String = "",
     val musicBrainzWorkId: String = "",
     val title: String = "",
@@ -30,6 +32,8 @@ data class TrackSourceMapping(
     val title: String = "",
     val artist: String = "",
     val album: String = "",
+    val canonicalAlbumId: String = "",
+    val canonicalAlbumConfirmed: Boolean = false,
     val durationMs: Long = 0L,
     val quality: String = "",
     val playable: Boolean = true,

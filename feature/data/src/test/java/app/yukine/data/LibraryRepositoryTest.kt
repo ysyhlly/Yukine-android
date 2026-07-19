@@ -705,6 +705,11 @@ class LibraryRepositoryTest {
         assertTrue(ownerRecordingId != contenderRecordingId)
         dao.upsert(checkNotNull(dao.sourceForLocalTrack(contender.id)).copy(title = owner.title))
         dao.update(checkNotNull(dao.recording(contenderRecordingId)).copy(title = owner.title))
+        dao.updateRecordingWork(
+            contenderRecordingId,
+            checkNotNull(dao.recording(ownerRecordingId)?.workId),
+            System.currentTimeMillis()
+        )
 
         repository.saveStreamingTrackMatch("id:${owner.id}", "netease", "same-provider-id", owner)
         repository.saveStreamingTrackMatch("id:${contender.id}", "netease", "same-provider-id", contender)
@@ -716,7 +721,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun confirmingOwnerCollisionImmediatelyMergesRecordings() {
+    fun confirmingOwnerCollisionCannotOverrideCanonicalWorkConflict() {
         val owner = track(743L, "Manual owner", "/music/manual-owner.flac")
         val contender = track(744L, "Manual contender", "webdav:1:/manual-contender.flac")
         repository.upsertTracks(listOf(owner, contender))
@@ -728,12 +733,14 @@ class LibraryRepositoryTest {
         val candidate = dao.candidates("RECORDING", contenderRecordingId)
             .single { it.providerItemId == "manual-owner-id" }
 
-        RoomIdentityCandidateRepository(database).confirmCandidate(candidate.candidateId)
+        val conflict = runCatching {
+            RoomIdentityCandidateRepository(database).confirmCandidate(candidate.candidateId)
+        }.exceptionOrNull()
 
-        val survivor = minOf(ownerRecordingId, contenderRecordingId)
-        assertEquals(survivor, dao.recordingIdForLocalTrack(owner.id))
-        assertEquals(survivor, dao.recordingIdForLocalTrack(contender.id))
-        assertEquals("CONFIRMED", dao.source("qqmusic", "manual-owner-id")?.matchStatus)
+        assertTrue(conflict is IllegalArgumentException)
+        assertEquals(ownerRecordingId, dao.recordingIdForLocalTrack(owner.id))
+        assertEquals(contenderRecordingId, dao.recordingIdForLocalTrack(contender.id))
+        assertEquals("CANDIDATE", dao.source("qqmusic", "manual-owner-id")?.matchStatus)
     }
 
     @Test

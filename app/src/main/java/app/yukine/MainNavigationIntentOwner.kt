@@ -37,6 +37,7 @@ internal class MainNavigationIntentOwner(
 
             LibraryTab -> DirectoryKey(
                 tab = route.selectedTab,
+                libraryPage = route.libraryPage,
                 libraryMode = route.libraryMode,
                 selectedLibraryGroupKey = route.selectedLibraryGroupKey,
                 selectedPlaylistId = route.selectedPlaylistId
@@ -54,6 +55,7 @@ internal class MainNavigationIntentOwner(
 
     private data class DirectoryKey(
         val tab: TabRoute,
+        val libraryPage: LibraryPage? = null,
         val libraryMode: String? = null,
         val selectedLibraryGroupKey: String? = null,
         val selectedPlaylistId: Long? = null,

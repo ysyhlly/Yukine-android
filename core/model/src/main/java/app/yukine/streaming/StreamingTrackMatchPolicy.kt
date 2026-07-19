@@ -122,7 +122,14 @@ object StreamingTrackMatchPolicy {
      */
     fun pickBestCandidate(local: Track?, candidates: List<StreamingTrack>): StreamingTrack? {
         if (local == null) return null
-        return rankCandidates(reference(local), candidates).firstOrNull()?.track
+        val reference = reference(local)
+        val ranked = rankCandidates(reference, candidates)
+        return ranked.firstOrNull { it.reliable }?.track
+            ?: pickBestCandidateV1(
+                reference,
+                ranked.filter { it.evaluation.hardConflicts.isEmpty() }.map(CandidateMatch::track)
+            )
+            ?: candidates.firstOrNull()
     }
 
     fun pickReliableCandidate(local: Track?, candidates: List<StreamingTrack>): StreamingTrack? {

@@ -24,6 +24,8 @@ final class SettingsFeatureBinding {
     private LyricsViewModel lyricsViewModel;
     private LyricsLoader lyricsLoader;
     private CustomBackgroundAccentController customBackgroundAccentController;
+    private ComponentActivity activity;
+    private MainPermissionController permissionController;
     private boolean released;
 
     SettingsFeatureBinding(
@@ -75,6 +77,8 @@ final class SettingsFeatureBinding {
         this.lyricsViewModel = lyricsViewModel;
         this.lyricsLoader = lyricsLoader;
         this.customBackgroundAccentController = customBackgroundAccentController;
+        this.activity = activity;
+        this.permissionController = permissionController;
         backgroundImageSelectionOwner = new BackgroundImageSelectionOwner(
                 viewModel,
                 settingsStore::pageBackgrounds,
@@ -197,6 +201,7 @@ final class SettingsFeatureBinding {
                         && EchoTheme.ACCENT_DYNAMIC_BACKGROUND.equals(settingsStore.accentMode())) {
                     customBackgroundAccentController.refresh(settingsStore.pageBackgrounds());
                 }
+                reconcileFloatingLyricsState();
                 if (completion != null) completion.run();
             });
         });
@@ -210,6 +215,28 @@ final class SettingsFeatureBinding {
         viewModel.bindRuntimeEffectListener(null);
         viewModel.bindPreferenceGateway(null);
         viewModel.bindStoreMirror(null);
+    }
+
+    void onResume() {
+        viewModel.refreshSettingsContext();
+        reconcileFloatingLyricsState();
+    }
+
+    private void reconcileFloatingLyricsState() {
+        if (activity == null || permissionController == null || released) return;
+        boolean permissionGranted = permissionController.hasOverlayPermission();
+        FloatingLyricsEnableRequestStore requestStore =
+                new FloatingLyricsEnableRequestStore(activity);
+        if (requestStore.consumeIfGranted(permissionGranted)) {
+            viewModel.lyricsOwner().setFloatingLyricsEnabled(true);
+            return;
+        }
+        if (!settingsStore.floatingLyricsEnabled()) return;
+        if (permissionGranted) {
+            FloatingLyricsService.start(activity);
+        } else {
+            viewModel.lyricsOwner().setFloatingLyricsEnabled(false);
+        }
     }
 
     private String languageMode() {

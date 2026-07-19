@@ -648,7 +648,7 @@ final class OfflineMusicIdentityStore {
         long workId = dao.insertWork(new CanonicalWorkEntity(
                 null,
                 canonicalUuid,
-                RecordingVersionClassifier.INSTANCE.coreTitle(clean(track.getTitle())),
+                canonicalWorkTitle(track.getTitle()),
                 null,
                 now,
                 now
@@ -697,7 +697,7 @@ final class OfflineMusicIdentityStore {
         if (primaryArtistId == null) {
             return;
         }
-        String normalizedTitle = RecordingVersionClassifier.INSTANCE.coreTitle(clean(rawTitle));
+        String normalizedTitle = canonicalWorkTitle(rawTitle);
         if (normalizedTitle.isEmpty()) {
             return;
         }
@@ -804,13 +804,32 @@ final class OfflineMusicIdentityStore {
             return;
         }
         for (ArtistCreditParser.Credit parsed : ArtistCreditParser.parse(rawArtist)) {
-            String normalized = ArtistCreditParser.normalizeAlias(parsed.name);
-            List<CanonicalArtistEntity> matches = dao.artistsForNormalizedAlias(normalized);
+            List<String> normalizedAliases = ArtistCreditParser.normalizedAliases(parsed.name);
+            Set<CanonicalArtistEntity> uniqueMatches = new HashSet<>();
+            for (String alias : normalizedAliases) {
+                uniqueMatches.addAll(dao.artistsForNormalizedAlias(alias));
+            }
             long artistId;
-            if (matches.size() == 1 && matches.get(0).getId() != null) {
-                artistId = matches.get(0).getId();
+            if (uniqueMatches.size() == 1 && uniqueMatches.iterator().next().getId() != null) {
+                artistId = uniqueMatches.iterator().next().getId();
             } else {
-                artistId = insertArtist(parsed.name, normalized, now);
+                String primaryAlias = normalizedAliases.isEmpty()
+                        ? ArtistCreditParser.normalizeAlias(parsed.name)
+                        : normalizedAliases.get(0);
+                artistId = insertArtist(parsed.name, primaryAlias, now);
+            }
+            for (String normalizedAlias : normalizedAliases) {
+                dao.upsert(new ArtistAliasEntity(
+                        artistId,
+                        parsed.name,
+                        normalizedAlias,
+                        "",
+                        "",
+                        "ALIAS",
+                        METADATA_SOURCE,
+                        0.0d,
+                        0L
+                ));
             }
             dao.upsert(new RecordingArtistCreditEntity(
                     recordingId,
@@ -862,6 +881,12 @@ final class OfflineMusicIdentityStore {
                 0L
         ));
         return inserted;
+    }
+
+    private static String canonicalWorkTitle(String rawTitle) {
+        return StreamingTrackMatchPolicy.INSTANCE.canonicalTitle(
+                RecordingVersionClassifier.INSTANCE.coreTitle(clean(rawTitle))
+        );
     }
 
     private void enqueueJob(String targetType, long targetId, long now) {

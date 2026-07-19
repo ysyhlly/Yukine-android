@@ -731,8 +731,16 @@ object RecordingVersionClassifier {
 
     private val bracketed = Regex("""(?:\(|\[|（|【)\s*([^()\[\]（）【】]*)\s*(?:\)|\]|）|】)""")
     private val dashTail = Regex("""\s+[-–—]\s+(.+)$""")
+    private val softOriginalVersionQualifier = token(
+        "album version",
+        "single version",
+        "专辑版",
+        "專輯版",
+        "单曲版",
+        "單曲版"
+    )
     private val unmarkedVersionSuffix = Regex(
-        """(?i)\s+(?:live|remix|rework|cover|acoustic|instrumental|karaoke|demo|remaster(?:ed)?|sped\s+up|slowed|现场|現場|混音|翻唱|伴奏|纯音乐|純音樂|重制|重製)$"""
+        """(?i)\s+(?:live(?:\s+(?:at|in)\s+.+)?|remix|rework|cover|acoustic|instrumental|karaoke|demo|(?:\d{4}\s+)?remaster(?:ed)?|sped\s+up|slowed|album\s+version|single\s+version|现场|現場|混音|翻唱|伴奏|纯音乐|純音樂|重制|重製|专辑版|專輯版|单曲版|單曲版)$"""
     )
 
     fun classify(title: String, album: String = ""): RecordingVersionType {
@@ -818,7 +826,8 @@ object RecordingVersionClassifier {
     }
 
     private fun isVersionQualifier(value: String): Boolean =
-        rules.any { (_, pattern) -> pattern.containsMatchIn(value) }
+        softOriginalVersionQualifier.containsMatchIn(value) ||
+            rules.any { (_, pattern) -> pattern.containsMatchIn(value) }
 
     fun hardConflict(
         leftTitle: String,

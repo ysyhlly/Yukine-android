@@ -5,19 +5,27 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import app.yukine.data.BackgroundDatabaseTestRule
 import app.yukine.data.RoomArtistIdentityRepository
+import app.yukine.data.RoomAlbumIdentityRepository
 import app.yukine.data.RoomIdentityCandidateRepository
 import app.yukine.data.RoomIdentityJobRepository
 import app.yukine.data.RoomRecordingIdentityRepository
+import app.yukine.data.room.ArtistSourceMappingEntity
 import app.yukine.data.room.YukineDatabase
 import app.yukine.identity.AnonymousProviderResult
+import app.yukine.identity.AnonymousAlbumCandidate
+import app.yukine.identity.AnonymousAlbumMetadataProvider
+import app.yukine.identity.AnonymousAlbumProviderResult
 import app.yukine.identity.AnonymousArtistCandidate
 import app.yukine.identity.AnonymousArtistMetadataProvider
 import app.yukine.identity.AnonymousArtistProviderResult
 import app.yukine.identity.ArtistAlias
+import app.yukine.identity.AlbumAlias
 import app.yukine.identity.AnonymousRecordingCandidate
 import app.yukine.identity.AnonymousRecordingMetadataProvider
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.CanonicalArtist
+import app.yukine.identity.CanonicalAlbum
+import app.yukine.identity.IdentityMatchStatus
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityTargetType
 import app.yukine.identity.ProviderArtistCandidate
@@ -66,6 +74,7 @@ class IdentityEnhancementEngineTest {
     @Test
     fun highConfidenceOnlineResultIsAutoConfirmedWithoutCreatingPlayableSource() {
         val recording = recordings.ensureCanonicalForTrack(track(1L))
+        confirmBaseIdentity(recording.recordingId, "musicbrainz", "mb-artist")
         val canonicalUuid = recording.canonicalId
         val provider = fixedProvider(
             AnonymousProviderResult(
@@ -131,6 +140,7 @@ class IdentityEnhancementEngineTest {
         val existing = recordings.ensureCanonicalForTrack(
             track(9L, Uri.parse("content://embedded/existing"))
         )
+        confirmBaseIdentity(missing.recordingId, "musicbrainz", "mb-artist")
         val coverUrl = "https://coverartarchive.org/release/release-id/front-500"
         val provider = fixedProvider(AnonymousProviderResult(listOf(
             AnonymousRecordingCandidate(
@@ -365,6 +375,102 @@ class IdentityEnhancementEngineTest {
         assertEquals(canonicalUuid, recordings.canonicalForRecording(recording.recordingId)?.canonicalId)
     }
 
+    @Test
+    fun albumJobsResolveCanonicalAlbumWithoutBeingMisroutedAsRecordings() {
+        val recording = recordings.ensureCanonicalForTrack(track(40L))
+        val dao = database.musicIdentityDao()
+        val albumKey = checkNotNull(dao.sources(recording.recordingId).single().albumId)
+        val artistKey = artists.creditsForRecording(recording.recordingId).single().artistKey
+        val album = checkNotNull(dao.album(albumKey))
+        dao.update(
+            album.copy(
+                albumArtistId = artistKey,
+                releaseType = "Album",
+                year = 2024
+            )
+        )
+        val albumProvider = object : AnonymousAlbumMetadataProvider {
+            override val providerName: String = "musicbrainz"
+
+            override fun search(album: CanonicalAlbum, aliases: List<AlbumAlias>) =
+                AnonymousAlbumProviderResult(
+                    listOf(
+                        AnonymousAlbumCandidate(
+                            provider = "musicbrainz",
+                            providerAlbumId = "release-group-mbid",
+                            title = "Album",
+                            aliases = setOf("专辑"),
+                            artist = "Artist",
+                            musicBrainzReleaseGroupId = "release-group-mbid",
+                            musicBrainzReleaseId = "release-mbid",
+                            releaseType = "Album",
+                            year = 2024,
+                            providerScore = 1.0
+                        )
+                    )
+                )
+        }
+        val engine = IdentityEnhancementEngine(
+            recordings = recordings,
+            artists = artists,
+            albums = RoomAlbumIdentityRepository(database),
+            candidates = candidates,
+            jobs = jobs,
+            providers = listOf(fixedProvider(AnonymousProviderResult(emptyList()))),
+            albumProviders = listOf(albumProvider),
+            now = { 100L }
+        )
+
+        val result = engine.runReadyJobs(20)
+
+        assertTrue(result.succeeded >= 2)
+        val saved = dao.candidates(IdentityTargetType.ALBUM.name, albumKey).single()
+        assertEquals(IdentityCandidateStatus.AUTO_CONFIRMED.name, saved.status)
+        val resolved = checkNotNull(RoomAlbumIdentityRepository(database).albumByKey(albumKey))
+        assertEquals(IdentityMatchStatus.CONFIRMED, resolved.matchStatus)
+        assertEquals("release-group-mbid", resolved.musicBrainzReleaseGroupId)
+        assertEquals("release-mbid", resolved.musicBrainzReleaseId)
+        assertTrue(RoomAlbumIdentityRepository(database).aliases(albumKey).any { it.alias == "专辑" })
+    }
+
+    @Test
+    fun albumConfirmationCannotStealStrongIdsFromAnotherCanonicalAlbum() {
+        val firstRecording = recordings.ensureCanonicalForTrack(track(41L))
+        val secondRecording = recordings.ensureCanonicalForTrack(
+            track(42L, album = "Other Album")
+        )
+        val dao = database.musicIdentityDao()
+        val firstAlbumKey = checkNotNull(
+            dao.sources(firstRecording.recordingId).first { it.localTrackId == 41L }.albumId
+        )
+        val secondAlbumKey = checkNotNull(
+            dao.sources(secondRecording.recordingId).first { it.localTrackId == 42L }.albumId
+        )
+        val repository = RoomAlbumIdentityRepository(database)
+        val candidate = AnonymousAlbumCandidate(
+            provider = "musicbrainz",
+            providerAlbumId = "shared-provider-id",
+            title = "Album",
+            musicBrainzReleaseGroupId = "shared-release-group",
+            musicBrainzReleaseId = "shared-release",
+            providerScore = 1.0
+        )
+        repository.confirmCandidate(firstAlbumKey, candidate, 100L)
+
+        val conflict = runCatching {
+            repository.confirmCandidate(
+                secondAlbumKey,
+                candidate.copy(title = "Other Album"),
+                101L
+            )
+        }.exceptionOrNull()
+
+        assertTrue(conflict is IllegalArgumentException)
+        assertEquals(firstAlbumKey, repository.albumForProvider("musicbrainz", "shared-provider-id")?.albumKey)
+        assertEquals(firstAlbumKey, repository.albumForReleaseGroup("shared-release-group")?.albumKey)
+        assertEquals(firstAlbumKey, repository.albumForRelease("shared-release")?.albumKey)
+    }
+
     private fun engine(
         provider: AnonymousRecordingMetadataProvider,
         artistProvider: AnonymousArtistMetadataProvider? = null
@@ -414,11 +520,45 @@ class IdentityEnhancementEngineTest {
         providerScore = 0.95
     )
 
-    private fun track(id: Long, albumArtUri: Uri? = null) = Track(
+    private fun confirmBaseIdentity(
+        recordingId: Long,
+        provider: String,
+        providerArtistId: String
+    ) {
+        val dao = database.musicIdentityDao()
+        val artistId = checkNotNull(dao.primaryArtistId(recordingId))
+        val artist = checkNotNull(dao.artist(artistId))
+        dao.update(
+            artist.copy(
+                matchStatus = IdentityMatchStatus.CONFIRMED.name,
+                confidence = 1.0,
+                metadataSource = "TEST"
+            )
+        )
+        dao.upsert(
+            ArtistSourceMappingEntity(
+                mappingId = null,
+                artistId = artistId,
+                provider = provider,
+                providerArtistId = providerArtistId,
+                displayName = artist.displayName,
+                status = IdentityMatchStatus.CONFIRMED.name,
+                confidence = 1.0,
+                lastVerifiedAt = 100L
+            )
+        )
+        assertTrue(checkNotNull(recordings.canonicalForRecording(recordingId)).canonicalWorkConfirmed)
+    }
+
+    private fun track(
+        id: Long,
+        albumArtUri: Uri? = null,
+        album: String = "Album"
+    ) = Track(
         id,
         "Song",
         "Artist",
-        "Album",
+        album,
         180_000L,
         Uri.parse("content://media/$id"),
         "/music/$id.flac",

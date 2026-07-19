@@ -15,6 +15,7 @@ internal class SettingsContextProvider(
     private val repository: app.yukine.data.MusicLibraryRepository
 ) : SettingsContextLoader {
     private val identityBackfillStore = IdentityBackfillCheckpointStore(context)
+    private val floatingLyricsSettingsStore = FloatingLyricsOverlaySettingsStore(context)
     override fun load(): SettingsContextSnapshot = SettingsContextSnapshot(
         preferences = preferencesSnapshot(),
         runtime = runtimeStatus()
@@ -26,11 +27,19 @@ internal class SettingsContextProvider(
         val allTracks = libraryStore.allTracks()
         val luoxueSources = luoxueSourceStore.load()
         val identityBackfill = identityBackfillStore.load().progress
+        val floatingLyricsSettings = floatingLyricsSettingsStore.load()
         return RuntimeSettingsStatus(
             appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
             notificationPermissionGranted = permissionController.hasNotificationPermission(),
             overlayPermissionGranted = permissionController.hasOverlayPermission(),
+            floatingLyricsRuntimeStatus = FloatingLyricsService.runtimeStatus().name,
+            floatingLyricsTextSizeSp = floatingLyricsSettings.textSizeSp,
+            floatingLyricsWidthPercent = floatingLyricsSettings.widthPercent,
+            floatingLyricsBackgroundOpacityPercent =
+                floatingLyricsSettings.backgroundOpacityPercent,
+            floatingLyricsTransparentBackground =
+                floatingLyricsSettings.transparentBackground,
             playbackServiceConnected = playbackConnectionController.isBound(),
             sleepTimerRemainingMs = playbackSnapshotProvider.playbackSnapshot.value.sleepTimerRemainingMs,
             lyricsOffsetMs = lyricsViewModel?.offsetMs() ?: 0L,

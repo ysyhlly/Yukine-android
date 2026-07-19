@@ -918,6 +918,98 @@ class YukineDatabaseMigrationTest {
         helper.close()
     }
 
+    @Test
+    fun v30ToV31CreatesCanonicalAlbumsAndBackfillsSourcesIdempotently() {
+        val name = databaseName("v30-canonical-albums")
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(30) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "CREATE TABLE canonical_artists(" +
+                                    "id INTEGER PRIMARY KEY,display_name TEXT NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE recording_artist_credits(" +
+                                    "recording_id INTEGER NOT NULL,artist_id INTEGER NOT NULL," +
+                                    "role TEXT NOT NULL,position INTEGER NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE track_sources(" +
+                                    "source_id INTEGER PRIMARY KEY,recording_id INTEGER NOT NULL," +
+                                    "album TEXT NOT NULL DEFAULT '',artist TEXT NOT NULL DEFAULT ''," +
+                                    "album_artist TEXT NOT NULL DEFAULT ''," +
+                                    "release_type TEXT NOT NULL DEFAULT '',year INTEGER NOT NULL DEFAULT 0)"
+                            )
+                            db.execSQL(
+                                "INSERT INTO canonical_artists VALUES(10,'Artist'),(20,'Artist')"
+                            )
+                            db.execSQL(
+                                "INSERT INTO recording_artist_credits VALUES" +
+                                    "(1,10,'PRIMARY',0),(2,20,'PRIMARY',0)"
+                            )
+                            db.execSQL(
+                                "INSERT INTO track_sources VALUES" +
+                                    "(1,1,'Echo','Artist','','Album',2024)," +
+                                    "(2,1,' Echo ','Artist','','Album',2024)," +
+                                    "(3,1,'','Artist','','Album',2024)," +
+                                    "(4,2,'Echo','Artist','','Album',2024)"
+                            )
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+
+        YukineMigrations.normalizeV31(db)
+        YukineMigrations.normalizeV31(db)
+        db.version = 31
+
+        assertEquals(31, db.version)
+        assertTrue(columnExists(db, "track_sources", "album_id"))
+        assertTrue(indexExists(db, "idx_track_source_album"))
+        assertTrue(indexExists(db, "idx_album_identity_key"))
+        assertTrue(indexExists(db, "idx_album_source_provider_album"))
+        assertEquals(2L, longValue(db, "SELECT COUNT(*) FROM canonical_albums"))
+        assertEquals(2L, longValue(db, "SELECT COUNT(*) FROM album_aliases"))
+        assertEquals(
+            1L,
+            longValue(
+                db,
+                "SELECT COUNT(DISTINCT album_id) FROM track_sources " +
+                    "WHERE source_id IN (1,2) AND album_id IS NOT NULL"
+            )
+        )
+        assertEquals(
+            1L,
+            longValue(db, "SELECT COUNT(*) FROM track_sources WHERE source_id=3 AND album_id IS NULL")
+        )
+        assertEquals(
+            2L,
+            longValue(
+                db,
+                "SELECT COUNT(DISTINCT album_id) FROM track_sources " +
+                    "WHERE source_id IN (1,4) AND album_id IS NOT NULL"
+            )
+        )
+        assertEquals("Echo", stringValue(db, "SELECT display_name FROM canonical_albums LIMIT 1"))
+        assertEquals(
+            "MIGRATION_V31",
+            stringValue(db, "SELECT metadata_source FROM canonical_albums LIMIT 1")
+        )
+        assertEquals("ok", stringValue(db, "PRAGMA integrity_check"))
+        helper.close()
+    }
+
     private fun createVersionOneFixture(name: String) {
         createMinimalLegacyFixture(name, 1)
     }

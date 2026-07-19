@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
                 )
                 features.onboarding.startLibrary()
                 features.streaming.handleInitialIntent(intent)
+                handleFloatingLyricsIntent(intent)
                 features.platform.applyThemeSurface()
             }
         }
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
         if (::features.isInitialized) {
             features.playback.setAppVisible(true)
             features.streaming.onResume()
+            features.settings.onResume()
         }
     }
 
@@ -70,7 +72,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (::features.isInitialized) features.streaming.handleNewIntent(intent)
+        if (::features.isInitialized) {
+            features.streaming.handleNewIntent(intent)
+            handleFloatingLyricsIntent(intent)
+        }
     }
 
     override fun onDestroy() {
@@ -85,5 +90,13 @@ class MainActivity : ComponentActivity() {
             features.platform.shutdown()
         }
         super.onDestroy()
+    }
+
+    private fun handleFloatingLyricsIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS, false) != true) {
+            return
+        }
+        intent.removeExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS)
+        features.navigation.openFloatingLyricsSettings()
     }
 }

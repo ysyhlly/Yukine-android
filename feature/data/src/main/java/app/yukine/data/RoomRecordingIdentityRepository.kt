@@ -38,17 +38,17 @@ class RoomRecordingIdentityRepository(
         val recordingId = requireNotNull(dao.recordingIdForLocalTrack(track.id)) {
             "Track ${track.id} has no recording identity after persistence"
         }
-        return requireRecording(recordingId).toModel()
+        return canonicalModel(requireRecording(recordingId))
     }
 
     override fun canonicalForRecording(recordingId: Long): CanonicalRecording? =
-        dao.recording(recordingId)?.toModel()
+        dao.recording(recordingId)?.let(::canonicalModel)
 
     override fun canonicalForUuid(canonicalId: String): CanonicalRecording? =
-        dao.canonicalRecording(canonicalId.trim())?.toModel()
+        dao.canonicalRecording(canonicalId.trim())?.let(::canonicalModel)
 
     override fun canonicalForLocalTrack(trackId: Long): CanonicalRecording? =
-        dao.recordingIdForLocalTrack(trackId)?.let(dao::recording)?.toModel()
+        dao.recordingIdForLocalTrack(trackId)?.let(dao::recording)?.let(::canonicalModel)
 
     override fun canonicalForProviderTrack(
         provider: String,
@@ -56,7 +56,7 @@ class RoomRecordingIdentityRepository(
     ): CanonicalRecording? = dao.recordingForProvider(
         normalizeProvider(provider),
         providerTrackId.trim()
-    )?.toModel()
+    )?.let(::canonicalModel)
 
     override fun confirmedSources(recordingId: Long): List<TrackSourceMapping> {
         val recording = dao.recording(recordingId) ?: return emptyList()
@@ -70,7 +70,12 @@ class RoomRecordingIdentityRepository(
                     .thenByDescending { it.lastSuccessfulAt }
                     .thenBy { it.sourceId }
             )
-            .map { it.toModel(recording) }
+            .map { source ->
+                source.toModel(
+                    recording = recording,
+                    canonicalAlbum = source.albumId?.let(dao::album)
+                )
+            }
             .toList()
     }
 
@@ -218,7 +223,7 @@ class RoomRecordingIdentityRepository(
             targetRecordingId,
             before
         )
-        return requireRecording(targetRecordingId).toModel()
+        return canonicalModel(requireRecording(targetRecordingId))
     }
 
     override fun splitSource(sourceId: Long): CanonicalRecording =
@@ -318,7 +323,7 @@ class RoomRecordingIdentityRepository(
             newId,
             before
         )
-        requireRecording(newId).toModel()
+        canonicalModel(requireRecording(newId))
     })
 
     override fun pruneOrphans() {
@@ -327,6 +332,16 @@ class RoomRecordingIdentityRepository(
 
     private fun requireRecording(recordingId: Long): CanonicalRecordingEntity =
         requireNotNull(dao.recording(recordingId)) { "Unknown recording $recordingId" }
+
+    private fun canonicalModel(recording: CanonicalRecordingEntity): CanonicalRecording {
+        val work = recording.workId?.let(dao::work)
+        val primaryArtistId = recording.id?.let(dao::primaryArtistId)
+        val workConfirmed = work != null &&
+            work.normalizedTitle.isNotBlank() &&
+            work.primaryCreatorId != null &&
+            work.primaryCreatorId == primaryArtistId
+        return recording.toModel(work, workConfirmed)
+    }
 
     private fun rejectStrongWorkConflict(sourceRecordingId: Long, targetRecordingId: Long) {
         val preflightSource = requireRecording(sourceRecordingId)

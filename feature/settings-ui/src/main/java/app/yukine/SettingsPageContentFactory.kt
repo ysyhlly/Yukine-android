@@ -302,9 +302,25 @@ internal object SettingsPageContentFactory {
                     languageMode,
                     preferences.floatingLyricsEnabled,
                     runtime.overlayPermissionGranted,
+                    runtime.floatingLyricsRuntimeStatus,
+                    runtime.floatingLyricsTextSizeSp,
+                    runtime.floatingLyricsWidthPercent,
+                    runtime.floatingLyricsBackgroundOpacityPercent,
+                    runtime.floatingLyricsTransparentBackground,
                     onNavigate = ::navigateSettingsPage,
                     onOpenPermission = { platform.openFloatingLyricsPermission() },
-                    onToggle = { enabled -> lyrics.setFloatingLyricsEnabled(enabled) }
+                    onToggle = { enabled -> lyrics.setFloatingLyricsEnabled(enabled) },
+                    onTextSizeChange = { value -> lyrics.setFloatingLyricsTextSize(value) },
+                    onWidthChange = { value -> lyrics.setFloatingLyricsWidth(value) },
+                    onBackgroundOpacityChange = { value ->
+                        lyrics.setFloatingLyricsBackgroundOpacity(value)
+                    },
+                    onTransparentBackgroundChange = { value ->
+                        lyrics.setFloatingLyricsTransparentBackground(value)
+                    },
+                    onShow = { lyrics.showFloatingLyrics() },
+                    onUnlock = { lyrics.unlockFloatingLyrics() },
+                    onReset = { lyrics.resetFloatingLyricsLayout() }
                 )
             SettingsPage.StreamingGateway ->
                 SettingsPageStateBuilder.streamingGateway(

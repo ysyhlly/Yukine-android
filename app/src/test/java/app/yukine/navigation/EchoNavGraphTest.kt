@@ -21,6 +21,10 @@ import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
 import app.yukine.CollectionsViewModel
 import app.yukine.HomeDashboardViewModel
+import app.yukine.LibraryGrouping
+import app.yukine.LibraryGroupsDestinationState
+import app.yukine.LibraryPage
+import app.yukine.LibraryTrackListDestinationState
 import app.yukine.LibraryViewModel
 import app.yukine.model.Track
 import app.yukine.NavigationViewModel
@@ -37,11 +41,14 @@ import app.yukine.ui.CollectionsUiState
 import app.yukine.ui.emptyCollectionsActions
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.HomeDashboardUiState
+import app.yukine.ui.LibraryMode
+import app.yukine.ui.LibraryUiState
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.SeekAction
 import app.yukine.ui.nowBarEmptyState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -72,6 +79,9 @@ class EchoNavGraphTest {
         nowPlayingStateProvider: NowPlayingViewModel = NowPlayingViewModel(),
         playbackSnapshotProvider: PlaybackSnapshotProvider = app.yukine.PlaybackViewModel(),
         navigationViewModel: NavigationViewModel = NavigationViewModel(SavedStateHandle()),
+        libraryGroupsState: StateFlow<LibraryGroupsDestinationState>? = null,
+        libraryTrackListState: StateFlow<LibraryTrackListDestinationState>? = null,
+        navigateUpAction: Runnable = Runnable { },
         queueSheetVisibilityListener: QueueSheetVisibilityListener = QueueSheetVisibilityListener { }
     ): EchoNavHostState {
         val homeDashboard = HomeDashboardViewModel(null).also {
@@ -122,9 +132,10 @@ class EchoNavGraphTest {
             ),
             library = LibraryNavBinding(
                 homeDashboardState = homeDashboard.uiState,
-                libraryGroupsState = library.libraryGroups,
-                libraryTrackListState = library.trackList,
-                collectionsStateProvider = collections
+                libraryGroupsState = libraryGroupsState ?: library.libraryGroups,
+                libraryTrackListState = libraryTrackListState ?: library.trackList,
+                collectionsStateProvider = collections,
+                navigateUpAction = navigateUpAction
             ),
             settings = SettingsNavBinding(
                 settingsState = settings.state,
@@ -308,6 +319,69 @@ class EchoNavGraphTest {
 
         assertEquals(listOf(true), visibilityChanges)
         assertTrue(state.queueSheetVisible)
+    }
+
+    @Test
+    fun libraryBrowseAlbumRouteRendersGroupsWithoutStaleTrackListHop() {
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        navigationViewModel.updateRoute(
+            navigationViewModel.state.value.copy(
+                selectedTab = LibraryTab,
+                libraryPage = LibraryPage.Browse,
+                libraryMode = LibraryGrouping.ALBUMS
+            )
+        )
+        val state = hostState(
+            navigationViewModel = navigationViewModel,
+            libraryGroupsState = MutableStateFlow(
+                LibraryGroupsDestinationState(
+                    title = "Albums direct",
+                    libraryUi = LibraryUiState(mode = LibraryMode.Albums)
+                )
+            ),
+            libraryTrackListState = MutableStateFlow(
+                LibraryTrackListDestinationState(title = "Stale tracks")
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoNavGraph(tabs = tabs, hostState = state)
+            }
+        }
+
+        composeRule.onNodeWithText("Albums direct").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Stale tracks").assertCountEquals(0)
+    }
+
+    @Test
+    fun libraryBrowseSongsRouteRendersTrackListWithoutStaleGroupsHop() {
+        val navigationViewModel = NavigationViewModel(SavedStateHandle())
+        navigationViewModel.updateRoute(
+            navigationViewModel.state.value.copy(
+                selectedTab = LibraryTab,
+                libraryPage = LibraryPage.Browse,
+                libraryMode = LibraryGrouping.SONGS
+            )
+        )
+        val state = hostState(
+            navigationViewModel = navigationViewModel,
+            libraryGroupsState = MutableStateFlow(
+                LibraryGroupsDestinationState(title = "Stale groups")
+            ),
+            libraryTrackListState = MutableStateFlow(
+                LibraryTrackListDestinationState(title = "Songs direct")
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                EchoNavGraph(tabs = tabs, hostState = state)
+            }
+        }
+
+        composeRule.onNodeWithText("Songs direct").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Stale groups").assertCountEquals(0)
     }
 
     @Test

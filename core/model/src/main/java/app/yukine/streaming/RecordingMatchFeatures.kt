@@ -37,7 +37,8 @@ data class RecordingVersionEvidence(
 ) {
     val strongForConflict: Boolean
         get() = source == VersionEvidenceSource.TITLE ||
-            source == VersionEvidenceSource.PROVIDER
+            source == VersionEvidenceSource.PROVIDER ||
+            (type == RecordingVersionType.ORIGINAL && confidence >= 0.80)
 }
 
 /** Immutable, Android-free feature snapshot used by every recording matching policy. */

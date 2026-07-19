@@ -13,6 +13,13 @@ sealed interface SettingsRuntimeEffect {
     data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class ApplyFloatingLyrics(val enabled: Boolean) : SettingsRuntimeEffect
     data object OpenFloatingLyricsPermissionSettings : SettingsRuntimeEffect
+    data class UpdateFloatingLyricsTextSize(val textSizeSp: Int) : SettingsRuntimeEffect
+    data class UpdateFloatingLyricsWidth(val widthPercent: Int) : SettingsRuntimeEffect
+    data class UpdateFloatingLyricsBackgroundOpacity(val opacityPercent: Int) : SettingsRuntimeEffect
+    data class UpdateFloatingLyricsTransparentBackground(val enabled: Boolean) : SettingsRuntimeEffect
+    data object ShowFloatingLyrics : SettingsRuntimeEffect
+    data object UnlockFloatingLyrics : SettingsRuntimeEffect
+    data object ResetFloatingLyricsLayout : SettingsRuntimeEffect
     data class SetPlaybackRestoreEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetReplayGainEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetOnlineLyricsEnabled(val enabled: Boolean) : SettingsRuntimeEffect

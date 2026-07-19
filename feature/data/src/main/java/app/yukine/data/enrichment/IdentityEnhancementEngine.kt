@@ -29,6 +29,7 @@ import app.yukine.identity.RecordingIdentityRepository
 import app.yukine.identity.RecordingIdentifier
 import app.yukine.identity.RecordingMatchEvidence
 import app.yukine.identity.RecordingVariantRecognizer
+import app.yukine.streaming.RecordingVersionClassifier
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import org.json.JSONArray
@@ -182,9 +183,13 @@ class IdentityEnhancementEngine(
             provider = "canonical",
             providerItemId = recording.canonicalId,
             title = recording.title,
+            canonicalWorkId = recording.canonicalWorkId,
+            canonicalWorkConfirmed = recording.canonicalWorkConfirmed,
             primaryArtistIds = primaryCredits.map { it.artistKey }.toSet(),
             primaryArtistNames = primaryCredits.map { it.creditedName }.toSet() + recording.primaryArtistDisplay,
             album = source?.album.orEmpty(),
+            canonicalAlbumId = source?.canonicalAlbumId.orEmpty(),
+            canonicalAlbumConfirmed = source?.canonicalAlbumConfirmed == true,
             durationMs = recording.durationMs,
             isrc = recording.isrc,
             recordingMbid = recording.musicBrainzRecordingId,
@@ -197,7 +202,7 @@ class IdentityEnhancementEngine(
         val successfulResponses = responses.mapNotNull { it.second.getOrNull() }
         val allUnavailable = responses.isEmpty() || successfulResponses.all { it.allEndpointsFailed }
         val rawCandidates = successfulResponses.flatMap { it.candidates }.distinctBy { it.provider to it.providerItemId }
-        val evidenceByCandidate = rawCandidates.associateWith { it.toMatchEvidence() }
+        val evidenceByCandidate = rawCandidates.associateWith { it.toMatchEvidence(target) }
         val ranked = recordingRanker.rank(target, evidenceByCandidate.values.toList())
         val decision = recordingRanker.chooseForAutoConfirmation(target, evidenceByCandidate.values.toList())
         val rankedByKey = ranked.associateBy { it.candidate.provider to it.candidate.providerItemId }
@@ -357,14 +362,21 @@ class IdentityEnhancementEngine(
         val rawCandidates = successful.flatMap { it.candidates }
             .distinctBy { it.provider to it.providerAlbumId }
         val ranked = rawCandidates.map { candidate ->
+            val providerOwner = repository.albumForProvider(
+                candidate.provider,
+                candidate.providerAlbumId
+            )
+            val releaseGroupOwner = candidate.musicBrainzReleaseGroupId.takeIf(String::isNotBlank)
+                ?.let(repository::albumForReleaseGroup)
+            val releaseOwner = candidate.musicBrainzReleaseId.takeIf(String::isNotBlank)
+                ?.let(repository::albumForRelease)
             albumRanking(
                 album = album,
                 targetAliases = aliases.map { it.alias }.toSet() + album.displayName,
                 candidate = candidate,
-                hasProviderMapping = repository.albumForProvider(
-                    candidate.provider,
-                    candidate.providerAlbumId
-                )?.albumKey == albumKey
+                hasProviderMapping = providerOwner?.albumKey == albumKey,
+                ownedByOtherAlbum = listOfNotNull(providerOwner, releaseGroupOwner, releaseOwner)
+                    .any { it.albumKey != albumKey }
             )
         }.sortedByDescending(AlbumRanking::score)
         val winner = ranked.firstOrNull()
@@ -409,9 +421,7 @@ class IdentityEnhancementEngine(
                 )
             )
         }
-        if (eligible && winner != null) {
-            repository.confirmCandidate(albumKey, winner.candidate, time)
-        }
+        winner?.takeIf { eligible }?.let { repository.confirmCandidate(albumKey, it.candidate, time) }
         val error = responses.mapNotNull { (provider, response) ->
             response.exceptionOrNull()?.let { "$provider: ${it.message.orEmpty()}" }
         }.joinToString("; ")
@@ -422,14 +432,15 @@ class IdentityEnhancementEngine(
         album: app.yukine.identity.CanonicalAlbum,
         targetAliases: Set<String>,
         candidate: AnonymousAlbumCandidate,
-        hasProviderMapping: Boolean
+        hasProviderMapping: Boolean,
+        ownedByOtherAlbum: Boolean
     ): AlbumRanking {
         val releaseGroupConflict = conflictingId(
             album.musicBrainzReleaseGroupId,
             candidate.musicBrainzReleaseGroupId
         )
         val releaseConflict = conflictingId(album.musicBrainzReleaseId, candidate.musicBrainzReleaseId)
-        val hardConflict = releaseGroupConflict || releaseConflict
+        val hardConflict = releaseGroupConflict || releaseConflict || ownedByOtherAlbum
         val strongIdentity = hasProviderMapping ||
             sameNonBlankId(album.musicBrainzReleaseGroupId, candidate.musicBrainzReleaseGroupId) ||
             sameNonBlankId(album.musicBrainzReleaseId, candidate.musicBrainzReleaseId)
@@ -470,18 +481,32 @@ class IdentityEnhancementEngine(
                 if (yearMatch) add("year")
                 if (typeMatch) add("release_type")
                 if (hardConflict) add("identifier_conflict")
+                if (ownedByOtherAlbum) add("owned_by_other_album")
             }
         )
     }
 
-    private fun AnonymousRecordingCandidate.toMatchEvidence(): RecordingMatchEvidence {
+    private fun AnonymousRecordingCandidate.toMatchEvidence(
+        target: RecordingMatchEvidence
+    ): RecordingMatchEvidence {
         val mappedArtistIds = artists.mapNotNull {
             this@IdentityEnhancementEngine.artists.artistForProvider(provider, it.providerArtistId)?.artistKey
         }.toSet()
+        val sameResolvedArtist = target.primaryArtistIds.isNotEmpty() &&
+            mappedArtistIds == target.primaryArtistIds
+        val sameCoreTitle = IdentityTextNormalizer.normalizeForSearch(
+            RecordingVersionClassifier.coreTitle(title)
+        ) == IdentityTextNormalizer.normalizeForSearch(
+            RecordingVersionClassifier.coreTitle(target.title)
+        )
+        val resolvedToTargetWork =
+            target.canonicalWorkConfirmed && sameResolvedArtist && sameCoreTitle
         return RecordingMatchEvidence(
             provider = provider,
             providerItemId = providerItemId,
             title = title,
+            canonicalWorkId = target.canonicalWorkId.takeIf { resolvedToTargetWork }.orEmpty(),
+            canonicalWorkConfirmed = resolvedToTargetWork,
             primaryArtistIds = mappedArtistIds,
             primaryArtistNames = artists.map { it.displayName }.toSet(),
             album = album,

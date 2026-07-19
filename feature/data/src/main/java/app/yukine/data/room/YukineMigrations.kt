@@ -391,13 +391,17 @@ object YukineMigrations {
     }
 
     private fun backfillCanonicalAlbums(db: SupportSQLiteDatabase) {
+        val albumArtistId =
+            "COALESCE((SELECT c.artist_id FROM recording_artist_credits c " +
+                "WHERE c.recording_id=track_sources.recording_id " +
+                "AND c.role IN ('PRIMARY','UNKNOWN') " +
+                "ORDER BY CASE c.role WHEN 'PRIMARY' THEN 0 ELSE 1 END,c.position,c.artist_id LIMIT 1),0)"
+        val artistIdentity =
+            "CASE WHEN $albumArtistId > 0 THEN 'id:' || $albumArtistId " +
+                "ELSE 'name:' || lower(trim(CASE WHEN track_sources.album_artist != '' " +
+                "THEN track_sources.album_artist ELSE track_sources.artist END)) END"
         val identityKey =
-            "lower(trim(album)) || '|' || lower(trim(CASE WHEN album_artist != '' " +
-                "THEN album_artist ELSE artist END)) || '|' || year || '|' || lower(trim(release_type))"
-        val outerIdentityKey =
-            "lower(trim(track_sources.album)) || '|' || " +
-                "lower(trim(CASE WHEN track_sources.album_artist != '' " +
-                "THEN track_sources.album_artist ELSE track_sources.artist END)) || '|' || " +
+            "lower(trim(track_sources.album)) || '|' || $artistIdentity || '|' || " +
                 "track_sources.year || '|' || lower(trim(track_sources.release_type))"
         db.execSQL(
             "INSERT OR IGNORE INTO canonical_albums(" +
@@ -405,13 +409,13 @@ object YukineMigrations {
                 "musicbrainz_release_group_id, musicbrainz_release_id, release_type, year, " +
                 "match_status, confidence, metadata_source, created_at, updated_at) " +
                 "SELECT lower(hex(randomblob(16))), $identityKey, max(trim(album)), " +
-                "lower(trim(album)), NULL, '', '', max(release_type), max(year), " +
+                "lower(trim(album)), NULLIF($albumArtistId,0), '', '', max(release_type), max(year), " +
                 "'UNRESOLVED', 0, 'MIGRATION_V31', 0, 0 FROM track_sources " +
                 "WHERE trim(album) != '' GROUP BY $identityKey"
         )
         db.execSQL(
             "UPDATE track_sources SET album_id=(" +
-                "SELECT id FROM canonical_albums WHERE identity_key=$outerIdentityKey LIMIT 1" +
+                "SELECT id FROM canonical_albums WHERE identity_key=$identityKey LIMIT 1" +
                 ") WHERE album_id IS NULL AND trim(album) != ''"
         )
         db.execSQL(

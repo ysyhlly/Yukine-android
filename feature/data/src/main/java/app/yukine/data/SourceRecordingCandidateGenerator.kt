@@ -484,7 +484,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
     }
 
     internal companion object {
-        const val ALGORITHM_VERSION = 7
+        const val ALGORITHM_VERSION = 8
         const val DEFAULT_TOP_K = 20
         const val MAX_TOP_K = 20
         const val MAX_INTERNAL_EMBEDDING_CANDIDATES = 100

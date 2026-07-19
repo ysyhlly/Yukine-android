@@ -1,7 +1,9 @@
 package app.yukine.identity
 
 import app.yukine.streaming.RecordingMatchEvaluatorV2
+import app.yukine.streaming.RecordingVersionClassifier
 import app.yukine.streaming.RecordingVersionType
+import app.yukine.streaming.VersionEvidenceSource
 import app.yukine.streaming.StreamingTrackMatchPolicy
 import java.text.Normalizer
 import java.util.Locale
@@ -17,6 +19,13 @@ enum class RecordingVariantType {
     KARAOKE,
     DEMO,
     EDIT,
+    REMASTER,
+    EXTENDED,
+    CLEAN,
+    EXPLICIT,
+    SPED_UP,
+    SLOWED,
+    ALTERNATE_TAKE,
     UNKNOWN
 }
 
@@ -25,9 +34,13 @@ data class RecordingMatchEvidence(
     val provider: String,
     val providerItemId: String,
     val title: String,
+    val canonicalWorkId: String = "",
+    val canonicalWorkConfirmed: Boolean = false,
     val primaryArtistIds: Set<Long> = emptySet(),
     val primaryArtistNames: Set<String> = emptySet(),
     val album: String = "",
+    val canonicalAlbumId: String = "",
+    val canonicalAlbumConfirmed: Boolean = false,
     val durationMs: Long = 0L,
     val isrc: String = "",
     val recordingMbid: String = "",
@@ -73,35 +86,29 @@ data class AutoConfirmation<T>(
 )
 
 object RecordingVariantRecognizer {
-    private val live = token("live", "现场", "演唱会", "concert")
-    private val remix = token("remix", "mix", "重混", "混音", "bootleg")
-    private val cover = token("cover", "翻唱", "covered by", "歌ってみた")
-    private val acoustic = token("acoustic", "unplugged", "不插电")
-    private val instrumental = token("instrumental", "伴奏", "纯音乐", "off vocal")
-    private val karaoke = token("karaoke", "卡拉ok", "卡拉 ok")
-    private val demo = token("demo", "样带", "试听版")
-    private val edit = token("radio edit", "edit", "剪辑版", "短版")
-
     fun recognize(title: String, album: String = ""): RecordingVariantType {
-        val value = IdentityTextNormalizer.normalizeForSearch("$title $album")
-        return when {
-            cover.containsMatchIn(value) -> RecordingVariantType.COVER
-            live.containsMatchIn(value) -> RecordingVariantType.LIVE
-            remix.containsMatchIn(value) -> RecordingVariantType.REMIX
-            acoustic.containsMatchIn(value) -> RecordingVariantType.ACOUSTIC
-            instrumental.containsMatchIn(value) -> RecordingVariantType.INSTRUMENTAL
-            karaoke.containsMatchIn(value) -> RecordingVariantType.KARAOKE
-            demo.containsMatchIn(value) -> RecordingVariantType.DEMO
-            edit.containsMatchIn(value) -> RecordingVariantType.EDIT
-            value.isBlank() -> RecordingVariantType.UNKNOWN
-            else -> RecordingVariantType.ORIGINAL
+        val evidence = RecordingVersionClassifier.extractEvidence(title, album)
+        if (evidence.source == VersionEvidenceSource.ALBUM) return RecordingVariantType.ORIGINAL
+        return when (evidence.type) {
+            RecordingVersionType.ORIGINAL -> RecordingVariantType.ORIGINAL
+            RecordingVersionType.LIVE -> RecordingVariantType.LIVE
+            RecordingVersionType.REMIX -> RecordingVariantType.REMIX
+            RecordingVersionType.COVER -> RecordingVariantType.COVER
+            RecordingVersionType.ACOUSTIC -> RecordingVariantType.ACOUSTIC
+            RecordingVersionType.INSTRUMENTAL -> RecordingVariantType.INSTRUMENTAL
+            RecordingVersionType.KARAOKE -> RecordingVariantType.KARAOKE
+            RecordingVersionType.DEMO -> RecordingVariantType.DEMO
+            RecordingVersionType.RADIO_EDIT -> RecordingVariantType.EDIT
+            RecordingVersionType.REMASTER -> RecordingVariantType.REMASTER
+            RecordingVersionType.EXTENDED -> RecordingVariantType.EXTENDED
+            RecordingVersionType.CLEAN -> RecordingVariantType.CLEAN
+            RecordingVersionType.EXPLICIT -> RecordingVariantType.EXPLICIT
+            RecordingVersionType.SPED_UP -> RecordingVariantType.SPED_UP
+            RecordingVersionType.SLOWED -> RecordingVariantType.SLOWED
+            RecordingVersionType.ALTERNATE_TAKE -> RecordingVariantType.ALTERNATE_TAKE
+            RecordingVersionType.UNKNOWN -> RecordingVariantType.UNKNOWN
         }
     }
-
-    private fun token(vararg values: String): Regex = Regex(
-        values.joinToString("|") { Regex.escape(IdentityTextNormalizer.normalizeForSearch(it)) },
-        setOf(RegexOption.IGNORE_CASE)
-    )
 }
 
 object IdentityTextNormalizer {
@@ -207,6 +214,10 @@ private fun RecordingMatchEvidence.toReference(): StreamingTrackMatchPolicy.Refe
         providerTrackId = providerItemId,
         recordingMbid = recordingMbid,
         workMbid = workMbid,
+        canonicalWorkId = canonicalWorkId,
+        canonicalWorkConfirmed = canonicalWorkConfirmed,
+        canonicalAlbumId = canonicalAlbumId,
+        canonicalAlbumConfirmed = canonicalAlbumConfirmed,
         fingerprint = acoustId,
         versionType = variantType.toV2()
     )
@@ -221,6 +232,13 @@ private fun RecordingVariantType.toV2(): RecordingVersionType = when (this) {
     RecordingVariantType.KARAOKE -> RecordingVersionType.KARAOKE
     RecordingVariantType.DEMO -> RecordingVersionType.DEMO
     RecordingVariantType.EDIT -> RecordingVersionType.RADIO_EDIT
+    RecordingVariantType.REMASTER -> RecordingVersionType.REMASTER
+    RecordingVariantType.EXTENDED -> RecordingVersionType.EXTENDED
+    RecordingVariantType.CLEAN -> RecordingVersionType.CLEAN
+    RecordingVariantType.EXPLICIT -> RecordingVersionType.EXPLICIT
+    RecordingVariantType.SPED_UP -> RecordingVersionType.SPED_UP
+    RecordingVariantType.SLOWED -> RecordingVersionType.SLOWED
+    RecordingVariantType.ALTERNATE_TAKE -> RecordingVersionType.ALTERNATE_TAKE
     RecordingVariantType.UNKNOWN -> RecordingVersionType.UNKNOWN
 }
 

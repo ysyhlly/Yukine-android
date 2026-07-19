@@ -982,10 +982,64 @@ object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOpenPermission: () -> Unit,
         onToggle: (Boolean) -> Unit
+    ): SettingsPageStateContent = floatingLyrics(
+        languageMode = languageMode,
+        enabled = enabled,
+        overlayPermissionGranted = overlayPermissionGranted,
+        runtimeStatus = if (enabled) "Waiting" else "Disabled",
+        textSizeSp = 16,
+        widthPercent = 88,
+        backgroundOpacityPercent = 92,
+        transparentBackground = false,
+        onNavigate = onNavigate,
+        onOpenPermission = onOpenPermission,
+        onToggle = onToggle,
+        onTextSizeChange = {},
+        onWidthChange = {},
+        onBackgroundOpacityChange = {},
+        onTransparentBackgroundChange = {},
+        onShow = {},
+        onUnlock = {},
+        onReset = {}
+    )
+
+    fun floatingLyrics(
+        languageMode: String,
+        enabled: Boolean,
+        overlayPermissionGranted: Boolean,
+        runtimeStatus: String,
+        textSizeSp: Int,
+        widthPercent: Int,
+        backgroundOpacityPercent: Int,
+        transparentBackground: Boolean,
+        onNavigate: (SettingsPage) -> Unit,
+        onOpenPermission: () -> Unit,
+        onToggle: (Boolean) -> Unit,
+        onTextSizeChange: (Int) -> Unit,
+        onWidthChange: (Int) -> Unit,
+        onBackgroundOpacityChange: (Int) -> Unit,
+        onTransparentBackgroundChange: (Boolean) -> Unit,
+        onShow: () -> Unit,
+        onUnlock: () -> Unit,
+        onReset: () -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(enabled, languageMode)),
             SettingsMetric(text(languageMode, "overlay.permission"), permissionLabel(overlayPermissionGranted, languageMode)),
+            SettingsMetric(
+                text(languageMode, "floating.lyrics.runtime.status"),
+                text(
+                    languageMode,
+                    when (runtimeStatus) {
+                        "PermissionRequired" -> "floating.lyrics.status.permission"
+                        "Waiting" -> "floating.lyrics.status.waiting"
+                        "Visible" -> "floating.lyrics.status.visible"
+                        "Hidden" -> "floating.lyrics.status.hidden"
+                        "Failed" -> "floating.lyrics.status.failed"
+                        else -> "floating.lyrics.status.disabled"
+                    }
+                )
+            ),
             SettingsMetric(text(languageMode, "description"), text(languageMode, "floating.lyrics.description"))
         )
         val actions = buildList {
@@ -997,7 +1051,8 @@ object SettingsPageStateBuilder {
                         onClick = Runnable { onOpenPermission() },
                         description = text(languageMode, "floating.lyrics.description"),
                         style = SettingsActionStyle.Navigation,
-                        icon = EchoIconKind.Permission
+                        icon = EchoIconKind.Permission,
+                        section = text(languageMode, "floating.lyrics.section.runtime")
                     )
                 )
             }
@@ -1009,7 +1064,111 @@ object SettingsPageStateBuilder {
                     style = SettingsActionStyle.Toggle,
                     icon = EchoIconKind.Lyrics,
                     checked = enabled,
-                    enabled = overlayPermissionGranted || enabled
+                    enabled = true,
+                    section = text(languageMode, "floating.lyrics.section.runtime")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.text.size"),
+                    onClick = Runnable { },
+                    description = text(languageMode, "floating.lyrics.text.size.description"),
+                    value = "$textSizeSp sp",
+                    style = SettingsActionStyle.Slider,
+                    icon = EchoIconKind.Lyrics,
+                    sliderValue = textSizeSp.coerceIn(12, 30).toFloat(),
+                    sliderRangeStart = 12f,
+                    sliderRangeEnd = 30f,
+                    sliderSteps = 17,
+                    onSliderValueChange = { value -> onTextSizeChange(value.toInt()) },
+                    section = text(languageMode, "floating.lyrics.section.appearance")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.width"),
+                    onClick = Runnable { },
+                    description = text(languageMode, "floating.lyrics.width.description"),
+                    value = "${widthPercent.coerceIn(40, 100)}%",
+                    style = SettingsActionStyle.Slider,
+                    icon = EchoIconKind.Gauge,
+                    sliderValue = widthPercent.coerceIn(40, 100).toFloat(),
+                    sliderRangeStart = 40f,
+                    sliderRangeEnd = 100f,
+                    sliderSteps = 59,
+                    onSliderValueChange = { value -> onWidthChange(value.toInt()) },
+                    section = text(languageMode, "floating.lyrics.section.appearance")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.opacity"),
+                    onClick = Runnable { },
+                    description = text(languageMode, "floating.lyrics.opacity.description"),
+                    value = "${backgroundOpacityPercent.coerceIn(0, 100)}%",
+                    style = SettingsActionStyle.Slider,
+                    icon = EchoIconKind.Gauge,
+                    enabled = !transparentBackground,
+                    sliderValue = backgroundOpacityPercent.coerceIn(0, 100).toFloat(),
+                    sliderRangeStart = 0f,
+                    sliderRangeEnd = 100f,
+                    sliderSteps = 99,
+                    onSliderValueChange = { value ->
+                        onBackgroundOpacityChange(value.toInt())
+                    },
+                    section = text(languageMode, "floating.lyrics.section.appearance")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.transparent"),
+                    onClick = Runnable {
+                        onTransparentBackgroundChange(!transparentBackground)
+                    },
+                    description = text(languageMode, "floating.lyrics.transparent.description"),
+                    style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Palette,
+                    checked = transparentBackground,
+                    section = text(languageMode, "floating.lyrics.section.appearance")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.show"),
+                    onClick = Runnable(onShow),
+                    description = text(languageMode, "floating.lyrics.show.description"),
+                    icon = EchoIconKind.Lyrics,
+                    enabled = enabled && overlayPermissionGranted,
+                    section = text(languageMode, "floating.lyrics.section.actions")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.unlock"),
+                    onClick = Runnable(onUnlock),
+                    description = text(languageMode, "floating.lyrics.unlock.description"),
+                    icon = EchoIconKind.Permission,
+                    enabled = enabled && overlayPermissionGranted,
+                    section = text(languageMode, "floating.lyrics.section.actions")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.reset"),
+                    onClick = Runnable(onReset),
+                    description = text(languageMode, "floating.lyrics.reset.description"),
+                    icon = EchoIconKind.Settings,
+                    section = text(languageMode, "floating.lyrics.section.actions")
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics.behavior"),
+                    onClick = Runnable { },
+                    description = text(languageMode, "floating.lyrics.behavior.description"),
+                    icon = EchoIconKind.Info,
+                    enabled = false,
+                    section = text(languageMode, "floating.lyrics.section.notes")
                 )
             )
         }

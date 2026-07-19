@@ -26,6 +26,16 @@ class RoomAlbumIdentityRepository(
         return entity.toModel(albumArtistDisplay(entity))
     }
 
+    override fun albumForReleaseGroup(releaseGroupMbid: String): CanonicalAlbum? {
+        val entity = dao.albumForReleaseGroup(releaseGroupMbid.trim()) ?: return null
+        return entity.toModel(albumArtistDisplay(entity))
+    }
+
+    override fun albumForRelease(releaseMbid: String): CanonicalAlbum? {
+        val entity = dao.albumForRelease(releaseMbid.trim()) ?: return null
+        return entity.toModel(albumArtistDisplay(entity))
+    }
+
     override fun aliases(albumKey: Long): List<AlbumAlias> =
         dao.albumAliases(albumKey).map(AlbumAliasEntity::toModel)
 
@@ -36,6 +46,7 @@ class RoomAlbumIdentityRepository(
     ) {
         database.runInTransaction {
             val album = requireNotNull(dao.album(albumKey)) { "Album $albumKey no longer exists" }
+            requireUnownedStrongIds(albumKey, candidate)
             requireCompatibleId(
                 "release-group",
                 album.musicBrainzReleaseGroupId,
@@ -115,5 +126,38 @@ class RoomAlbumIdentityRepository(
                 candidate.isBlank() ||
                 current.equals(candidate, ignoreCase = true)
         ) { "Conflicting MusicBrainz $label ID" }
+    }
+
+    private fun requireUnownedStrongIds(albumKey: Long, candidate: AnonymousAlbumCandidate) {
+        fun requireAvailable(label: String, value: String, owner: CanonicalAlbumEntity?) {
+            if (value.isBlank()) return
+            require(owner == null || owner.id == albumKey) {
+                "$label is already mapped to canonical album ${owner?.id}"
+            }
+        }
+
+        val provider = candidate.provider.trim().lowercase()
+        val providerAlbumId = candidate.providerAlbumId.trim()
+        if (provider.isNotBlank() && providerAlbumId.isNotBlank()) {
+            requireAvailable(
+                "Provider album ID",
+                providerAlbumId,
+                dao.albumForProvider(provider, providerAlbumId)
+            )
+        }
+        candidate.musicBrainzReleaseGroupId.trim().let { releaseGroupId ->
+            requireAvailable(
+                "MusicBrainz release-group ID",
+                releaseGroupId,
+                dao.albumForReleaseGroup(releaseGroupId)
+            )
+        }
+        candidate.musicBrainzReleaseId.trim().let { releaseId ->
+            requireAvailable(
+                "MusicBrainz release ID",
+                releaseId,
+                dao.albumForRelease(releaseId)
+            )
+        }
     }
 }

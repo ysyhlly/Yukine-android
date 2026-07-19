@@ -2,6 +2,7 @@ package app.yukine.data.enrichment
 
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.CanonicalArtist
+import app.yukine.identity.CanonicalAlbum
 import app.yukine.identity.ProviderCacheFreshness
 import app.yukine.identity.ProviderCachedResponse
 import app.yukine.identity.ProviderEndpointHealth
@@ -176,6 +177,46 @@ class MetadataGatewayClientTest {
             result.candidates.single().avatarUrl
         )
         assertEquals("日本の女性歌手、作詞家。", result.candidates.single().description)
+    }
+
+    @Test
+    fun albumSearchUsesCanonicalContextAndParsesAliasesAndReleaseIds() {
+        var requestedUrl = ""
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { url, _ ->
+                requestedUrl = url
+                MetadataHttpResponse(200, ALBUM_RESPONSE)
+            },
+            "https://gateway.example/base",
+            "1.0"
+        )
+
+        val result = client.searchAlbum(
+            CanonicalAlbum(
+                albumKey = 5L,
+                albumId = "album-5",
+                displayName = "Echo",
+                albumArtistDisplay = "Artist",
+                releaseType = "Album",
+                year = 2024
+            ),
+            listOf("回声")
+        )
+
+        assertTrue(requestedUrl.startsWith("https://gateway.example/base/v2/albums/search?"))
+        assertTrue(requestedUrl.contains("title=Echo"))
+        assertTrue(requestedUrl.contains("artist=Artist"))
+        assertTrue(requestedUrl.contains("year=2024"))
+        assertFalse(requestedUrl.contains("aliases="))
+        val candidate = result.candidates.single()
+        assertEquals("musicbrainz", candidate.provider)
+        assertEquals("release-group-mbid", candidate.providerAlbumId)
+        assertEquals(setOf("回声", "Echo (Deluxe)"), candidate.aliases)
+        assertEquals("release-group-mbid", candidate.musicBrainzReleaseGroupId)
+        assertEquals("release-mbid", candidate.musicBrainzReleaseId)
+        assertEquals(2024, candidate.year)
+        assertEquals(0.97, candidate.providerScore, 0.0001)
     }
 
     @Test
@@ -539,6 +580,23 @@ class MetadataGatewayClientTest {
                   "matchedBy":["artist_mbid"],"fields":["name","identifiers.artistMbid"],"confidence":1.0
                 }
               ]
+            }]}
+        """
+
+        const val ALBUM_RESPONSE = """
+            {"albums":[{
+              "canonicalId":"album:mbid:release-group-mbid","title":"Echo",
+              "aliases":["回声","Echo (Deluxe)"],
+              "artists":[{"id":"artist-mbid","name":"Artist","sortName":"Artist"}],
+              "type":"Album","year":2024,
+              "identifiers":{
+                "releaseGroupMbid":"release-group-mbid","releaseMbid":"release-mbid"
+              },
+              "confidence":0.97,
+              "sources":[{
+                "provider":"musicbrainz","id":"release-group-mbid","role":"identity",
+                "matchedBy":["release_group_mbid"],"fields":["title","artists"],"confidence":1.0
+              }]
             }]}
         """
 

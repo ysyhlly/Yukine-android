@@ -5,6 +5,7 @@ internal object MainBackNavigationPolicy {
         selectedTab: String,
         networkPage: NetworkPage,
         settingsPage: SettingsPage,
+        libraryPage: LibraryPage,
         selectedLibraryGroupKey: String?,
         selectedPlaylistId: Long
     ): Result {
@@ -18,7 +19,22 @@ internal object MainBackNavigationPolicy {
                 settingsPage.route,
                 false,
                 true,
-                selectedLibraryGroupKey.startsWith("playlist:")
+                selectedLibraryGroupKey.startsWith("playlist:"),
+                false
+            )
+        }
+        if (
+            MainRoutes.TAB_LIBRARY == selectedTab &&
+            libraryPage == LibraryPage.Browse
+        ) {
+            return Result.stay(
+                selectedTab,
+                networkPage,
+                settingsPage.route,
+                false,
+                true,
+                true,
+                true
             )
         }
         if (MainRoutes.TAB_COLLECTIONS == selectedTab && selectedPlaylistId >= 0L) {
@@ -53,7 +69,8 @@ internal object MainBackNavigationPolicy {
         @JvmField val settingsPage: String,
         @JvmField val clearSelectedRemoteSource: Boolean,
         @JvmField val clearLibraryGroup: Boolean,
-        @JvmField val clearSelectedPlaylist: Boolean
+        @JvmField val clearSelectedPlaylist: Boolean,
+        @JvmField val showLibraryOverview: Boolean
     ) {
         companion object {
             fun stay(
@@ -62,7 +79,8 @@ internal object MainBackNavigationPolicy {
                 settingsPage: String,
                 clearSelectedRemoteSource: Boolean,
                 clearLibraryGroup: Boolean,
-                clearSelectedPlaylist: Boolean = false
+                clearSelectedPlaylist: Boolean = false,
+                showLibraryOverview: Boolean = false
             ): Result {
                 return Result(
                     true,
@@ -72,7 +90,8 @@ internal object MainBackNavigationPolicy {
                     settingsPage,
                     clearSelectedRemoteSource,
                     clearLibraryGroup,
-                    clearSelectedPlaylist
+                    clearSelectedPlaylist,
+                    showLibraryOverview
                 )
             }
 
@@ -90,12 +109,13 @@ internal object MainBackNavigationPolicy {
                     settingsPage,
                     clearSelectedRemoteSource,
                     false,
+                    false,
                     false
                 )
             }
 
             fun notHandled(): Result {
-                return Result(false, false, "", NetworkPage.Home, "", false, false, false)
+                return Result(false, false, "", NetworkPage.Home, "", false, false, false, false)
             }
         }
     }

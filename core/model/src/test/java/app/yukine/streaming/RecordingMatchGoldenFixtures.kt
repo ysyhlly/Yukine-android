@@ -31,12 +31,13 @@ object RecordingMatchGoldenFixtures {
         pair("same recording different encoding", expected = GoldenRecordingLabel.SAME_RECORDING),
         pair(
             "local and webdav duration drift",
-            rightDurationMs = 183_000L,
+            rightDurationMs = 182_500L,
             expected = GoldenRecordingLabel.SAME_RECORDING
         ),
         pair(
             "same title different artist",
             rightArtist = "Other Artist",
+            rightCanonicalWorkId = "work-other",
             expected = GoldenRecordingLabel.DIFFERENT_RECORDING
         ),
         pair(
@@ -85,6 +86,8 @@ object RecordingMatchGoldenFixtures {
         pair(
             "missing primary artist",
             rightArtist = "",
+            rightCanonicalWorkId = "",
+            rightCanonicalWorkConfirmed = false,
             expected = GoldenRecordingLabel.UNCERTAIN
         )
     )
@@ -141,13 +144,17 @@ object RecordingMatchGoldenFixtures {
         artist: String = "Artist",
         album: String = "Album",
         durationMs: Long = 180_000L,
-        isrc: String = ""
+        isrc: String = "",
+        canonicalWorkId: String = "",
+        canonicalWorkConfirmed: Boolean = false
     ) = StreamingTrackMatchPolicy.Reference(
         title = title,
         artist = artist,
         album = album,
         durationMs = durationMs,
-        isrc = isrc
+        isrc = isrc,
+        canonicalWorkId = canonicalWorkId,
+        canonicalWorkConfirmed = canonicalWorkConfirmed
     )
 
     private fun pair(
@@ -160,11 +167,29 @@ object RecordingMatchGoldenFixtures {
         rightDurationMs: Long = 180_000L,
         leftIsrc: String = "",
         rightIsrc: String = "",
+        leftCanonicalWorkId: String = "work-echo",
+        rightCanonicalWorkId: String = "work-echo",
+        leftCanonicalWorkConfirmed: Boolean = true,
+        rightCanonicalWorkConfirmed: Boolean = true,
         expected: GoldenRecordingLabel
     ) = GoldenRecordingPair(
         name = name,
-        left = reference(leftTitle, leftArtist, durationMs = leftDurationMs, isrc = leftIsrc),
-        right = reference(rightTitle, rightArtist, durationMs = rightDurationMs, isrc = rightIsrc),
+        left = reference(
+            leftTitle,
+            leftArtist,
+            durationMs = leftDurationMs,
+            isrc = leftIsrc,
+            canonicalWorkId = leftCanonicalWorkId,
+            canonicalWorkConfirmed = leftCanonicalWorkConfirmed
+        ),
+        right = reference(
+            rightTitle,
+            rightArtist,
+            durationMs = rightDurationMs,
+            isrc = rightIsrc,
+            canonicalWorkId = rightCanonicalWorkId,
+            canonicalWorkConfirmed = rightCanonicalWorkConfirmed
+        ),
         expected = expected
     )
 }

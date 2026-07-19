@@ -2,12 +2,15 @@ package app.yukine.data.room;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import app.yukine.streaming.StreamingTrackMatchPolicy;
 
 /** Conservative, network-free parser for raw track artist credits. */
 public final class ArtistCreditParser {
@@ -61,6 +64,27 @@ public final class ArtistCreditParser {
                 .replace('／', '/')
                 .replace('＆', '&');
         return WHITESPACE.matcher(normalized).replaceAll(" ").trim();
+    }
+
+    /** Returns every normalized canonical alias, including bracketed transliterations. */
+    public static List<String> normalizedAliases(String value) {
+        String key = StreamingTrackMatchPolicy.INSTANCE.canonicalArtistKey(List.of(clean(value)));
+        LinkedHashSet<String> aliases = new LinkedHashSet<>();
+        if (!key.isEmpty()) {
+            for (String alias : key.split("\u0001")) {
+                String normalized = normalizeAlias(alias);
+                if (!normalized.isEmpty()) {
+                    aliases.add(normalized);
+                }
+            }
+        }
+        if (aliases.isEmpty()) {
+            String fallback = normalizeAlias(value);
+            if (!fallback.isEmpty()) {
+                aliases.add(fallback);
+            }
+        }
+        return new ArrayList<>(aliases);
     }
 
     private static void appendCredits(

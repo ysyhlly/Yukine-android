@@ -71,48 +71,6 @@ data object SettingsTab : TabRoute {
     override val route = "settings"
 }
 
-// ─── Library sub-routes ─────────────────────────────────────────────────────────
-
-sealed interface LibraryRoute : EchoRoute
-
-data object LibrarySongs : LibraryRoute {
-    override val route = "library/songs"
-}
-
-data object LibraryAlbums : LibraryRoute {
-    override val route = "library/albums"
-}
-
-data object LibraryArtists : LibraryRoute {
-    override val route = "library/artists"
-}
-
-data object LibraryFolders : LibraryRoute {
-    override val route = "library/folders"
-}
-
-data object LibraryPlaylists : LibraryRoute {
-    override val route = "library/playlists"
-}
-
-data class LibraryGroup(val key: String, val title: String) : LibraryRoute {
-    override val route = "library/group/$key"
-
-    companion object {
-        const val pattern = "library/group/{key}"
-        const val argKey = "key"
-    }
-}
-
-data class PlaylistDetail(val playlistId: Long, val title: String) : LibraryRoute {
-    override val route = "library/playlist/$playlistId"
-
-    companion object {
-        const val pattern = "library/playlist/{playlistId}"
-        const val argPlaylistId = "playlistId"
-    }
-}
-
 // ─── Network sub-routes ─────────────────────────────────────────────────────────
 
 sealed interface NetworkRoute : EchoRoute

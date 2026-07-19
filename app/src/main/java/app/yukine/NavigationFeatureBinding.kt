@@ -7,6 +7,7 @@ import app.yukine.navigation.HomeTab
 import app.yukine.navigation.LibraryNavBinding
 import app.yukine.navigation.PlayerNavBinding
 import app.yukine.navigation.SettingsNavBinding
+import app.yukine.navigation.SettingsTab
 import app.yukine.navigation.StreamingNavBinding
 import app.yukine.navigation.TabRoute
 import app.yukine.ui.OnboardingActions
@@ -101,6 +102,10 @@ internal class NavigationFeatureBinding(
     fun navigateToNetworkTabPage(page: NetworkPage) = routeController.navigateToNetworkPageFromCurrent(page)
     fun navigateToTab(tab: TabRoute, userInitiated: Boolean = true) =
         intentOwner.navigateToTab(tab, userInitiated)
+    fun openFloatingLyricsSettings() {
+        intentOwner.navigateToTab(SettingsTab, false)
+        routeController.setSettingsPage(SettingsPage.FloatingLyrics)
+    }
     fun openQueueSheet() {
         navHostState?.setQueueSheetVisibility(true)
     }
@@ -145,6 +150,7 @@ internal class NavigationFeatureBinding(
             libraryActionHandler = viewModels.libraryViewModel.presentation::onAction,
             openPlayHistoryAction = Runnable(::openPlayHistory),
             openNetworkSourcesAction = Runnable { navigateToNetworkTabPage(NetworkPage.Sources) },
+            navigateUpAction = Runnable { intentOwner.handleBack() },
             recordingMatchStateProvider = viewModels.recordingMatchViewModel
         ),
         settings = SettingsNavBinding(
@@ -170,8 +176,8 @@ internal class NavigationFeatureBinding(
 }
 
 internal fun openPlayHistoryRoute(routeController: MainRouteController, languageMode: String) {
-    routeController.setLibraryMode(LibraryGrouping.PLAYLISTS)
-    routeController.selectLibraryGroup(
+    routeController.openLibraryGroup(
+        LibraryGrouping.PLAYLISTS,
         LibraryPlaylistsStateReducer.HISTORY_GROUP_KEY,
         AppLanguage.text(languageMode, "play.history.playlist")
     )

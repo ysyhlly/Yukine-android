@@ -42,6 +42,20 @@ interface SettingsFloatingLyricsControls {
     fun apply(enabled: Boolean): Boolean
 
     fun openPermissionSettings(): Boolean
+
+    fun updateTextSize(textSizeSp: Int): Boolean = false
+
+    fun updateWidth(widthPercent: Int): Boolean = false
+
+    fun updateBackgroundOpacity(opacityPercent: Int): Boolean = false
+
+    fun updateTransparentBackground(enabled: Boolean): Boolean = false
+
+    fun show(): Boolean = false
+
+    fun unlock(): Boolean = false
+
+    fun resetLayout(): Boolean = false
 }
 
 fun interface SettingsFloatingLyricsControlsProvider {

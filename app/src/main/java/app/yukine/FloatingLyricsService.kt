@@ -1,23 +1,20 @@
 package app.yukine
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
-import android.graphics.PixelFormat
+import android.content.res.Configuration
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
-import android.view.Gravity
-import android.view.MotionEvent
-import android.view.WindowManager
-import android.widget.TextView
+import android.util.Log
+import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
+import app.yukine.playback.EchoPlaybackService
+import app.yukine.playback.service.PlaybackServiceActions
+import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.ui.LyricUiLine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,8 +25,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.abs
+import kotlinx.coroutines.withContext
 
 data class FloatingLyricsState(
     val trackTitle: String = "",
@@ -238,330 +237,365 @@ object FloatingLyricsPublisher {
 class FloatingLyricsService : Service() {
 
     companion object {
-        private const val CHANNEL_ID = "echo_floating_lyrics"
-        private const val NOTIFICATION_ID = 2001
-        private const val ACTION_STOP = "app.yukine.floating_lyrics.STOP"
-        private const val ACTION_DISABLE_CLICK_THROUGH =
-            "app.yukine.floating_lyrics.DISABLE_CLICK_THROUGH"
+        internal const val ACTION_SHOW = "app.yukine.floating_lyrics.SHOW"
+        internal const val ACTION_HIDE_SESSION = "app.yukine.floating_lyrics.HIDE_SESSION"
+        internal const val ACTION_UNLOCK = "app.yukine.floating_lyrics.UNLOCK"
+        internal const val ACTION_REFRESH_SETTINGS = "app.yukine.floating_lyrics.REFRESH_SETTINGS"
+        internal const val ACTION_RESET_LAYOUT = "app.yukine.floating_lyrics.RESET_LAYOUT"
+        internal const val EXTRA_OPEN_SETTINGS = "app.yukine.extra.OPEN_FLOATING_LYRICS_SETTINGS"
+
+        @Volatile
+        private var lastRuntimeStatus = FloatingLyricsRuntimeStatus.Disabled
 
         @JvmStatic
         fun canShow(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
         @JvmStatic
-        fun start(context: Context) {
+        fun start(context: Context, action: String? = null): Boolean {
             if (!canShow(context)) {
-                return
+                lastRuntimeStatus = FloatingLyricsRuntimeStatus.PermissionRequired
+                return false
             }
-            val intent = Intent(context, FloatingLyricsService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            val intent = Intent(context, FloatingLyricsService::class.java).setAction(action)
+            return try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                true
+            } catch (error: RuntimeException) {
+                Log.w(TAG, "Unable to start floating lyrics service", error)
+                lastRuntimeStatus = FloatingLyricsRuntimeStatus.Failed
+                false
             }
         }
 
         @JvmStatic
         fun stop(context: Context) {
+            lastRuntimeStatus = FloatingLyricsRuntimeStatus.Disabled
             context.stopService(Intent(context, FloatingLyricsService::class.java))
         }
+
+        @JvmStatic
+        fun show(context: Context): Boolean = start(context, ACTION_SHOW)
+
+        @JvmStatic
+        fun unlock(context: Context): Boolean = start(context, ACTION_UNLOCK)
+
+        @JvmStatic
+        fun refreshSettings(context: Context): Boolean = start(context, ACTION_REFRESH_SETTINGS)
+
+        @JvmStatic
+        fun resetLayout(context: Context): Boolean = start(context, ACTION_RESET_LAYOUT)
+
+        @JvmStatic
+        fun runtimeStatus(): FloatingLyricsRuntimeStatus = lastRuntimeStatus
+
+        private const val TAG = "FloatingLyricsService"
+        private const val PERMISSION_CHECK_INTERVAL_MS = 2_000L
     }
 
-    private var windowManager: WindowManager? = null
-    private var overlayView: FloatingLyricsOverlayView? = null
-    private var layoutParams: WindowManager.LayoutParams? = null
-    private var settingsStore: FloatingLyricsOverlaySettingsStore? = null
-    private var overlaySettings = FloatingLyricsOverlaySettings()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var collectJob: Job? = null
+    private lateinit var settingsStore: FloatingLyricsOverlaySettingsStore
+    private lateinit var windowController: FloatingLyricsWindowController
+    private lateinit var notificationOwner: FloatingLyricsNotificationOwner
+    private lateinit var artworkLoader: FloatingLyricsArtworkLoader
+    private var overlaySettings = FloatingLyricsOverlaySettings()
+    private var overlayView: FloatingLyricsOverlayView? = null
+    private var presentation: FloatingLyricsPresentation =
+        FloatingLyricsPresentation.WaitingForLyrics
+    private var latestState = FloatingLyricsState()
+    private var sessionInteraction = FloatingLyricsInteraction.Interactive
+    private var disablingAfterPermissionLoss = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         settingsStore = FloatingLyricsOverlaySettingsStore(this)
-        overlaySettings = settingsStore?.load() ?: FloatingLyricsOverlaySettings()
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        overlaySettings = settingsStore.load()
+        notificationOwner = FloatingLyricsNotificationOwner(this)
+        artworkLoader = FloatingLyricsArtworkLoader(this)
+        windowController = FloatingLyricsWindowController(this, ::handleWindowFailure)
+        notificationOwner.createChannel()
+        if (!startForegroundSafely()) {
+            lastRuntimeStatus = FloatingLyricsRuntimeStatus.Failed
+            stopSelf()
+            return
+        }
         if (!canShow(this)) {
-            stopSelf()
+            handlePermissionLoss()
             return
         }
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        if (!showOverlay()) {
-            stopSelf()
-            return
-        }
+        lastRuntimeStatus = FloatingLyricsRuntimeStatus.Waiting
         observeLyrics()
+        observePermission()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_SHOW -> {
+                presentation = FloatingLyricsOverlayReducer.reduce(
+                    presentation,
+                    FloatingLyricsOverlayAction.Show
+                )
+                reconcileLyrics(latestState)
+            }
+            ACTION_HIDE_SESSION -> handleAction(FloatingLyricsOverlayAction.HideSession)
+            ACTION_UNLOCK -> handleAction(FloatingLyricsOverlayAction.Unlock)
+            ACTION_REFRESH_SETTINGS -> {
+                overlaySettings = settingsStore.load()
+                applyOverlaySettings()
+            }
+            ACTION_RESET_LAYOUT -> {
+                overlaySettings = settingsStore.reset()
+                applyOverlaySettings()
+            }
+        }
+        return START_STICKY
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        windowController.refreshBounds()
     }
 
     override fun onDestroy() {
-        removeOverlay()
+        windowController.remove()
+        overlayView = null
+        collectJob?.cancel()
         scope.cancel()
+        if (!disablingAfterPermissionLoss) {
+            lastRuntimeStatus = FloatingLyricsRuntimeStatus.Disabled
+        }
         super.onDestroy()
     }
 
-    private fun showOverlay(): Boolean {
-        if (!canShow(this)) {
-            return false
+    private fun startForegroundSafely(): Boolean = try {
+        val notification = notificationOwner.build(presentation)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                FloatingLyricsNotificationOwner.NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(FloatingLyricsNotificationOwner.NOTIFICATION_ID, notification)
         }
-        val view = FloatingLyricsOverlayView(this, overlaySettings) { next ->
-            updateOverlaySettings { next }
-        }
-
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-
-        val params = WindowManager.LayoutParams(
-            overlayWidth(overlaySettings.widthPercent),
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
-            FloatingLyricsOverlayWindowPolicy.windowFlags(overlaySettings.clickThrough),
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = verticalPositionPx(overlaySettings.verticalPositionPercent)
-        }
-
-        setupDrag(view.lyricsView, params)
-        try {
-            windowManager?.addView(view.root, params)
-        } catch (_: RuntimeException) {
-            return false
-        }
-        overlayView = view
-        layoutParams = params
-        return true
+        true
+    } catch (error: RuntimeException) {
+        Log.w(TAG, "Unable to enter foreground", error)
+        false
     }
 
-    private fun setupDrag(view: TextView, params: WindowManager.LayoutParams) {
-        var initialY = 0
-        var touchY = 0f
-        var dragged = false
-        view.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialY = params.y
-                    touchY = event.rawY
-                    dragged = false
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val deltaY = event.rawY - touchY
-                    dragged = dragged || abs(deltaY) > dp(4)
-                    params.y = (initialY + deltaY.toInt()).coerceIn(
-                        0,
-                        verticalPositionPx(FloatingLyricsOverlaySettings.MAX_VERTICAL_POSITION_PERCENT)
-                    )
-                    updateWindowLayout()
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (dragged) {
-                        persistVerticalPosition(params.y)
-                    } else if (!overlaySettings.clickThrough) {
-                        overlayView?.toggleControls()
-                    }
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> true
-                else -> true
+    private fun observeLyrics() {
+        collectJob = scope.launch {
+            FloatingLyricsPublisher.state.collectLatest { state ->
+                latestState = state
+                reconcileLyrics(state)
             }
         }
+    }
+
+    private fun observePermission() {
+        scope.launch {
+            while (isActive && !disablingAfterPermissionLoss) {
+                delay(PERMISSION_CHECK_INTERVAL_MS)
+                if (!canShow(this@FloatingLyricsService)) {
+                    handlePermissionLoss()
+                }
+            }
+        }
+    }
+
+    private fun reconcileLyrics(state: FloatingLyricsState) {
+        if (!canShow(this)) {
+            handlePermissionLoss()
+            return
+        }
+        presentation = FloatingLyricsOverlayReducer.onLyricsAvailability(
+            presentation,
+            state.activeLine.isNotBlank() && state.visible
+        )
+        val availablePresentation = presentation
+        if (availablePresentation is FloatingLyricsPresentation.Visible &&
+            availablePresentation.interaction != sessionInteraction
+        ) {
+            presentation = availablePresentation.copy(interaction = sessionInteraction)
+        }
+        when (val current = presentation) {
+            FloatingLyricsPresentation.WaitingForLyrics -> {
+                removeOverlay()
+                lastRuntimeStatus = FloatingLyricsRuntimeStatus.Waiting
+            }
+            FloatingLyricsPresentation.HiddenByUser -> {
+                removeOverlay()
+                lastRuntimeStatus = FloatingLyricsRuntimeStatus.Hidden
+            }
+            is FloatingLyricsPresentation.Visible -> {
+                if (!ensureOverlay(current)) {
+                    lastRuntimeStatus = FloatingLyricsRuntimeStatus.Failed
+                    return
+                }
+                lastRuntimeStatus = FloatingLyricsRuntimeStatus.Visible
+                renderVisibleState(state, current)
+            }
+        }
+        notificationOwner.notify(presentation)
+    }
+
+    private fun ensureOverlay(visible: FloatingLyricsPresentation.Visible): Boolean {
+        val view = overlayView ?: FloatingLyricsOverlayView(
+            this,
+            overlaySettings,
+            ::handleAction
+        ).also { overlayView = it }
+        view.applySettings(overlaySettings)
+        view.renderPresentation(visible, animate = false)
+        return windowController.show(view.root, overlaySettings, visible.interaction)
+    }
+
+    private fun renderVisibleState(
+        state: FloatingLyricsState,
+        visible: FloatingLyricsPresentation.Visible
+    ) {
+        val view = overlayView ?: return
+        view.renderPresentation(visible)
+        view.render(state, artwork = null)
+        scope.launch {
+            val artwork = artworkLoader.load(state.albumArtUri, dp(96))
+            if (latestState.trackId == state.trackId && presentation is FloatingLyricsPresentation.Visible) {
+                overlayView?.render(latestState, artwork)
+            }
+        }
+    }
+
+    private fun handleAction(action: FloatingLyricsOverlayAction) {
+        when (action) {
+            is FloatingLyricsOverlayAction.DragBy -> {
+                windowController.moveBy(action.deltaX, action.deltaY)
+                return
+            }
+            FloatingLyricsOverlayAction.DragFinished -> {
+                val (x, y) = windowController.currentPositionFractions()
+                updateOverlaySettings { it.copy(positionXFraction = x, positionYFraction = y) }
+                return
+            }
+            FloatingLyricsOverlayAction.PlayPause -> {
+                dispatchPlaybackAction(
+                    if (latestState.playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.PLAY
+                )
+                return
+            }
+            FloatingLyricsOverlayAction.Previous -> {
+                dispatchPlaybackAction(PlaybackServiceActions.PREVIOUS)
+                return
+            }
+            FloatingLyricsOverlayAction.Next -> {
+                dispatchPlaybackAction(PlaybackServiceActions.NEXT)
+                return
+            }
+            is FloatingLyricsOverlayAction.UpdateBackgroundOpacity -> {
+                updateOverlaySettings {
+                    it.copy(
+                        backgroundOpacityPercent = action.percent,
+                        transparentBackground = false
+                    )
+                }
+                return
+            }
+            FloatingLyricsOverlayAction.OpenSettings -> {
+                openApplicationSettings()
+                return
+            }
+            FloatingLyricsOverlayAction.RequestClickThrough,
+            FloatingLyricsOverlayAction.CancelClickThrough -> return
+            else -> Unit
+        }
+        presentation = FloatingLyricsOverlayReducer.reduce(presentation, action)
+        when (action) {
+            FloatingLyricsOverlayAction.ConfirmClickThrough ->
+                sessionInteraction = FloatingLyricsInteraction.ClickThrough
+            FloatingLyricsOverlayAction.Unlock ->
+                sessionInteraction = FloatingLyricsInteraction.Interactive
+            else -> Unit
+        }
+        reconcileLyrics(latestState)
     }
 
     private fun updateOverlaySettings(
         transform: (FloatingLyricsOverlaySettings) -> FloatingLyricsOverlaySettings
     ) {
         val next = transform(overlaySettings).normalized()
-        if (next == overlaySettings) {
-            return
-        }
+        if (next == overlaySettings) return
         overlaySettings = next
-        settingsStore?.save(next)
+        settingsStore.save(next)
         applyOverlaySettings()
     }
 
     private fun applyOverlaySettings() {
         overlayView?.applySettings(overlaySettings)
-        layoutParams?.apply {
-            width = overlayWidth(overlaySettings.widthPercent)
-            y = verticalPositionPx(overlaySettings.verticalPositionPercent)
-            flags = FloatingLyricsOverlayWindowPolicy.windowFlags(overlaySettings.clickThrough)
+        val visible = presentation as? FloatingLyricsPresentation.Visible
+        if (visible != null) {
+            windowController.update(overlaySettings, visible.interaction)
         }
-        if (overlaySettings.clickThrough) {
-            setControlsVisible(false)
-        }
-        updateWindowLayout()
-        updateNotification()
+        notificationOwner.notify(presentation)
     }
-
-    private fun setControlsVisible(visible: Boolean) {
-        overlayView?.setControlsVisible(visible)
-        overlayView?.root?.post {
-            val params = layoutParams ?: return@post
-            params.y = params.y.coerceIn(
-                0,
-                verticalPositionPx(FloatingLyricsOverlaySettings.MAX_VERTICAL_POSITION_PERCENT)
-            )
-            updateWindowLayout()
-        }
-    }
-
-    private fun persistVerticalPosition(positionPx: Int) {
-        val screenHeight = resources.displayMetrics.heightPixels.coerceAtLeast(1)
-        val percent = (positionPx * 100 / screenHeight).coerceIn(
-            FloatingLyricsOverlaySettings.MIN_VERTICAL_POSITION_PERCENT,
-            FloatingLyricsOverlaySettings.MAX_VERTICAL_POSITION_PERCENT
-        )
-        updateOverlaySettings { it.copy(verticalPositionPercent = percent) }
-    }
-
-    private fun updateWindowLayout() {
-        val root = overlayView?.root ?: return
-        val params = layoutParams ?: return
-        try {
-            windowManager?.updateViewLayout(root, params)
-        } catch (_: RuntimeException) {
-        }
-    }
-
-    private fun overlayWidth(widthPercent: Int): Int {
-        val screenWidth = resources.displayMetrics.widthPixels
-        val desired = screenWidth * widthPercent / 100
-        return desired.coerceIn(dp(220).coerceAtMost(screenWidth), screenWidth)
-    }
-
-    private fun verticalPositionPx(percent: Int): Int =
-        resources.displayMetrics.heightPixels * percent / 100
 
     private fun removeOverlay() {
-        overlayView?.root?.let { view ->
-            try {
-                windowManager?.removeView(view)
-            } catch (_: RuntimeException) {
-            }
-        }
+        windowController.remove()
         overlayView = null
-        layoutParams = null
     }
 
-    private fun observeLyrics() {
-        collectJob = scope.launch {
-            FloatingLyricsPublisher.state.collectLatest { state ->
-                overlayView?.renderLyrics(
-                    text = state.activeLine.ifBlank { state.trackTitle },
-                    visible = state.activeLine.isNotBlank()
-                )
+    private fun dispatchPlaybackAction(action: String) {
+        val intent = Intent(this, EchoPlaybackService::class.java).setAction(action)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
             }
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Unable to dispatch playback action $action", error)
         }
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.floating_lyrics_notification_title),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { description = getString(R.string.floating_lyrics_notification_active) }
-            val nm = getSystemService(NotificationManager::class.java)
-            nm?.createNotificationChannel(channel)
-        }
+    private fun openApplicationSettings() {
+        val intent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_OPEN_SETTINGS, true)
+        runCatching(::startActivity)
+            .onFailure { Log.w(TAG, "Unable to open floating lyrics settings", it) }
     }
 
-    private fun buildNotification(): Notification {
-        val stopIntent = PendingIntent.getService(
-            this, 0,
-            Intent(this, FloatingLyricsService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val disableClickThroughIntent = PendingIntent.getService(
-            this, 2,
-            Intent(this, FloatingLyricsService::class.java).setAction(ACTION_DISABLE_CLICK_THROUGH),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val contentIntent = PendingIntent.getActivity(
-            this, 1,
-            Intent(this, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            Notification.Builder(this, CHANNEL_ID)
-        else
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        val notification = builder
-            .setSmallIcon(app.yukine.R.drawable.ic_stat_echo)
-            .setContentTitle(getString(R.string.floating_lyrics_notification_title))
-            .setContentText(
-                getString(
-                    if (overlaySettings.clickThrough) {
-                        R.string.floating_lyrics_notification_click_through
-                    } else {
-                        R.string.floating_lyrics_notification_active
-                    }
-                )
-            )
-            .setContentIntent(contentIntent)
-            .setOngoing(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            notification.addAction(
-                Notification.Action.Builder(
-                    Icon.createWithResource(this, app.yukine.R.drawable.ic_notif_pause),
-                    getString(R.string.floating_lyrics_stop),
-                    stopIntent
-                ).build()
-            )
-            if (overlaySettings.clickThrough) {
-                notification.addAction(
-                    Notification.Action.Builder(
-                        Icon.createWithResource(this, app.yukine.R.drawable.ic_notif_pause),
-                        getString(R.string.floating_lyrics_disable_click_through),
-                        disableClickThroughIntent
-                    ).build()
-                )
-            }
+    private fun handleWindowFailure(error: Throwable) {
+        if (error is SecurityException || !canShow(this)) {
+            handlePermissionLoss()
         } else {
-            @Suppress("DEPRECATION")
-            notification.addAction(
-                app.yukine.R.drawable.ic_notif_pause,
-                getString(R.string.floating_lyrics_stop),
-                stopIntent
-            )
-            if (overlaySettings.clickThrough) {
-                @Suppress("DEPRECATION")
-                notification.addAction(
-                    app.yukine.R.drawable.ic_notif_pause,
-                    getString(R.string.floating_lyrics_disable_click_through),
-                    disableClickThroughIntent
-                )
-            }
+            lastRuntimeStatus = FloatingLyricsRuntimeStatus.Failed
         }
-        return notification.build()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_STOP -> {
-                stopSelf()
-                return START_NOT_STICKY
+    private fun handlePermissionLoss() {
+        if (disablingAfterPermissionLoss) return
+        disablingAfterPermissionLoss = true
+        lastRuntimeStatus = FloatingLyricsRuntimeStatus.PermissionRequired
+        removeOverlay()
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    MusicLibraryRepository(this@FloatingLyricsService, StreamingPlaybackAdapter)
+                        .saveFloatingLyricsEnabled(false)
+                }.onFailure { Log.w(TAG, "Unable to disable floating lyrics preference", it) }
             }
-            ACTION_DISABLE_CLICK_THROUGH -> {
-                updateOverlaySettings { it.copy(clickThrough = false) }
-                setControlsVisible(true)
-            }
+            stopSelf()
         }
-        return START_STICKY
-    }
-
-    private fun updateNotification() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        manager.notify(NOTIFICATION_ID, buildNotification())
     }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
 }

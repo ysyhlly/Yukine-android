@@ -12,7 +12,10 @@ class IdentityCandidateRankingTest {
         assertEquals(RecordingVariantType.LIVE, RecordingVariantRecognizer.recognize("星空 (Live at Tokyo)"))
         assertEquals(RecordingVariantType.REMIX, RecordingVariantRecognizer.recognize("星空 - Club Remix"))
         assertEquals(RecordingVariantType.COVER, RecordingVariantRecognizer.recognize("星空（翻唱）"))
-        assertEquals(RecordingVariantType.INSTRUMENTAL, RecordingVariantRecognizer.recognize("星空", "Instrumental"))
+        assertEquals(
+            RecordingVariantType.ORIGINAL,
+            RecordingVariantRecognizer.recognize("星空", "Instrumental")
+        )
     }
 
     @Test

@@ -32,6 +32,8 @@ interface ArtistIdentityRepository {
 interface AlbumIdentityRepository {
     fun albumByKey(albumKey: Long): CanonicalAlbum?
     fun albumForProvider(provider: String, providerAlbumId: String): CanonicalAlbum?
+    fun albumForReleaseGroup(releaseGroupMbid: String): CanonicalAlbum?
+    fun albumForRelease(releaseMbid: String): CanonicalAlbum?
     fun aliases(albumKey: Long): List<AlbumAlias>
     fun confirmCandidate(albumKey: Long, candidate: AnonymousAlbumCandidate, verifiedAt: Long)
 }

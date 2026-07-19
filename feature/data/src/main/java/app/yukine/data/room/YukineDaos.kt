@@ -1132,7 +1132,8 @@ interface MusicIdentityDao {
     @Query(
         "SELECT a.* FROM canonical_artists a INNER JOIN artist_source_mappings m " +
         "ON m.artist_id = a.id WHERE m.provider = :provider " +
-            "AND m.provider_artist_id = :providerArtistId LIMIT 1"
+            "AND m.provider_artist_id = :providerArtistId " +
+            "AND m.status = 'CONFIRMED' LIMIT 1"
     )
     fun artistForProvider(provider: String, providerArtistId: String): CanonicalArtistEntity?
 
@@ -1170,6 +1171,18 @@ interface MusicIdentityDao {
             "AND m.provider_album_id = :providerAlbumId LIMIT 1"
     )
     fun albumForProvider(provider: String, providerAlbumId: String): CanonicalAlbumEntity?
+
+    @Query(
+        "SELECT * FROM canonical_albums WHERE musicbrainz_release_group_id = :releaseGroupMbid " +
+            "AND musicbrainz_release_group_id != '' LIMIT 1"
+    )
+    fun albumForReleaseGroup(releaseGroupMbid: String): CanonicalAlbumEntity?
+
+    @Query(
+        "SELECT * FROM canonical_albums WHERE musicbrainz_release_id = :releaseMbid " +
+            "AND musicbrainz_release_id != '' LIMIT 1"
+    )
+    fun albumForRelease(releaseMbid: String): CanonicalAlbumEntity?
 
     @Query(
         "SELECT a.* FROM canonical_albums a INNER JOIN album_aliases x ON x.album_id = a.id " +

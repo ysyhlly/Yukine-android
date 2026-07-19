@@ -18,6 +18,7 @@ class MainRouteControllerTest {
         val handle = SavedStateHandle(
             mapOf(
                 "selectedTab" to MainRoutes.TAB_SETTINGS,
+                "libraryPage" to LibraryPage.Browse.route,
                 "settingsPage" to MainRoutes.SETTINGS_APPEARANCE,
                 "networkPage" to NetworkPage.Sources.route
             )
@@ -25,6 +26,7 @@ class MainRouteControllerTest {
         val viewModel = NavigationViewModel(handle)
 
         assertEquals(SettingsTab, viewModel.state.value.selectedTab)
+        assertEquals(LibraryPage.Browse, viewModel.state.value.libraryPage)
         assertEquals(SettingsPage.Appearance, viewModel.state.value.settingsPage)
         assertEquals(NetworkPage.Sources, viewModel.state.value.networkPage)
 
@@ -36,6 +38,7 @@ class MainRouteControllerTest {
         )
 
         assertEquals(MainRoutes.TAB_NETWORK, handle.get<String>("selectedTab"))
+        assertEquals(LibraryPage.Browse.route, handle.get<String>("libraryPage"))
         assertEquals(MainRoutes.SETTINGS_SOURCES_GROUP, handle.get<String>("settingsPage"))
         assertEquals(NetworkPage.Sources.route, handle.get<String>("networkPage"))
     }
@@ -134,6 +137,7 @@ class MainRouteControllerTest {
 
         val state = controller.current()
         assertEquals(LibraryTab, state.selectedTab)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
         assertEquals(LibraryGrouping.PLAYLISTS, state.libraryMode)
         assertEquals("playlist:7", state.selectedLibraryGroupKey)
         assertEquals("Favorites", state.selectedLibraryGroupTitle)
@@ -154,6 +158,7 @@ class MainRouteControllerTest {
 
         val state = controller.current()
         assertEquals(LibraryGrouping.ALBUMS, state.libraryMode)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
         assertEquals("", state.selectedLibraryGroupKey)
         assertEquals("", state.selectedLibraryGroupTitle)
         assertEquals(-1L, state.selectedPlaylistId)
@@ -170,6 +175,7 @@ class MainRouteControllerTest {
 
         val state = controller.current()
         assertEquals(LibraryGrouping.PLAYLISTS, state.libraryMode)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
         assertEquals(LibraryPlaylistsStateReducer.HISTORY_GROUP_KEY, state.selectedLibraryGroupKey)
         assertEquals(AppLanguage.text(AppLanguage.MODE_CHINESE, "play.history.playlist"), state.selectedLibraryGroupTitle)
         assertEquals(-1L, state.selectedPlaylistId)
@@ -192,6 +198,52 @@ class MainRouteControllerTest {
         controller.navigateToTab(app.yukine.navigation.SettingsTab, userInitiated = true)
         state = controller.current()
         assertEquals(SettingsPage.Home, state.settingsPage)
+    }
+
+    @Test
+    fun openLibraryModeNavigatesDirectlyToBrowseRoot() {
+        val controller = controllerWith(selectedTab = MainRoutes.TAB_HOME)
+
+        controller.openLibraryMode(LibraryGrouping.ALBUMS)
+
+        val state = controller.current()
+        assertEquals(LibraryTab, state.selectedTab)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
+        assertEquals(LibraryGrouping.ALBUMS, state.libraryMode)
+        assertEquals("", state.selectedLibraryGroupKey)
+        assertEquals(-1L, state.selectedPlaylistId)
+    }
+
+    @Test
+    fun openLibraryPlaylistNavigatesDirectlyToItsTrackList() {
+        val controller = controllerWith(selectedTab = MainRoutes.TAB_HOME)
+
+        controller.openLibraryPlaylist(7L, "Favorites")
+
+        val state = controller.current()
+        assertEquals(LibraryTab, state.selectedTab)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
+        assertEquals(LibraryGrouping.PLAYLISTS, state.libraryMode)
+        assertEquals("playlist:7", state.selectedLibraryGroupKey)
+        assertEquals("Favorites", state.selectedLibraryGroupTitle)
+        assertEquals(7L, state.selectedPlaylistId)
+    }
+
+    @Test
+    fun userLibraryTabNavigationReturnsToOverview() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.ALBUMS,
+            selectedLibraryGroupKey = "album:one",
+            selectedLibraryGroupTitle = "Album One"
+        )
+
+        controller.navigateToTab(LibraryTab, userInitiated = true)
+
+        val state = controller.current()
+        assertEquals(LibraryPage.Overview, state.libraryPage)
+        assertEquals("", state.selectedLibraryGroupKey)
+        assertEquals(-1L, state.selectedPlaylistId)
     }
 
     @Test
@@ -299,6 +351,46 @@ class MainRouteControllerTest {
         assertEquals("", state.selectedLibraryGroupKey)
         assertEquals("", state.selectedLibraryGroupTitle)
         assertEquals(-1L, state.selectedPlaylistId)
+        assertEquals(LibraryPage.Browse, state.libraryPage)
+    }
+
+    @Test
+    fun backNavigationWalksLibraryDetailThenOverviewThenHome() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.ALBUMS,
+            selectedLibraryGroupKey = "album:one",
+            selectedLibraryGroupTitle = "Album One"
+        )
+
+        controller.applyBackNavigation()
+        assertEquals(LibraryPage.Browse, controller.current().libraryPage)
+        assertEquals("", controller.current().selectedLibraryGroupKey)
+        assertEquals(LibraryTab, controller.current().selectedTab)
+
+        controller.applyBackNavigation()
+        assertEquals(LibraryPage.Overview, controller.current().libraryPage)
+        assertEquals(LibraryTab, controller.current().selectedTab)
+
+        controller.applyBackNavigation()
+        assertEquals(app.yukine.navigation.HomeTab, controller.current().selectedTab)
+    }
+
+    @Test
+    fun legacySavedLibraryDetailRestoresAsBrowsePage() {
+        val viewModel = NavigationViewModel(
+            SavedStateHandle(
+                mapOf(
+                    "selectedTab" to MainRoutes.TAB_LIBRARY,
+                    "libraryMode" to LibraryGrouping.ALBUMS,
+                    "selectedLibraryGroupKey" to "album:one",
+                    "selectedLibraryGroupTitle" to "Album One"
+                )
+            )
+        )
+
+        assertEquals(LibraryPage.Browse, viewModel.state.value.libraryPage)
+        assertEquals("album:one", viewModel.state.value.selectedLibraryGroupKey)
     }
 
     @Test
@@ -319,6 +411,13 @@ class MainRouteControllerTest {
         selectedLibraryGroupKey: String = "",
         selectedLibraryGroupTitle: String = "",
         selectedPlaylistId: Long = -1L,
+        libraryPage: LibraryPage = if (
+            selectedLibraryGroupKey.isNotEmpty() || selectedPlaylistId >= 0L
+        ) {
+            LibraryPage.Browse
+        } else {
+            LibraryPage.Overview
+        },
         networkPage: NetworkPage = NetworkPage.Home,
         settingsPage: String = MainRoutes.SETTINGS_HOME,
         selectedRemoteSourceId: Long = -1L
@@ -328,6 +427,7 @@ class MainRouteControllerTest {
         controller.persist(
             NavigationRouteState(
                 selectedTab = TabRoute.fromKey(selectedTab) ?: error("Unknown tab: $selectedTab"),
+                libraryPage = libraryPage,
                 libraryMode = libraryMode,
                 selectedLibraryGroupKey = selectedLibraryGroupKey,
                 selectedLibraryGroupTitle = selectedLibraryGroupTitle,

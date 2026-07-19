@@ -6,6 +6,7 @@ import app.yukine.data.room.AlbumAliasEntity
 import app.yukine.data.room.CanonicalAlbumEntity
 import app.yukine.data.room.CanonicalArtistEntity
 import app.yukine.data.room.CanonicalRecordingEntity
+import app.yukine.data.room.CanonicalWorkEntity
 import app.yukine.data.room.IdentityCandidateEntity
 import app.yukine.data.room.IdentityResolutionJobEntity
 import app.yukine.data.room.RecordingArtistCreditEntity
@@ -30,9 +31,14 @@ import app.yukine.identity.IdentityTargetType
 import app.yukine.identity.RecordingIdentifier
 import app.yukine.identity.TrackSourceMapping
 
-internal fun CanonicalRecordingEntity.toModel(): CanonicalRecording = CanonicalRecording(
+internal fun CanonicalRecordingEntity.toModel(
+    work: CanonicalWorkEntity? = null,
+    workConfirmed: Boolean = false
+): CanonicalRecording = CanonicalRecording(
     recordingId = requireNotNull(id),
     canonicalId = canonicalUuid,
+    canonicalWorkId = work?.canonicalUuid.orEmpty(),
+    canonicalWorkConfirmed = workConfirmed,
     musicBrainzRecordingId = musicBrainzRecordingId,
     musicBrainzWorkId = musicBrainzWorkId,
     title = title,
@@ -47,7 +53,10 @@ internal fun CanonicalRecordingEntity.toModel(): CanonicalRecording = CanonicalR
     updatedAt = updatedAt
 )
 
-internal fun TrackSourceMappingEntity.toModel(recording: CanonicalRecordingEntity): TrackSourceMapping =
+internal fun TrackSourceMappingEntity.toModel(
+    recording: CanonicalRecordingEntity,
+    canonicalAlbum: CanonicalAlbumEntity? = null
+): TrackSourceMapping =
     TrackSourceMapping(
         sourceId = requireNotNull(sourceId),
         recordingId = recordingId,
@@ -59,6 +68,9 @@ internal fun TrackSourceMappingEntity.toModel(recording: CanonicalRecordingEntit
         title = title,
         artist = artist,
         album = album,
+        canonicalAlbumId = canonicalAlbum?.albumUuid.orEmpty(),
+        canonicalAlbumConfirmed =
+            canonicalAlbum?.matchStatus == IdentityMatchStatus.CONFIRMED.name,
         albumArtist = albumArtist,
         composer = composer,
         releaseType = releaseType,

@@ -36,18 +36,20 @@ internal class MainRouteController(
         searchQuery: String,
         networkPage: NetworkPage,
         settingsPage: String,
-        selectedRemoteSourceId: Long
+        selectedRemoteSourceId: Long,
+        libraryPage: LibraryPage = state.libraryPage
     ): NavigationRouteState {
         return NavigationRouteState(
-            TabRoute.fromKey(selectedTab)?.let(::normalizeTab) ?: HomeTab,
-            libraryMode,
-            selectedLibraryGroupKey,
-            selectedLibraryGroupTitle,
-            selectedPlaylistId,
-            searchQuery,
-            networkPage,
-            SettingsPage.fromRoute(settingsPage),
-            selectedRemoteSourceId
+            selectedTab = TabRoute.fromKey(selectedTab)?.let(::normalizeTab) ?: HomeTab,
+            libraryPage = libraryPage,
+            libraryMode = libraryMode,
+            selectedLibraryGroupKey = selectedLibraryGroupKey,
+            selectedLibraryGroupTitle = selectedLibraryGroupTitle,
+            selectedPlaylistId = selectedPlaylistId,
+            searchQuery = searchQuery,
+            networkPage = networkPage,
+            settingsPage = SettingsPage.fromRoute(settingsPage),
+            selectedRemoteSourceId = selectedRemoteSourceId
         )
     }
 
@@ -93,6 +95,10 @@ internal class MainRouteController(
         return state.libraryMode
     }
 
+    fun libraryPage(): LibraryPage {
+        return state.libraryPage
+    }
+
     fun selectedLibraryGroupKey(): String {
         return state.selectedLibraryGroupKey
     }
@@ -127,6 +133,7 @@ internal class MainRouteController(
     fun setSelectedTab(selectedTab: String) {
         update(
             selectedTab,
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
@@ -147,21 +154,28 @@ internal class MainRouteController(
         var nextNetworkPage = networkPage()
         var nextSettingsPage = settingsPage()
         var nextRemoteSourceId = selectedRemoteSourceId()
-        var nextLibraryMode = libraryMode()
+        var nextLibraryPage = libraryPage()
+        var nextLibraryGroupKey = selectedLibraryGroupKey()
+        var nextLibraryGroupTitle = selectedLibraryGroupTitle()
+        var nextSelectedPlaylistId = selectedPlaylistId()
         if (userInitiated && MainRoutes.TAB_NETWORK == normalizedTab) {
             nextNetworkPage = NetworkPage.Home
             nextRemoteSourceId = -1L
         } else if (userInitiated && MainRoutes.TAB_SETTINGS == normalizedTab) {
             nextSettingsPage = MainRoutes.SETTINGS_HOME
-        } else if (userInitiated && MainRoutes.TAB_LIBRARY == normalizedTab && nextLibraryMode == LibraryGrouping.HOME) {
-            nextLibraryMode = LibraryGrouping.SONGS
+        } else if (userInitiated && MainRoutes.TAB_LIBRARY == normalizedTab) {
+            nextLibraryPage = LibraryPage.Overview
+            nextLibraryGroupKey = ""
+            nextLibraryGroupTitle = ""
+            nextSelectedPlaylistId = -1L
         }
         update(
             normalizedTab,
-            nextLibraryMode,
-            selectedLibraryGroupKey(),
-            selectedLibraryGroupTitle(),
-            selectedPlaylistId(),
+            nextLibraryPage,
+            libraryMode(),
+            nextLibraryGroupKey,
+            nextLibraryGroupTitle,
+            nextSelectedPlaylistId,
             searchQuery(),
             nextNetworkPage,
             nextSettingsPage,
@@ -176,6 +190,7 @@ internal class MainRouteController(
         }
         update(
             MainRoutes.TAB_NETWORK,
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
@@ -187,10 +202,11 @@ internal class MainRouteController(
         )
     }
 
-    override fun setLibraryMode(libraryMode: String) {
+    override fun setLibraryMode(mode: String) {
         update(
             selectedTab(),
-            normalizeLibraryMode(libraryMode),
+            LibraryPage.Browse,
+            normalizeLibraryMode(mode),
             "",
             "",
             -1L,
@@ -201,9 +217,35 @@ internal class MainRouteController(
         )
     }
 
+    fun openLibraryMode(libraryMode: String) {
+        openLibraryGroup(libraryMode, "", "", -1L)
+    }
+
+    @JvmOverloads
+    fun openLibraryGroup(
+        libraryMode: String,
+        key: String,
+        title: String,
+        selectedPlaylistId: Long = -1L
+    ) {
+        update(
+            MainRoutes.TAB_LIBRARY,
+            LibraryPage.Browse,
+            normalizeLibraryMode(libraryMode),
+            key,
+            title,
+            selectedPlaylistId,
+            searchQuery(),
+            networkPage(),
+            settingsPage(),
+            selectedRemoteSourceId()
+        )
+    }
+
     override fun selectLibraryGroup(key: String, title: String) {
         update(
             selectedTab(),
+            LibraryPage.Browse,
             libraryMode(),
             key,
             title,
@@ -216,16 +258,20 @@ internal class MainRouteController(
     }
 
     override fun clearLibraryGroup() {
-        selectLibraryGroup("", "")
-    }
-
-    override fun setSelectedPlaylistId(selectedPlaylistId: Long) {
+        if (
+            selectedLibraryGroupKey().isEmpty() &&
+            selectedLibraryGroupTitle().isEmpty() &&
+            selectedPlaylistId() < 0L
+        ) {
+            return
+        }
         update(
             selectedTab(),
+            libraryPage(),
             libraryMode(),
-            selectedLibraryGroupKey(),
-            selectedLibraryGroupTitle(),
-            selectedPlaylistId,
+            "",
+            "",
+            -1L,
             searchQuery(),
             networkPage(),
             settingsPage(),
@@ -233,14 +279,46 @@ internal class MainRouteController(
         )
     }
 
-    override fun setSearchQuery(searchQuery: String) {
+    override fun openLibraryPlaylist(playlistId: Long, title: String) {
+        openLibraryGroup(
+            LibraryGrouping.PLAYLISTS,
+            "playlist:$playlistId",
+            title,
+            playlistId
+        )
+    }
+
+    override fun closeLibraryGroup() {
+        clearLibraryGroup()
+    }
+
+    override fun setSelectedPlaylistId(playlistId: Long) {
+        if (selectedPlaylistId() == playlistId) {
+            return
+        }
         update(
             selectedTab(),
+            libraryPage(),
+            libraryMode(),
+            selectedLibraryGroupKey(),
+            selectedLibraryGroupTitle(),
+            playlistId,
+            searchQuery(),
+            networkPage(),
+            settingsPage(),
+            selectedRemoteSourceId()
+        )
+    }
+
+    override fun setSearchQuery(query: String) {
+        update(
+            selectedTab(),
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
             selectedPlaylistId(),
-            searchQuery,
+            query,
             networkPage(),
             settingsPage(),
             selectedRemoteSourceId()
@@ -250,6 +328,7 @@ internal class MainRouteController(
     fun setNetworkPage(networkPage: NetworkPage) {
         update(
             selectedTab(),
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
@@ -264,6 +343,7 @@ internal class MainRouteController(
     fun setSettingsPage(settingsPage: String) {
         update(
             selectedTab(),
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
@@ -286,6 +366,7 @@ internal class MainRouteController(
     fun setSelectedRemoteSourceId(selectedRemoteSourceId: Long) {
         update(
             selectedTab(),
+            libraryPage(),
             libraryMode(),
             selectedLibraryGroupKey(),
             selectedLibraryGroupTitle(),
@@ -317,6 +398,7 @@ internal class MainRouteController(
             selectedTab(),
             networkPage(),
             SettingsPage.fromRoute(settingsPage()),
+            libraryPage(),
             selectedLibraryGroupKey(),
             selectedPlaylistId()
         )
@@ -328,8 +410,14 @@ internal class MainRouteController(
         val nextLibraryGroupTitle = if (result.clearLibraryGroup) "" else selectedLibraryGroupTitle()
         val nextRemoteSourceId = if (result.clearSelectedRemoteSource) -1L else selectedRemoteSourceId()
         val nextSelectedPlaylistId = if (result.clearSelectedPlaylist) -1L else selectedPlaylistId()
+        val nextLibraryPage = if (result.showLibraryOverview) {
+            LibraryPage.Overview
+        } else {
+            libraryPage()
+        }
         update(
             nextSelectedTab,
+            nextLibraryPage,
             libraryMode(),
             nextLibraryGroupKey,
             nextLibraryGroupTitle,
@@ -349,6 +437,7 @@ internal class MainRouteController(
 
     private fun update(
         selectedTab: String,
+        libraryPage: LibraryPage,
         libraryMode: String,
         selectedLibraryGroupKey: String,
         selectedLibraryGroupTitle: String,
@@ -367,7 +456,8 @@ internal class MainRouteController(
             searchQuery,
             networkPage,
             settingsPage,
-            selectedRemoteSourceId
+            selectedRemoteSourceId,
+            libraryPage
         ))
     }
 

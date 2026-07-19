@@ -60,6 +60,7 @@ data class LibraryNavBinding(
     val libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
     val openPlayHistoryAction: Runnable = Runnable { },
     val openNetworkSourcesAction: Runnable = Runnable { },
+    val navigateUpAction: Runnable = Runnable { },
     val recordingMatchStateProvider: RecordingMatchDestinationStateProvider? = null
 )
 

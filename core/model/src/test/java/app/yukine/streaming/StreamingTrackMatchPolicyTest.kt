@@ -52,13 +52,13 @@ class StreamingTrackMatchPolicyTest {
     }
 
     @Test
-    fun pickBestCandidateUsesTitleMatchThenFirstFallback() {
+    fun pickBestCandidateDoesNotPreferTitleMatchAcrossArtistConflict() {
         val local = track(title = "Needle", artist = "Missing Artist")
         val first = streamingTrack("1", "Other Song", "Other Artist")
-        val titleMatch = streamingTrack("2", "Needle Extended", "Different Artist")
+        val titleMatch = streamingTrack("2", "Needle Theme", "Different Artist")
 
         assertEquals(
-            titleMatch,
+            first,
             StreamingTrackMatchPolicy.pickBestCandidate(local, listOf(first, titleMatch))
         )
         assertEquals(first, StreamingTrackMatchPolicy.pickBestCandidate(local, listOf(first)))
@@ -75,7 +75,7 @@ class StreamingTrackMatchPolicyTest {
             id = "cross-source",
             title = "10年後の私になら",
             artist = "こはならむ (Kohana Lam)"
-        ).copy(durationMs = 184_000L)
+        ).copy(durationMs = 183_500L)
 
         val match = StreamingTrackMatchPolicy.rankCandidates(
             StreamingTrackMatchPolicy.reference(local),

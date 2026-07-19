@@ -8,6 +8,16 @@ internal interface LibraryRouteActions {
     fun setSelectedPlaylistId(playlistId: Long)
     fun clearLibraryGroup()
     fun setSearchQuery(query: String)
+
+    fun openLibraryPlaylist(playlistId: Long, title: String) {
+        selectLibraryGroup("playlist:$playlistId", title)
+        setSelectedPlaylistId(playlistId)
+    }
+
+    fun closeLibraryGroup() {
+        clearLibraryGroup()
+        setSelectedPlaylistId(-1L)
+    }
 }
 
 internal class MainLibraryGateway(
@@ -102,14 +112,12 @@ internal class MainLibraryGateway(
     }
 
     override fun openPlaylist(playlistId: Long, title: String) {
-        routeActions.selectLibraryGroup("playlist:$playlistId", title)
-        routeActions.setSelectedPlaylistId(playlistId)
+        routeActions.openLibraryPlaylist(playlistId, title)
         collectionsLoader.loadCollections()
     }
 
     override fun backFromGroup() {
-        routeActions.clearLibraryGroup()
-        routeActions.setSelectedPlaylistId(-1L)
+        routeActions.closeLibraryGroup()
     }
 
     override fun search(query: String) {
