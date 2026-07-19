@@ -6,6 +6,7 @@ import app.yukine.PageBackgrounds;
 import app.yukine.TrackShareStyle;
 import app.yukine.data.room.SettingEntity;
 import app.yukine.data.room.SettingsDao;
+import app.yukine.identity.LibraryDedupMode;
 import app.yukine.playback.AudioEffectSettings;
 
 /** Typed settings-table repository; serialization defaults remain compatible with v1-v14. */
@@ -53,6 +54,8 @@ public final class SettingsRepository {
     private static final String PAGE_BACKGROUND_SETTINGS_TRANSFORM = "page_background_settings_transform";
     private static final String MEDIA_STORE_GENERATION = "media_store_generation";
     private static final String LIBRARY_AUTO_SYNC_ENABLED = "library_auto_sync_enabled";
+    private static final String LIBRARY_DEDUP_MODE = "library_dedup_mode";
+    private static final String LIBRARY_DEDUP_GENERATION = "library_dedup_generation";
 
     private final SettingsDao dao;
 
@@ -86,6 +89,21 @@ public final class SettingsRepository {
     void saveConcurrentPlaybackEnabled(boolean value) { saveBool(CONCURRENT_PLAYBACK, value); }
     boolean loadLibraryAutoSyncEnabled() { return bool(LIBRARY_AUTO_SYNC_ENABLED, false); }
     void saveLibraryAutoSyncEnabled(boolean value) { saveBool(LIBRARY_AUTO_SYNC_ENABLED, value); }
+    LibraryDedupMode loadLibraryDedupMode() {
+        return LibraryDedupMode.fromStoredValue(load(LIBRARY_DEDUP_MODE, LibraryDedupMode.SAFE.name()));
+    }
+    void saveLibraryDedupMode(LibraryDedupMode value) {
+        LibraryDedupMode next = value == null ? LibraryDedupMode.SAFE : value;
+        if (next == loadLibraryDedupMode()) return;
+        save(LIBRARY_DEDUP_MODE, next.name());
+        long generation;
+        try {
+            generation = Math.max(0L, Long.parseLong(load(LIBRARY_DEDUP_GENERATION, "0")));
+        } catch (NumberFormatException ignored) {
+            generation = 0L;
+        }
+        save(LIBRARY_DEDUP_GENERATION, String.valueOf(generation + 1L));
+    }
     String loadWebDavSyncManifest(long sourceId) {
         return load("webdav_sync_manifest_" + sourceId, "");
     }

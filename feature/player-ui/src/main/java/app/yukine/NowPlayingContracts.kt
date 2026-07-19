@@ -54,6 +54,7 @@ data class LyricsUiState(
     val title: String = "",
     val status: String = "",
     val lines: List<LyricUiLine> = emptyList(),
+    val offsetMs: Long = 0L,
     val primaryVisible: Boolean = true,
     val translationVisible: Boolean = true,
     val romanizationVisible: Boolean = false

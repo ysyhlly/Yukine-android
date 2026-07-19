@@ -7,6 +7,7 @@ import app.yukine.streaming.LocalStreamingAuthStore
 import app.yukine.streaming.StreamingCredentialState
 import app.yukine.streaming.StreamingProviderName
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -79,5 +80,20 @@ class KugouExperimentalSyncStoreTest {
 
         assertFalse(auth.connected)
         assertTrue(auth.credentialState == StreamingCredentialState.PENDING_VERIFICATION)
+    }
+
+    @Test
+    fun legacyKugouDeviceIdOnlyCookieIsDowngradedToInvalid() {
+        context.getSharedPreferences(LocalStreamingAuthStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("connected:kugou", true)
+            .putString("cookie:kugou", "kg_mid=test-device")
+            .putString("credential_state:kugou", StreamingCredentialState.VALID.wireName)
+            .commit()
+
+        val auth = LocalStreamingAuthStore(context).authState(StreamingProviderName.KUGOU)
+
+        assertFalse(auth.connected)
+        assertEquals(StreamingCredentialState.INVALID, auth.credentialState)
     }
 }

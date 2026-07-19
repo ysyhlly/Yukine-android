@@ -38,6 +38,7 @@ public final class MainRoutes {
     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";
     public static final String SETTINGS_LYRICS = "settings_lyrics";
     public static final String SETTINGS_LIBRARY = "settings_library";
+    public static final String SETTINGS_DUPLICATE_CANDIDATES = "settings_duplicate_candidates";
     public static final String SETTINGS_STREAMING_GATEWAY = "settings_streaming_gateway";
 
     private MainRoutes() {

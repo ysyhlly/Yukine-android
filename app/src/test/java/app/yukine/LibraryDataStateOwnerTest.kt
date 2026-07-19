@@ -71,6 +71,19 @@ class LibraryDataStateOwnerTest {
     }
 
     @Test
+    fun applyCollectionsPublishesSmartCollectionTracks() {
+        owner.applyCollections(
+            LibraryCollectionsResult(
+                recentlyAddedTracks = listOf(track(71L)),
+                longUnplayedTracks = listOf(track(72L))
+            )
+        )
+
+        assertEquals(listOf(71L), owner.state.value.recentlyAddedTracks.map { it.id })
+        assertEquals(listOf(72L), owner.state.value.longUnplayedTracks.map { it.id })
+    }
+
+    @Test
     fun batchFavoritesPublishOneLibrarySnapshotAndPendingDoesNotPublishLibraryState() = runTest {
         val batchOwner = LibraryDataStateOwner(this, Dispatchers.Unconfined)
         val tracks = (1L..120L).map(::track)

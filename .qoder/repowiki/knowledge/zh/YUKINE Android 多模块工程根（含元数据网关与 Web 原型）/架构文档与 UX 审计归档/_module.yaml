@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: docs_and_audits
+title: 架构文档与 UX 审计归档
+scope:
+    - docs/
+    - ux-audit/
+source_files: []
+depends_on: []
+related_to: []

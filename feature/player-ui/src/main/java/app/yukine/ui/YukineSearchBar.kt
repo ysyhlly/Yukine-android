@@ -36,6 +36,7 @@ import kotlin.math.sin
 
 @Composable
 fun YukineSearchBar(
+    modifier: Modifier = Modifier.fillMaxWidth(),
     label: String = "搜索本地和网络音乐",
     actionLabel: String = "搜索",
     activeDownload: TrackDownloadItem? = null,
@@ -46,8 +47,7 @@ fun YukineSearchBar(
     val p = EchoTheme.colors()
     Surface(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .height(48.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)

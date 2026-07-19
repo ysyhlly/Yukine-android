@@ -1,6 +1,8 @@
 package app.yukine
 
+import app.yukine.identity.LibraryDedupMode
 import java.util.function.Consumer
+import java.util.function.BiConsumer
 import java.util.function.IntConsumer
 
 internal data class SettingsNavigationEffectActions(
@@ -10,7 +12,7 @@ internal data class SettingsNavigationEffectActions(
     val openDownloads: Runnable
 )
 
-internal data class SettingsLibraryEffectActions(
+internal data class SettingsLibraryEffectActions @JvmOverloads constructor(
     val requestNeededPermissions: Runnable,
     val loadLibrary: Runnable,
     val openAudioFilePicker: Runnable,
@@ -20,7 +22,10 @@ internal data class SettingsLibraryEffectActions(
     val openLuoxueSourceManager: Runnable,
     val importLuoxueSource: Runnable,
     val restoreHiddenLibraryItem: Consumer<String>,
-    val restoreAllHiddenLibraryItems: Runnable
+    val restoreAllHiddenLibraryItems: Runnable,
+    val setLibraryDedupMode: Consumer<LibraryDedupMode> = Consumer {},
+    val confirmDuplicateCandidate: BiConsumer<Long, Long> = BiConsumer { _, _ -> },
+    val confirmHighConfidenceDuplicates: Runnable = Runnable {}
 )
 
 internal data class SettingsPlaybackEffectActions @JvmOverloads constructor(
@@ -65,6 +70,14 @@ internal class SettingsEffectOwner(
             SettingsEffect.OpenAudioFolderPicker -> library.openAudioFolderPicker.run()
             SettingsEffect.RebuildSongIdentity -> library.rebuildSongIdentity.run()
             SettingsEffect.CancelIdentityBackfill -> library.cancelIdentityBackfill.run()
+            is SettingsEffect.SetLibraryDedupMode -> library.setLibraryDedupMode.accept(effect.mode)
+            is SettingsEffect.ConfirmDuplicateCandidate ->
+                library.confirmDuplicateCandidate.accept(
+                    effect.leftRecordingId,
+                    effect.rightRecordingId
+                )
+            SettingsEffect.ConfirmHighConfidenceDuplicates ->
+                library.confirmHighConfidenceDuplicates.run()
             SettingsEffect.OpenLuoxueSourceManager -> library.openLuoxueSourceManager.run()
             SettingsEffect.ImportLuoxueSource -> library.importLuoxueSource.run()
             is SettingsEffect.RestoreHiddenLibraryItem ->

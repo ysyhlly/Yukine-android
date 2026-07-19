@@ -90,8 +90,11 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         recordingIds: List<Long>
     ): Int {
         val totalStartedAt = diagnostics.startNanos()
-        val embeddingRecallMode = EmbeddingRecallModeStore(database.settingsDao()).mode()
-        val scoringMode = IdentityScoringModeStore(database.settingsDao()).mode()
+        val dedupPolicy = LibraryDedupPolicy.forMode(
+            LibraryDedupModeStore(database.settingsDao()).mode()
+        )
+        val embeddingRecallMode = dedupPolicy.embeddingRecallMode
+        val scoringMode = dedupPolicy.scoringMode
         val pendingTrackIds = localTrackIds.asSequence()
             .filter { it != 0L }
             .distinct()
@@ -233,7 +236,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                         shadowCandidatesBySourceId,
                         audioEvidenceBySourceId,
                         effectiveFeatures,
-                        scoringMode
+                        scoringMode,
+                        dedupPolicy
                     )
                 }
 
@@ -266,10 +270,18 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                                 candidateSources,
                                 audioEvidenceBySourceId,
                                 effectiveFeatures,
-                                scoringMode
+                                scoringMode,
+                                dedupPolicy
                             )
                             ?: return@mapNotNull null
-                        EvaluatedRecording(candidateRecordingId, evaluation, manual != null)
+                        EvaluatedRecording(
+                            recordingId = candidateRecordingId,
+                            evaluation = evaluation,
+                            locked = manual != null,
+                            automaticEligible = dedupPolicy.allowMissingDuration ||
+                                currentSources.all { it.durationMs > 0L } &&
+                                candidateSources.all { it.durationMs > 0L }
+                        )
                     }
                     .toList()
                 relations.upsert(
@@ -294,7 +306,12 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 )
                 val candidateGroups = evaluatedGroups
                     .asSequence()
-                    .filter { it.evaluation.relationship == RecordingRelationship.SAME_RECORDING }
+                    .filter { candidate ->
+                        candidate.automaticEligible &&
+                        candidate.evaluation.relationship == RecordingRelationship.SAME_RECORDING &&
+                            candidate.evaluation.sameRecordingProbability >=
+                            dedupPolicy.autoMergeMinimumScore
+                    }
                     .map { RankedRecording(it.recordingId, it.evaluation.sameRecordingProbability) }
                     .sortedWith(
                         compareByDescending<RankedRecording>(RankedRecording::score)
@@ -309,26 +326,43 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 )
 
                 val best = candidateGroups.firstOrNull() ?: break
-                if (best.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE) {
+                if (best.score < dedupPolicy.autoMergeMinimumScore) {
                     break
                 }
                 val ambiguousCandidates = candidateGroups.takeWhile { candidate ->
-                    best.score - candidate.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN
+                    best.score - candidate.score < dedupPolicy.autoMergeMinimumMargin
                 }
                 if (ambiguousCandidates.size > 1 && !sameRecordingClique(
                         ambiguousCandidates,
                         candidateIndex,
                         audioEvidenceBySourceId,
                         effectiveFeatures,
-                        scoringMode
+                        scoringMode,
+                        dedupPolicy
                     )
                 ) break
 
                 val sourceId = maxOf(currentRecordingId, best.recordingId)
                 val targetId = minOf(currentRecordingId, best.recordingId)
+                val safeEligible = best.score >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
+                    best.score - (candidateGroups.getOrNull(1)?.score ?: 0.0) >=
+                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN &&
+                    currentSources.all { it.durationMs > 0L } &&
+                    candidateIndex.sources(best.recordingId).all { it.durationMs > 0L }
                 val commitStartedAt = diagnostics.startNanos()
                 try {
-                    recordings.mergeRecordings(sourceId, targetId)
+                    recordings.mergeRecordingsAutomatically(
+                        sourceRecordingId = sourceId,
+                        targetRecordingId = targetId,
+                        dedupMode = dedupPolicy.mode,
+                        policyVersion = LibraryDedupPolicy.POLICY_VERSION,
+                        evaluationBatch = snapshotSignature,
+                        rollbackStatus = when {
+                            dedupPolicy.mode != app.yukine.identity.LibraryDedupMode.AGGRESSIVE -> "NONE"
+                            safeEligible -> "SAFE_ELIGIBLE"
+                            else -> "ELIGIBLE"
+                        }
+                    )
                     candidateIndex.merge(sourceId, targetId)
                     redirects[sourceId] = targetId
                     currentRecordingId = targetId
@@ -384,7 +418,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         candidateIndex: SourceIdentityCandidateIndex,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        scoringMode: IdentityScoringMode
+        scoringMode: IdentityScoringMode,
+        dedupPolicy: LibraryDedupPolicy
     ): Boolean {
         candidates.indices.forEach { leftIndex ->
             val leftId = candidates[leftIndex].recordingId
@@ -404,11 +439,12 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                     rightSources,
                     audioEvidenceBySourceId,
                     featuresBySourceId,
-                    scoringMode
+                    scoringMode,
+                    dedupPolicy
                 ) ?: return false
                 if (evaluation.relationship != RecordingRelationship.SAME_RECORDING ||
                     evaluation.sameRecordingProbability <
-                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE
+                    dedupPolicy.autoMergeMinimumScore
                 ) return false
             }
         }
@@ -479,7 +515,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         shadowCandidatesBySourceId: Map<Long, List<SourceRecordingCandidateEntity>>,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        scoringMode: IdentityScoringMode
+        scoringMode: IdentityScoringMode,
+        dedupPolicy: LibraryDedupPolicy
     ) {
         val rows = currentSources.asSequence()
             .mapNotNull(TrackSourceMappingEntity::sourceId)
@@ -500,7 +537,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 candidateSources,
                 audioEvidenceBySourceId,
                 featuresBySourceId,
-                scoringMode
+                scoringMode,
+                dedupPolicy
             ) ?: return@forEach
             val evidence = runCatching { JSONObject(row.evidenceJson) }.getOrElse { JSONObject() }
                 .put("shadowEvaluation", JSONObject(evaluation.evidenceJson))
@@ -527,7 +565,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         rightSources: List<TrackSourceMappingEntity>,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        scoringMode: IdentityScoringMode
+        scoringMode: IdentityScoringMode,
+        dedupPolicy: LibraryDedupPolicy
     ): GroupEvaluation? {
         val hardConflicts = linkedSetOf<String>()
         val audioAlignments = JSONArray()
@@ -606,11 +645,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         if (activePairs.isEmpty()) return null
         val activeAggregate = aggregatePairs(
             activePairs,
-            trustAware = scoringMode == IdentityScoringMode.V5_ON
+            trustAware = true,
+            autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
         )
         val evidenceJson = JSONObject()
             .put("scoreVersion", activeAggregate.scoreVersion)
             .put("scoringMode", scoringMode.name)
+            .put("dedupMode", dedupPolicy.mode.name)
+            .put("dedupPolicyVersion", LibraryDedupPolicy.POLICY_VERSION)
+            .put("autoMergeMinimumScore", dedupPolicy.autoMergeMinimumScore)
+            .put("autoMergeMinimumMargin", dedupPolicy.autoMergeMinimumMargin)
             .put("completeLinkComparisons", activePairs.size)
             .put("aggregation", activeAggregate.aggregation)
             .put("sameRecording", activeAggregate.sameRecording)
@@ -621,7 +665,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         if (shadowPairs.isNotEmpty()) {
             val shadowAggregate = aggregatePairs(
                 shadowPairs,
-                trustAware = scoringMode == IdentityScoringMode.V5_SHADOW
+                trustAware = true,
+                autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
             )
             evidenceJson.put(
                 "shadowScoring",
@@ -803,7 +848,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
 
     private fun aggregatePairs(
         pairs: List<ScoredPair>,
-        trustAware: Boolean
+        trustAware: Boolean,
+        autoMergeMinimumScore: Double
     ): PairAggregate {
         if (!trustAware) {
             val recording = pairs.minOf { it.evaluation.sameRecordingProbability }
@@ -826,11 +872,10 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val highTrustPairs = pairs.filter { it.pairTrust >= HIGH_TRUST_THRESHOLD }
         val highTrustMinimum = highTrustPairs.minOfOrNull { it.evaluation.sameRecordingProbability }
         val recording = minOf(robustRecording, highTrustMinimum ?: 1.0)
-        val highTrustConflict = highTrustPairs.any { it.evaluation.hasHardConflict }
+        val anyHardConflict = pairs.any { it.evaluation.hasHardConflict }
         val relationship = when {
-            highTrustConflict -> RecordingRelationship.CANNOT_LINK
-            recording >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
-                pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_RECORDING } ->
+            anyHardConflict -> RecordingRelationship.CANNOT_LINK
+            recording >= autoMergeMinimumScore ->
                 RecordingRelationship.SAME_RECORDING
             robustWork >= SAME_WORK_MINIMUM_SCORE &&
                 pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_WORK_DIFFERENT_VERSION } ->
@@ -933,7 +978,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     private data class EvaluatedRecording(
         val recordingId: Long,
         val evaluation: GroupEvaluation,
-        val locked: Boolean
+        val locked: Boolean,
+        val automaticEligible: Boolean
     )
 
     private data class GroupEvaluation(

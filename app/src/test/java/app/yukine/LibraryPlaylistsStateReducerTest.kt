@@ -3,6 +3,7 @@ package app.yukine
 import android.net.Uri
 import app.yukine.model.Playlist
 import app.yukine.model.Track
+import app.yukine.model.TrackPlayRecord
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryGroupSort
@@ -11,6 +12,7 @@ import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.TrackListModeAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.ArrayList
 
@@ -150,6 +152,88 @@ class LibraryPlaylistsStateReducerTest {
         request?.headerActions?.get(1)?.onClick?.run()
 
         assertEquals(listOf("back", "playTracks:2:0"), listener.calls)
+    }
+
+    @Test
+    fun rendersRecentlyAddedSmartCollectionAsReadOnlyList() {
+        val listener = RecordingListener()
+        val controller = LibraryPlaylistsStateReducer(LibraryViewModel(), listener)
+        val tracks = listOf(track(1L), track(2L))
+
+        controller.reduce(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playlists = emptyList(),
+            selectedPlaylistId = -1L,
+            selectedLibraryGroupKey = "virtual:recent-added",
+            selectedPlaylistName = "",
+            selectedPlaylistTracks = emptyList(),
+            favoriteTracks = emptyList(),
+            recentRecords = emptyList(),
+            modeActions = emptyList(),
+            recentlyAddedTracks = tracks
+        )
+
+        val request = listener.playlistTrackRequest
+        assertEquals("Recently added", request?.title)
+        assertEquals(tracks, request?.tracks)
+        assertEquals("Songs you scan or import will show up here", request?.emptyText)
+        assertEquals(listOf("Back to playlists", "Play all"), request?.headerActions?.map { it.label })
+        assertEquals(LibraryListContext.Playlist, request?.context)
+    }
+
+    @Test
+    fun rendersWeekFavoritesFromRecentRecordsSortedByPlayCount() {
+        val listener = RecordingListener()
+        val controller = LibraryPlaylistsStateReducer(LibraryViewModel(), listener)
+        val now = System.currentTimeMillis()
+        val day = 24L * 60 * 60 * 1000
+        val recent = listOf(
+            TrackPlayRecord(track(10L), now - day, 5),
+            TrackPlayRecord(track(11L), now - day, 9),
+            TrackPlayRecord(track(12L), now - 30 * day, 100)
+        )
+
+        controller.reduce(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playlists = emptyList(),
+            selectedPlaylistId = -1L,
+            selectedLibraryGroupKey = "virtual:week-favorites",
+            selectedPlaylistName = "",
+            selectedPlaylistTracks = emptyList(),
+            favoriteTracks = emptyList(),
+            recentRecords = recent,
+            modeActions = emptyList()
+        )
+
+        val request = listener.playlistTrackRequest
+        assertEquals("Weekly favorites", request?.title)
+        assertEquals(listOf(11L, 10L), request?.tracks?.map { it.id })
+        assertEquals(listOf("Back to playlists", "Play all"), request?.headerActions?.map { it.label })
+    }
+
+    @Test
+    fun emptySmartCollectionShowsBackOnlyHeaderAndFriendlyEmptyText() {
+        val listener = RecordingListener()
+        val controller = LibraryPlaylistsStateReducer(LibraryViewModel(), listener)
+
+        controller.reduce(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playlists = emptyList(),
+            selectedPlaylistId = -1L,
+            selectedLibraryGroupKey = "virtual:long-unplayed",
+            selectedPlaylistName = "",
+            selectedPlaylistTracks = emptyList(),
+            favoriteTracks = emptyList(),
+            recentRecords = emptyList(),
+            modeActions = emptyList(),
+            longUnplayedTracks = emptyList()
+        )
+
+        val request = listener.playlistTrackRequest
+        assertEquals("Long unplayed", request?.title)
+        assertTrue(request?.tracks?.isEmpty() == true)
+        assertEquals("You have listened to everything recently. Nice!", request?.emptyText)
+        assertEquals(listOf("Back to playlists"), request?.headerActions?.map { it.label })
     }
 
     private class RecordingListener : LibraryPlaylistsStateReducer.Listener {

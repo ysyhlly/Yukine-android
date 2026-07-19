@@ -90,15 +90,29 @@ internal object SettingsPageContentFactory {
                     runtime.libraryArtistCount,
                     runtime.audioPermissionGranted,
                     identityBackfill = runtime.identityBackfill,
+                    dedupMode = runtime.libraryDedupMode,
+                    duplicateCandidateCount = runtime.duplicateCandidateCenter.total,
                     onNavigate = { nextPage -> onNavigate(nextPage) },
                     onLoadLibrary = { library.loadLibrary() },
                     onOpenAudioFilePicker = { library.openAudioFilePicker() },
                     onOpenAudioFolderPicker = { library.openAudioFolderPicker() },
                     onRebuildSongIdentity = { library.rebuildSongIdentity() },
                     onCancelIdentityBackfill = { library.cancelIdentityBackfill() },
+                    onDedupModeChange = { mode -> library.setDedupMode(mode) },
                     hiddenItems = runtime.hiddenLibraryItems,
                     onRestoreHidden = { sourceKey -> library.restoreHiddenItem(sourceKey) },
                     onRestoreAllHidden = { library.restoreAllHiddenItems() }
+                )
+            SettingsPage.DuplicateCandidates ->
+                SettingsPageStateBuilder.duplicateCandidates(
+                    languageMode = languageMode,
+                    backPage = SettingsBackStack.parent(page),
+                    center = runtime.duplicateCandidateCenter,
+                    onNavigate = { nextPage -> onNavigate(nextPage) },
+                    onConfirm = { leftRecordingId, rightRecordingId ->
+                        library.confirmDuplicateCandidate(leftRecordingId, rightRecordingId)
+                    },
+                    onConfirmBatch = { library.confirmHighConfidenceDuplicates() }
                 )
             SettingsPage.LyricsGroup ->
                 SettingsPageStateBuilder.lyricsGroup(

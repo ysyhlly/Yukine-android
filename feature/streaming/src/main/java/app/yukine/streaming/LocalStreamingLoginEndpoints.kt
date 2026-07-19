@@ -145,7 +145,7 @@ object LocalStreamingLoginEndpoints {
                 "MUSIC_SNS"
             )
             StreamingProviderName.QQ_MUSIC -> listOf("qqmusic_key", "qm_keyst", "psrf_qqaccess_token")
-            StreamingProviderName.KUGOU -> listOf("token", "kg_mid", "t_token")
+            StreamingProviderName.KUGOU -> listOf("token", "t_token")
             StreamingProviderName.BILIBILI -> listOf("SESSDATA")
             StreamingProviderName.YOUTUBE -> listOf("SAPISID", "__Secure-3PAPISID", "SID")
             StreamingProviderName.SOUNDCLOUD -> listOf("oauth_token", "sc_anonymous_id")

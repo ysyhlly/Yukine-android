@@ -340,7 +340,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(database.contains("abstract class YukineDatabase : RoomDatabase()"));
         assertTrue(database.contains(".addMigrations(*YukineMigrations.all)"));
         assertFalse(database.contains("fallbackToDestructiveMigration"));
-        assertTrue(migrations.contains("TARGET_VERSION: Int = 32"));
+        assertTrue(migrations.contains("TARGET_VERSION: Int = 33"));
         assertTrue(migrations.contains("(1 until TARGET_VERSION)"));
         assertFalse(libraryFacade.contains("SQLiteDatabase"));
         assertFalse(libraryFacade.contains("rawQuery"));

@@ -2,107 +2,232 @@ package app.yukine
 
 import android.content.Context
 import android.util.Log
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import app.yukine.data.IdentityBackfillCheckpoint
 import app.yukine.data.IdentityBackfillCoordinator
 import app.yukine.data.IdentityBackfillProgress
 import app.yukine.data.IdentityBackfillStage
+import app.yukine.data.LibraryDedupMaintenance
 import app.yukine.data.room.YukineDatabase
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 
 class IdentityBackfillWorker(
     appContext: Context,
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        runCatching {
-            val store = IdentityBackfillCheckpointStore(applicationContext)
-            val result = IdentityBackfillCoordinator(
-                YukineDatabase.getInstance(applicationContext)
-            ).runBatch(store.load())
-            store.save(result.checkpoint)
-            setProgress(result.checkpoint.toWorkData())
-            if (result.complete) Result.success(result.checkpoint.toWorkData()) else Result.retry()
-        }.getOrElse { error ->
+        val store = IdentityBackfillCheckpointStore(applicationContext)
+        try {
+            store.updateRuntimeState(IdentityBackfillRuntimeState.RUNNING)
+            val database = YukineDatabase.getInstance(applicationContext)
+            val maintenance = LibraryDedupMaintenance(database)
+            val expectedMode = inputData.getString(KEY_DEDUP_MODE)
+            val expectedGeneration = inputData.getLong(KEY_DEDUP_GENERATION, -1L)
+            if ((expectedMode != null && expectedMode != maintenance.currentMode().name) ||
+                (expectedGeneration >= 0L && expectedGeneration != maintenance.currentGeneration())
+            ) {
+                store.updateRuntimeState(IdentityBackfillRuntimeState.COMPLETED)
+                Result.success(store.load().toWorkData())
+            } else {
+                val maintenanceResult = maintenance.prepareForCurrentMode()
+                val coordinator = IdentityBackfillCoordinator(database)
+                var checkpoint = store.load()
+                var completedResult: Result? = null
+                while (completedResult == null) {
+                    currentCoroutineContext().ensureActive()
+                    val batch = coordinator.runBatch(checkpoint)
+                    checkpoint = batch.checkpoint
+                    store.save(checkpoint)
+                    setProgress(checkpoint.toWorkData())
+                    if (batch.complete) {
+                        val output = checkpoint.toWorkData(
+                            reverted = maintenanceResult.reverted,
+                            reviewRequired = maintenanceResult.reviewRequired
+                        )
+                        store.updateRuntimeState(IdentityBackfillRuntimeState.COMPLETED)
+                        completedResult = Result.success(output)
+                    } else {
+                        yield()
+                    }
+                }
+                completedResult
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
             Log.w(TAG, "Canonical identity backfill failed", error)
-            Result.retry()
+            val message = error.message?.trim().orEmpty()
+                .ifBlank { error.javaClass.simpleName }
+                .take(MAX_ERROR_LENGTH)
+            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
+            Result.failure(
+                Data.Builder()
+                    .putString(KEY_ERROR, message)
+                    .build()
+            )
         }
     }
 
     private companion object {
         const val TAG = "IdentityBackfill"
+        const val KEY_DEDUP_MODE = "dedupMode"
+        const val KEY_DEDUP_GENERATION = "dedupGeneration"
+        const val KEY_ERROR = "error"
+        const val MAX_ERROR_LENGTH = 240
     }
 }
+
+enum class IdentityBackfillScheduleKind {
+    ENQUEUED,
+    ALREADY_ACTIVE,
+    FAILED
+}
+
+data class IdentityBackfillScheduleResult(
+    val kind: IdentityBackfillScheduleKind,
+    val errorMessage: String = ""
+)
+
+enum class IdentityBackfillRuntimeState {
+    IDLE,
+    QUEUED,
+    RUNNING,
+    COMPLETED,
+    FAILED,
+    CANCELLED
+}
+
+data class IdentityBackfillRuntimeStatus(
+    val state: IdentityBackfillRuntimeState = IdentityBackfillRuntimeState.IDLE,
+    val workId: String = "",
+    val errorMessage: String = "",
+    val updatedAt: Long = 0L
+)
 
 object IdentityBackfillScheduler {
     const val UNIQUE_WORK_NAME = "canonical_identity_backfill_v1"
 
-    fun scheduleAutomatic(context: Context) {
+    fun scheduleAutomatic(context: Context): IdentityBackfillScheduleResult {
         // REPLACE also upgrades an already-persisted eager request from the first v1 build.
-        enqueue(context, ExistingWorkPolicy.REPLACE, automatic = true)
+        return enqueue(
+            context,
+            ExistingWorkPolicy.REPLACE,
+            awaitResult = false
+        )
     }
 
     /** Manual rebuild replaces a completed task; callers should use restart=false to reuse active work. */
-    fun scheduleManual(context: Context, restart: Boolean = false) {
-        if (restart) IdentityBackfillCheckpointStore(context).reset()
-        enqueue(
+    fun scheduleManual(
+        context: Context,
+        restart: Boolean = false
+    ): IdentityBackfillScheduleResult {
+        if (!restart) return rebuildOrReuseBlocking(context)
+        IdentityBackfillCheckpointStore(context).reset()
+        return enqueue(
             context,
-            if (restart) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
-            automatic = false
+            ExistingWorkPolicy.REPLACE,
+            awaitResult = true
         )
     }
 
     /** Must be called from a background executor; active work is reused instead of duplicated. */
-    fun rebuildOrReuseBlocking(context: Context) {
-        val manager = WorkManager.getInstance(context.applicationContext)
-        val active = manager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
-            .any { !it.state.isFinished }
-        if (active) {
-            enqueue(context, ExistingWorkPolicy.KEEP, automatic = false)
-        } else {
-            IdentityBackfillCheckpointStore(context).reset()
-            enqueue(context, ExistingWorkPolicy.REPLACE, automatic = false)
+    fun rebuildOrReuseBlocking(context: Context): IdentityBackfillScheduleResult {
+        val appContext = context.applicationContext
+        val store = IdentityBackfillCheckpointStore(appContext)
+        return runCatching {
+            val manager = WorkManager.getInstance(appContext)
+            val active = manager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+                .firstOrNull { !it.state.isFinished }
+            if (active != null) {
+                store.markWork(
+                    active.id.toString(),
+                    active.state.toIdentityBackfillRuntimeState(),
+                    active.outputData.getString("error").orEmpty()
+                )
+                IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.ALREADY_ACTIVE)
+            } else {
+                store.reset()
+                enqueue(
+                    appContext,
+                    ExistingWorkPolicy.REPLACE,
+                    awaitResult = true
+                )
+            }
+        }.getOrElse { error ->
+            val message = error.identityBackfillMessage()
+            Log.w("IdentityBackfill", "Unable to query existing backfill", error)
+            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
+            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
         }
     }
 
     fun cancel(context: Context) {
-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WORK_NAME)
+        val appContext = context.applicationContext
+        IdentityBackfillCheckpointStore(appContext)
+            .updateRuntimeState(IdentityBackfillRuntimeState.CANCELLED)
+        WorkManager.getInstance(appContext).cancelUniqueWork(UNIQUE_WORK_NAME)
+    }
+
+    fun syncRuntimeStatus(context: Context, workInfos: List<WorkInfo>) {
+        val store = IdentityBackfillCheckpointStore(context.applicationContext)
+        val current = store.runtimeStatus()
+        val workInfo = workInfos.firstOrNull { it.id.toString() == current.workId }
+            ?: return
+        store.markWork(
+            workInfo.id.toString(),
+            workInfo.state.toIdentityBackfillRuntimeState(),
+            workInfo.outputData.getString("error").orEmpty()
+        )
     }
 
     private fun enqueue(
         context: Context,
         policy: ExistingWorkPolicy,
-        automatic: Boolean
-    ) {
-        runCatching {
-            val constraints = Constraints.Builder()
-                .setRequiresBatteryNotLow(true)
+        awaitResult: Boolean
+    ): IdentityBackfillScheduleResult {
+        val appContext = context.applicationContext
+        val store = IdentityBackfillCheckpointStore(appContext)
+        return runCatching {
+            val maintenance = LibraryDedupMaintenance(
+                YukineDatabase.getInstance(appContext)
+            )
+            val inputData = Data.Builder()
+                .putString("dedupMode", maintenance.currentMode().name)
+                .putLong("dedupGeneration", maintenance.currentGeneration())
                 .build()
-            val requestBuilder = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
-                .setConstraints(constraints)
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
-            if (automatic) {
-                requestBuilder.setInitialDelay(AUTOMATIC_INITIAL_DELAY_SECONDS, TimeUnit.SECONDS)
-            }
-            val request = requestBuilder.build()
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            val request = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
+                .setInputData(inputData)
+                .build()
+            store.markWork(
+                request.id.toString(),
+                IdentityBackfillRuntimeState.QUEUED
+            )
+            val operation = WorkManager.getInstance(appContext).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 policy,
                 request
             )
-        }.onFailure { error -> Log.w("IdentityBackfill", "Unable to schedule backfill", error) }
+            if (awaitResult) operation.result.get()
+            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.ENQUEUED)
+        }.getOrElse { error ->
+            val message = error.identityBackfillMessage()
+            Log.w("IdentityBackfill", "Unable to schedule backfill", error)
+            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
+            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
+        }
     }
 
-    private const val AUTOMATIC_INITIAL_DELAY_SECONDS = 30L
 }
 
 internal class IdentityBackfillCheckpointStore(context: Context) {
@@ -159,6 +284,46 @@ internal class IdentityBackfillCheckpointStore(context: Context) {
             .commit()) { "Unable to persist identity backfill checkpoint" }
     }
 
+    fun runtimeStatus(): IdentityBackfillRuntimeStatus {
+        val stateName = preferences.getString(KEY_RUNTIME_STATE, null)
+        val state = runCatching {
+            IdentityBackfillRuntimeState.valueOf(stateName.orEmpty())
+        }.getOrElse {
+            if (preferences.getString(KEY_STAGE, null) == IdentityBackfillStage.COMPLETE.name) {
+                IdentityBackfillRuntimeState.COMPLETED
+            } else {
+                IdentityBackfillRuntimeState.IDLE
+            }
+        }
+        return IdentityBackfillRuntimeStatus(
+            state = state,
+            workId = preferences.getString(KEY_WORK_ID, "").orEmpty(),
+            errorMessage = preferences.getString(KEY_RUNTIME_ERROR, "").orEmpty(),
+            updatedAt = preferences.getLong(KEY_RUNTIME_UPDATED_AT, 0L)
+        )
+    }
+
+    fun markWork(
+        workId: String,
+        state: IdentityBackfillRuntimeState,
+        errorMessage: String = ""
+    ) {
+        check(preferences.edit()
+            .putString(KEY_WORK_ID, workId)
+            .putString(KEY_RUNTIME_STATE, state.name)
+            .putString(KEY_RUNTIME_ERROR, errorMessage.take(MAX_RUNTIME_ERROR_LENGTH))
+            .putLong(KEY_RUNTIME_UPDATED_AT, System.currentTimeMillis())
+            .commit()) { "Unable to persist identity backfill runtime state" }
+    }
+
+    fun updateRuntimeState(
+        state: IdentityBackfillRuntimeState,
+        errorMessage: String = ""
+    ) {
+        val current = runtimeStatus()
+        markWork(current.workId, state, errorMessage)
+    }
+
     fun reset() {
         check(preferences.edit().clear().commit()) { "Unable to reset identity backfill checkpoint" }
     }
@@ -181,10 +346,30 @@ internal class IdentityBackfillCheckpointStore(context: Context) {
         const val KEY_DELETED = "deleted"
         const val KEY_ERRORS = "errors"
         const val KEY_LX_CLEANED = "lx_cleaned"
+        const val KEY_WORK_ID = "work_id"
+        const val KEY_RUNTIME_STATE = "runtime_state"
+        const val KEY_RUNTIME_ERROR = "runtime_error"
+        const val KEY_RUNTIME_UPDATED_AT = "runtime_updated_at"
+        const val MAX_RUNTIME_ERROR_LENGTH = 240
     }
 }
 
-private fun IdentityBackfillCheckpoint.toWorkData(): Data = Data.Builder()
+internal fun WorkInfo.State.toIdentityBackfillRuntimeState(): IdentityBackfillRuntimeState = when (this) {
+    WorkInfo.State.ENQUEUED,
+    WorkInfo.State.BLOCKED -> IdentityBackfillRuntimeState.QUEUED
+    WorkInfo.State.RUNNING -> IdentityBackfillRuntimeState.RUNNING
+    WorkInfo.State.SUCCEEDED -> IdentityBackfillRuntimeState.COMPLETED
+    WorkInfo.State.FAILED -> IdentityBackfillRuntimeState.FAILED
+    WorkInfo.State.CANCELLED -> IdentityBackfillRuntimeState.CANCELLED
+}
+
+private fun Throwable.identityBackfillMessage(): String =
+    message?.trim().orEmpty().ifBlank { javaClass.simpleName }.take(240)
+
+private fun IdentityBackfillCheckpoint.toWorkData(
+    reverted: Int = 0,
+    reviewRequired: Int = 0
+): Data = Data.Builder()
     .putString("stage", stage.name)
     .putInt("algorithmVersion", algorithmVersion)
     .putInt("total", progress.total)
@@ -198,4 +383,6 @@ private fun IdentityBackfillCheckpoint.toWorkData(): Data = Data.Builder()
     .putInt("lxDeleted", progress.lxDeleted)
     .putInt("deleted", progress.deleted)
     .putInt("errors", progress.errors)
+    .putInt("dedupReverted", reverted)
+    .putInt("dedupReviewRequired", reviewRequired)
     .build()

@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: web_prototype
+title: YUKINE 音乐 App Web 原型
+scope:
+    - web-prototype/
+source_files: []
+depends_on: []
+related_to: []

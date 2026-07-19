@@ -51,6 +51,7 @@ import app.yukine.identity.ArtistSourceMapping;
 import app.yukine.identity.ArtistType;
 import app.yukine.identity.CanonicalArtist;
 import app.yukine.identity.IdentityMatchStatus;
+import app.yukine.identity.LibraryDedupMode;
 import app.yukine.identity.TrackArtistIdentity;
 import app.yukine.identity.LyricSourceBinding;
 import app.yukine.fingerprint.AudioFingerprintCandidate;
@@ -93,6 +94,7 @@ public final class MusicLibraryRepository {
     private final MusicIdentityDao musicIdentityDao;
     private final RoomArtistIdentityRepository artistIdentityRepository;
     private final StreamingCandidateCatalogStore streamingCandidateCatalogStore;
+    private final DuplicateCandidateRepository duplicateCandidateRepository;
 
     @Inject
     public MusicLibraryRepository(
@@ -152,6 +154,7 @@ public final class MusicLibraryRepository {
         streamingCandidateCatalogStore = new StreamingCandidateCatalogStore(database);
         musicIdentityDao = database.musicIdentityDao();
         artistIdentityRepository = new RoomArtistIdentityRepository(database);
+        duplicateCandidateRepository = new DuplicateCandidateRepository(database);
     }
 
     public List<Track> loadCachedTracks() {
@@ -626,6 +629,26 @@ public final class MusicLibraryRepository {
 
     public void saveLibraryAutoSyncEnabled(boolean enabled) {
         settingsRepository.saveLibraryAutoSyncEnabled(enabled);
+    }
+
+    public LibraryDedupMode loadLibraryDedupMode() {
+        return settingsRepository.loadLibraryDedupMode();
+    }
+
+    public void saveLibraryDedupMode(LibraryDedupMode mode) {
+        settingsRepository.saveLibraryDedupMode(mode);
+    }
+
+    public DuplicateCandidatePage loadDuplicateCandidates(int limit, int offset) {
+        return duplicateCandidateRepository.page(limit, offset);
+    }
+
+    public DuplicateBatchConfirmResult confirmDuplicateCandidate(long leftRecordingId, long rightRecordingId) {
+        return duplicateCandidateRepository.confirm(leftRecordingId, rightRecordingId);
+    }
+
+    public DuplicateBatchConfirmResult confirmHighConfidenceDuplicateCandidates(int limit) {
+        return duplicateCandidateRepository.confirmHighConfidence(limit);
     }
 
     public List<RemoteSource> loadRemoteSources() {

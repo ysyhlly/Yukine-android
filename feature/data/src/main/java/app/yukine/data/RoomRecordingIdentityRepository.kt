@@ -11,6 +11,7 @@ import app.yukine.data.room.YukineDatabase
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityMatchStatus
+import app.yukine.identity.LibraryDedupMode
 import app.yukine.identity.RecordingIdentifier
 import app.yukine.identity.WorkIdentifier
 import app.yukine.identity.RecordingIdentityRepository
@@ -162,6 +163,29 @@ class RoomRecordingIdentityRepository(
         })
     }
 
+    fun mergeRecordingsAutomatically(
+        sourceRecordingId: Long,
+        targetRecordingId: Long,
+        dedupMode: LibraryDedupMode,
+        policyVersion: Int,
+        evaluationBatch: String,
+        rollbackStatus: String
+    ): CanonicalRecording {
+        rejectStrongWorkConflict(sourceRecordingId, targetRecordingId)
+        return database.runInTransaction(Callable {
+            mergeRecordingsInTransaction(
+                sourceRecordingId,
+                targetRecordingId,
+                IdentityOperationProvenance(
+                    dedupMode = dedupMode,
+                    policyVersion = policyVersion,
+                    evaluationBatch = evaluationBatch,
+                    rollbackStatus = rollbackStatus
+                )
+            )
+        })
+    }
+
     fun mergeRecordingsWithManualDecision(
         sourceRecordingId: Long,
         targetRecordingId: Long
@@ -201,7 +225,8 @@ class RoomRecordingIdentityRepository(
 
     internal fun mergeRecordingsInTransaction(
         sourceRecordingId: Long,
-        targetRecordingId: Long
+        targetRecordingId: Long,
+        provenance: IdentityOperationProvenance = IdentityOperationProvenance()
     ): CanonicalRecording {
         check(database.inTransaction()) { "Recording merge requires an active transaction" }
         require(sourceRecordingId != targetRecordingId) { "Source and target recording are identical" }
@@ -220,7 +245,7 @@ class RoomRecordingIdentityRepository(
                 "Source disappeared during merge"
             }
         }
-        dao.identifiers(sourceRecordingId).forEach { dao.upsert(it.copy(recordingId = targetRecordingId)) }
+        dao.moveIdentifiersForConfirmedMerge(sourceRecordingId, targetRecordingId)
         moveCredits(sourceRecordingId, targetRecordingId)
         moveVariants(sourceRecordingId, targetRecordingId)
 
@@ -265,7 +290,8 @@ class RoomRecordingIdentityRepository(
             IdentityOperationType.MERGE_RECORDINGS,
             sourceRecordingId,
             targetRecordingId,
-            before
+            before,
+            provenance
         )
         return canonicalModel(requireRecording(targetRecordingId))
     }

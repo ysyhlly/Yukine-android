@@ -53,7 +53,9 @@ class LibraryPlaylistsStateReducer(
         favoriteTracks: List<Track>,
         recentRecords: List<TrackPlayRecord>,
         modeActions: List<TrackListModeAction>,
-        playlistSources: Map<Long, StreamingProviderName> = emptyMap()
+        playlistSources: Map<Long, StreamingProviderName> = emptyMap(),
+        recentlyAddedTracks: List<Track> = emptyList(),
+        longUnplayedTracks: List<Track> = emptyList()
     ) {
         if (selectedLibraryGroupKey == favoritesKey) {
             reduceFavoriteTracks(languageMode, favoriteTracks, modeActions)
@@ -61,6 +63,36 @@ class LibraryPlaylistsStateReducer(
         }
         if (selectedLibraryGroupKey == historyKey) {
             reducePlayHistory(languageMode, recentRecords, modeActions)
+            return
+        }
+        if (selectedLibraryGroupKey == SMART_RECENT_ADDED_KEY) {
+            reduceSmartCollection(
+                languageMode,
+                "library.smart.recent.added",
+                "library.empty.smart.recent.added",
+                recentlyAddedTracks,
+                modeActions
+            )
+            return
+        }
+        if (selectedLibraryGroupKey == SMART_WEEK_FAVORITES_KEY) {
+            reduceSmartCollection(
+                languageMode,
+                "library.smart.week.favorites",
+                "library.empty.smart.week.favorites",
+                tracksFromRecords(weekFavoriteRecords(recentRecords, System.currentTimeMillis())),
+                modeActions
+            )
+            return
+        }
+        if (selectedLibraryGroupKey == SMART_LONG_UNPLAYED_KEY) {
+            reduceSmartCollection(
+                languageMode,
+                "library.smart.long.unplayed",
+                "library.empty.smart.long.unplayed",
+                longUnplayedTracks,
+                modeActions
+            )
             return
         }
         if (selectedPlaylistId >= 0L && selectedLibraryGroupKey.startsWith("playlist:")) {
@@ -329,6 +361,43 @@ class LibraryPlaylistsStateReducer(
                 headerMetrics = headerMetrics,
                 headerActions = headerActions,
                 emptyText = AppLanguage.text(languageMode, "no.tracks.in.playlist"),
+                modeActions = ArrayList(modeActions)
+            )
+        )
+    }
+
+    private fun reduceSmartCollection(
+        languageMode: String,
+        titleKey: String,
+        emptyKey: String,
+        tracks: List<Track>,
+        modeActions: List<TrackListModeAction>
+    ) {
+        val title = AppLanguage.text(languageMode, titleKey)
+        val list = ArrayList(tracks)
+        val headerMetrics = arrayListOf(
+            TrackListHeaderMetric(AppLanguage.text(languageMode, "songs"), list.size.toString())
+        )
+        val headerActions = ArrayList<TrackListHeaderAction>()
+        headerActions.add(
+            TrackListHeaderAction(AppLanguage.text(languageMode, "back.to.playlists"), Runnable {
+                listener.backFromPlaylist()
+            }, icon = EchoIconKind.Back, isBack = true)
+        )
+        if (list.isNotEmpty()) {
+            headerActions.add(
+                TrackListHeaderAction(AppLanguage.text(languageMode, "play.all"), Runnable {
+                    listener.playTrackList(list, 0)
+                }, icon = EchoIconKind.Play)
+            )
+        }
+        listener.publishPlaylistTracks(
+            LibraryPlaylistTrackListRequest(
+                title = title,
+                tracks = list,
+                headerMetrics = headerMetrics,
+                headerActions = headerActions,
+                emptyText = AppLanguage.text(languageMode, emptyKey),
                 modeActions = ArrayList(modeActions)
             )
         )

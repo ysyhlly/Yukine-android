@@ -61,7 +61,8 @@ data class LibraryNavBinding(
     val openPlayHistoryAction: Runnable = Runnable { },
     val openNetworkSourcesAction: Runnable = Runnable { },
     val navigateUpAction: Runnable = Runnable { },
-    val recordingMatchStateProvider: RecordingMatchDestinationStateProvider? = null
+    val recordingMatchStateProvider: RecordingMatchDestinationStateProvider? = null,
+    val openSmartCollectionAction: (String, String) -> Unit = { _, _ -> }
 )
 
 data class SettingsNavBinding(

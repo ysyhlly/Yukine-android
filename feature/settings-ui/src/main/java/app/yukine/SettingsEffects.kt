@@ -1,5 +1,7 @@
 package app.yukine
 
+import app.yukine.identity.LibraryDedupMode
+
 /** One-time platform commands emitted by focused settings page owners. */
 sealed interface SettingsEffect {
     data class ShowStatus(val message: String) : SettingsEffect
@@ -12,6 +14,12 @@ sealed interface SettingsEffect {
     data object OpenAudioFolderPicker : SettingsEffect
     data object RebuildSongIdentity : SettingsEffect
     data object CancelIdentityBackfill : SettingsEffect
+    data class SetLibraryDedupMode(val mode: LibraryDedupMode) : SettingsEffect
+    data class ConfirmDuplicateCandidate(
+        val leftRecordingId: Long,
+        val rightRecordingId: Long
+    ) : SettingsEffect
+    data object ConfirmHighConfidenceDuplicates : SettingsEffect
     data object OpenLuoxueSourceManager : SettingsEffect
     data object ImportLuoxueSource : SettingsEffect
     data object ReloadCurrentLyrics : SettingsEffect

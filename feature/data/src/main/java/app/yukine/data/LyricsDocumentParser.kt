@@ -23,7 +23,7 @@ class LyricsDocumentParser {
         return when (extension) {
             "ttml", "xml" -> parseTtml(bytes, fileName)
             "txt" -> parsePlain(decodeText(bytes), fileName)
-            "lrc" -> parseLrc(decodeText(bytes), fileName)
+            "lrc", "elrc" -> parseLrc(decodeText(bytes), fileName)
             else -> throw IllegalArgumentException("Unsupported lyrics format: $extension")
         }
     }
@@ -35,6 +35,36 @@ class LyricsDocumentParser {
             "lrc", "elrc", "enhanced_lrc" -> parseLrc(text, sourceName)
             else -> throw IllegalArgumentException("Unsupported lyrics format: $format")
         }
+
+    @JvmOverloads
+    fun parseProvider(
+        primary: String,
+        translation: String = "",
+        sourceName: String = ""
+    ): LyricsDocument {
+        val primaryDocument = parseProviderPayload(primary, sourceName)
+        if (primaryDocument.isEmpty()) return LyricsDocument.empty()
+        val translationDocument = parseProviderPayload(translation, sourceName)
+        if (translationDocument.isEmpty()) return primaryDocument
+        val translationTracks = translationDocument.tracks
+            .filter { it.lines.isNotEmpty() }
+            .map { track -> track.copy(role = LyricsTrackRole.TRANSLATION) }
+        if (translationTracks.isEmpty()) return primaryDocument
+        return primaryDocument.copy(tracks = primaryDocument.tracks + translationTracks)
+    }
+
+    private fun parseProviderPayload(text: String, sourceName: String): LyricsDocument {
+        val clean = text.trim()
+        if (clean.isEmpty()) return LyricsDocument.empty()
+        if (clean.startsWith("<")) {
+            runCatching {
+                return parseTtml(clean.toByteArray(StandardCharsets.UTF_8), sourceName)
+            }
+        }
+        parseNeteaseKaraoke(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
+        parseLrc(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
+        return parsePlain(clean, sourceName)
+    }
 
     private fun parsePlain(text: String, sourceName: String): LyricsDocument {
         val lines = text.lineSequence()
@@ -91,14 +121,15 @@ class LyricsDocumentParser {
             }
             val lineEnd = (nextStart ?: parsedWords.lastOrNull()?.first?.plus(3_000L)
                 ?: value.startMs.plus(3_000L)).coerceAtLeast(value.startMs)
-            val words = parsedWords.mapIndexed { wordIndex, (wordStart, wordText) ->
+            val rawWords = parsedWords.mapIndexed { wordIndex, word ->
                 val end = parsedWords.getOrNull(wordIndex + 1)?.first ?: lineEnd
                 LyricWord(
-                    startMs = wordStart.coerceAtLeast(value.startMs),
-                    endMs = end.coerceAtLeast(wordStart),
-                    text = wordText
+                    startMs = word.first.coerceAtLeast(value.startMs),
+                    endMs = end.coerceAtLeast(word.first),
+                    text = word.second
                 )
             }
+            val words = withTextOffsets(plainText, rawWords)
             LyricLine(value.startMs, lineEnd, plainText, words)
         }.filter { it.text.isNotBlank() }
         return document(sourceName, if (lines.any { it.words.isNotEmpty() }) "elrc" else "lrc", metadata, lines)
@@ -114,6 +145,61 @@ class LyricsDocumentParser {
             if (word.isEmpty()) null else {
                 val start = (parseLrcTime(match.groupValues) + offsetMs).coerceAtLeast(0L)
                 start to word
+            }
+        }
+    }
+
+    private fun parseNeteaseKaraoke(text: String, sourceName: String): LyricsDocument {
+        val lines = text.lineSequence().mapNotNull line@ { raw ->
+            val lineMatch = KARAOKE_LINE_PATTERN.matchEntire(raw.trim()) ?: return@line null
+            val lineStart = lineMatch.groupValues[1].toLongOrNull() ?: return@line null
+            val lineDuration = lineMatch.groupValues[2].toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+            val body = lineMatch.groupValues[3]
+            val matches = KARAOKE_WORD_PATTERN.findAll(body).toList()
+            if (matches.isEmpty()) return@line null
+            val firstWordStart = matches.first().groupValues[1].toLongOrNull() ?: return@line null
+            val usesLineRelativeWordTimes = firstWordStart < lineStart
+            val rawWords = matches.mapNotNull word@ { match ->
+                val rawStart = match.groupValues[1].toLongOrNull() ?: return@word null
+                val duration = match.groupValues[2].toLongOrNull()?.coerceAtLeast(0L)
+                    ?: return@word null
+                val wordText = match.groupValues[3]
+                if (wordText.isEmpty()) return@word null
+                val start = if (usesLineRelativeWordTimes) lineStart + rawStart else rawStart
+                LyricWord(
+                    startMs = start.coerceAtLeast(lineStart),
+                    endMs = (start + duration).coerceAtLeast(start),
+                    text = wordText
+                )
+            }
+            if (rawWords.isEmpty()) return@line null
+            val visibleText = rawWords.joinToString(separator = "", transform = LyricWord::text).trim()
+            if (visibleText.isEmpty()) return@line null
+            val lineEnd = maxOf(
+                lineStart + lineDuration,
+                rawWords.maxOf(LyricWord::endMs),
+                lineStart + 1L
+            )
+            LyricLine(
+                startMs = lineStart,
+                endMs = lineEnd,
+                text = visibleText,
+                words = withTextOffsets(visibleText, rawWords)
+            )
+        }.sortedBy(LyricLine::startMs).toList()
+        return document(sourceName, "klyric", emptyMap(), lines)
+    }
+
+    private fun withTextOffsets(text: String, words: List<LyricWord>): List<LyricWord> {
+        var searchFrom = 0
+        return words.map { word ->
+            val start = text.indexOf(word.text, searchFrom)
+            if (start < 0) {
+                word
+            } else {
+                val end = (start + word.text.length).coerceAtMost(text.length)
+                searchFrom = end
+                word.copy(startOffset = start, endOffset = end)
             }
         }
     }
@@ -169,7 +255,7 @@ class LyricsDocumentParser {
             val text = element.textContent.orEmpty().replace(WHITESPACE_PATTERN, " ").trim()
             if (text.isNotEmpty()) {
                 grouped.getOrPut(role to language) { mutableListOf() } +=
-                    LyricLine(start, end.coerceAtLeast(start), text, words)
+                    LyricLine(start, end.coerceAtLeast(start), text, withTextOffsets(text, words))
             }
         }
         val tracks = grouped.map { (identity, lines) ->
@@ -294,6 +380,9 @@ class LyricsDocumentParser {
             Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
         private val WORD_TIME_PATTERN =
             Regex("""<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>""")
+        private val KARAOKE_LINE_PATTERN = Regex("""\[\s*(\d+)\s*,\s*(\d+)\s*](.*)""")
+        private val KARAOKE_WORD_PATTERN =
+            Regex("""\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*\d+)?\s*\)([^()]*)""")
         private val METADATA_PATTERN = Regex("""\[([A-Za-z]+):\s*(.*)]""")
         private val WHITESPACE_PATTERN = Regex("""\s+""")
 

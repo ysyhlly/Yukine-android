@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.identity.LibraryDedupMode
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
@@ -968,7 +969,12 @@ class SettingsPageStateBuilderTest {
         assertEquals("3", content.uiState.metrics[1].value)
         assertEquals("5", content.uiState.metrics[2].value)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[3].value)
-        assertEquals(5, content.actions.size)
+        assertEquals(8, content.actions.size)
+        val rebuild = content.actions.first {
+            it.entryId == SettingsEntryId.IdentityRebuild
+        }
+        assertEquals(true, rebuild.enabled)
+        assertEquals(null, rebuild.progress)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
@@ -978,6 +984,137 @@ class SettingsPageStateBuilderTest {
 
         assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
         assertEquals(listOf("load", "files", "folder", "identity"), calls)
+    }
+
+    @Test
+    fun identityBackfillQueuedShowsIndeterminateProgressAndCancel() {
+        var cancelled = false
+        val content = SettingsPageStateBuilder.library(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.LibraryGroup,
+            songCount = 12,
+            albumCount = 3,
+            artistCount = 5,
+            audioPermissionGranted = true,
+            identityBackfill = IdentityBackfillStatusUi(
+                state = IdentityBackfillStateUi.QUEUED,
+                stage = "NORMALIZE"
+            ),
+            onNavigate = {},
+            onLoadLibrary = {},
+            onOpenAudioFilePicker = {},
+            onOpenAudioFolderPicker = {},
+            onCancelIdentityBackfill = { cancelled = true }
+        )
+
+        val rebuild = content.actions.first {
+            it.label == AppLanguage.text(
+                AppLanguage.MODE_ENGLISH,
+                "identity.backfill.rebuild"
+            )
+        }
+        val cancel = content.actions.first {
+            it.label == AppLanguage.text(
+                AppLanguage.MODE_ENGLISH,
+                "identity.backfill.cancel"
+            )
+        }
+
+        assertEquals(false, rebuild.enabled)
+        assertEquals(null, rebuild.progress?.fraction)
+        assertTrue(rebuild.description.contains("Queued"))
+        cancel.onClick.run()
+        assertEquals(true, cancelled)
+    }
+
+    @Test
+    fun identityBackfillRunningShowsStageAndDeterminateProgress() {
+        val content = SettingsPageStateBuilder.library(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.LibraryGroup,
+            songCount = 100,
+            albumCount = 10,
+            artistCount = 20,
+            audioPermissionGranted = true,
+            identityBackfill = IdentityBackfillStatusUi(
+                total = 100,
+                processed = 25,
+                merged = 4,
+                pending = 2,
+                state = IdentityBackfillStateUi.RUNNING,
+                stage = "INGEST"
+            ),
+            onNavigate = {},
+            onLoadLibrary = {},
+            onOpenAudioFilePicker = {},
+            onOpenAudioFolderPicker = {}
+        )
+
+        val rebuild = content.actions.first {
+            it.label == AppLanguage.text(
+                AppLanguage.MODE_ENGLISH,
+                "identity.backfill.rebuild"
+            )
+        }
+
+        assertEquals(false, rebuild.enabled)
+        assertEquals(0.25f, rebuild.progress?.fraction)
+        assertTrue(rebuild.description.contains("Merging duplicate identities"))
+        assertTrue(rebuild.description.contains("25/100"))
+        assertTrue(rebuild.description.contains("merged 4"))
+        assertTrue(rebuild.description.contains("pending 2"))
+    }
+
+    @Test
+    fun identityBackfillTerminalStatesRemainVisibleAndAllowRestart() {
+        val cases = listOf(
+            IdentityBackfillStateUi.COMPLETED to "Completed",
+            IdentityBackfillStateUi.FAILED to "Failed",
+            IdentityBackfillStateUi.CANCELLED to "Cancelled"
+        )
+
+        cases.forEach { (state, expectedText) ->
+            val content = SettingsPageStateBuilder.library(
+                languageMode = AppLanguage.MODE_ENGLISH,
+                backPage = SettingsPage.LibraryGroup,
+                songCount = 40,
+                albumCount = 4,
+                artistCount = 8,
+                audioPermissionGranted = true,
+                identityBackfill = IdentityBackfillStatusUi(
+                    total = 40,
+                    processed = if (state == IdentityBackfillStateUi.COMPLETED) 40 else 15,
+                    state = state,
+                    stage = "VALIDATE",
+                    errorMessage = if (state == IdentityBackfillStateUi.FAILED) {
+                        "database unavailable"
+                    } else ""
+                ),
+                onNavigate = {},
+                onLoadLibrary = {},
+                onOpenAudioFilePicker = {},
+                onOpenAudioFolderPicker = {}
+            )
+
+            val rebuild = content.actions.first {
+                it.label == AppLanguage.text(
+                    AppLanguage.MODE_ENGLISH,
+                    "identity.backfill.rebuild"
+                )
+            }
+
+            assertEquals(true, rebuild.enabled)
+            assertTrue(rebuild.description.contains(expectedText))
+            assertEquals(
+                false,
+                content.actions.any {
+                    it.label == AppLanguage.text(
+                        AppLanguage.MODE_ENGLISH,
+                        "identity.backfill.cancel"
+                    )
+                }
+            )
+        }
     }
 
     @Test
@@ -1089,6 +1226,80 @@ class SettingsPageStateBuilderTest {
         content.actions[0].onClick.run()
 
         assertEquals(listOf(SettingsPage.Home), navigated)
+    }
+
+    @Test
+    fun libraryExposesPersistedDedupModeAndCandidateCenter() {
+        val navigated = mutableListOf<SettingsPage>()
+        val modes = mutableListOf<LibraryDedupMode>()
+
+        val content = SettingsPageStateBuilder.library(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.LibraryGroup,
+            songCount = 42,
+            albumCount = 8,
+            artistCount = 5,
+            audioPermissionGranted = true,
+            dedupMode = LibraryDedupMode.AGGRESSIVE,
+            duplicateCandidateCount = 7,
+            onNavigate = { navigated += it },
+            onLoadLibrary = {},
+            onOpenAudioFilePicker = {},
+            onOpenAudioFolderPicker = {},
+            onDedupModeChange = { modes += it }
+        )
+
+        val safe = content.actions.first { it.entryId == SettingsEntryId.LibraryDedupSafe }
+        val aggressive = content.actions.first { it.entryId == SettingsEntryId.LibraryDedupAggressive }
+        val candidates = content.actions.first {
+            it.entryId == SettingsEntryId.DuplicateCandidateCenter
+        }
+
+        assertEquals(false, safe.checked)
+        assertEquals(true, aggressive.checked)
+        assertEquals("7", candidates.value)
+
+        safe.onClick.run()
+        candidates.onClick.run()
+
+        assertEquals(listOf(LibraryDedupMode.SAFE), modes)
+        assertEquals(listOf(SettingsPage.DuplicateCandidates), navigated)
+    }
+
+    @Test
+    fun duplicateCandidateCenterOnlyConfirmsEligiblePairs() {
+        val confirmed = mutableListOf<Pair<Long, Long>>()
+        var batchConfirmed = false
+        val center = DuplicateCandidateCenterUi(
+            total = 3,
+            reviewRequired = 1,
+            items = listOf(
+                DuplicateCandidateUi(1L, 2L, "A", "B", 0.97, 0.10, "SAME_RECORDING", true),
+                DuplicateCandidateUi(3L, 4L, "C", "D", 0.91, 0.03, "REVIEW", false)
+            )
+        )
+
+        val content = SettingsPageStateBuilder.duplicateCandidates(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            backPage = SettingsPage.Library,
+            center = center,
+            onNavigate = {},
+            onConfirm = { left, right -> confirmed += left to right },
+            onConfirmBatch = { batchConfirmed = true }
+        )
+
+        assertEquals("3", content.uiState.metrics[0].value)
+        assertEquals("1", content.uiState.metrics[1].value)
+        assertEquals("1", content.uiState.metrics[2].value)
+        assertEquals(4, content.actions.size)
+        assertEquals(true, content.actions[2].enabled)
+        assertEquals(false, content.actions[3].enabled)
+
+        content.actions[1].onClick.run()
+        content.actions[2].onClick.run()
+
+        assertEquals(true, batchConfirmed)
+        assertEquals(listOf(1L to 2L), confirmed)
     }
 
     private fun assertBooleanLeafPage(

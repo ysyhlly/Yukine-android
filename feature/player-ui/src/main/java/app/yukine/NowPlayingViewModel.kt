@@ -2,6 +2,7 @@ package app.yukine
 
 import androidx.lifecycle.ViewModel
 import android.net.Uri
+import app.yukine.model.LyricsDocument
 import app.yukine.model.Track
 import app.yukine.model.LyricsTrackRole
 import app.yukine.ui.LyricUiWord
@@ -117,6 +118,9 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
     private val artworkResolutionTrackIds = mutableSetOf<Long>()
     private var stateSourcesBinding: Job? = null
     private var stateObserver: NowPlayingStateObserver? = null
+    private var cachedLyricsDocument: LyricsDocument? = null
+    private var cachedLyricsVisibility: LyricsTrackVisibility? = null
+    private var cachedLyricRows: List<app.yukine.ui.LyricUiLine> = emptyList()
 
     fun bindStateObserver(observer: NowPlayingStateObserver?) {
         stateObserver = observer
@@ -222,7 +226,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             lyrics = LyricsUiState(
                 title = overlay.lyrics.title,
                 status = overlay.lyrics.status,
-                lines = richLyricRows(lyricsState, snapshot.positionMs),
+                lines = richLyricRows(lyricsState),
+                offsetMs = lyricsState?.offsetMs ?: 0L,
                 primaryVisible = lyricsState?.trackVisibility?.primary ?: true,
                 translationVisible = lyricsState?.trackVisibility?.translation ?: true,
                 romanizationVisible = lyricsState?.trackVisibility?.romanization ?: false
@@ -332,32 +337,44 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         }
     }
 
-    private fun richLyricRows(state: LyricsState?, positionMs: Long): List<app.yukine.ui.LyricUiLine> {
+    private fun richLyricRows(state: LyricsState?): List<app.yukine.ui.LyricUiLine> {
         state ?: return emptyList()
         val visibility = state.trackVisibility
+        if (cachedLyricsDocument === state.document && cachedLyricsVisibility == visibility) {
+            return cachedLyricRows
+        }
         val enabledTracks = state.document.tracks.filter { visibility.enabled(it.role) && it.lines.isNotEmpty() }
         val baseTrack = enabledTracks.firstOrNull { it.role == LyricsTrackRole.PRIMARY }
             ?: enabledTracks.firstOrNull()
             ?: return emptyList()
-        val adjustedPosition = positionMs + state.offsetMs
         val secondary = enabledTracks.associateBy { it.role }
-        return baseTrack.lines.map { line ->
+        val rows = baseTrack.lines.map { line ->
             val translation = secondary[LyricsTrackRole.TRANSLATION]
                 ?.lines?.closestText(line.startMs).orEmpty()
             val romanization = secondary[LyricsTrackRole.ROMANIZATION]
                 ?.lines?.closestText(line.startMs).orEmpty()
             app.yukine.ui.LyricUiLine(
                 text = line.text,
-                active = adjustedPosition in line.startMs until line.endMs.coerceAtLeast(line.startMs + 1L),
+                active = false,
                 timeMs = line.startMs,
                 endTimeMs = line.endMs,
                 translation = if (baseTrack.role == LyricsTrackRole.TRANSLATION) "" else translation,
                 romanization = if (baseTrack.role == LyricsTrackRole.ROMANIZATION) "" else romanization,
                 words = line.words.map {
-                    LyricUiWord(it.text, it.startMs, it.endMs)
+                    LyricUiWord(
+                        text = it.text,
+                        startMs = it.startMs,
+                        endMs = it.endMs,
+                        startOffset = it.startOffset,
+                        endOffset = it.endOffset
+                    )
                 }
             )
         }
+        cachedLyricsDocument = state.document
+        cachedLyricsVisibility = visibility
+        cachedLyricRows = rows
+        return rows
     }
 
     private fun List<app.yukine.model.LyricLine>.closestText(timeMs: Long): String {

@@ -30,6 +30,7 @@ class StreamingWebAuthActivity : Activity() {
     private var lastProviderUrl: String? = null
     private var qqRiskCountdown: Runnable? = null
     private var loginPageStarted = false
+    private var authCompletionStarted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyWebViewDataDirectorySuffix()
@@ -48,7 +49,12 @@ class StreamingWebAuthActivity : Activity() {
 
     override fun onDestroy() {
         cancelQqRiskCountdown()
-        webView?.destroy()
+        webView?.let { view ->
+            view.stopLoading()
+            view.webViewClient = WebViewClient()
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.destroy()
+        }
         webView = null
         super.onDestroy()
     }
@@ -143,7 +149,12 @@ class StreamingWebAuthActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 lastProviderUrl = url
                 CookieManager.getInstance().flush()
-                if (collectCookieHeader(logOnly = true) != null && shouldAutoComplete(url)) {
+                if (!authCompletionStarted &&
+                    !isFinishing &&
+                    !isDestroyed &&
+                    shouldAutoComplete(url) &&
+                    collectCookieHeader(logOnly = true) != null
+                ) {
                     finishWithAuthCallback(fallbackCallbackUri())
                 }
             }
@@ -241,7 +252,8 @@ class StreamingWebAuthActivity : Activity() {
     }
 
     private fun shouldAutoComplete(url: String): Boolean {
-        return !url.contains("/login", ignoreCase = true) &&
+        return providerName() != StreamingProviderName.KUGOU &&
+            !url.contains("/login", ignoreCase = true) &&
             !url.contains("passport", ignoreCase = true)
     }
 
@@ -266,6 +278,10 @@ class StreamingWebAuthActivity : Activity() {
     }
 
     private fun finishWithAuthCallback(uri: Uri) {
+        if (authCompletionStarted || isFinishing || isDestroyed) {
+            return
+        }
+        authCompletionStarted = true
         val cookieHeader = collectCookieHeader()
         val intent = Intent(this, MainActivity::class.java)
             .setAction(Intent.ACTION_VIEW)

@@ -19,6 +19,8 @@ class LibraryCollectionUseCasesTest {
         operations.playedSince = listOf(playRecord(20L))
         operations.mostPlayed = listOf(playRecord(21L))
         operations.remoteSources = listOf(remoteSource(8L))
+        operations.recentlyAdded = listOf(track(50L))
+        operations.longUnplayed = listOf(track(60L))
 
         val result = LoadLibraryCollectionsUseCase(operations, clockMs = { 10_000L }).execute(2L)
 
@@ -29,7 +31,11 @@ class LibraryCollectionUseCasesTest {
         assertEquals(1, result.mostPlayedRecords.size)
         assertEquals(1, result.remoteSources.size)
         assertEquals(listOf(20L), result.selectedPlaylistTracks.map { it.id })
+        assertEquals(listOf(50L), result.recentlyAddedTracks.map { it.id })
+        assertEquals(listOf(60L), result.longUnplayedTracks.map { it.id })
         assertTrue(operations.events.contains("playedSince:${10_000L - 4L * 7L * 24L * 60L * 60L * 1000L}:2000"))
+        assertTrue(operations.events.contains("recentlyAdded:60"))
+        assertTrue(operations.events.contains("longUnplayed:60"))
     }
 
     @Test
@@ -68,6 +74,8 @@ class LibraryCollectionUseCasesTest {
         operations.recentlyPlayed = listOf(playRecord(40L))
         operations.mostPlayed = listOf(playRecord(41L))
         operations.remoteSources = listOf(remoteSource(9L))
+        operations.recentlyAdded = listOf(track(50L))
+        operations.longUnplayed = listOf(track(60L))
         val gateway = MainLibraryCollectionGateway(operations)
 
         val loaded = gateway.loadCollections(4L)
@@ -81,6 +89,8 @@ class LibraryCollectionUseCasesTest {
         assertEquals(listOf(4L), loaded.playlists.map { it.id })
         assertEquals(listOf(9L), loaded.remoteSources.map { it.id })
         assertEquals(listOf(40L), loaded.selectedPlaylistTracks.map { it.id })
+        assertEquals(listOf(50L), loaded.recentlyAddedTracks.map { it.id })
+        assertEquals(listOf(60L), loaded.longUnplayedTracks.map { it.id })
         assertEquals(3, removed)
     }
 
@@ -96,6 +106,8 @@ class LibraryCollectionUseCasesTest {
         var recentlyPlayed: List<TrackPlayRecord> = emptyList()
         var mostPlayed: List<TrackPlayRecord> = emptyList()
         var remoteSources: List<RemoteSource> = emptyList()
+        var recentlyAdded: List<Track> = emptyList()
+        var longUnplayed: List<Track> = emptyList()
         val playlistTracks = mutableMapOf<Long, List<Track>>()
 
         override fun ensureDefaultPlaylist(): Long {
@@ -146,6 +158,16 @@ class LibraryCollectionUseCasesTest {
         override fun clearPlayHistory(): Int {
             events.add("clearHistory")
             return removedHistory
+        }
+
+        override fun loadRecentlyAdded(limit: Int): List<Track> {
+            events.add("recentlyAdded:$limit")
+            return recentlyAdded
+        }
+
+        override fun loadLongUnplayed(limit: Int): List<Track> {
+            events.add("longUnplayed:$limit")
+            return longUnplayed
         }
 
     }

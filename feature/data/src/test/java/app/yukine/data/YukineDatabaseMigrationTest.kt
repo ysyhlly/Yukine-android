@@ -403,8 +403,8 @@ class YukineDatabaseMigrationTest {
     }
 
     @Test
-    fun everyExportedV15ThroughV31SchemaMigratesAtomicallyToV32() {
-        (15..31).forEach { startVersion ->
+    fun everyExportedV15ThroughV32SchemaMigratesAtomicallyToV33() {
+        (15..32).forEach { startVersion ->
             val name = databaseName("exported-route-v$startVersion")
             createExportedSchemaFixture(name, startVersion)
 
@@ -418,6 +418,14 @@ class YukineDatabaseMigrationTest {
             )
             assertTrue(columnExists(sqlite, "work_artist_credits", "work_id"))
             assertTrue(columnExists(sqlite, "work_identifiers", "identifier_value"))
+            assertTrue(columnExists(sqlite, "identity_operations", "dedup_mode"))
+            assertTrue(columnExists(sqlite, "identity_operations", "policy_version"))
+            assertTrue(columnExists(sqlite, "identity_operations", "evaluation_batch"))
+            assertTrue(columnExists(sqlite, "identity_operations", "rollback_status"))
+            assertTrue(columnExists(sqlite, "identity_operations", "post_state_hash"))
+            assertTrue(indexExists(sqlite, "idx_identity_operations_dedup_rollback"))
+            assertTrue(indexExists(sqlite, "idx_source_candidates_global"))
+            assertTrue(indexExists(sqlite, "idx_recording_relations_global_candidates"))
             assertEquals("startVersion=$startVersion", 0L, rowCount(sqlite, "PRAGMA foreign_key_check"))
             assertEquals("startVersion=$startVersion", "ok", stringValue(sqlite, "PRAGMA integrity_check"))
             database.close()

@@ -781,7 +781,11 @@ data class SourceMatchFeatureEntity(
     indices = [
         Index(name = "idx_source_candidates_recording", value = ["candidate_recording_id"]),
         Index(name = "idx_source_candidates_rank", value = ["source_id", "coarse_score"]),
-        Index(name = "idx_source_candidates_algorithm", value = ["algorithm_version"])
+        Index(name = "idx_source_candidates_algorithm", value = ["algorithm_version"]),
+        Index(
+            name = "idx_source_candidates_global",
+            value = ["state", "coarse_score", "updated_at"]
+        )
     ]
 )
 data class SourceRecordingCandidateEntity(
@@ -820,7 +824,11 @@ data class SourceRecordingCandidateEntity(
     indices = [
         Index(name = "idx_recording_relations_right", value = ["right_recording_id"]),
         Index(name = "idx_recording_relations_type", value = ["relation_type"]),
-        Index(name = "idx_recording_relations_updated", value = ["updated_at"])
+        Index(name = "idx_recording_relations_updated", value = ["updated_at"]),
+        Index(
+            name = "idx_recording_relations_global_candidates",
+            value = ["locked", "relation_type", "same_recording_probability", "updated_at"]
+        )
     ]
 )
 data class RecordingRelationEntity(
@@ -1029,7 +1037,11 @@ data class CustomLyricsEntity(
         Index(name = "idx_identity_operations_source", value = ["source_recording_id", "created_at"]),
         Index(name = "idx_identity_operations_target", value = ["target_recording_id", "created_at"]),
         Index(name = "idx_identity_operations_created", value = ["created_at"]),
-        Index(name = "idx_identity_operations_reverted", value = ["reverted_at"])
+        Index(name = "idx_identity_operations_reverted", value = ["reverted_at"]),
+        Index(
+            name = "idx_identity_operations_dedup_rollback",
+            value = ["dedup_mode", "rollback_status", "created_at"]
+        )
     ]
 )
 data class IdentityOperationEntity(
@@ -1040,5 +1052,11 @@ data class IdentityOperationEntity(
     @ColumnInfo(name = "before_payload", defaultValue = "''") val beforePayload: String,
     @ColumnInfo(name = "after_payload", defaultValue = "''") val afterPayload: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "reverted_at") val revertedAt: Long?
+    @ColumnInfo(name = "reverted_at") val revertedAt: Long?,
+    @ColumnInfo(name = "dedup_mode", defaultValue = "''") val dedupMode: String = "",
+    @ColumnInfo(name = "policy_version", defaultValue = "0") val policyVersion: Int = 0,
+    @ColumnInfo(name = "evaluation_batch", defaultValue = "''") val evaluationBatch: String = "",
+    @ColumnInfo(name = "rollback_status", defaultValue = "'NONE'")
+    val rollbackStatus: String = "NONE",
+    @ColumnInfo(name = "post_state_hash", defaultValue = "''") val postStateHash: String = ""
 )

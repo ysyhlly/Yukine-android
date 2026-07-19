@@ -13,5 +13,33 @@ data class LyricUiLine(
 data class LyricUiWord(
     val text: String,
     val startMs: Long,
-    val endMs: Long
+    val endMs: Long,
+    val startOffset: Int = 0,
+    val endOffset: Int = 0
 )
+
+internal fun adjustedLyricPositionMs(playbackPositionMs: Long, offsetMs: Long): Long =
+    (playbackPositionMs + offsetMs).coerceAtLeast(0L)
+
+internal fun playbackPositionForLyricMs(lyricPositionMs: Long, offsetMs: Long): Long =
+    (lyricPositionMs - offsetMs).coerceAtLeast(0L)
+
+internal fun LyricUiLine.isActiveAt(positionMs: Long): Boolean =
+    positionMs in timeMs until endTimeMs.coerceAtLeast(timeMs + 1L)
+
+internal fun LyricUiWord.isActiveAt(positionMs: Long): Boolean =
+    positionMs in startMs until endMs.coerceAtLeast(startMs + 1L)
+
+internal fun LyricUiWord.textBounds(lineText: String, searchFrom: Int): Pair<Int, Int>? {
+    if (
+        startOffset >= searchFrom &&
+        endOffset > startOffset &&
+        endOffset <= lineText.length &&
+        lineText.substring(startOffset, endOffset) == text
+    ) {
+        return startOffset to endOffset
+    }
+    val start = lineText.indexOf(text, searchFrom)
+    if (start < 0) return null
+    return start to (start + text.length).coerceAtMost(lineText.length)
+}

@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: ""
+title: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
+scope:
+    - README.md
+    - .editorconfig
+    - .gitignore
+    - build.gradle
+    - gradle.properties
+    - settings.gradle
+    - memory_phase2_proposed_update.md
+source_files: []
+depends_on: []
+related_to: []

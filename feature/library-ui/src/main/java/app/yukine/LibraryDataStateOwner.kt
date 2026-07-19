@@ -28,7 +28,9 @@ data class LibraryStoreState(
     val mostPlayedRecords: List<TrackPlayRecord> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
     val selectedPlaylistTracks: List<Track> = emptyList(),
-    val remoteSources: List<RemoteSource> = emptyList()
+    val remoteSources: List<RemoteSource> = emptyList(),
+    val recentlyAddedTracks: List<Track> = emptyList(),
+    val longUnplayedTracks: List<Track> = emptyList()
 )
 
 /** A fully prepared, owned library payload that is safe to publish without another full-list copy. */
@@ -245,7 +247,9 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             mostPlayedRecords = ArrayList(snapshot.mostPlayedRecords),
             playlists = ArrayList(snapshot.playlists),
             selectedPlaylistTracks = ArrayList(snapshot.selectedPlaylistTracks),
-            remoteSources = ArrayList(snapshot.remoteSources)
+            remoteSources = ArrayList(snapshot.remoteSources),
+            recentlyAddedTracks = ArrayList(snapshot.recentlyAddedTracks),
+            longUnplayedTracks = ArrayList(snapshot.longUnplayedTracks)
         )
         mutableFavoriteTrackIds.value = favoriteIds
     }

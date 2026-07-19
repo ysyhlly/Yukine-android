@@ -303,6 +303,7 @@ fun EchoNavGraph(
                         openDownloadsAction = openDownloadsAction,
                         openPlayHistoryAction = hostState.library.openPlayHistoryAction,
                         openNetworkSourcesAction = hostState.library.openNetworkSourcesAction,
+                        openSmartCollectionAction = hostState.library.openSmartCollectionAction,
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
                         audioMotion = audioMotion,
@@ -380,6 +381,7 @@ private fun LibraryDestination(
     openDownloadsAction: Runnable,
     openPlayHistoryAction: Runnable,
     openNetworkSourcesAction: Runnable,
+    openSmartCollectionAction: (String, String) -> Unit,
     activeDownload: TrackDownloadItem?,
     playbackQuality: String,
     audioMotion: YukineOrbAudioMotion,
@@ -399,6 +401,7 @@ private fun LibraryDestination(
         val groups by groupsState.collectAsState()
         val trackList by trackListState.collectAsState()
         val modeActions = trackList.modeActions.ifEmpty { groups.modeActions }
+        val labels = trackList.libraryUi.labels
         val openMode: (String) -> Unit = { mode ->
             modeActions.firstOrNull { it.mode == mode }?.let { action ->
                 actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
@@ -408,7 +411,7 @@ private fun LibraryDestination(
         LibraryOverviewScreen(
             library = library,
             downloads = downloads,
-            modeActions = modeActions,
+            labels = labels,
             onOpenMode = openMode,
             onOpenFavorites = {
                 modeActions.firstOrNull { it.mode == app.yukine.LibraryGrouping.SONGS }?.let { action ->
@@ -422,7 +425,9 @@ private fun LibraryDestination(
             },
             onOpenDownloads = { openDownloadsAction.run() },
             onOpenSources = { openNetworkSourcesAction.run() },
-            onManageLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
+            onScanLibrary = { actionHandler.onAction(LibraryAction.ScanLibrary) },
+            onSyncLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
+            onOpenSmartCollection = openSmartCollectionAction,
             onSearch = openSearchAction,
             activeDownload = activeDownload,
             playbackQuality = playbackQuality,

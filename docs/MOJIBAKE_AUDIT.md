@@ -23,6 +23,7 @@ render valid UTF-8 Chinese as mojibake, so UTF-8 file reads are the authority.
 ## Fixes
 
 - `SettingsScreen.kt` now matches the normal Chinese `返回` label directly.
+- `LibraryOverviewScreen.kt` no longer hardcodes Chinese via a language-sniffing `overviewLabels()` or a literal `本机`; every overview string (section titles, the smart shelf, browse/saved/sources) now flows through `LibraryUiLabels` backed by `AppLanguage` `library.overview.*` / `library.smart.*` keys, following the `HomeDashboard` precedent.
 - `MainActivityArchitectureContractTest.java` keeps its regression intent by
   deriving the legacy mojibake text from the correct Chinese source string.
 - `.editorconfig` now pins source editing to UTF-8.

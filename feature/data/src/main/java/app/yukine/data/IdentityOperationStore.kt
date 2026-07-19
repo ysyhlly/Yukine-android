@@ -20,6 +20,9 @@ import app.yukine.data.room.TrackSourceMappingEntity
 import app.yukine.data.room.WorkArtistCreditEntity
 import app.yukine.data.room.WorkIdentifierEntity
 import app.yukine.data.room.YukineDatabase
+import app.yukine.identity.LibraryDedupMode
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.concurrent.Callable
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,6 +35,18 @@ data class IdentityOperation(
     val createdAt: Long,
     val revertedAt: Long?,
     val undoable: Boolean
+)
+
+internal data class IdentityOperationProvenance(
+    val dedupMode: LibraryDedupMode? = null,
+    val policyVersion: Int = 0,
+    val evaluationBatch: String = "",
+    val rollbackStatus: String = "NONE"
+)
+
+data class LibraryDedupRollbackResult(
+    val reverted: Int,
+    val reviewRequired: Int
 )
 
 internal object IdentityOperationType {
@@ -121,10 +136,12 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         operationType: String,
         sourceRecordingId: Long,
         targetRecordingId: Long,
-        before: IdentityStateSnapshot
+        before: IdentityStateSnapshot,
+        provenance: IdentityOperationProvenance = IdentityOperationProvenance()
     ): Long {
         require(IdentityOperationType.undoable(operationType)) { "Operation is not reversible" }
         val after = capture(listOf(sourceRecordingId, targetRecordingId))
+        val afterPayload = IdentityStateSnapshotCodec.encode(after)
         return dao.insert(
             IdentityOperationEntity(
                 id = null,
@@ -132,9 +149,14 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
                 sourceRecordingId = sourceRecordingId,
                 targetRecordingId = targetRecordingId,
                 beforePayload = IdentityStateSnapshotCodec.encode(before),
-                afterPayload = IdentityStateSnapshotCodec.encode(after),
+                afterPayload = afterPayload,
                 createdAt = System.currentTimeMillis(),
-                revertedAt = null
+                revertedAt = null,
+                dedupMode = provenance.dedupMode?.name.orEmpty(),
+                policyVersion = provenance.policyVersion,
+                evaluationBatch = provenance.evaluationBatch,
+                rollbackStatus = provenance.rollbackStatus,
+                postStateHash = sha256(afterPayload)
             )
         )
     }
@@ -202,6 +224,24 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         }
         requireNotNull(dao.identityOperation(operationId)).toModel(allowUndo = false)
     })
+
+    fun rollbackUnsafeAggressiveMerges(limit: Int = 100): LibraryDedupRollbackResult {
+        var reverted = 0
+        var reviewRequired = 0
+        dao.aggressiveDedupRollbackOperations(limit.coerceIn(1, 500)).forEach { operation ->
+            val operationId = requireNotNull(operation.id)
+            runCatching { undo(operationId) }
+                .onSuccess {
+                    dao.updateIdentityOperationRollbackStatus(operationId, "AUTO_REVERTED")
+                    reverted++
+                }
+                .onFailure {
+                    dao.updateIdentityOperationRollbackStatus(operationId, "REVIEW_REQUIRED")
+                    reviewRequired++
+                }
+        }
+        return LibraryDedupRollbackResult(reverted, reviewRequired)
+    }
 
     private fun restore(before: IdentityStateSnapshot, affectedIds: List<Long>) {
         val currentSourceIds = affectedIds.flatMap(dao::sources).mapNotNull { it.sourceId }
@@ -275,6 +315,10 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         }
     }
 }
+
+private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(value.toByteArray(StandardCharsets.UTF_8))
+    .joinToString("") { byte -> "%02x".format(byte) }
 
 private fun IdentityOperationEntity.toModel(allowUndo: Boolean) = IdentityOperation(
     id = requireNotNull(id),

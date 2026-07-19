@@ -778,7 +778,7 @@ object RecordingMatchEvaluatorV2 {
         return when {
             hasResolvedWorkIdentity && hasDuration -> 1.0
             hasResolvedWorkIdentity -> 0.90
-            hasTitle && hasArtist && hasDuration -> 0.91
+            hasTitle && hasArtist && hasDuration -> 0.95
             hasTitle && hasArtist -> 0.94
             hasTitle && hasDuration -> 0.88
             hasTitle -> 0.75

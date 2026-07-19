@@ -1,0 +1,3801 @@
+warning: in the working copy of 'app/src/main/java/app/yukine/IdentityBackfillWorker.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/LoadTrackLyricsUseCase.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/SettingsContextProvider.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/SettingsEffectOwner.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/SettingsFeatureBinding.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/StreamingWebAuthActivity.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'core/designsystem/src/main/java/app/yukine/AppLanguage.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'core/model/src/main/java/app/yukine/MainRoutes.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/IdentityOperationStore.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/LyricsDocumentParser.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/LyricsRepository.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/RoomRecordingIdentityRepository.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/SettingsRepository.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/room/YukineDaos.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/room/YukineEntities.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/library-ui/src/main/java/app/yukine/ui/LibraryOverviewScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/navigation/src/main/java/app/yukine/now/NowPlayingDestination.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/player-ui/src/main/java/app/yukine/NowPlayingViewModel.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/player-ui/src/main/java/app/yukine/ui/LyricUiLine.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsEffects.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/streaming/src/main/java/app/yukine/streaming/LocalStreamingLoginEndpoints.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/main/java/app/yukine/IdentityBackfillWorker.kt b/app/src/main/java/app/yukine/IdentityBackfillWorker.kt
+index 99e40d25..e66db262 100644
+--- a/app/src/main/java/app/yukine/IdentityBackfillWorker.kt
++++ b/app/src/main/java/app/yukine/IdentityBackfillWorker.kt
+@@ -2,107 +2,232 @@ package app.yukine
+ 
+ import android.content.Context
+ import android.util.Log
+-import androidx.work.BackoffPolicy
+-import androidx.work.Constraints
+ import androidx.work.CoroutineWorker
+ import androidx.work.Data
+ import androidx.work.ExistingWorkPolicy
+ import androidx.work.OneTimeWorkRequestBuilder
++import androidx.work.WorkInfo
+ import androidx.work.WorkManager
+ import androidx.work.WorkerParameters
+ import app.yukine.data.IdentityBackfillCheckpoint
+ import app.yukine.data.IdentityBackfillCoordinator
+ import app.yukine.data.IdentityBackfillProgress
+ import app.yukine.data.IdentityBackfillStage
++import app.yukine.data.LibraryDedupMaintenance
+ import app.yukine.data.room.YukineDatabase
+-import java.util.concurrent.TimeUnit
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.withContext
++import kotlinx.coroutines.yield
+ 
+ class IdentityBackfillWorker(
+     appContext: Context,
+     params: WorkerParameters
+ ) : CoroutineWorker(appContext, params) {
+     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+-        runCatching {
+-            val store = IdentityBackfillCheckpointStore(applicationContext)
+-            val result = IdentityBackfillCoordinator(
+-                YukineDatabase.getInstance(applicationContext)
+-            ).runBatch(store.load())
+-            store.save(result.checkpoint)
+-            setProgress(result.checkpoint.toWorkData())
+-            if (result.complete) Result.success(result.checkpoint.toWorkData()) else Result.retry()
+-        }.getOrElse { error ->
++        val store = IdentityBackfillCheckpointStore(applicationContext)
++        try {
++            store.updateRuntimeState(IdentityBackfillRuntimeState.RUNNING)
++            val database = YukineDatabase.getInstance(applicationContext)
++            val maintenance = LibraryDedupMaintenance(database)
++            val expectedMode = inputData.getString(KEY_DEDUP_MODE)
++            val expectedGeneration = inputData.getLong(KEY_DEDUP_GENERATION, -1L)
++            if ((expectedMode != null && expectedMode != maintenance.currentMode().name) ||
++                (expectedGeneration >= 0L && expectedGeneration != maintenance.currentGeneration())
++            ) {
++                store.updateRuntimeState(IdentityBackfillRuntimeState.COMPLETED)
++                Result.success(store.load().toWorkData())
++            } else {
++                val maintenanceResult = maintenance.prepareForCurrentMode()
++                val coordinator = IdentityBackfillCoordinator(database)
++                var checkpoint = store.load()
++                var completedResult: Result? = null
++                while (completedResult == null) {
++                    currentCoroutineContext().ensureActive()
++                    val batch = coordinator.runBatch(checkpoint)
++                    checkpoint = batch.checkpoint
++                    store.save(checkpoint)
++                    setProgress(checkpoint.toWorkData())
++                    if (batch.complete) {
++                        val output = checkpoint.toWorkData(
++                            reverted = maintenanceResult.reverted,
++                            reviewRequired = maintenanceResult.reviewRequired
++                        )
++                        store.updateRuntimeState(IdentityBackfillRuntimeState.COMPLETED)
++                        completedResult = Result.success(output)
++                    } else {
++                        yield()
++                    }
++                }
++                completedResult
++            }
++        } catch (error: CancellationException) {
++            throw error
++        } catch (error: Throwable) {
+             Log.w(TAG, "Canonical identity backfill failed", error)
+-            Result.retry()
++            val message = error.message?.trim().orEmpty()
++                .ifBlank { error.javaClass.simpleName }
++                .take(MAX_ERROR_LENGTH)
++            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
++            Result.failure(
++                Data.Builder()
++                    .putString(KEY_ERROR, message)
++                    .build()
++            )
+         }
+     }
+ 
+     private companion object {
+         const val TAG = "IdentityBackfill"
++        const val KEY_DEDUP_MODE = "dedupMode"
++        const val KEY_DEDUP_GENERATION = "dedupGeneration"
++        const val KEY_ERROR = "error"
++        const val MAX_ERROR_LENGTH = 240
+     }
+ }
+ 
++enum class IdentityBackfillScheduleKind {
++    ENQUEUED,
++    ALREADY_ACTIVE,
++    FAILED
++}
++
++data class IdentityBackfillScheduleResult(
++    val kind: IdentityBackfillScheduleKind,
++    val errorMessage: String = ""
++)
++
++enum class IdentityBackfillRuntimeState {
++    IDLE,
++    QUEUED,
++    RUNNING,
++    COMPLETED,
++    FAILED,
++    CANCELLED
++}
++
++data class IdentityBackfillRuntimeStatus(
++    val state: IdentityBackfillRuntimeState = IdentityBackfillRuntimeState.IDLE,
++    val workId: String = "",
++    val errorMessage: String = "",
++    val updatedAt: Long = 0L
++)
++
+ object IdentityBackfillScheduler {
+     const val UNIQUE_WORK_NAME = "canonical_identity_backfill_v1"
+ 
+-    fun scheduleAutomatic(context: Context) {
++    fun scheduleAutomatic(context: Context): IdentityBackfillScheduleResult {
+         // REPLACE also upgrades an already-persisted eager request from the first v1 build.
+-        enqueue(context, ExistingWorkPolicy.REPLACE, automatic = true)
++        return enqueue(
++            context,
++            ExistingWorkPolicy.REPLACE,
++            awaitResult = false
++        )
+     }
+ 
+     /** Manual rebuild replaces a completed task; callers should use restart=false to reuse active work. */
+-    fun scheduleManual(context: Context, restart: Boolean = false) {
+-        if (restart) IdentityBackfillCheckpointStore(context).reset()
+-        enqueue(
++    fun scheduleManual(
++        context: Context,
++        restart: Boolean = false
++    ): IdentityBackfillScheduleResult {
++        if (!restart) return rebuildOrReuseBlocking(context)
++        IdentityBackfillCheckpointStore(context).reset()
++        return enqueue(
+             context,
+-            if (restart) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+-            automatic = false
++            ExistingWorkPolicy.REPLACE,
++            awaitResult = true
+         )
+     }
+ 
+     /** Must be called from a background executor; active work is reused instead of duplicated. */
+-    fun rebuildOrReuseBlocking(context: Context) {
+-        val manager = WorkManager.getInstance(context.applicationContext)
+-        val active = manager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
+-            .any { !it.state.isFinished }
+-        if (active) {
+-            enqueue(context, ExistingWorkPolicy.KEEP, automatic = false)
+-        } else {
+-            IdentityBackfillCheckpointStore(context).reset()
+-            enqueue(context, ExistingWorkPolicy.REPLACE, automatic = false)
++    fun rebuildOrReuseBlocking(context: Context): IdentityBackfillScheduleResult {
++        val appContext = context.applicationContext
++        val store = IdentityBackfillCheckpointStore(appContext)
++        return runCatching {
++            val manager = WorkManager.getInstance(appContext)
++            val active = manager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
++                .firstOrNull { !it.state.isFinished }
++            if (active != null) {
++                store.markWork(
++                    active.id.toString(),
++                    active.state.toIdentityBackfillRuntimeState(),
++                    active.outputData.getString("error").orEmpty()
++                )
++                IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.ALREADY_ACTIVE)
++            } else {
++                store.reset()
++                enqueue(
++                    appContext,
++                    ExistingWorkPolicy.REPLACE,
++                    awaitResult = true
++                )
++            }
++        }.getOrElse { error ->
++            val message = error.identityBackfillMessage()
++            Log.w("IdentityBackfill", "Unable to query existing backfill", error)
++            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
++            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
+         }
+     }
+ 
+     fun cancel(context: Context) {
+-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE_WORK_NAME)
++        val appContext = context.applicationContext
++        IdentityBackfillCheckpointStore(appContext)
++            .updateRuntimeState(IdentityBackfillRuntimeState.CANCELLED)
++        WorkManager.getInstance(appContext).cancelUniqueWork(UNIQUE_WORK_NAME)
++    }
++
++    fun syncRuntimeStatus(context: Context, workInfos: List<WorkInfo>) {
++        val store = IdentityBackfillCheckpointStore(context.applicationContext)
++        val current = store.runtimeStatus()
++        val workInfo = workInfos.firstOrNull { it.id.toString() == current.workId }
++            ?: return
++        store.markWork(
++            workInfo.id.toString(),
++            workInfo.state.toIdentityBackfillRuntimeState(),
++            workInfo.outputData.getString("error").orEmpty()
++        )
+     }
+ 
+     private fun enqueue(
+         context: Context,
+         policy: ExistingWorkPolicy,
+-        automatic: Boolean
+-    ) {
+-        runCatching {
+-            val constraints = Constraints.Builder()
+-                .setRequiresBatteryNotLow(true)
++        awaitResult: Boolean
++    ): IdentityBackfillScheduleResult {
++        val appContext = context.applicationContext
++        val store = IdentityBackfillCheckpointStore(appContext)
++        return runCatching {
++            val maintenance = LibraryDedupMaintenance(
++                YukineDatabase.getInstance(appContext)
++            )
++            val inputData = Data.Builder()
++                .putString("dedupMode", maintenance.currentMode().name)
++                .putLong("dedupGeneration", maintenance.currentGeneration())
+                 .build()
+-            val requestBuilder = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
+-                .setConstraints(constraints)
+-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
+-            if (automatic) {
+-                requestBuilder.setInitialDelay(AUTOMATIC_INITIAL_DELAY_SECONDS, TimeUnit.SECONDS)
+-            }
+-            val request = requestBuilder.build()
+-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
++            val request = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
++                .setInputData(inputData)
++                .build()
++            store.markWork(
++                request.id.toString(),
++                IdentityBackfillRuntimeState.QUEUED
++            )
++            val operation = WorkManager.getInstance(appContext).enqueueUniqueWork(
+                 UNIQUE_WORK_NAME,
+                 policy,
+                 request
+             )
+-        }.onFailure { error -> Log.w("IdentityBackfill", "Unable to schedule backfill", error) }
++            if (awaitResult) operation.result.get()
++            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.ENQUEUED)
++        }.getOrElse { error ->
++            val message = error.identityBackfillMessage()
++            Log.w("IdentityBackfill", "Unable to schedule backfill", error)
++            store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
++            IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
++        }
+     }
+ 
+-    private const val AUTOMATIC_INITIAL_DELAY_SECONDS = 30L
+ }
+ 
+ internal class IdentityBackfillCheckpointStore(context: Context) {
+@@ -159,6 +284,46 @@ internal class IdentityBackfillCheckpointStore(context: Context) {
+             .commit()) { "Unable to persist identity backfill checkpoint" }
+     }
+ 
++    fun runtimeStatus(): IdentityBackfillRuntimeStatus {
++        val stateName = preferences.getString(KEY_RUNTIME_STATE, null)
++        val state = runCatching {
++            IdentityBackfillRuntimeState.valueOf(stateName.orEmpty())
++        }.getOrElse {
++            if (preferences.getString(KEY_STAGE, null) == IdentityBackfillStage.COMPLETE.name) {
++                IdentityBackfillRuntimeState.COMPLETED
++            } else {
++                IdentityBackfillRuntimeState.IDLE
++            }
++        }
++        return IdentityBackfillRuntimeStatus(
++            state = state,
++            workId = preferences.getString(KEY_WORK_ID, "").orEmpty(),
++            errorMessage = preferences.getString(KEY_RUNTIME_ERROR, "").orEmpty(),
++            updatedAt = preferences.getLong(KEY_RUNTIME_UPDATED_AT, 0L)
++        )
++    }
++
++    fun markWork(
++        workId: String,
++        state: IdentityBackfillRuntimeState,
++        errorMessage: String = ""
++    ) {
++        check(preferences.edit()
++            .putString(KEY_WORK_ID, workId)
++            .putString(KEY_RUNTIME_STATE, state.name)
++            .putString(KEY_RUNTIME_ERROR, errorMessage.take(MAX_RUNTIME_ERROR_LENGTH))
++            .putLong(KEY_RUNTIME_UPDATED_AT, System.currentTimeMillis())
++            .commit()) { "Unable to persist identity backfill runtime state" }
++    }
++
++    fun updateRuntimeState(
++        state: IdentityBackfillRuntimeState,
++        errorMessage: String = ""
++    ) {
++        val current = runtimeStatus()
++        markWork(current.workId, state, errorMessage)
++    }
++
+     fun reset() {
+         check(preferences.edit().clear().commit()) { "Unable to reset identity backfill checkpoint" }
+     }
+@@ -181,10 +346,30 @@ internal class IdentityBackfillCheckpointStore(context: Context) {
+         const val KEY_DELETED = "deleted"
+         const val KEY_ERRORS = "errors"
+         const val KEY_LX_CLEANED = "lx_cleaned"
++        const val KEY_WORK_ID = "work_id"
++        const val KEY_RUNTIME_STATE = "runtime_state"
++        const val KEY_RUNTIME_ERROR = "runtime_error"
++        const val KEY_RUNTIME_UPDATED_AT = "runtime_updated_at"
++        const val MAX_RUNTIME_ERROR_LENGTH = 240
+     }
+ }
+ 
+-private fun IdentityBackfillCheckpoint.toWorkData(): Data = Data.Builder()
++internal fun WorkInfo.State.toIdentityBackfillRuntimeState(): IdentityBackfillRuntimeState = when (this) {
++    WorkInfo.State.ENQUEUED,
++    WorkInfo.State.BLOCKED -> IdentityBackfillRuntimeState.QUEUED
++    WorkInfo.State.RUNNING -> IdentityBackfillRuntimeState.RUNNING
++    WorkInfo.State.SUCCEEDED -> IdentityBackfillRuntimeState.COMPLETED
++    WorkInfo.State.FAILED -> IdentityBackfillRuntimeState.FAILED
++    WorkInfo.State.CANCELLED -> IdentityBackfillRuntimeState.CANCELLED
++}
++
++private fun Throwable.identityBackfillMessage(): String =
++    message?.trim().orEmpty().ifBlank { javaClass.simpleName }.take(240)
++
++private fun IdentityBackfillCheckpoint.toWorkData(
++    reverted: Int = 0,
++    reviewRequired: Int = 0
++): Data = Data.Builder()
+     .putString("stage", stage.name)
+     .putInt("algorithmVersion", algorithmVersion)
+     .putInt("total", progress.total)
+@@ -198,4 +383,6 @@ private fun IdentityBackfillCheckpoint.toWorkData(): Data = Data.Builder()
+     .putInt("lxDeleted", progress.lxDeleted)
+     .putInt("deleted", progress.deleted)
+     .putInt("errors", progress.errors)
++    .putInt("dedupReverted", reverted)
++    .putInt("dedupReviewRequired", reviewRequired)
+     .build()
+diff --git a/app/src/main/java/app/yukine/LibraryStateBinding.kt b/app/src/main/java/app/yukine/LibraryStateBinding.kt
+index cd4fc6f3..f9cf9687 100644
+--- a/app/src/main/java/app/yukine/LibraryStateBinding.kt
++++ b/app/src/main/java/app/yukine/LibraryStateBinding.kt
+@@ -287,7 +287,30 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
+     emptyGroupFilter = AppLanguage.text(languageMode, "library.empty.group.filter"),
+     emptyLibrary = AppLanguage.text(languageMode, "no.music"),
+     groupCountSuffix = AppLanguage.text(languageMode, "library.group.count.suffix"),
+-    back = AppLanguage.text(languageMode, "back")
++    back = AppLanguage.text(languageMode, "back"),
++    overviewShelf = AppLanguage.text(languageMode, "library.overview.shelf"),
++    overviewBrowse = AppLanguage.text(languageMode, "library.overview.browse"),
++    overviewSaved = AppLanguage.text(languageMode, "library.overview.saved"),
++    overviewSourcesSync = AppLanguage.text(languageMode, "library.overview.sources.sync"),
++    overviewFavorites = AppLanguage.text(languageMode, "library.overview.favorites"),
++    overviewDownloaded = AppLanguage.text(languageMode, "library.overview.downloaded"),
++    overviewSources = AppLanguage.text(languageMode, "library.overview.sources"),
++    overviewSearchHint = AppLanguage.text(languageMode, "library.overview.search.hint"),
++    overviewSongUnit = AppLanguage.text(languageMode, "library.overview.song.unit"),
++    overviewLocalSource = AppLanguage.text(languageMode, "library.overview.local.source"),
++    overviewAllSongs = AppLanguage.text(languageMode, "library.allSongs"),
++    overviewAlbums = AppLanguage.text(languageMode, "albums"),
++    overviewArtists = AppLanguage.text(languageMode, "artists"),
++    overviewPlaylists = AppLanguage.text(languageMode, "playlists"),
++    overviewFolders = AppLanguage.text(languageMode, "folders"),
++    smartRecentAdded = AppLanguage.text(languageMode, "library.smart.recent.added"),
++    smartRecentPlayed = AppLanguage.text(languageMode, "library.smart.recent.played"),
++    smartWeekFavorites = AppLanguage.text(languageMode, "library.smart.week.favorites"),
++    smartLongUnplayed = AppLanguage.text(languageMode, "library.smart.long.unplayed"),
++    smartRecentAddedEmpty = AppLanguage.text(languageMode, "library.empty.smart.recent.added"),
++    smartRecentPlayedEmpty = AppLanguage.text(languageMode, "library.empty.smart.recent.played"),
++    smartWeekFavoritesEmpty = AppLanguage.text(languageMode, "library.empty.smart.week.favorites"),
++    smartLongUnplayedEmpty = AppLanguage.text(languageMode, "library.empty.smart.long.unplayed")
+ )
+ 
+ private data class LibraryPresentationProjection(
+diff --git a/app/src/main/java/app/yukine/LoadTrackLyricsUseCase.kt b/app/src/main/java/app/yukine/LoadTrackLyricsUseCase.kt
+index daa8e6d8..b9167bb6 100644
+--- a/app/src/main/java/app/yukine/LoadTrackLyricsUseCase.kt
++++ b/app/src/main/java/app/yukine/LoadTrackLyricsUseCase.kt
+@@ -14,6 +14,15 @@ internal interface TrackLyricsOperations {
+         onlineEnabled: Boolean,
+         neteaseProviderTrackId: String
+     ): List<LyricsLine>
++
++    suspend fun loadDocumentForTrack(
++        track: Track,
++        onlineEnabled: Boolean,
++        neteaseProviderTrackId: String
++    ): LyricsDocument = LyricsDocument.fromLegacy(
++        loadForTrack(track, onlineEnabled, neteaseProviderTrackId),
++        format = "legacy"
++    )
+ }
+ 
+ internal class LyricsRepositoryLoadOperations @JvmOverloads constructor(
+@@ -24,6 +33,12 @@ internal class LyricsRepositoryLoadOperations @JvmOverloads constructor(
+         onlineEnabled: Boolean,
+         neteaseProviderTrackId: String
+     ): List<LyricsLine> = repository.loadForTrack(track, onlineEnabled, neteaseProviderTrackId)
++
++    override suspend fun loadDocumentForTrack(
++        track: Track,
++        onlineEnabled: Boolean,
++        neteaseProviderTrackId: String
++    ): LyricsDocument = repository.loadDocumentForTrack(track, onlineEnabled, neteaseProviderTrackId)
+ }
+ 
+ /**
+@@ -55,6 +70,26 @@ internal class LuoxueFirstTrackLyricsOperations(
+         }
+         return fallback.loadForTrack(track, onlineEnabled, neteaseProviderTrackId)
+     }
++
++    override suspend fun loadDocumentForTrack(
++        track: Track,
++        onlineEnabled: Boolean,
++        neteaseProviderTrackId: String
++    ): LyricsDocument {
++        val lxDocument = try {
++            resolver.resolveLyrics(track)?.let { lyrics ->
++                repository.parseProviderLyricsDocument(lyrics.lyric, lyrics.translation.orEmpty())
++            } ?: LyricsDocument.empty()
++        } catch (error: CancellationException) {
++            throw error
++        } catch (_: Throwable) {
++            LyricsDocument.empty()
++        }
++        if (!lxDocument.isEmpty()) {
++            return lxDocument
++        }
++        return fallback.loadDocumentForTrack(track, onlineEnabled, neteaseProviderTrackId)
++    }
+ }
+ 
+ internal class LoadTrackLyricsUseCase(
+@@ -79,9 +114,10 @@ internal class LoadTrackLyricsUseCase(
+     ): LyricsDocument {
+         if (track == null) return LyricsDocument.empty()
+         customLyricsRepository?.loadForTrack(track)?.document?.let { return it }
+-        return LyricsDocument.fromLegacy(
+-            execute(track, onlineEnabled, neteaseProviderTrackId),
+-            format = "legacy"
++        return operations.loadDocumentForTrack(
++            track,
++            onlineEnabled,
++            neteaseProviderTrackId.orEmpty()
+         )
+     }
+ }
+diff --git a/app/src/main/java/app/yukine/SettingsContextProvider.kt b/app/src/main/java/app/yukine/SettingsContextProvider.kt
+index 30527668..5d51f611 100644
+--- a/app/src/main/java/app/yukine/SettingsContextProvider.kt
++++ b/app/src/main/java/app/yukine/SettingsContextProvider.kt
+@@ -30,12 +30,15 @@ internal class SettingsContextProvider(
+     fun runtimeStatus(): RuntimeSettingsStatus {
+         val allTracks = libraryStore.allTracks()
+         val luoxueSources = luoxueSourceStore.load()
+-        val identityBackfill = identityBackfillStore.load().progress
++        val identityCheckpoint = identityBackfillStore.load()
++        val identityBackfill = identityCheckpoint.progress
++        val identityRuntime = identityBackfillStore.runtimeStatus()
+         val floatingLyricsSettings = floatingLyricsSettingsStore.load()
+         val kugouAuth = localStreamingAuthStore.authState(
+             app.yukine.streaming.StreamingProviderName.KUGOU
+         )
+         val kugouSync = kugouExperimentalSyncStore.status(kugouAuth.connected)
++        val duplicateCandidates = repository.loadDuplicateCandidates(50, 0)
+         return RuntimeSettingsStatus(
+             appVersionName = BuildConfig.VERSION_NAME,
+             audioPermissionGranted = permissionController.hasAudioPermission(),
+@@ -55,6 +58,27 @@ internal class SettingsContextProvider(
+             librarySongCount = allTracks.size,
+             libraryAlbumCount = LibraryGrouping.uniqueAlbumCount(allTracks),
+             libraryArtistCount = LibraryGrouping.uniqueArtistCount(allTracks),
++            libraryDedupMode = repository.loadLibraryDedupMode(),
++            duplicateCandidateCenter = DuplicateCandidateCenterUi(
++                total = duplicateCandidates.total,
++                reviewRequired = duplicateCandidates.reviewRequired,
++                items = duplicateCandidates.items.map { candidate ->
++                    DuplicateCandidateUi(
++                        leftRecordingId = candidate.leftRecordingId,
++                        rightRecordingId = candidate.rightRecordingId,
++                        leftLabel = listOf(candidate.leftTitle, candidate.leftArtist)
++                            .filter(String::isNotBlank)
++                            .joinToString(" 路 "),
++                        rightLabel = listOf(candidate.rightTitle, candidate.rightArtist)
++                            .filter(String::isNotBlank)
++                            .joinToString(" 路 "),
++                        score = candidate.score,
++                        margin = candidate.margin,
++                        relationType = candidate.relationType,
++                        batchEligible = candidate.batchEligible
++                    )
++                }
++            ),
+             streamingGatewayEndpoint = streamingGatewaySettingsStore.endpoint(),
+             streamingGatewayConfigured = streamingGatewaySettingsStore.configured(),
+             luoxueImportedSourceCount = luoxueSources.size,
+@@ -70,7 +94,11 @@ internal class SettingsContextProvider(
+                 merged = identityBackfill.merged,
+                 pending = identityBackfill.pending,
+                 lxMigrated = identityBackfill.lxMigrated,
+-                lxDeleted = identityBackfill.lxDeleted
++                lxDeleted = identityBackfill.lxDeleted,
++                state = IdentityBackfillStateUi.valueOf(identityRuntime.state.name),
++                stage = identityCheckpoint.stage.name,
++                errorMessage = identityRuntime.errorMessage,
++                updatedAt = identityRuntime.updatedAt
+             ),
+             hiddenLibraryItems = repository.loadLibraryExclusions().map { exclusion ->
+                 HiddenLibraryItemUi(exclusion.sourceKey, exclusion.displayName())
+diff --git a/app/src/main/java/app/yukine/SettingsEffectOwner.kt b/app/src/main/java/app/yukine/SettingsEffectOwner.kt
+index 854533d4..49ef3c96 100644
+--- a/app/src/main/java/app/yukine/SettingsEffectOwner.kt
++++ b/app/src/main/java/app/yukine/SettingsEffectOwner.kt
+@@ -1,6 +1,8 @@
+ package app.yukine
+ 
++import app.yukine.identity.LibraryDedupMode
+ import java.util.function.Consumer
++import java.util.function.BiConsumer
+ import java.util.function.IntConsumer
+ 
+ internal data class SettingsNavigationEffectActions(
+@@ -10,7 +12,7 @@ internal data class SettingsNavigationEffectActions(
+     val openDownloads: Runnable
+ )
+ 
+-internal data class SettingsLibraryEffectActions(
++internal data class SettingsLibraryEffectActions @JvmOverloads constructor(
+     val requestNeededPermissions: Runnable,
+     val loadLibrary: Runnable,
+     val openAudioFilePicker: Runnable,
+@@ -20,7 +22,10 @@ internal data class SettingsLibraryEffectActions(
+     val openLuoxueSourceManager: Runnable,
+     val importLuoxueSource: Runnable,
+     val restoreHiddenLibraryItem: Consumer<String>,
+-    val restoreAllHiddenLibraryItems: Runnable
++    val restoreAllHiddenLibraryItems: Runnable,
++    val setLibraryDedupMode: Consumer<LibraryDedupMode> = Consumer {},
++    val confirmDuplicateCandidate: BiConsumer<Long, Long> = BiConsumer { _, _ -> },
++    val confirmHighConfidenceDuplicates: Runnable = Runnable {}
+ )
+ 
+ internal data class SettingsPlaybackEffectActions @JvmOverloads constructor(
+@@ -65,6 +70,14 @@ internal class SettingsEffectOwner(
+             SettingsEffect.OpenAudioFolderPicker -> library.openAudioFolderPicker.run()
+             SettingsEffect.RebuildSongIdentity -> library.rebuildSongIdentity.run()
+             SettingsEffect.CancelIdentityBackfill -> library.cancelIdentityBackfill.run()
++            is SettingsEffect.SetLibraryDedupMode -> library.setLibraryDedupMode.accept(effect.mode)
++            is SettingsEffect.ConfirmDuplicateCandidate ->
++                library.confirmDuplicateCandidate.accept(
++                    effect.leftRecordingId,
++                    effect.rightRecordingId
++                )
++            SettingsEffect.ConfirmHighConfidenceDuplicates ->
++                library.confirmHighConfidenceDuplicates.run()
+             SettingsEffect.OpenLuoxueSourceManager -> library.openLuoxueSourceManager.run()
+             SettingsEffect.ImportLuoxueSource -> library.importLuoxueSource.run()
+             is SettingsEffect.RestoreHiddenLibraryItem ->
+diff --git a/app/src/main/java/app/yukine/SettingsFeatureBinding.java b/app/src/main/java/app/yukine/SettingsFeatureBinding.java
+index d6a77068..59203d77 100644
+--- a/app/src/main/java/app/yukine/SettingsFeatureBinding.java
++++ b/app/src/main/java/app/yukine/SettingsFeatureBinding.java
+@@ -3,12 +3,18 @@ package app.yukine;
+ import android.os.Handler;
+ 
+ import androidx.activity.ComponentActivity;
++import androidx.lifecycle.LiveData;
++import androidx.lifecycle.Observer;
++import androidx.work.WorkInfo;
++import androidx.work.WorkManager;
+ 
+ import app.yukine.data.MusicLibraryRepository;
+ import app.yukine.streaming.LuoxueSourceStore;
+ import app.yukine.streaming.KugouExperimentalSyncStore;
+ import app.yukine.ui.EchoTheme;
+ 
++import java.util.List;
++
+ /** Owns Activity-scoped settings state, typed effects, runtime application and lifecycle. */
+ final class SettingsFeatureBinding {
+     private final SettingsViewModel viewModel;
+@@ -27,6 +33,8 @@ final class SettingsFeatureBinding {
+     private CustomBackgroundAccentController customBackgroundAccentController;
+     private ComponentActivity activity;
+     private MainPermissionController permissionController;
++    private LiveData<List<WorkInfo>> identityBackfillWorkInfos;
++    private Observer<List<WorkInfo>> identityBackfillObserver;
+     private boolean released;
+ 
+     SettingsFeatureBinding(
+@@ -115,21 +123,64 @@ final class SettingsFeatureBinding {
+                         documentPickerController::openAudioFilePicker,
+                         documentPickerController::openAudioFolderPicker,
+                         () -> executors.io(() -> {
+-                            IdentityBackfillScheduler.INSTANCE.rebuildOrReuseBlocking(activity);
++                            IdentityBackfillScheduleResult result =
++                                    IdentityBackfillScheduler.INSTANCE.rebuildOrReuseBlocking(activity);
+                             mainHandler.post(() -> {
+-                                statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.started"));
++                                showIdentityBackfillScheduleFeedback(statusMessages, result);
+                                 viewModel.refreshSettingsContext();
+                             });
+                         }),
+                         () -> {
+                             IdentityBackfillScheduler.INSTANCE.cancel(activity);
+-                            statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.cancelled"));
++                            statusMessages.showFeedback(
++                                    AppLanguage.text(languageMode(), "identity.backfill.cancelled")
++                            );
+                             viewModel.refreshSettingsContext();
+                         },
+                         luoxueSourceImportDialogController::showSourceManager,
+                         luoxueSourceImportDialogController::showImportDialog,
+                         library::restoreHidden,
+-                        library::restoreAllHidden
++                        library::restoreAllHidden,
++                        mode -> executors.io(() -> {
++                            repository.saveLibraryDedupMode(mode);
++                            IdentityBackfillScheduler.INSTANCE.scheduleManual(activity, true);
++                            mainHandler.post(() -> {
++                                statusMessages.setStatus(AppLanguage.text(
++                                        languageMode(),
++                                        "library.dedup.mode.changed"
++                                ));
++                                viewModel.refreshSettingsContext();
++                            });
++                        }),
++                        (leftRecordingId, rightRecordingId) -> executors.io(() -> {
++                            app.yukine.data.DuplicateBatchConfirmResult result =
++                                    repository.confirmDuplicateCandidate(
++                                            leftRecordingId,
++                                            rightRecordingId
++                                    );
++                            mainHandler.post(() -> {
++                                library.loadLibrary(false);
++                                statusMessages.setStatus(
++                                        AppLanguage.text(languageMode(), "library.dedup.confirm.result") +
++                                                " " + result.getConfirmed() + "/" +
++                                                (result.getConfirmed() + result.getSkipped() + result.getFailed())
++                                );
++                                viewModel.refreshSettingsContext();
++                            });
++                        }),
++                        () -> executors.io(() -> {
++                            app.yukine.data.DuplicateBatchConfirmResult result =
++                                    repository.confirmHighConfidenceDuplicateCandidates(50);
++                            mainHandler.post(() -> {
++                                library.loadLibrary(false);
++                                statusMessages.setStatus(
++                                        AppLanguage.text(languageMode(), "library.dedup.confirm.result") +
++                                                " " + result.getConfirmed() + "/" +
++                                                (result.getConfirmed() + result.getSkipped() + result.getFailed())
++                                );
++                                viewModel.refreshSettingsContext();
++                            });
++                        })
+                 ),
+                 new SettingsPlaybackEffectActions(
+                         () -> lyricsViewModel.reloadCurrentLyrics(languageMode()),
+@@ -186,6 +237,7 @@ final class SettingsFeatureBinding {
+                 repository
+         );
+         viewModel.bindContextLoader(contextProvider);
++        bindIdentityBackfillStatus(activity);
+         viewModel.bindRouteState(navigationViewModel.getSettingsRouteState());
+     }
+ 
+@@ -220,6 +272,11 @@ final class SettingsFeatureBinding {
+ 
+     void release() {
+         released = true;
++        if (identityBackfillWorkInfos != null && identityBackfillObserver != null) {
++            identityBackfillWorkInfos.removeObserver(identityBackfillObserver);
++        }
++        identityBackfillWorkInfos = null;
++        identityBackfillObserver = null;
+         viewModel.bindRouteState(null);
+         viewModel.bindContextLoader(null);
+         viewModel.bindEffectListener(null);
+@@ -233,6 +290,46 @@ final class SettingsFeatureBinding {
+         reconcileFloatingLyricsState();
+     }
+ 
++    private void bindIdentityBackfillStatus(ComponentActivity activity) {
++        identityBackfillWorkInfos = WorkManager.getInstance(activity.getApplicationContext())
++                .getWorkInfosForUniqueWorkLiveData(IdentityBackfillScheduler.UNIQUE_WORK_NAME);
++        identityBackfillObserver = workInfos -> {
++            if (released || workInfos == null || executors == null || mainHandler == null) return;
++            executors.io(() -> {
++                IdentityBackfillScheduler.INSTANCE.syncRuntimeStatus(activity, workInfos);
++                mainHandler.post(() -> {
++                    if (!released) viewModel.refreshSettingsContext();
++                });
++            });
++        };
++        identityBackfillWorkInfos.observe(activity, identityBackfillObserver);
++    }
++
++    private void showIdentityBackfillScheduleFeedback(
++            StatusMessageController statusMessages,
++            IdentityBackfillScheduleResult result
++    ) {
++        String key;
++        switch (result.getKind()) {
++            case ENQUEUED:
++                key = "identity.backfill.queued";
++                break;
++            case ALREADY_ACTIVE:
++                key = "identity.backfill.already.active";
++                break;
++            case FAILED:
++            default:
++                key = "identity.backfill.schedule.failed";
++                break;
++        }
++        String message = AppLanguage.text(languageMode(), key);
++        if (result.getKind() == IdentityBackfillScheduleKind.FAILED
++                && !result.getErrorMessage().isBlank()) {
++            message += ": " + result.getErrorMessage();
++        }
++        statusMessages.showFeedback(message);
++    }
++
+     private void reconcileFloatingLyricsState() {
+         if (activity == null || permissionController == null || released) return;
+         boolean permissionGranted = permissionController.hasOverlayPermission();
+diff --git a/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt b/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
+index 73fa7470..a7fcb527 100644
+--- a/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
++++ b/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
+@@ -30,6 +30,7 @@ class StreamingWebAuthActivity : Activity() {
+     private var lastProviderUrl: String? = null
+     private var qqRiskCountdown: Runnable? = null
+     private var loginPageStarted = false
++    private var authCompletionStarted = false
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         applyWebViewDataDirectorySuffix()
+@@ -48,7 +49,12 @@ class StreamingWebAuthActivity : Activity() {
+ 
+     override fun onDestroy() {
+         cancelQqRiskCountdown()
+-        webView?.destroy()
++        webView?.let { view ->
++            view.stopLoading()
++            view.webViewClient = WebViewClient()
++            (view.parent as? ViewGroup)?.removeView(view)
++            view.destroy()
++        }
+         webView = null
+         super.onDestroy()
+     }
+@@ -143,7 +149,12 @@ class StreamingWebAuthActivity : Activity() {
+             override fun onPageFinished(view: WebView, url: String) {
+                 lastProviderUrl = url
+                 CookieManager.getInstance().flush()
+-                if (collectCookieHeader(logOnly = true) != null && shouldAutoComplete(url)) {
++                if (!authCompletionStarted &&
++                    !isFinishing &&
++                    !isDestroyed &&
++                    shouldAutoComplete(url) &&
++                    collectCookieHeader(logOnly = true) != null
++                ) {
+                     finishWithAuthCallback(fallbackCallbackUri())
+                 }
+             }
+@@ -241,7 +252,8 @@ class StreamingWebAuthActivity : Activity() {
+     }
+ 
+     private fun shouldAutoComplete(url: String): Boolean {
+-        return !url.contains("/login", ignoreCase = true) &&
++        return providerName() != StreamingProviderName.KUGOU &&
++            !url.contains("/login", ignoreCase = true) &&
+             !url.contains("passport", ignoreCase = true)
+     }
+ 
+@@ -266,6 +278,10 @@ class StreamingWebAuthActivity : Activity() {
+     }
+ 
+     private fun finishWithAuthCallback(uri: Uri) {
++        if (authCompletionStarted || isFinishing || isDestroyed) {
++            return
++        }
++        authCompletionStarted = true
+         val cookieHeader = collectCookieHeader()
+         val intent = Intent(this, MainActivity::class.java)
+             .setAction(Intent.ACTION_VIEW)
+diff --git a/core/designsystem/src/main/java/app/yukine/AppLanguage.java b/core/designsystem/src/main/java/app/yukine/AppLanguage.java
+index 01917420..4e2246ee 100644
+--- a/core/designsystem/src/main/java/app/yukine/AppLanguage.java
++++ b/core/designsystem/src/main/java/app/yukine/AppLanguage.java
+@@ -60,6 +60,24 @@ public final class AppLanguage {
+         put("library.delete.result", "Removed %d, failed %f, skipped %s", "\u5df2\u79fb\u9664 %d \u9879\uff0c\u5931\u8d25 %f \u9879\uff0c\u8df3\u8fc7 %s \u9879");
+         put("library.hidden.restore", "Restore hidden song", "\u6062\u590d\u5df2\u9690\u85cf\u6b4c\u66f2");
+         put("library.hidden.restore.all", "Restore all hidden songs", "\u6062\u590d\u5168\u90e8\u5df2\u9690\u85cf\u6b4c\u66f2");
++        put("library.overview.shelf", "For you", "\u4e3a\u4f60\u63a8\u8350");
++        put("library.overview.browse", "Browse by type", "\u6309\u65b9\u5f0f\u6d4f\u89c8");
++        put("library.overview.saved", "Saved & offline", "\u6536\u85cf\u4e0e\u79bb\u7ebf");
++        put("library.overview.sources.sync", "Sources & sync", "\u97f3\u4e50\u6765\u6e90\u4e0e\u540c\u6b65");
++        put("library.overview.favorites", "Favorites", "\u559c\u6b22\u7684\u97f3\u4e50");
++        put("library.overview.downloaded", "Downloaded", "\u5df2\u4e0b\u8f7d");
++        put("library.overview.sources", "Music sources", "\u97f3\u4e50\u6765\u6e90");
++        put("library.overview.search.hint", "Search songs, albums, artists, or playlists", "\u641c\u7d22\u6b4c\u66f2\u3001\u4e13\u8f91\u3001\u827a\u4eba\u6216\u6b4c\u5355");
++        put("library.overview.song.unit", " songs", " \u9996");
++        put("library.overview.local.source", "Local device", "\u672c\u673a");
++        put("library.smart.recent.added", "Recently added", "\u6700\u8fd1\u6dfb\u52a0");
++        put("library.smart.recent.played", "Recently played", "\u6700\u8fd1\u64ad\u653e");
++        put("library.smart.week.favorites", "Weekly favorites", "\u4e00\u5468\u6700\u7231");
++        put("library.smart.long.unplayed", "Long unplayed", "\u5f88\u4e45\u6ca1\u542c");
++        put("library.empty.smart.recent.added", "Songs you scan or import will show up here", "\u626b\u63cf\u6216\u5bfc\u5165\u6b4c\u66f2\u540e\uff0c\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc");
++        put("library.empty.smart.week.favorites", "Play a few favorites this week and they will show up here", "\u672c\u5468\u64ad\u653e\u559c\u6b22\u7684\u6b4c\u66f2\u540e\uff0c\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc");
++        put("library.empty.smart.long.unplayed", "You have listened to everything recently. Nice!", "\u6700\u8fd1\u6240\u6709\u6b4c\u90fd\u542c\u8fc7\u5566\uff0c\u771f\u68d2");
++        put("library.empty.smart.recent.played", "No recently played songs yet", "\u6682\u65e0\u6700\u8fd1\u64ad\u653e");
+         put("search.no.results", "No matching songs found", "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u6b4c\u66f2");
+         put("app.name", "YUKINE", "YUKINE");
+         put("onboarding.enter", "Enter YUKINE", "\u8fdb\u5165 YUKINE");
+@@ -480,7 +498,51 @@ public final class AppLanguage {
+         put("identity.backfill.pending", "pending", "\u5f85\u786e\u8ba4");
+         put("identity.backfill.lx", "LX migrated/deleted", "LX \u8fc1\u79fb/\u5220\u9664");
+         put("identity.backfill.started", "Song identity rebuild started", "\u5df2\u5f00\u59cb\u91cd\u5efa\u6b4c\u66f2\u8eab\u4efd");
++        put("identity.backfill.queued", "Song identity rebuild queued", "\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa\u5df2\u6392\u961f");
++        put("identity.backfill.already.active", "Song identity rebuild is already active", "\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa\u5df2\u5728\u6392\u961f\u6216\u8fd0\u884c");
++        put("identity.backfill.schedule.failed", "Unable to schedule identity rebuild", "\u65e0\u6cd5\u6392\u961f\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa");
+         put("identity.backfill.cancelled", "Song identity rebuild cancelled", "\u5df2\u53d6\u6d88\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa");
++        put("identity.backfill.state.idle", "Not started", "\u672a\u5f00\u59cb");
++        put("identity.backfill.state.queued",
++                "Queued; waiting for system scheduling",
++                "\u5df2\u6392\u961f\uff0c\u7b49\u5f85\u7cfb\u7edf\u8c03\u5ea6");
++        put("identity.backfill.state.running", "Processing", "\u6b63\u5728\u5904\u7406");
++        put("identity.backfill.state.completed", "Completed", "\u5df2\u5b8c\u6210");
++        put("identity.backfill.state.failed", "Failed", "\u5931\u8d25");
++        put("identity.backfill.state.cancelled", "Cancelled", "\u5df2\u53d6\u6d88");
++        put("identity.backfill.stage.normalize", "Normalizing sources", "\u6b63\u5728\u6574\u7406\u6765\u6e90");
++        put("identity.backfill.stage.classify", "Building local identities", "\u6b63\u5728\u5efa\u7acb\u672c\u5730\u6b4c\u66f2\u8eab\u4efd");
++        put("identity.backfill.stage.ingest", "Merging duplicate identities", "\u6b63\u5728\u5408\u5e76\u91cd\u590d\u8eab\u4efd");
++        put("identity.backfill.stage.cleanup", "Cleaning legacy sources", "\u6b63\u5728\u6e05\u7406\u65e7\u6765\u6e90");
++        put("identity.backfill.stage.validate", "Validating results", "\u6b63\u5728\u6821\u9a8c\u7ed3\u679c");
++        put("identity.backfill.stage.processing", "Processing library", "\u6b63\u5728\u5904\u7406\u66f2\u5e93");
++        put("library.dedup.mode", "Duplicate song management", "\u91cd\u590d\u6b4c\u66f2\u7ba1\u7406");
++        put("library.dedup.safe", "Safe deduplication", "\u5b89\u5168\u589e\u5f3a");
++        put("library.dedup.safe.description",
++                "Merge only with strict metadata, stable identifiers, or reliable audio evidence",
++                "\u4ec5\u5728\u4e25\u683c\u5143\u6570\u636e\u3001\u7a33\u5b9a\u6807\u8bc6\u6216\u53ef\u9760\u97f3\u9891\u8bc1\u636e\u4e0b\u81ea\u52a8\u5408\u5e76");
++        put("library.dedup.aggressive", "Maximum deduplication", "\u6700\u5927\u5316\u53bb\u91cd");
++        put("library.dedup.aggressive.description",
++                "Use enhanced recall and lower thresholds while preserving every hard conflict",
++                "\u542f\u7528\u589e\u5f3a\u53ec\u56de\u4e0e\u8f83\u4f4e\u9608\u503c\uff0c\u4ecd\u4fdd\u7559\u6240\u6709\u786c\u51b2\u7a81\u95e8\u7981");
++        put("library.dedup.mode.changed",
++                "Deduplication mode saved; full-library reevaluation queued",
++                "\u53bb\u91cd\u6a21\u5f0f\u5df2\u4fdd\u5b58\uff0c\u5df2\u6392\u961f\u5168\u5e93\u91cd\u8bc4");
++        put("library.dedup.candidates", "Duplicate candidate center", "\u91cd\u590d\u6b4c\u66f2\u5019\u9009\u4e2d\u5fc3");
++        put("library.dedup.candidates.description",
++                "Review complete-link evidence and confirm safe recording merges",
++                "\u67e5\u770b complete-link \u8bc1\u636e\u5e76\u786e\u8ba4\u5b89\u5168\u7684\u5f55\u97f3\u5408\u5e76");
++        put("library.dedup.pending", "Pending pairs", "\u5f85\u5904\u7406\u914d\u5bf9");
++        put("library.dedup.review.required", "Rollback review required", "\u9700\u4eba\u5de5\u590d\u6838\u7684\u56de\u6eda");
++        put("library.dedup.high.confidence", "High confidence", "\u9ad8\u7f6e\u4fe1\u5ea6");
++        put("library.dedup.confirm.batch", "Confirm high-confidence pairs", "\u6279\u91cf\u786e\u8ba4\u9ad8\u5206\u5019\u9009");
++        put("library.dedup.confirm.batch.description",
++                "Only non-overlapping pairs with score at least 95% and margin at least 8% are included",
++                "\u4ec5\u5305\u542b\u5206\u6570\u4e0d\u4f4e\u4e8e 95%\u3001\u9886\u5148\u5e45\u5ea6\u4e0d\u4f4e\u4e8e 8% \u4e14\u4e92\u4e0d\u91cd\u53e0\u7684\u914d\u5bf9");
++        put("library.dedup.score", "Score", "\u5206\u6570");
++        put("library.dedup.margin", "Margin", "\u9886\u5148\u5e45\u5ea6");
++        put("library.dedup.needs.review", "Needs review", "\u9700\u590d\u6838");
++        put("library.dedup.confirm.result", "Duplicate confirmation complete", "\u91cd\u590d\u6b4c\u66f2\u786e\u8ba4\u5b8c\u6210");
+         put("import.audio.files", "Import audio files", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6");
+         put("import.audio.folder", "Import audio folder", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6\u5939");
+         put("offset", "Offset", "\u504f\u79fb");
+diff --git a/core/model/src/main/java/app/yukine/MainRoutes.java b/core/model/src/main/java/app/yukine/MainRoutes.java
+index 12d5bd35..fca5e49b 100644
+--- a/core/model/src/main/java/app/yukine/MainRoutes.java
++++ b/core/model/src/main/java/app/yukine/MainRoutes.java
+@@ -38,6 +38,7 @@ public final class MainRoutes {
+     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";
+     public static final String SETTINGS_LYRICS = "settings_lyrics";
+     public static final String SETTINGS_LIBRARY = "settings_library";
++    public static final String SETTINGS_DUPLICATE_CANDIDATES = "settings_duplicate_candidates";
+     public static final String SETTINGS_STREAMING_GATEWAY = "settings_streaming_gateway";
+ 
+     private MainRoutes() {
+diff --git a/feature/data/src/main/java/app/yukine/data/IdentityOperationStore.kt b/feature/data/src/main/java/app/yukine/data/IdentityOperationStore.kt
+index 9137c660..4f029622 100644
+--- a/feature/data/src/main/java/app/yukine/data/IdentityOperationStore.kt
++++ b/feature/data/src/main/java/app/yukine/data/IdentityOperationStore.kt
+@@ -20,6 +20,9 @@ import app.yukine.data.room.TrackSourceMappingEntity
+ import app.yukine.data.room.WorkArtistCreditEntity
+ import app.yukine.data.room.WorkIdentifierEntity
+ import app.yukine.data.room.YukineDatabase
++import app.yukine.identity.LibraryDedupMode
++import java.nio.charset.StandardCharsets
++import java.security.MessageDigest
+ import java.util.concurrent.Callable
+ import org.json.JSONArray
+ import org.json.JSONObject
+@@ -34,6 +37,18 @@ data class IdentityOperation(
+     val undoable: Boolean
+ )
+ 
++internal data class IdentityOperationProvenance(
++    val dedupMode: LibraryDedupMode? = null,
++    val policyVersion: Int = 0,
++    val evaluationBatch: String = "",
++    val rollbackStatus: String = "NONE"
++)
++
++data class LibraryDedupRollbackResult(
++    val reverted: Int,
++    val reviewRequired: Int
++)
++
+ internal object IdentityOperationType {
+     const val CONFIRM_CANDIDATE = "CONFIRM_CANDIDATE"
+     const val REJECT_CANDIDATE = "REJECT_CANDIDATE"
+@@ -121,10 +136,12 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
+         operationType: String,
+         sourceRecordingId: Long,
+         targetRecordingId: Long,
+-        before: IdentityStateSnapshot
++        before: IdentityStateSnapshot,
++        provenance: IdentityOperationProvenance = IdentityOperationProvenance()
+     ): Long {
+         require(IdentityOperationType.undoable(operationType)) { "Operation is not reversible" }
+         val after = capture(listOf(sourceRecordingId, targetRecordingId))
++        val afterPayload = IdentityStateSnapshotCodec.encode(after)
+         return dao.insert(
+             IdentityOperationEntity(
+                 id = null,
+@@ -132,9 +149,14 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
+                 sourceRecordingId = sourceRecordingId,
+                 targetRecordingId = targetRecordingId,
+                 beforePayload = IdentityStateSnapshotCodec.encode(before),
+-                afterPayload = IdentityStateSnapshotCodec.encode(after),
++                afterPayload = afterPayload,
+                 createdAt = System.currentTimeMillis(),
+-                revertedAt = null
++                revertedAt = null,
++                dedupMode = provenance.dedupMode?.name.orEmpty(),
++                policyVersion = provenance.policyVersion,
++                evaluationBatch = provenance.evaluationBatch,
++                rollbackStatus = provenance.rollbackStatus,
++                postStateHash = sha256(afterPayload)
+             )
+         )
+     }
+@@ -203,6 +225,24 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
+         requireNotNull(dao.identityOperation(operationId)).toModel(allowUndo = false)
+     })
+ 
++    fun rollbackUnsafeAggressiveMerges(limit: Int = 100): LibraryDedupRollbackResult {
++        var reverted = 0
++        var reviewRequired = 0
++        dao.aggressiveDedupRollbackOperations(limit.coerceIn(1, 500)).forEach { operation ->
++            val operationId = requireNotNull(operation.id)
++            runCatching { undo(operationId) }
++                .onSuccess {
++                    dao.updateIdentityOperationRollbackStatus(operationId, "AUTO_REVERTED")
++                    reverted++
++                }
++                .onFailure {
++                    dao.updateIdentityOperationRollbackStatus(operationId, "REVIEW_REQUIRED")
++                    reviewRequired++
++                }
++        }
++        return LibraryDedupRollbackResult(reverted, reviewRequired)
++    }
++
+     private fun restore(before: IdentityStateSnapshot, affectedIds: List<Long>) {
+         val currentSourceIds = affectedIds.flatMap(dao::sources).mapNotNull { it.sourceId }
+         val affectedSourceIds = (currentSourceIds + before.sources.map { it.sourceId }).distinct()
+@@ -276,6 +316,10 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
+     }
+ }
+ 
++private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
++    .digest(value.toByteArray(StandardCharsets.UTF_8))
++    .joinToString("") { byte -> "%02x".format(byte) }
++
+ private fun IdentityOperationEntity.toModel(allowUndo: Boolean) = IdentityOperation(
+     id = requireNotNull(id),
+     operationType = operationType,
+diff --git a/feature/data/src/main/java/app/yukine/data/LyricsDocumentParser.kt b/feature/data/src/main/java/app/yukine/data/LyricsDocumentParser.kt
+index dca4560f..9419deab 100644
+--- a/feature/data/src/main/java/app/yukine/data/LyricsDocumentParser.kt
++++ b/feature/data/src/main/java/app/yukine/data/LyricsDocumentParser.kt
+@@ -23,7 +23,7 @@ class LyricsDocumentParser {
+         return when (extension) {
+             "ttml", "xml" -> parseTtml(bytes, fileName)
+             "txt" -> parsePlain(decodeText(bytes), fileName)
+-            "lrc" -> parseLrc(decodeText(bytes), fileName)
++            "lrc", "elrc" -> parseLrc(decodeText(bytes), fileName)
+             else -> throw IllegalArgumentException("Unsupported lyrics format: $extension")
+         }
+     }
+@@ -36,6 +36,36 @@ class LyricsDocumentParser {
+             else -> throw IllegalArgumentException("Unsupported lyrics format: $format")
+         }
+ 
++    @JvmOverloads
++    fun parseProvider(
++        primary: String,
++        translation: String = "",
++        sourceName: String = ""
++    ): LyricsDocument {
++        val primaryDocument = parseProviderPayload(primary, sourceName)
++        if (primaryDocument.isEmpty()) return LyricsDocument.empty()
++        val translationDocument = parseProviderPayload(translation, sourceName)
++        if (translationDocument.isEmpty()) return primaryDocument
++        val translationTracks = translationDocument.tracks
++            .filter { it.lines.isNotEmpty() }
++            .map { track -> track.copy(role = LyricsTrackRole.TRANSLATION) }
++        if (translationTracks.isEmpty()) return primaryDocument
++        return primaryDocument.copy(tracks = primaryDocument.tracks + translationTracks)
++    }
++
++    private fun parseProviderPayload(text: String, sourceName: String): LyricsDocument {
++        val clean = text.trim()
++        if (clean.isEmpty()) return LyricsDocument.empty()
++        if (clean.startsWith("<")) {
++            runCatching {
++                return parseTtml(clean.toByteArray(StandardCharsets.UTF_8), sourceName)
++            }
++        }
++        parseNeteaseKaraoke(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
++        parseLrc(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
++        return parsePlain(clean, sourceName)
++    }
++
+     private fun parsePlain(text: String, sourceName: String): LyricsDocument {
+         val lines = text.lineSequence()
+             .map(String::trim)
+@@ -91,14 +121,15 @@ class LyricsDocumentParser {
+             }
+             val lineEnd = (nextStart ?: parsedWords.lastOrNull()?.first?.plus(3_000L)
+                 ?: value.startMs.plus(3_000L)).coerceAtLeast(value.startMs)
+-            val words = parsedWords.mapIndexed { wordIndex, (wordStart, wordText) ->
++            val rawWords = parsedWords.mapIndexed { wordIndex, word ->
+                 val end = parsedWords.getOrNull(wordIndex + 1)?.first ?: lineEnd
+                 LyricWord(
+-                    startMs = wordStart.coerceAtLeast(value.startMs),
+-                    endMs = end.coerceAtLeast(wordStart),
+-                    text = wordText
++                    startMs = word.first.coerceAtLeast(value.startMs),
++                    endMs = end.coerceAtLeast(word.first),
++                    text = word.second
+                 )
+             }
++            val words = withTextOffsets(plainText, rawWords)
+             LyricLine(value.startMs, lineEnd, plainText, words)
+         }.filter { it.text.isNotBlank() }
+         return document(sourceName, if (lines.any { it.words.isNotEmpty() }) "elrc" else "lrc", metadata, lines)
+@@ -118,6 +149,61 @@ class LyricsDocumentParser {
+         }
+     }
+ 
++    private fun parseNeteaseKaraoke(text: String, sourceName: String): LyricsDocument {
++        val lines = text.lineSequence().mapNotNull line@ { raw ->
++            val lineMatch = KARAOKE_LINE_PATTERN.matchEntire(raw.trim()) ?: return@line null
++            val lineStart = lineMatch.groupValues[1].toLongOrNull() ?: return@line null
++            val lineDuration = lineMatch.groupValues[2].toLongOrNull()?.coerceAtLeast(0L) ?: 0L
++            val body = lineMatch.groupValues[3]
++            val matches = KARAOKE_WORD_PATTERN.findAll(body).toList()
++            if (matches.isEmpty()) return@line null
++            val firstWordStart = matches.first().groupValues[1].toLongOrNull() ?: return@line null
++            val usesLineRelativeWordTimes = firstWordStart < lineStart
++            val rawWords = matches.mapNotNull word@ { match ->
++                val rawStart = match.groupValues[1].toLongOrNull() ?: return@word null
++                val duration = match.groupValues[2].toLongOrNull()?.coerceAtLeast(0L)
++                    ?: return@word null
++                val wordText = match.groupValues[3]
++                if (wordText.isEmpty()) return@word null
++                val start = if (usesLineRelativeWordTimes) lineStart + rawStart else rawStart
++                LyricWord(
++                    startMs = start.coerceAtLeast(lineStart),
++                    endMs = (start + duration).coerceAtLeast(start),
++                    text = wordText
++                )
++            }
++            if (rawWords.isEmpty()) return@line null
++            val visibleText = rawWords.joinToString(separator = "", transform = LyricWord::text).trim()
++            if (visibleText.isEmpty()) return@line null
++            val lineEnd = maxOf(
++                lineStart + lineDuration,
++                rawWords.maxOf(LyricWord::endMs),
++                lineStart + 1L
++            )
++            LyricLine(
++                startMs = lineStart,
++                endMs = lineEnd,
++                text = visibleText,
++                words = withTextOffsets(visibleText, rawWords)
++            )
++        }.sortedBy(LyricLine::startMs).toList()
++        return document(sourceName, "klyric", emptyMap(), lines)
++    }
++
++    private fun withTextOffsets(text: String, words: List<LyricWord>): List<LyricWord> {
++        var searchFrom = 0
++        return words.map { word ->
++            val start = text.indexOf(word.text, searchFrom)
++            if (start < 0) {
++                word
++            } else {
++                val end = (start + word.text.length).coerceAtMost(text.length)
++                searchFrom = end
++                word.copy(startOffset = start, endOffset = end)
++            }
++        }
++    }
++
+     private fun parseTtml(bytes: ByteArray, sourceName: String): LyricsDocument {
+         val factory = DocumentBuilderFactory.newInstance().apply {
+             isNamespaceAware = true
+@@ -169,7 +255,7 @@ class LyricsDocumentParser {
+             val text = element.textContent.orEmpty().replace(WHITESPACE_PATTERN, " ").trim()
+             if (text.isNotEmpty()) {
+                 grouped.getOrPut(role to language) { mutableListOf() } +=
+-                    LyricLine(start, end.coerceAtLeast(start), text, words)
++                    LyricLine(start, end.coerceAtLeast(start), text, withTextOffsets(text, words))
+             }
+         }
+         val tracks = grouped.map { (identity, lines) ->
+@@ -294,6 +380,9 @@ class LyricsDocumentParser {
+             Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
+         private val WORD_TIME_PATTERN =
+             Regex("""<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>""")
++        private val KARAOKE_LINE_PATTERN = Regex("""\[\s*(\d+)\s*,\s*(\d+)\s*](.*)""")
++        private val KARAOKE_WORD_PATTERN =
++            Regex("""\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*\d+)?\s*\)([^()]*)""")
+         private val METADATA_PATTERN = Regex("""\[([A-Za-z]+):\s*(.*)]""")
+         private val WHITESPACE_PATTERN = Regex("""\s+""")
+ 
+diff --git a/feature/data/src/main/java/app/yukine/data/LyricsRepository.java b/feature/data/src/main/java/app/yukine/data/LyricsRepository.java
+index 96b8caa5..c859f35f 100644
+--- a/feature/data/src/main/java/app/yukine/data/LyricsRepository.java
++++ b/feature/data/src/main/java/app/yukine/data/LyricsRepository.java
+@@ -2,13 +2,13 @@ package app.yukine.data;
+ 
+ import java.io.BufferedReader;
+ import java.io.File;
+-import java.io.FileReader;
+ import java.io.IOException;
+ import java.io.InputStreamReader;
+ import java.net.HttpURLConnection;
+ import java.net.URL;
+ import java.net.URLEncoder;
+ import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
+ import java.security.MessageDigest;
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -29,6 +29,9 @@ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+ 
+ import app.yukine.model.LyricsLine;
++import app.yukine.model.LyricsDocument;
++import app.yukine.model.LyricsTrack;
++import app.yukine.model.LyricWord;
+ import app.yukine.model.Track;
+ import app.yukine.identity.LyricSourceBinding;
+ import org.json.JSONArray;
+@@ -63,6 +66,13 @@ public final class LyricsRepository {
+                     return size() > ONLINE_CACHE_LIMIT;
+                 }
+             };
++    private static final Map<String, LyricsDocument> ONLINE_DOCUMENT_CACHE =
++            new LinkedHashMap<String, LyricsDocument>(ONLINE_CACHE_LIMIT, 0.75f, true) {
++                @Override
++                protected boolean removeEldestEntry(Map.Entry<String, LyricsDocument> eldest) {
++                    return size() > ONLINE_CACHE_LIMIT;
++                }
++            };
+     private static final Map<String, String> NETEASE_SEARCH_CACHE =
+             new LinkedHashMap<String, String>(ONLINE_CACHE_LIMIT, 0.75f, true) {
+                 @Override
+@@ -73,6 +83,8 @@ public final class LyricsRepository {
+     private final BindingStore bindingStore;
+     private final GatewaySource gatewaySource;
+     private final ThreadLocal<ResolvedBinding> resolvedBinding = new ThreadLocal<>();
++    private final ThreadLocal<LyricsDocument> resolvedDocument = new ThreadLocal<>();
++    private final LyricsDocumentParser documentParser = new LyricsDocumentParser();
+ 
+     public LyricsRepository() {
+         this(null, null);
+@@ -100,6 +112,7 @@ public final class LyricsRepository {
+             return Collections.emptyList();
+         }
+         resolvedBinding.remove();
++        resolvedDocument.remove();
+         if (!track.dataPath.isEmpty()) {
+             File audioFile = new File(track.dataPath);
+             File lyricsFile = findSidecarLyrics(audioFile);
+@@ -159,6 +172,26 @@ public final class LyricsRepository {
+         return finish(track, fetchKuwoSearchLyrics(track));
+     }
+ 
++    public LyricsDocument loadDocumentForTrack(
++            Track track,
++            boolean onlineEnabled,
++            String neteaseProviderTrackId
++    ) {
++        if (track == null) {
++            return LyricsDocument.empty();
++        }
++        try {
++            List<LyricsLine> legacyLines = loadForTrack(track, onlineEnabled, neteaseProviderTrackId);
++            LyricsDocument document = resolvedDocument.get();
++            if (document != null && !document.isEmpty()) {
++                return document;
++            }
++            return LyricsDocument.fromLegacy(legacyLines, "", "legacy");
++        } finally {
++            resolvedDocument.remove();
++        }
++    }
++
+     private List<LyricsLine> fetchGatewayLyrics(Track track) {
+         if (gatewaySource == null) {
+             return Collections.emptyList();
+@@ -233,7 +266,7 @@ public final class LyricsRepository {
+                         binding.providerLyricId,
+                         lines.size() > 1,
+                         Math.max(0L, track.durationMs),
+-                        lyricsChecksum(lines),
++                        lyricsChecksum(lines, resolvedDocument.get()),
+                         System.currentTimeMillis()
+                 ));
+             }
+@@ -250,11 +283,28 @@ public final class LyricsRepository {
+         }
+     }
+ 
+-    private String lyricsChecksum(List<LyricsLine> lines) {
++    private String lyricsChecksum(List<LyricsLine> lines, LyricsDocument document) {
+         try {
+             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+-            for (LyricsLine line : lines) {
+-                digest.update((line.timeMs + "\u0000" + line.text + "\n").getBytes(StandardCharsets.UTF_8));
++            if (document != null && !document.isEmpty()) {
++                for (LyricsTrack track : document.getTracks()) {
++                    digest.update((track.getRole().name() + "\u0000" + track.getLanguageTag() + "\n")
++                            .getBytes(StandardCharsets.UTF_8));
++                    for (app.yukine.model.LyricLine line : track.getLines()) {
++                        digest.update((line.getStartMs() + "\u0000" + line.getEndMs() + "\u0000"
++                                + line.getText() + "\n").getBytes(StandardCharsets.UTF_8));
++                        for (LyricWord word : line.getWords()) {
++                            digest.update((word.getStartMs() + "\u0000" + word.getEndMs() + "\u0000"
++                                    + word.getStartOffset() + "\u0000" + word.getEndOffset() + "\u0000"
++                                    + word.getText() + "\n").getBytes(StandardCharsets.UTF_8));
++                        }
++                    }
++                }
++            } else {
++                for (LyricsLine line : lines) {
++                    digest.update((line.timeMs + "\u0000" + line.text + "\n")
++                            .getBytes(StandardCharsets.UTF_8));
++                }
+             }
+             StringBuilder value = new StringBuilder();
+             for (byte part : digest.digest()) {
+@@ -296,8 +346,17 @@ public final class LyricsRepository {
+     }
+ 
+     private List<LyricsLine> parseLrc(File file) throws IOException {
+-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+-            return parseLrc(reader);
++        try {
++            LyricsDocument document = documentParser.parse(
++                    Files.readAllBytes(file.toPath()),
++                    file.getName()
++            );
++            if (!document.isEmpty()) {
++                resolvedDocument.set(document);
++            }
++            return document.primaryLegacyLines();
++        } catch (RuntimeException error) {
++            throw new IOException("Unable to parse local lyrics", error);
+         }
+     }
+ 
+@@ -353,11 +412,11 @@ public final class LyricsRepository {
+             rememberBinding("lrclib", record.optString("id", cacheKey));
+             String syncedLyrics = record.optString("syncedLyrics", "").trim();
+             if (!syncedLyrics.isEmpty()) {
+-                return cacheOnlineLyrics(cacheKey, parseLrcText(syncedLyrics));
++                return cacheOnlineLyrics(cacheKey, parseProviderLyrics(syncedLyrics, ""));
+             }
+             String plainLyrics = record.optString("plainLyrics", "").trim();
+             if (!plainLyrics.isEmpty()) {
+-                return cacheOnlineLyrics(cacheKey, parsePlainLyrics(plainLyrics));
++                return cacheOnlineLyrics(cacheKey, parseProviderLyrics(plainLyrics, ""));
+             }
+         } catch (Exception ignored) {
+             return Collections.emptyList();
+@@ -830,11 +889,19 @@ public final class LyricsRepository {
+     public List<LyricsLine> parseProviderLyrics(String primary, String translation) throws IOException {
+         String clean = primary == null ? "" : primary.trim();
+         if (clean.isEmpty() || isInstrumentalLyricsText(clean)) {
++            resolvedDocument.remove();
+             return Collections.emptyList();
+         }
++        LyricsDocument document = parseProviderLyricsDocument(clean, translation);
++        if (!document.isEmpty()) {
++            resolvedDocument.set(document);
++        }
+         List<LyricsLine> lines = parseLrcText(clean);
+         if (lines.isEmpty()) {
+-            lines = parsePlainLyrics(clean);
++            lines = document != null
++                    && ("klyric".equals(document.getFormat()) || "ttml".equals(document.getFormat()))
++                    ? document.primaryLegacyLines()
++                    : parsePlainLyrics(clean);
+         }
+         if (translation != null && !translation.trim().isEmpty()) {
+             List<LyricsLine> translated = parseLrcText(translation.trim());
+@@ -845,6 +912,14 @@ public final class LyricsRepository {
+         return lines;
+     }
+ 
++    public LyricsDocument parseProviderLyricsDocument(String primary, String translation) {
++        String clean = primary == null ? "" : primary.trim();
++        if (clean.isEmpty() || isInstrumentalLyricsText(clean)) {
++            return LyricsDocument.empty();
++        }
++        return documentParser.parseProvider(clean, translation == null ? "" : translation, "provider");
++    }
++
+     private boolean isInstrumentalLyricsText(String text) {
+         if (text == null) {
+             return false;
+@@ -874,17 +949,19 @@ public final class LyricsRepository {
+         }
+         try {
+             JSONObject body = requestNeteaseLyrics(providerTrackId);
+-            String syncedLyrics = lyricText(body.optJSONObject("lrc")).trim();
+-            if (syncedLyrics.isEmpty()) {
+-                syncedLyrics = lyricText(body.optJSONObject("klyric")).trim();
+-            }
+-            if (syncedLyrics.isEmpty()) {
++            String lineLyrics = lyricText(body.optJSONObject("lrc")).trim();
++            String karaokeLyrics = lyricText(body.optJSONObject("klyric")).trim();
++            String translation = lyricText(body.optJSONObject("tlyric")).trim();
++            LyricsDocument karaokeDocument = parseProviderLyricsDocument(karaokeLyrics, translation);
++            String primary = hasWordTimings(karaokeDocument)
++                    ? karaokeLyrics
++                    : (lineLyrics.isEmpty() ? karaokeLyrics : lineLyrics);
++            if (primary.isEmpty()) {
+                 return Collections.emptyList();
+             }
+-            List<LyricsLine> lines = parseLrcText(syncedLyrics);
+-            List<LyricsLine> translated = parseLrcText(lyricText(body.optJSONObject("tlyric")).trim());
+-            if (!translated.isEmpty()) {
+-                lines = mergeTranslatedLyrics(lines, translated);
++            List<LyricsLine> lines = parseProviderLyrics(primary, translation);
++            if (hasWordTimings(karaokeDocument)) {
++                resolvedDocument.set(karaokeDocument);
+             }
+             return cacheOnlineLyrics(cacheKey, lines);
+         } catch (Exception ignored) {
+@@ -1708,6 +1785,10 @@ public final class LyricsRepository {
+     private List<LyricsLine> cachedOnlineLyrics(String cacheKey) {
+         synchronized (ONLINE_CACHE) {
+             List<LyricsLine> cached = ONLINE_CACHE.get(cacheKey);
++            LyricsDocument document = ONLINE_DOCUMENT_CACHE.get(cacheKey);
++            if (document != null && !document.isEmpty()) {
++                resolvedDocument.set(document);
++            }
+             return cached == null ? null : new ArrayList<>(cached);
+         }
+     }
+@@ -1719,10 +1800,30 @@ public final class LyricsRepository {
+         ArrayList<LyricsLine> snapshot = new ArrayList<>(lines);
+         synchronized (ONLINE_CACHE) {
+             ONLINE_CACHE.put(cacheKey, snapshot);
++            LyricsDocument document = resolvedDocument.get();
++            if (document != null && !document.isEmpty()) {
++                ONLINE_DOCUMENT_CACHE.put(cacheKey, document);
++            } else {
++                ONLINE_DOCUMENT_CACHE.remove(cacheKey);
++            }
+         }
+         return new ArrayList<>(snapshot);
+     }
+ 
++    private boolean hasWordTimings(LyricsDocument document) {
++        if (document == null || document.isEmpty()) {
++            return false;
++        }
++        for (LyricsTrack track : document.getTracks()) {
++            for (app.yukine.model.LyricLine line : track.getLines()) {
++                if (!line.getWords().isEmpty()) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++
+     private String cachedNeteaseSearchTrackId(String cacheKey) {
+         synchronized (NETEASE_SEARCH_CACHE) {
+             return NETEASE_SEARCH_CACHE.get(cacheKey);
+diff --git a/feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java b/feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java
+index 62b868bf..073deb8f 100644
+--- a/feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java
++++ b/feature/data/src/main/java/app/yukine/data/MusicLibraryRepository.java
+@@ -51,6 +51,7 @@ import app.yukine.identity.ArtistSourceMapping;
+ import app.yukine.identity.ArtistType;
+ import app.yukine.identity.CanonicalArtist;
+ import app.yukine.identity.IdentityMatchStatus;
++import app.yukine.identity.LibraryDedupMode;
+ import app.yukine.identity.TrackArtistIdentity;
+ import app.yukine.identity.LyricSourceBinding;
+ import app.yukine.fingerprint.AudioFingerprintCandidate;
+@@ -93,6 +94,7 @@ public final class MusicLibraryRepository {
+     private final MusicIdentityDao musicIdentityDao;
+     private final RoomArtistIdentityRepository artistIdentityRepository;
+     private final StreamingCandidateCatalogStore streamingCandidateCatalogStore;
++    private final DuplicateCandidateRepository duplicateCandidateRepository;
+ 
+     @Inject
+     public MusicLibraryRepository(
+@@ -152,6 +154,7 @@ public final class MusicLibraryRepository {
+         streamingCandidateCatalogStore = new StreamingCandidateCatalogStore(database);
+         musicIdentityDao = database.musicIdentityDao();
+         artistIdentityRepository = new RoomArtistIdentityRepository(database);
++        duplicateCandidateRepository = new DuplicateCandidateRepository(database);
+     }
+ 
+     public List<Track> loadCachedTracks() {
+@@ -628,6 +631,26 @@ public final class MusicLibraryRepository {
+         settingsRepository.saveLibraryAutoSyncEnabled(enabled);
+     }
+ 
++    public LibraryDedupMode loadLibraryDedupMode() {
++        return settingsRepository.loadLibraryDedupMode();
++    }
++
++    public void saveLibraryDedupMode(LibraryDedupMode mode) {
++        settingsRepository.saveLibraryDedupMode(mode);
++    }
++
++    public DuplicateCandidatePage loadDuplicateCandidates(int limit, int offset) {
++        return duplicateCandidateRepository.page(limit, offset);
++    }
++
++    public DuplicateBatchConfirmResult confirmDuplicateCandidate(long leftRecordingId, long rightRecordingId) {
++        return duplicateCandidateRepository.confirm(leftRecordingId, rightRecordingId);
++    }
++
++    public DuplicateBatchConfirmResult confirmHighConfidenceDuplicateCandidates(int limit) {
++        return duplicateCandidateRepository.confirmHighConfidence(limit);
++    }
++
+     public List<RemoteSource> loadRemoteSources() {
+         return remoteSourceRepository.loadSources();
+     }
+diff --git a/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt b/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
+index 2454c04b..96ec1f28 100644
+--- a/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
++++ b/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
+@@ -90,8 +90,11 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         recordingIds: List<Long>
+     ): Int {
+         val totalStartedAt = diagnostics.startNanos()
+-        val embeddingRecallMode = EmbeddingRecallModeStore(database.settingsDao()).mode()
+-        val scoringMode = IdentityScoringModeStore(database.settingsDao()).mode()
++        val dedupPolicy = LibraryDedupPolicy.forMode(
++            LibraryDedupModeStore(database.settingsDao()).mode()
++        )
++        val embeddingRecallMode = dedupPolicy.embeddingRecallMode
++        val scoringMode = dedupPolicy.scoringMode
+         val pendingTrackIds = localTrackIds.asSequence()
+             .filter { it != 0L }
+             .distinct()
+@@ -233,7 +236,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                         shadowCandidatesBySourceId,
+                         audioEvidenceBySourceId,
+                         effectiveFeatures,
+-                        scoringMode
++                        scoringMode,
++                        dedupPolicy
+                     )
+                 }
+ 
+@@ -266,10 +270,18 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                                 candidateSources,
+                                 audioEvidenceBySourceId,
+                                 effectiveFeatures,
+-                                scoringMode
++                                scoringMode,
++                                dedupPolicy
+                             )
+                             ?: return@mapNotNull null
+-                        EvaluatedRecording(candidateRecordingId, evaluation, manual != null)
++                        EvaluatedRecording(
++                            recordingId = candidateRecordingId,
++                            evaluation = evaluation,
++                            locked = manual != null,
++                            automaticEligible = dedupPolicy.allowMissingDuration ||
++                                currentSources.all { it.durationMs > 0L } &&
++                                candidateSources.all { it.durationMs > 0L }
++                        )
+                     }
+                     .toList()
+                 relations.upsert(
+@@ -294,7 +306,12 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                 )
+                 val candidateGroups = evaluatedGroups
+                     .asSequence()
+-                    .filter { it.evaluation.relationship == RecordingRelationship.SAME_RECORDING }
++                    .filter { candidate ->
++                        candidate.automaticEligible &&
++                        candidate.evaluation.relationship == RecordingRelationship.SAME_RECORDING &&
++                            candidate.evaluation.sameRecordingProbability >=
++                            dedupPolicy.autoMergeMinimumScore
++                    }
+                     .map { RankedRecording(it.recordingId, it.evaluation.sameRecordingProbability) }
+                     .sortedWith(
+                         compareByDescending<RankedRecording>(RankedRecording::score)
+@@ -309,26 +326,43 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                 )
+ 
+                 val best = candidateGroups.firstOrNull() ?: break
+-                if (best.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE) {
++                if (best.score < dedupPolicy.autoMergeMinimumScore) {
+                     break
+                 }
+                 val ambiguousCandidates = candidateGroups.takeWhile { candidate ->
+-                    best.score - candidate.score < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN
++                    best.score - candidate.score < dedupPolicy.autoMergeMinimumMargin
+                 }
+                 if (ambiguousCandidates.size > 1 && !sameRecordingClique(
+                         ambiguousCandidates,
+                         candidateIndex,
+                         audioEvidenceBySourceId,
+                         effectiveFeatures,
+-                        scoringMode
++                        scoringMode,
++                        dedupPolicy
+                     )
+                 ) break
+ 
+                 val sourceId = maxOf(currentRecordingId, best.recordingId)
+                 val targetId = minOf(currentRecordingId, best.recordingId)
++                val safeEligible = best.score >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
++                    best.score - (candidateGroups.getOrNull(1)?.score ?: 0.0) >=
++                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_MARGIN &&
++                    currentSources.all { it.durationMs > 0L } &&
++                    candidateIndex.sources(best.recordingId).all { it.durationMs > 0L }
+                 val commitStartedAt = diagnostics.startNanos()
+                 try {
+-                    recordings.mergeRecordings(sourceId, targetId)
++                    recordings.mergeRecordingsAutomatically(
++                        sourceRecordingId = sourceId,
++                        targetRecordingId = targetId,
++                        dedupMode = dedupPolicy.mode,
++                        policyVersion = LibraryDedupPolicy.POLICY_VERSION,
++                        evaluationBatch = snapshotSignature,
++                        rollbackStatus = when {
++                            dedupPolicy.mode != app.yukine.identity.LibraryDedupMode.AGGRESSIVE -> "NONE"
++                            safeEligible -> "SAFE_ELIGIBLE"
++                            else -> "ELIGIBLE"
++                        }
++                    )
+                     candidateIndex.merge(sourceId, targetId)
+                     redirects[sourceId] = targetId
+                     currentRecordingId = targetId
+@@ -384,7 +418,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         candidateIndex: SourceIdentityCandidateIndex,
+         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+-        scoringMode: IdentityScoringMode
++        scoringMode: IdentityScoringMode,
++        dedupPolicy: LibraryDedupPolicy
+     ): Boolean {
+         candidates.indices.forEach { leftIndex ->
+             val leftId = candidates[leftIndex].recordingId
+@@ -404,11 +439,12 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                     rightSources,
+                     audioEvidenceBySourceId,
+                     featuresBySourceId,
+-                    scoringMode
++                    scoringMode,
++                    dedupPolicy
+                 ) ?: return false
+                 if (evaluation.relationship != RecordingRelationship.SAME_RECORDING ||
+                     evaluation.sameRecordingProbability <
+-                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE
++                    dedupPolicy.autoMergeMinimumScore
+                 ) return false
+             }
+         }
+@@ -479,7 +515,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         shadowCandidatesBySourceId: Map<Long, List<SourceRecordingCandidateEntity>>,
+         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+-        scoringMode: IdentityScoringMode
++        scoringMode: IdentityScoringMode,
++        dedupPolicy: LibraryDedupPolicy
+     ) {
+         val rows = currentSources.asSequence()
+             .mapNotNull(TrackSourceMappingEntity::sourceId)
+@@ -500,7 +537,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                 candidateSources,
+                 audioEvidenceBySourceId,
+                 featuresBySourceId,
+-                scoringMode
++                scoringMode,
++                dedupPolicy
+             ) ?: return@forEach
+             val evidence = runCatching { JSONObject(row.evidenceJson) }.getOrElse { JSONObject() }
+                 .put("shadowEvaluation", JSONObject(evaluation.evidenceJson))
+@@ -527,7 +565,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         rightSources: List<TrackSourceMappingEntity>,
+         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+-        scoringMode: IdentityScoringMode
++        scoringMode: IdentityScoringMode,
++        dedupPolicy: LibraryDedupPolicy
+     ): GroupEvaluation? {
+         val hardConflicts = linkedSetOf<String>()
+         val audioAlignments = JSONArray()
+@@ -606,11 +645,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         if (activePairs.isEmpty()) return null
+         val activeAggregate = aggregatePairs(
+             activePairs,
+-            trustAware = scoringMode == IdentityScoringMode.V5_ON
++            trustAware = scoringMode == IdentityScoringMode.V5_ON,
++            autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
+         )
+         val evidenceJson = JSONObject()
+             .put("scoreVersion", activeAggregate.scoreVersion)
+             .put("scoringMode", scoringMode.name)
++            .put("dedupMode", dedupPolicy.mode.name)
++            .put("dedupPolicyVersion", LibraryDedupPolicy.POLICY_VERSION)
++            .put("autoMergeMinimumScore", dedupPolicy.autoMergeMinimumScore)
++            .put("autoMergeMinimumMargin", dedupPolicy.autoMergeMinimumMargin)
+             .put("completeLinkComparisons", activePairs.size)
+             .put("aggregation", activeAggregate.aggregation)
+             .put("sameRecording", activeAggregate.sameRecording)
+@@ -621,7 +665,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         if (shadowPairs.isNotEmpty()) {
+             val shadowAggregate = aggregatePairs(
+                 shadowPairs,
+-                trustAware = scoringMode == IdentityScoringMode.V5_SHADOW
++                trustAware = scoringMode == IdentityScoringMode.V5_SHADOW,
++                autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
+             )
+             evidenceJson.put(
+                 "shadowScoring",
+@@ -803,7 +848,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+ 
+     private fun aggregatePairs(
+         pairs: List<ScoredPair>,
+-        trustAware: Boolean
++        trustAware: Boolean,
++        autoMergeMinimumScore: Double
+     ): PairAggregate {
+         if (!trustAware) {
+             val recording = pairs.minOf { it.evaluation.sameRecordingProbability }
+@@ -826,11 +872,10 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         val highTrustPairs = pairs.filter { it.pairTrust >= HIGH_TRUST_THRESHOLD }
+         val highTrustMinimum = highTrustPairs.minOfOrNull { it.evaluation.sameRecordingProbability }
+         val recording = minOf(robustRecording, highTrustMinimum ?: 1.0)
+-        val highTrustConflict = highTrustPairs.any { it.evaluation.hasHardConflict }
++        val anyHardConflict = pairs.any { it.evaluation.hasHardConflict }
+         val relationship = when {
+-            highTrustConflict -> RecordingRelationship.CANNOT_LINK
+-            recording >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
+-                pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_RECORDING } ->
++            anyHardConflict -> RecordingRelationship.CANNOT_LINK
++            recording >= autoMergeMinimumScore ->
+                 RecordingRelationship.SAME_RECORDING
+             robustWork >= SAME_WORK_MINIMUM_SCORE &&
+                 pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_WORK_DIFFERENT_VERSION } ->
+@@ -933,7 +978,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+     private data class EvaluatedRecording(
+         val recordingId: Long,
+         val evaluation: GroupEvaluation,
+-        val locked: Boolean
++        val locked: Boolean,
++        val automaticEligible: Boolean
+     )
+ 
+     private data class GroupEvaluation(
+diff --git a/feature/data/src/main/java/app/yukine/data/RoomRecordingIdentityRepository.kt b/feature/data/src/main/java/app/yukine/data/RoomRecordingIdentityRepository.kt
+index 0de30052..488da9a0 100644
+--- a/feature/data/src/main/java/app/yukine/data/RoomRecordingIdentityRepository.kt
++++ b/feature/data/src/main/java/app/yukine/data/RoomRecordingIdentityRepository.kt
+@@ -11,6 +11,7 @@ import app.yukine.data.room.YukineDatabase
+ import app.yukine.identity.CanonicalRecording
+ import app.yukine.identity.IdentityCandidateStatus
+ import app.yukine.identity.IdentityMatchStatus
++import app.yukine.identity.LibraryDedupMode
+ import app.yukine.identity.RecordingIdentifier
+ import app.yukine.identity.WorkIdentifier
+ import app.yukine.identity.RecordingIdentityRepository
+@@ -162,6 +163,29 @@ class RoomRecordingIdentityRepository(
+         })
+     }
+ 
++    fun mergeRecordingsAutomatically(
++        sourceRecordingId: Long,
++        targetRecordingId: Long,
++        dedupMode: LibraryDedupMode,
++        policyVersion: Int,
++        evaluationBatch: String,
++        rollbackStatus: String
++    ): CanonicalRecording {
++        rejectStrongWorkConflict(sourceRecordingId, targetRecordingId)
++        return database.runInTransaction(Callable {
++            mergeRecordingsInTransaction(
++                sourceRecordingId,
++                targetRecordingId,
++                IdentityOperationProvenance(
++                    dedupMode = dedupMode,
++                    policyVersion = policyVersion,
++                    evaluationBatch = evaluationBatch,
++                    rollbackStatus = rollbackStatus
++                )
++            )
++        })
++    }
++
+     fun mergeRecordingsWithManualDecision(
+         sourceRecordingId: Long,
+         targetRecordingId: Long
+@@ -201,7 +225,8 @@ class RoomRecordingIdentityRepository(
+ 
+     internal fun mergeRecordingsInTransaction(
+         sourceRecordingId: Long,
+-        targetRecordingId: Long
++        targetRecordingId: Long,
++        provenance: IdentityOperationProvenance = IdentityOperationProvenance()
+     ): CanonicalRecording {
+         check(database.inTransaction()) { "Recording merge requires an active transaction" }
+         require(sourceRecordingId != targetRecordingId) { "Source and target recording are identical" }
+@@ -220,7 +245,7 @@ class RoomRecordingIdentityRepository(
+                 "Source disappeared during merge"
+             }
+         }
+-        dao.identifiers(sourceRecordingId).forEach { dao.upsert(it.copy(recordingId = targetRecordingId)) }
++        dao.moveIdentifiersForConfirmedMerge(sourceRecordingId, targetRecordingId)
+         moveCredits(sourceRecordingId, targetRecordingId)
+         moveVariants(sourceRecordingId, targetRecordingId)
+ 
+@@ -265,7 +290,8 @@ class RoomRecordingIdentityRepository(
+             IdentityOperationType.MERGE_RECORDINGS,
+             sourceRecordingId,
+             targetRecordingId,
+-            before
++            before,
++            provenance
+         )
+         return canonicalModel(requireRecording(targetRecordingId))
+     }
+diff --git a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+index 17d7ec2a..99915a1c 100644
+--- a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
++++ b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+@@ -6,6 +6,7 @@ import app.yukine.PageBackgrounds;
+ import app.yukine.TrackShareStyle;
+ import app.yukine.data.room.SettingEntity;
+ import app.yukine.data.room.SettingsDao;
++import app.yukine.identity.LibraryDedupMode;
+ import app.yukine.playback.AudioEffectSettings;
+ 
+ /** Typed settings-table repository; serialization defaults remain compatible with v1-v14. */
+@@ -53,6 +54,8 @@ public final class SettingsRepository {
+     private static final String PAGE_BACKGROUND_SETTINGS_TRANSFORM = "page_background_settings_transform";
+     private static final String MEDIA_STORE_GENERATION = "media_store_generation";
+     private static final String LIBRARY_AUTO_SYNC_ENABLED = "library_auto_sync_enabled";
++    private static final String LIBRARY_DEDUP_MODE = "library_dedup_mode";
++    private static final String LIBRARY_DEDUP_GENERATION = "library_dedup_generation";
+ 
+     private final SettingsDao dao;
+ 
+@@ -86,6 +89,21 @@ public final class SettingsRepository {
+     void saveConcurrentPlaybackEnabled(boolean value) { saveBool(CONCURRENT_PLAYBACK, value); }
+     boolean loadLibraryAutoSyncEnabled() { return bool(LIBRARY_AUTO_SYNC_ENABLED, false); }
+     void saveLibraryAutoSyncEnabled(boolean value) { saveBool(LIBRARY_AUTO_SYNC_ENABLED, value); }
++    LibraryDedupMode loadLibraryDedupMode() {
++        return LibraryDedupMode.fromStoredValue(load(LIBRARY_DEDUP_MODE, LibraryDedupMode.SAFE.name()));
++    }
++    void saveLibraryDedupMode(LibraryDedupMode value) {
++        LibraryDedupMode next = value == null ? LibraryDedupMode.SAFE : value;
++        if (next == loadLibraryDedupMode()) return;
++        save(LIBRARY_DEDUP_MODE, next.name());
++        long generation;
++        try {
++            generation = Math.max(0L, Long.parseLong(load(LIBRARY_DEDUP_GENERATION, "0")));
++        } catch (NumberFormatException ignored) {
++            generation = 0L;
++        }
++        save(LIBRARY_DEDUP_GENERATION, String.valueOf(generation + 1L));
++    }
+     String loadWebDavSyncManifest(long sourceId) {
+         return load("webdav_sync_manifest_" + sourceId, "");
+     }
+diff --git a/feature/data/src/main/java/app/yukine/data/room/YukineDaos.kt b/feature/data/src/main/java/app/yukine/data/room/YukineDaos.kt
+index a15f8404..a0de7972 100644
+--- a/feature/data/src/main/java/app/yukine/data/room/YukineDaos.kt
++++ b/feature/data/src/main/java/app/yukine/data/room/YukineDaos.kt
+@@ -610,6 +610,20 @@ interface SettingsDao {
+     fun delete(key: String): Int
+ }
+ 
++data class GlobalDedupCandidateRow(
++    @ColumnInfo(name = "left_recording_id") val leftRecordingId: Long,
++    @ColumnInfo(name = "right_recording_id") val rightRecordingId: Long,
++    @ColumnInfo(name = "left_title") val leftTitle: String,
++    @ColumnInfo(name = "left_artist") val leftArtist: String,
++    @ColumnInfo(name = "right_title") val rightTitle: String,
++    @ColumnInfo(name = "right_artist") val rightArtist: String,
++    @ColumnInfo(name = "same_recording_probability") val sameRecordingProbability: Double,
++    @ColumnInfo(name = "runner_up_probability") val runnerUpProbability: Double,
++    @ColumnInfo(name = "relation_type") val relationType: String,
++    @ColumnInfo(name = "evidence_json") val evidenceJson: String,
++    @ColumnInfo(name = "updated_at") val updatedAt: Long
++)
++
+ @Dao
+ interface RemoteSourceDao {
+     @Query("SELECT * FROM remote_sources ORDER BY updated_at DESC, name COLLATE NOCASE")
+@@ -651,6 +665,79 @@ interface StreamingTrackMatchDao {
+ 
+ @Dao
+ interface MusicIdentityDao {
++    @Query(
++        "SELECT rel.left_recording_id, rel.right_recording_id, " +
++            "left_recording.title AS left_title, " +
++            "left_recording.primary_artist_display AS left_artist, " +
++            "right_recording.title AS right_title, " +
++            "right_recording.primary_artist_display AS right_artist, " +
++            "rel.same_recording_probability, " +
++            "COALESCE((SELECT MAX(competing.same_recording_probability) " +
++            "FROM recording_relations competing " +
++            "WHERE competing.locked = 0 " +
++            "AND competing.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
++            "AND (competing.left_recording_id IN " +
++            "(rel.left_recording_id, rel.right_recording_id) " +
++            "OR competing.right_recording_id IN " +
++            "(rel.left_recording_id, rel.right_recording_id)) " +
++            "AND NOT (competing.left_recording_id = rel.left_recording_id " +
++            "AND competing.right_recording_id = rel.right_recording_id)), 0) " +
++            "AS runner_up_probability, " +
++            "rel.relation_type, rel.evidence_json, rel.updated_at " +
++            "FROM recording_relations rel " +
++            "JOIN recordings left_recording ON left_recording.id = rel.left_recording_id " +
++            "JOIN recordings right_recording ON right_recording.id = rel.right_recording_id " +
++            "WHERE rel.locked = 0 " +
++            "AND rel.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
++            "ORDER BY rel.same_recording_probability DESC, rel.updated_at DESC, " +
++            "rel.left_recording_id, rel.right_recording_id LIMIT :limit OFFSET :offset"
++    )
++    fun globalDedupCandidates(limit: Int, offset: Int): List<GlobalDedupCandidateRow>
++
++    @Query(
++        "SELECT rel.left_recording_id, rel.right_recording_id, " +
++            "left_recording.title AS left_title, " +
++            "left_recording.primary_artist_display AS left_artist, " +
++            "right_recording.title AS right_title, " +
++            "right_recording.primary_artist_display AS right_artist, " +
++            "rel.same_recording_probability, " +
++            "COALESCE((SELECT MAX(competing.same_recording_probability) " +
++            "FROM recording_relations competing " +
++            "WHERE competing.locked = 0 " +
++            "AND competing.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
++            "AND (competing.left_recording_id IN " +
++            "(rel.left_recording_id, rel.right_recording_id) " +
++            "OR competing.right_recording_id IN " +
++            "(rel.left_recording_id, rel.right_recording_id)) " +
++            "AND NOT (competing.left_recording_id = rel.left_recording_id " +
++            "AND competing.right_recording_id = rel.right_recording_id)), 0) " +
++            "AS runner_up_probability, " +
++            "rel.relation_type, rel.evidence_json, rel.updated_at " +
++            "FROM recording_relations rel " +
++            "JOIN recordings left_recording ON left_recording.id = rel.left_recording_id " +
++            "JOIN recordings right_recording ON right_recording.id = rel.right_recording_id " +
++            "WHERE rel.left_recording_id = :leftRecordingId " +
++            "AND rel.right_recording_id = :rightRecordingId " +
++            "AND rel.locked = 0 " +
++            "AND rel.relation_type IN ('SAME_RECORDING','UNKNOWN') LIMIT 1"
++    )
++    fun globalDedupCandidate(
++        leftRecordingId: Long,
++        rightRecordingId: Long
++    ): GlobalDedupCandidateRow?
++
++    @Query(
++        "SELECT COUNT(*) FROM recording_relations " +
++            "WHERE locked = 0 AND relation_type IN ('SAME_RECORDING','UNKNOWN')"
++    )
++    fun globalDedupCandidateCount(): Int
++
++    @Query(
++        "SELECT COUNT(*) FROM identity_operations " +
++            "WHERE dedup_mode = 'AGGRESSIVE' AND rollback_status = 'REVIEW_REQUIRED' " +
++            "AND reverted_at IS NULL"
++    )
++    fun dedupRollbackReviewRequiredCount(): Int
+     @Query("SELECT * FROM works WHERE id = :workId LIMIT 1")
+     fun work(workId: Long): CanonicalWorkEntity?
+ 
+@@ -1321,6 +1408,16 @@ interface MusicIdentityDao {
+     @Query("SELECT * FROM identity_operations WHERE id = :operationId LIMIT 1")
+     fun identityOperation(operationId: Long): IdentityOperationEntity?
+ 
++    @Query(
++        "SELECT * FROM identity_operations WHERE dedup_mode = 'AGGRESSIVE' " +
++            "AND rollback_status = 'ELIGIBLE' AND reverted_at IS NULL " +
++            "ORDER BY id DESC LIMIT :limit"
++    )
++    fun aggressiveDedupRollbackOperations(limit: Int): List<IdentityOperationEntity>
++
++    @Query("UPDATE identity_operations SET rollback_status = :status WHERE id = :operationId")
++    fun updateIdentityOperationRollbackStatus(operationId: Long, status: String): Int
++
+     @Query(
+         "SELECT COUNT(*) FROM identity_operations WHERE id > :operationId AND (" +
+             "source_recording_id IN (:recordingIds) OR target_recording_id IN (:recordingIds)) " +
+@@ -1440,8 +1537,44 @@ interface MusicIdentityDao {
+         generatedAt: Long
+     ): Int
+ 
+-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+-    fun upsert(identifier: RecordingIdentifierEntity)
++    @Insert(onConflict = OnConflictStrategy.ABORT)
++    fun insertIdentifier(identifier: RecordingIdentifierEntity)
++
++    @Update
++    fun updateIdentifier(identifier: RecordingIdentifierEntity): Int
++
++    @Query(
++        "UPDATE recording_identifiers SET recording_id = :targetRecordingId " +
++            "WHERE recording_id = :sourceRecordingId"
++    )
++    fun moveIdentifiersForConfirmedMerge(
++        sourceRecordingId: Long,
++        targetRecordingId: Long
++    ): Int
++
++    /**
++     * A globally stable identifier must never change recording ownership as a side effect of
++     * SQLite REPLACE. Callers must explicitly merge recordings before moving an identifier.
++     */
++    @Transaction
++    fun upsert(identifier: RecordingIdentifierEntity) {
++        val existing = identifier(
++            identifier.identifierType,
++            identifier.namespace,
++            identifier.identifierValue
++        )
++        when {
++            existing == null -> insertIdentifier(identifier)
++            existing.recordingId != identifier.recordingId -> {
++                throw IllegalArgumentException(
++                    "Recording identifier already belongs to recording ${existing.recordingId}"
++                )
++            }
++            updateIdentifier(identifier) != 1 -> {
++                throw IllegalStateException("Recording identifier disappeared during update")
++            }
++        }
++    }
+ 
+     @Insert(onConflict = OnConflictStrategy.REPLACE)
+     fun upsert(variant: RecordingVariantEntity)
+diff --git a/feature/data/src/main/java/app/yukine/data/room/YukineEntities.kt b/feature/data/src/main/java/app/yukine/data/room/YukineEntities.kt
+index 366389ca..da539a4e 100644
+--- a/feature/data/src/main/java/app/yukine/data/room/YukineEntities.kt
++++ b/feature/data/src/main/java/app/yukine/data/room/YukineEntities.kt
+@@ -781,7 +781,11 @@ data class SourceMatchFeatureEntity(
+     indices = [
+         Index(name = "idx_source_candidates_recording", value = ["candidate_recording_id"]),
+         Index(name = "idx_source_candidates_rank", value = ["source_id", "coarse_score"]),
+-        Index(name = "idx_source_candidates_algorithm", value = ["algorithm_version"])
++        Index(name = "idx_source_candidates_algorithm", value = ["algorithm_version"]),
++        Index(
++            name = "idx_source_candidates_global",
++            value = ["state", "coarse_score", "updated_at"]
++        )
+     ]
+ )
+ data class SourceRecordingCandidateEntity(
+@@ -820,7 +824,11 @@ data class SourceRecordingCandidateEntity(
+     indices = [
+         Index(name = "idx_recording_relations_right", value = ["right_recording_id"]),
+         Index(name = "idx_recording_relations_type", value = ["relation_type"]),
+-        Index(name = "idx_recording_relations_updated", value = ["updated_at"])
++        Index(name = "idx_recording_relations_updated", value = ["updated_at"]),
++        Index(
++            name = "idx_recording_relations_global_candidates",
++            value = ["locked", "relation_type", "same_recording_probability", "updated_at"]
++        )
+     ]
+ )
+ data class RecordingRelationEntity(
+@@ -1029,7 +1037,11 @@ data class CustomLyricsEntity(
+         Index(name = "idx_identity_operations_source", value = ["source_recording_id", "created_at"]),
+         Index(name = "idx_identity_operations_target", value = ["target_recording_id", "created_at"]),
+         Index(name = "idx_identity_operations_created", value = ["created_at"]),
+-        Index(name = "idx_identity_operations_reverted", value = ["reverted_at"])
++        Index(name = "idx_identity_operations_reverted", value = ["reverted_at"]),
++        Index(
++            name = "idx_identity_operations_dedup_rollback",
++            value = ["dedup_mode", "rollback_status", "created_at"]
++        )
+     ]
+ )
+ data class IdentityOperationEntity(
+@@ -1040,5 +1052,11 @@ data class IdentityOperationEntity(
+     @ColumnInfo(name = "before_payload", defaultValue = "''") val beforePayload: String,
+     @ColumnInfo(name = "after_payload", defaultValue = "''") val afterPayload: String,
+     @ColumnInfo(name = "created_at") val createdAt: Long,
+-    @ColumnInfo(name = "reverted_at") val revertedAt: Long?
++    @ColumnInfo(name = "reverted_at") val revertedAt: Long?,
++    @ColumnInfo(name = "dedup_mode", defaultValue = "''") val dedupMode: String = "",
++    @ColumnInfo(name = "policy_version", defaultValue = "0") val policyVersion: Int = 0,
++    @ColumnInfo(name = "evaluation_batch", defaultValue = "''") val evaluationBatch: String = "",
++    @ColumnInfo(name = "rollback_status", defaultValue = "'NONE'")
++    val rollbackStatus: String = "NONE",
++    @ColumnInfo(name = "post_state_hash", defaultValue = "''") val postStateHash: String = ""
+ )
+diff --git a/feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt b/feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt
+index 2d2cc127..c86f9dd6 100644
+--- a/feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt
++++ b/feature/data/src/main/java/app/yukine/data/room/YukineMigrations.kt
+@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
+ import androidx.sqlite.db.SupportSQLiteDatabase
+ 
+ object YukineMigrations {
+-    const val TARGET_VERSION: Int = 32
++    const val TARGET_VERSION: Int = 33
+ 
+     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
+         object : Migration(startVersion, TARGET_VERSION) {
+@@ -24,6 +24,7 @@ object YukineMigrations {
+                 normalizeV30(db)
+                 normalizeV31(db)
+                 normalizeV32(db)
++                normalizeV33(db)
+             }
+         }
+     }.toTypedArray()
+@@ -446,6 +447,32 @@ object YukineMigrations {
+         )
+     }
+ 
++    internal fun normalizeV33(db: SupportSQLiteDatabase) {
++        addTextColumn(db, "identity_operations", "dedup_mode")
++        addIntegerColumn(db, "identity_operations", "policy_version")
++        addTextColumn(db, "identity_operations", "evaluation_batch")
++        if (!columnExists(db, "identity_operations", "rollback_status")) {
++            db.execSQL(
++                "ALTER TABLE `identity_operations` ADD COLUMN " +
++                    "`rollback_status` TEXT NOT NULL DEFAULT 'NONE'"
++            )
++        }
++        addTextColumn(db, "identity_operations", "post_state_hash")
++        db.execSQL(
++            "CREATE INDEX IF NOT EXISTS `idx_source_candidates_global` ON " +
++                "`source_recording_candidates` (`state`,`coarse_score`,`updated_at`)"
++        )
++        db.execSQL(
++            "CREATE INDEX IF NOT EXISTS `idx_identity_operations_dedup_rollback` ON " +
++                "`identity_operations` (`dedup_mode`,`rollback_status`,`created_at`)"
++        )
++        db.execSQL(
++            "CREATE INDEX IF NOT EXISTS `idx_recording_relations_global_candidates` ON " +
++                "`recording_relations` " +
++                "(`locked`,`relation_type`,`same_recording_probability`,`updated_at`)"
++        )
++    }
++
+     private fun backfillCanonicalAlbums(db: SupportSQLiteDatabase) {
+         val albumArtistId =
+             "COALESCE((SELECT c.artist_id FROM recording_artist_credits c " +
+diff --git a/feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt b/feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt
+index 48cda149..37ce1b5f 100644
+--- a/feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt
++++ b/feature/library-ui/src/main/java/app/yukine/LibraryDataStateOwner.kt
+@@ -28,7 +28,9 @@ data class LibraryStoreState(
+     val mostPlayedRecords: List<TrackPlayRecord> = emptyList(),
+     val playlists: List<Playlist> = emptyList(),
+     val selectedPlaylistTracks: List<Track> = emptyList(),
+-    val remoteSources: List<RemoteSource> = emptyList()
++    val remoteSources: List<RemoteSource> = emptyList(),
++    val recentlyAddedTracks: List<Track> = emptyList(),
++    val longUnplayedTracks: List<Track> = emptyList()
+ )
+ 
+ /** A fully prepared, owned library payload that is safe to publish without another full-list copy. */
+diff --git a/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt b/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
+index 21b45d34..e021b3bc 100644
+--- a/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
++++ b/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
+@@ -79,7 +79,30 @@ data class LibraryUiLabels(
+     val emptyGroupFilter: String = "褰撳墠绛涢€夋病鏈夊垎缁?,
+     val emptyLibrary: String = "鏇插簱涓繕娌℃湁姝屾洸",
+     val groupCountSuffix: String = "涓粨鏋?,
+-    val back: String = "杩斿洖"
++    val back: String = "杩斿洖",
++    val overviewShelf: String = "涓轰綘鎺ㄨ崘",
++    val overviewBrowse: String = "鎸夋柟寮忔祻瑙?,
++    val overviewSaved: String = "鏀惰棌涓庣绾?,
++    val overviewSourcesSync: String = "闊充箰鏉ユ簮涓庡悓姝?,
++    val overviewFavorites: String = "鍠滄鐨勯煶涔?,
++    val overviewDownloaded: String = "宸蹭笅杞?,
++    val overviewSources: String = "闊充箰鏉ユ簮",
++    val overviewSearchHint: String = "鎼滅储姝屾洸銆佷笓杈戙€佽壓浜烘垨姝屽崟",
++    val overviewSongUnit: String = " 棣?,
++    val overviewLocalSource: String = "鏈満",
++    val overviewAllSongs: String = "鍏ㄩ儴姝屾洸",
++    val overviewAlbums: String = "涓撹緫",
++    val overviewArtists: String = "鑹轰汉",
++    val overviewPlaylists: String = "姝屽崟",
++    val overviewFolders: String = "鏂囦欢澶?,
++    val smartRecentAdded: String = "鏈€杩戞坊鍔?,
++    val smartRecentPlayed: String = "鏈€杩戞挱鏀?,
++    val smartWeekFavorites: String = "涓€鍛ㄦ渶鐖?,
++    val smartLongUnplayed: String = "寰堜箙娌″惉",
++    val smartRecentAddedEmpty: String = "鎵弿鎴栧鍏ユ瓕鏇插悗锛屼細鍑虹幇鍦ㄨ繖閲?,
++    val smartRecentPlayedEmpty: String = "鏆傛棤鏈€杩戞挱鏀?,
++    val smartWeekFavoritesEmpty: String = "鏈懆鎾斁鍠滄鐨勬瓕鏇插悗锛屼細鍑虹幇鍦ㄨ繖閲?,
++    val smartLongUnplayedEmpty: String = "鏈€杩戞墍鏈夋瓕閮藉惉杩囧暒锛岀湡妫?
+ )
+ 
+ sealed interface LibraryAction {
+diff --git a/feature/library-ui/src/main/java/app/yukine/ui/LibraryOverviewScreen.kt b/feature/library-ui/src/main/java/app/yukine/ui/LibraryOverviewScreen.kt
+index db0fab73..bd2e5a0f 100644
+--- a/feature/library-ui/src/main/java/app/yukine/ui/LibraryOverviewScreen.kt
++++ b/feature/library-ui/src/main/java/app/yukine/ui/LibraryOverviewScreen.kt
+@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.offset
+@@ -16,13 +15,14 @@ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.clip
++import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
+@@ -33,7 +33,11 @@ import androidx.compose.ui.unit.sp
+ import app.yukine.DownloadsUiState
+ import app.yukine.LibraryGrouping
+ import app.yukine.LibraryStoreState
++import app.yukine.SMART_LONG_UNPLAYED_KEY
++import app.yukine.SMART_RECENT_ADDED_KEY
++import app.yukine.SMART_WEEK_FAVORITES_KEY
+ import app.yukine.TrackDownloadItem
++import app.yukine.weekFavoriteRecords
+ import app.yukine.core.designsystem.R
+ 
+ private data class LibraryOverviewUiState(
+@@ -43,54 +47,43 @@ private data class LibraryOverviewUiState(
+     val playlistCount: Int,
+     val folderCount: Int,
+     val favoriteCount: Int,
+-    val recentCount: Int,
++    val recentPlayedCount: Int,
++    val weekFavoritesCount: Int,
++    val recentAddedCount: Int,
++    val longUnplayedCount: Int,
+     val downloadedCount: Int,
+     val sourceCount: Int,
+     val sourceSummary: String,
+     val artworkUris: List<Uri>
+ )
+ 
+-private data class LibraryOverviewLabels(
+-    val title: String,
+-    val browse: String,
+-    val allSongs: String,
+-    val albums: String,
+-    val artists: String,
+-    val playlists: String,
+-    val folders: String,
+-    val myMusic: String,
+-    val favorites: String,
+-    val recent: String,
+-    val downloaded: String,
+-    val sources: String,
+-    val search: String,
+-    val manage: String,
+-    val songUnit: String
+-)
+-
+ @Composable
+ fun LibraryOverviewScreen(
+     library: LibraryStoreState,
+     downloads: DownloadsUiState,
+-    modeActions: List<TrackListModeAction>,
++    labels: LibraryUiLabels,
+     onOpenMode: (String) -> Unit,
+     onOpenFavorites: () -> Unit,
+     onOpenRecent: () -> Unit,
+     onOpenDownloads: () -> Unit,
+     onOpenSources: () -> Unit,
+-    onManageLibrary: () -> Unit,
++    onScanLibrary: () -> Unit,
++    onSyncLibrary: () -> Unit,
++    onOpenSmartCollection: (key: String, title: String) -> Unit,
+     onSearch: Runnable = Runnable { },
+     activeDownload: TrackDownloadItem? = null,
+     playbackQuality: String = "",
+     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+     compactCards: Boolean = true
+ ) {
+-    val overview = remember(library, downloads) { buildOverviewState(library, downloads) }
+-    val labels = remember(modeActions) { overviewLabels(modeActions) }
+-    val modeLabels = remember(modeActions) { modeActions.associate { it.mode to it.label } }
++    val overview = remember(library, downloads, labels) {
++        buildOverviewState(library, downloads, labels.overviewLocalSource)
++    }
+     val density = libraryCardDensityTokens(compactCards)
++    val shelfCardWidth = 150.dp
+ 
+     LazyColumn(
++        modifier = Modifier.testTag("library_overview_list"),
+         contentPadding = PaddingValues(
+             start = density.pageHorizontalPadding,
+             top = 8.dp,
+@@ -100,57 +93,71 @@ fun LibraryOverviewScreen(
+         verticalArrangement = Arrangement.spacedBy(density.sectionSpacing)
+     ) {
+         item("overview-search") {
+-            YukineSearchBar(
+-                label = labels.search,
+-                activeDownload = activeDownload,
+-                playbackQuality = playbackQuality,
+-                audioMotion = audioMotion
+-            ) { onSearch.run() }
++            Row(
++                horizontalArrangement = Arrangement.spacedBy(8.dp),
++                verticalAlignment = Alignment.CenterVertically
++            ) {
++                YukineSearchBar(
++                    modifier = Modifier.weight(1f),
++                    label = labels.overviewSearchHint,
++                    activeDownload = activeDownload,
++                    playbackQuality = playbackQuality,
++                    audioMotion = audioMotion
++                ) { onSearch.run() }
++                LibraryScanChip(labels.scanLibrary, onScanLibrary)
++            }
++        }
++
++        item("overview-shelf") {
++            LibraryOverviewSectionTitle(labels.overviewShelf)
++            Spacer(Modifier.height(8.dp))
++            RecommendShelf(
++                overview = overview,
++                labels = labels,
++                cardWidth = shelfCardWidth,
++                onOpenRecent = onOpenRecent,
++                onOpenSmartCollection = onOpenSmartCollection
++            )
+         }
+ 
+         item("overview-browse") {
+-            LibraryOverviewSectionTitle(labels.browse)
++            LibraryOverviewSectionTitle(labels.overviewBrowse)
+             Spacer(Modifier.height(8.dp))
+             BrowseLibraryCard(
+                 overview = overview,
+                 labels = labels,
+-                modeLabels = modeLabels,
+                 onOpenMode = onOpenMode,
+                 density = density
+             )
+         }
+ 
+-        item("overview-personal") {
+-            LibraryOverviewSectionTitle(labels.myMusic)
++        item("overview-saved") {
++            LibraryOverviewSectionTitle(labels.overviewSaved)
+             Spacer(Modifier.height(8.dp))
+-            PersonalMusicCard(
++            SavedCard(
+                 overview = overview,
+                 labels = labels,
+                 onOpenFavorites = onOpenFavorites,
+-                onOpenRecent = onOpenRecent,
+                 onOpenDownloads = onOpenDownloads,
+                 density = density
+             )
+         }
+ 
+-        item("overview-sources") {
+-            MusicSourcesCard(overview, labels, onOpenSources, density)
+-        }
+-
+-        item("overview-sync") {
+-            LibrarySyncButton(labels.manage, onManageLibrary)
++        item("overview-sources-sync") {
++            LibraryOverviewSectionTitle(labels.overviewSourcesSync)
++            Spacer(Modifier.height(8.dp))
++            MusicSourcesCard(overview, labels, onOpenSources, onSyncLibrary, density)
+         }
+     }
+ }
+ 
+ @Composable
+-private fun LibrarySyncButton(label: String, onClick: () -> Unit) {
++private fun LibraryScanChip(label: String, onClick: () -> Unit) {
+     val p = EchoTheme.colors()
+     Surface(
+         onClick = onClick,
+         modifier = Modifier
+-            .fillMaxWidth()
+-            .height(52.dp)
++            .height(48.dp)
+             .echoFloatingLayer(p, EchoShapes.medium)
+             .echoGlassLayer(p, EchoShapes.medium)
+             .semantics { contentDescription = label },
+@@ -159,20 +166,142 @@ private fun LibrarySyncButton(label: String, onClick: () -> Unit) {
+     ) {
+         Row(
+             modifier = Modifier.padding(horizontal = 14.dp),
+-            horizontalArrangement = Arrangement.Center,
+             verticalAlignment = Alignment.CenterVertically
+         ) {
+-            EchoIcon(EchoIconKind.Sync, Modifier.size(19.dp), p.accent)
+-            Spacer(Modifier.width(8.dp))
++            EchoIcon(EchoIconKind.Refresh, Modifier.size(16.dp), p.accent)
++            Spacer(Modifier.width(6.dp))
+             Text(
+                 label,
+-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+-                color = p.accent
++                style = EchoTypography.label,
++                color = p.accent,
++                maxLines = 1
+             )
+         }
+     }
+ }
+ 
++@Composable
++private fun RecommendShelf(
++    overview: LibraryOverviewUiState,
++    labels: LibraryUiLabels,
++    cardWidth: androidx.compose.ui.unit.Dp,
++    onOpenRecent: () -> Unit,
++    onOpenSmartCollection: (key: String, title: String) -> Unit
++) {
++    val unit = labels.overviewSongUnit
++    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
++        item {
++            SmartShelfCard(
++                label = labels.smartRecentAdded,
++                count = overview.recentAddedCount,
++                unit = unit,
++                emptyHint = labels.smartRecentAddedEmpty,
++                icon = EchoIconKind.Sparkle,
++                cardWidth = cardWidth,
++                onClick = { onOpenSmartCollection(SMART_RECENT_ADDED_KEY, labels.smartRecentAdded) }
++            )
++        }
++        item {
++            SmartShelfCard(
++                label = labels.smartRecentPlayed,
++                count = overview.recentPlayedCount,
++                unit = unit,
++                emptyHint = labels.smartRecentPlayedEmpty,
++                icon = EchoIconKind.Timer,
++                cardWidth = cardWidth,
++                onClick = onOpenRecent
++            )
++        }
++        item {
++            SmartShelfCard(
++                label = labels.smartWeekFavorites,
++                count = overview.weekFavoritesCount,
++                unit = unit,
++                emptyHint = labels.smartWeekFavoritesEmpty,
++                icon = EchoIconKind.Heart,
++                cardWidth = cardWidth,
++                onClick = { onOpenSmartCollection(SMART_WEEK_FAVORITES_KEY, labels.smartWeekFavorites) }
++            )
++        }
++        item {
++            SmartShelfCard(
++                label = labels.smartLongUnplayed,
++                count = overview.longUnplayedCount,
++                unit = unit,
++                emptyHint = labels.smartLongUnplayedEmpty,
++                icon = EchoIconKind.Refresh,
++                cardWidth = cardWidth,
++                onClick = { onOpenSmartCollection(SMART_LONG_UNPLAYED_KEY, labels.smartLongUnplayed) }
++            )
++        }
++    }
++}
++
++@Composable
++private fun SmartShelfCard(
++    label: String,
++    count: Int,
++    unit: String,
++    emptyHint: String,
++    icon: EchoIconKind,
++    cardWidth: androidx.compose.ui.unit.Dp,
++    onClick: () -> Unit
++) {
++    val p = EchoTheme.colors()
++    Surface(
++        onClick = onClick,
++        modifier = Modifier
++            .width(cardWidth)
++            .echoFloatingLayer(p, EchoShapes.large)
++            .echoGlassLayer(p, EchoShapes.large)
++            .semantics { contentDescription = label },
++        shape = EchoShapes.large,
++        color = Color.Transparent
++    ) {
++        Column(
++            modifier = Modifier
++                .height(96.dp)
++                .padding(12.dp)
++        ) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Surface(
++                    modifier = Modifier.size(30.dp),
++                    shape = EchoShapes.medium,
++                    color = p.accentSoft
++                ) {
++                    Box(contentAlignment = Alignment.Center) {
++                        EchoIcon(icon, Modifier.size(17.dp), p.accent)
++                    }
++                }
++                Spacer(Modifier.width(8.dp))
++                Text(
++                    label,
++                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
++                    color = p.text,
++                    maxLines = 1,
++                    overflow = TextOverflow.Ellipsis
++                )
++            }
++            Spacer(Modifier.weight(1f))
++            if (count > 0) {
++                Text(
++                    count.toString() + unit,
++                    style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
++                    color = p.accent
++                )
++            } else {
++                Text(
++                    emptyHint,
++                    style = EchoTypography.caption,
++                    color = p.muted,
++                    maxLines = 2,
++                    overflow = TextOverflow.Ellipsis
++                )
++            }
++        }
++    }
++}
++
+ @Composable
+ private fun LibraryOverviewSectionTitle(title: String) {
+     val p = EchoTheme.colors()
+@@ -182,8 +311,7 @@ private fun LibraryOverviewSectionTitle(title: String) {
+ @Composable
+ private fun BrowseLibraryCard(
+     overview: LibraryOverviewUiState,
+-    labels: LibraryOverviewLabels,
+-    modeLabels: Map<String, String>,
++    labels: LibraryUiLabels,
+     onOpenMode: (String) -> Unit,
+     density: LibraryCardDensityTokens
+ ) {
+@@ -235,12 +363,12 @@ private fun BrowseLibraryCard(
+                     Spacer(Modifier.width(14.dp))
+                     Column(modifier = Modifier.weight(1f)) {
+                         Text(
+-                            labels.allSongs,
++                            labels.overviewAllSongs,
+                             style = EchoTypography.title.copy(fontWeight = FontWeight.SemiBold),
+                             color = p.text
+                         )
+                         Text(
+-                            songCount(overview.songCount, labels),
++                            songCount(overview.songCount, labels.overviewSongUnit),
+                             style = EchoTypography.body,
+                             color = p.muted
+                         )
+@@ -260,7 +388,7 @@ private fun BrowseLibraryCard(
+                 BrowseModeCell(
+                     modifier = Modifier.weight(1f),
+                     mode = LibraryGrouping.ALBUMS,
+-                    label = modeLabels[LibraryGrouping.ALBUMS] ?: labels.albums,
++                    label = labels.overviewAlbums,
+                     count = overview.albumCount,
+                     icon = EchoIconKind.Collections,
+                     onOpenMode = onOpenMode,
+@@ -272,7 +400,7 @@ private fun BrowseLibraryCard(
+                 BrowseModeCell(
+                     modifier = Modifier.weight(1f),
+                     mode = LibraryGrouping.ARTISTS,
+-                    label = modeLabels[LibraryGrouping.ARTISTS] ?: labels.artists,
++                    label = labels.overviewArtists,
+                     count = overview.artistCount,
+                     icon = EchoIconKind.Artist,
+                     onOpenMode = onOpenMode,
+@@ -291,7 +419,7 @@ private fun BrowseLibraryCard(
+                 BrowseModeCell(
+                     modifier = Modifier.weight(1f),
+                     mode = LibraryGrouping.PLAYLISTS,
+-                    label = modeLabels[LibraryGrouping.PLAYLISTS] ?: labels.playlists,
++                    label = labels.overviewPlaylists,
+                     count = overview.playlistCount,
+                     icon = EchoIconKind.PlaylistAdd,
+                     onOpenMode = onOpenMode,
+@@ -303,7 +431,7 @@ private fun BrowseLibraryCard(
+                 BrowseModeCell(
+                     modifier = Modifier.weight(1f),
+                     mode = LibraryGrouping.FOLDERS,
+-                    label = modeLabels[LibraryGrouping.FOLDERS] ?: labels.folders,
++                    label = labels.overviewFolders,
+                     count = overview.folderCount,
+                     icon = EchoIconKind.Folder,
+                     onOpenMode = onOpenMode,
+@@ -394,11 +522,10 @@ private fun LibraryCoverStack(artworkUris: List<Uri>, coverSize: androidx.compos
+ }
+ 
+ @Composable
+-private fun PersonalMusicCard(
++private fun SavedCard(
+     overview: LibraryOverviewUiState,
+-    labels: LibraryOverviewLabels,
++    labels: LibraryUiLabels,
+     onOpenFavorites: () -> Unit,
+-    onOpenRecent: () -> Unit,
+     onOpenDownloads: () -> Unit,
+     density: LibraryCardDensityTokens
+ ) {
+@@ -426,8 +553,8 @@ private fun PersonalMusicCard(
+             }
+         ) {
+             PersonalMusicRow(
+-                label = labels.favorites,
+-                count = songCount(overview.favoriteCount, labels),
++                label = labels.overviewFavorites,
++                count = songCount(overview.favoriteCount, labels.overviewSongUnit),
+                 icon = EchoIconKind.Heart,
+                 onClick = onOpenFavorites,
+                 rowHeight = density.personalRowHeight,
+@@ -435,17 +562,8 @@ private fun PersonalMusicCard(
+             )
+             if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
+             PersonalMusicRow(
+-                label = labels.recent,
+-                count = songCount(overview.recentCount, labels),
+-                icon = EchoIconKind.Timer,
+-                onClick = onOpenRecent,
+-                rowHeight = density.personalRowHeight,
+-                independentCard = density.independentCards
+-            )
+-            if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
+-            PersonalMusicRow(
+-                label = labels.downloaded,
+-                count = songCount(overview.downloadedCount, labels),
++                label = labels.overviewDownloaded,
++                count = songCount(overview.downloadedCount, labels.overviewSongUnit),
+                 icon = EchoIconKind.Download,
+                 onClick = onOpenDownloads,
+                 rowHeight = density.personalRowHeight,
+@@ -504,13 +622,13 @@ private fun PersonalMusicRow(
+ @Composable
+ private fun MusicSourcesCard(
+     overview: LibraryOverviewUiState,
+-    labels: LibraryOverviewLabels,
++    labels: LibraryUiLabels,
+     onOpenSources: () -> Unit,
++    onSyncLibrary: () -> Unit,
+     density: LibraryCardDensityTokens
+ ) {
+     val p = EchoTheme.colors()
+     Surface(
+-        onClick = onOpenSources,
+         modifier = Modifier
+             .fillMaxWidth()
+             .echoFloatingLayer(p, EchoShapes.large)
+@@ -518,40 +636,73 @@ private fun MusicSourcesCard(
+         shape = EchoShapes.large,
+         color = Color.Transparent
+     ) {
+-        Row(
+-            modifier = Modifier
+-                .fillMaxWidth()
+-                .height(density.sourceRowHeight)
+-                .padding(horizontal = 14.dp),
+-            verticalAlignment = Alignment.CenterVertically
+-        ) {
++        Column {
+             Surface(
+-                modifier = Modifier.size(44.dp),
+-                shape = EchoShapes.medium,
+-                color = p.accentSoft
++                onClick = onOpenSources,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .semantics { contentDescription = labels.overviewSources },
++                shape = EchoShapes.large,
++                color = Color.Transparent
+             ) {
+-                Box(contentAlignment = Alignment.Center) {
+-                    EchoIcon(EchoIconKind.Network, Modifier.size(23.dp), p.accent)
++                Row(
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .height(density.sourceRowHeight)
++                        .padding(horizontal = 14.dp),
++                    verticalAlignment = Alignment.CenterVertically
++                ) {
++                    Surface(
++                        modifier = Modifier.size(44.dp),
++                        shape = EchoShapes.medium,
++                        color = p.accentSoft
++                    ) {
++                        Box(contentAlignment = Alignment.Center) {
++                            EchoIcon(EchoIconKind.Network, Modifier.size(23.dp), p.accent)
++                        }
++                    }
++                    Spacer(Modifier.width(12.dp))
++                    Text(
++                        overview.sourceSummary,
++                        modifier = Modifier.weight(1f),
++                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
++                        color = p.text,
++                        maxLines = 1,
++                        overflow = TextOverflow.Ellipsis
++                    )
++                    Text(
++                        overview.sourceCount.toString(),
++                        style = EchoTypography.caption,
++                        color = p.muted
++                    )
++                    Spacer(Modifier.width(8.dp))
++                    EchoIcon(EchoIconKind.ChevronRight, Modifier.size(17.dp), p.muted)
+                 }
+             }
+-            Spacer(Modifier.width(12.dp))
+-            Column(modifier = Modifier.weight(1f)) {
+-                Text(
+-                    labels.sources,
+-                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+-                    color = p.text
+-                )
+-                Text(
+-                    overview.sourceSummary,
+-                    style = EchoTypography.caption,
+-                    color = p.muted,
+-                    maxLines = 1,
+-                    overflow = TextOverflow.Ellipsis
+-                )
++            LibraryOverviewDivider(horizontalPadding = 14.dp)
++            Surface(
++                onClick = onSyncLibrary,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .semantics { contentDescription = labels.syncLibrary },
++                color = Color.Transparent
++            ) {
++                Row(
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .height(48.dp)
++                        .padding(horizontal = 14.dp),
++                    verticalAlignment = Alignment.CenterVertically
++                ) {
++                    EchoIcon(EchoIconKind.Sync, Modifier.size(18.dp), p.accent)
++                    Spacer(Modifier.width(8.dp))
++                    Text(
++                        labels.syncLibrary,
++                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
++                        color = p.accent
++                    )
++                }
+             }
+-            Text(overview.sourceCount.toString(), style = EchoTypography.caption, color = p.muted)
+-            Spacer(Modifier.width(8.dp))
+-            EchoIcon(EchoIconKind.ChevronRight, Modifier.size(17.dp), p.muted)
+         }
+     }
+ }
+@@ -581,19 +732,25 @@ private fun LibraryOverviewVerticalDivider(height: androidx.compose.ui.unit.Dp)
+ 
+ private fun buildOverviewState(
+     library: LibraryStoreState,
+-    downloads: DownloadsUiState
++    downloads: DownloadsUiState,
++    localSourceName: String
+ ): LibraryOverviewUiState {
+     val tracks = library.visibleTracks
+     val artworkUris = tracks
+         .mapNotNull { it.albumArtUri }
+         .distinctBy(Uri::toString)
+         .take(3)
+-    val recentCount = library.recentRecords
++    val now = System.currentTimeMillis()
++    val recentPlayedCount = library.recentRecords
++        .map { it.track.id }
++        .distinct()
++        .size
++    val weekFavoritesCount = weekFavoriteRecords(library.recentRecords, now)
+         .map { it.track.id }
+         .distinct()
+         .size
+     val sourceNames = buildList {
+-        add("鏈満")
++        add(localSourceName)
+         library.remoteSources.mapTo(this) { it.name.ifBlank { it.type } }
+     }
+     return LibraryOverviewUiState(
+@@ -603,7 +760,10 @@ private fun buildOverviewState(
+         playlistCount = library.playlists.size,
+         folderCount = LibraryGrouping.uniqueFolderCount(tracks),
+         favoriteCount = library.favoriteTrackIds.size,
+-        recentCount = recentCount,
++        recentPlayedCount = recentPlayedCount,
++        weekFavoritesCount = weekFavoritesCount,
++        recentAddedCount = library.recentlyAddedTracks.size,
++        longUnplayedCount = library.longUnplayedTracks.size,
+         downloadedCount = downloads.finished.size,
+         sourceCount = sourceNames.size,
+         sourceSummary = sourceNames.joinToString(" 路 "),
+@@ -611,48 +771,4 @@ private fun buildOverviewState(
+     )
+ }
+ 
+-private fun overviewLabels(modeActions: List<TrackListModeAction>): LibraryOverviewLabels {
+-    val english = modeActions.firstOrNull { it.mode == LibraryGrouping.SONGS }
+-        ?.label
+-        ?.equals("Songs", ignoreCase = true) == true
+-    return if (english) {
+-        LibraryOverviewLabels(
+-            title = "Library",
+-            browse = "Browse library",
+-            allSongs = "All songs",
+-            albums = "Albums",
+-            artists = "Artists",
+-            playlists = "Playlists",
+-            folders = "Folders",
+-            myMusic = "My music",
+-            favorites = "Favorites",
+-            recent = "Recently played",
+-            downloaded = "Downloaded",
+-            sources = "Music sources",
+-            search = "Search songs, albums, artists, or playlists",
+-            manage = "Sync library",
+-            songUnit = " songs"
+-        )
+-    } else {
+-        LibraryOverviewLabels(
+-            title = "鏇插簱",
+-            browse = "娴忚鏇插簱",
+-            allSongs = "鍏ㄩ儴姝屾洸",
+-            albums = "涓撹緫",
+-            artists = "鑹轰汉",
+-            playlists = "姝屽崟",
+-            folders = "鏂囦欢澶?,
+-            myMusic = "鎴戠殑闊充箰",
+-            favorites = "鍠滄鐨勯煶涔?,
+-            recent = "鏈€杩戞挱鏀?,
+-            downloaded = "宸蹭笅杞?,
+-            sources = "闊充箰鏉ユ簮",
+-            search = "鎼滅储姝屾洸銆佷笓杈戙€佽壓浜烘垨姝屽崟",
+-            manage = "鍚屾鏇插簱",
+-            songUnit = " 棣?
+-        )
+-    }
+-}
+-
+-private fun songCount(count: Int, labels: LibraryOverviewLabels): String =
+-    count.toString() + labels.songUnit
++private fun songCount(count: Int, unit: String): String = count.toString() + unit
+diff --git a/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt b/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
+index ca630919..7987b466 100644
+--- a/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
++++ b/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
+@@ -399,6 +399,7 @@ private fun LibraryDestination(
+         val groups by groupsState.collectAsState()
+         val trackList by trackListState.collectAsState()
+         val modeActions = trackList.modeActions.ifEmpty { groups.modeActions }
++        val labels = trackList.libraryUi.labels
+         val openMode: (String) -> Unit = { mode ->
+             modeActions.firstOrNull { it.mode == mode }?.let { action ->
+                 actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
+@@ -408,7 +409,7 @@ private fun LibraryDestination(
+         LibraryOverviewScreen(
+             library = library,
+             downloads = downloads,
+-            modeActions = modeActions,
++            labels = labels,
+             onOpenMode = openMode,
+             onOpenFavorites = {
+                 modeActions.firstOrNull { it.mode == app.yukine.LibraryGrouping.SONGS }?.let { action ->
+@@ -422,7 +423,9 @@ private fun LibraryDestination(
+             },
+             onOpenDownloads = { openDownloadsAction.run() },
+             onOpenSources = { openNetworkSourcesAction.run() },
+-            onManageLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
++            onScanLibrary = { actionHandler.onAction(LibraryAction.ScanLibrary) },
++            onSyncLibrary = { actionHandler.onAction(LibraryAction.SyncLibrary) },
++            onOpenSmartCollection = { _, _ -> },
+             onSearch = openSearchAction,
+             activeDownload = activeDownload,
+             playbackQuality = playbackQuality,
+diff --git a/feature/navigation/src/main/java/app/yukine/now/NowPlayingDestination.kt b/feature/navigation/src/main/java/app/yukine/now/NowPlayingDestination.kt
+index 534824fe..b52d8ba4 100644
+--- a/feature/navigation/src/main/java/app/yukine/now/NowPlayingDestination.kt
++++ b/feature/navigation/src/main/java/app/yukine/now/NowPlayingDestination.kt
+@@ -72,6 +72,7 @@ fun NowPlayingDestination(
+             lyricsTitle = uiState.lyrics.title,
+             lyricsStatus = uiState.lyrics.status,
+             lyrics = uiState.lyrics.lines,
++            lyricsOffsetMs = uiState.lyrics.offsetMs,
+             artistName = uiState.track.artist,
+             albumName = uiState.track.album.orEmpty(),
+             audioSpec = track.audioSpecSummary(),
+diff --git a/feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt b/feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt
+index ad7d8322..a25134ea 100644
+--- a/feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt
++++ b/feature/player-ui/src/main/java/app/yukine/NowPlayingContracts.kt
+@@ -54,6 +54,7 @@ data class LyricsUiState(
+     val title: String = "",
+     val status: String = "",
+     val lines: List<LyricUiLine> = emptyList(),
++    val offsetMs: Long = 0L,
+     val primaryVisible: Boolean = true,
+     val translationVisible: Boolean = true,
+     val romanizationVisible: Boolean = false
+diff --git a/feature/player-ui/src/main/java/app/yukine/NowPlayingViewModel.kt b/feature/player-ui/src/main/java/app/yukine/NowPlayingViewModel.kt
+index 43c3cc49..3641e849 100644
+--- a/feature/player-ui/src/main/java/app/yukine/NowPlayingViewModel.kt
++++ b/feature/player-ui/src/main/java/app/yukine/NowPlayingViewModel.kt
+@@ -2,6 +2,7 @@ package app.yukine
+ 
+ import androidx.lifecycle.ViewModel
+ import android.net.Uri
++import app.yukine.model.LyricsDocument
+ import app.yukine.model.Track
+ import app.yukine.model.LyricsTrackRole
+ import app.yukine.ui.LyricUiWord
+@@ -117,6 +118,9 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
+     private val artworkResolutionTrackIds = mutableSetOf<Long>()
+     private var stateSourcesBinding: Job? = null
+     private var stateObserver: NowPlayingStateObserver? = null
++    private var cachedLyricsDocument: LyricsDocument? = null
++    private var cachedLyricsVisibility: LyricsTrackVisibility? = null
++    private var cachedLyricRows: List<app.yukine.ui.LyricUiLine> = emptyList()
+ 
+     fun bindStateObserver(observer: NowPlayingStateObserver?) {
+         stateObserver = observer
+@@ -222,7 +226,8 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
+             lyrics = LyricsUiState(
+                 title = overlay.lyrics.title,
+                 status = overlay.lyrics.status,
+-                lines = richLyricRows(lyricsState, snapshot.positionMs),
++                lines = richLyricRows(lyricsState),
++                offsetMs = lyricsState?.offsetMs ?: 0L,
+                 primaryVisible = lyricsState?.trackVisibility?.primary ?: true,
+                 translationVisible = lyricsState?.trackVisibility?.translation ?: true,
+                 romanizationVisible = lyricsState?.trackVisibility?.romanization ?: false
+@@ -332,32 +337,44 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
+         }
+     }
+ 
+-    private fun richLyricRows(state: LyricsState?, positionMs: Long): List<app.yukine.ui.LyricUiLine> {
++    private fun richLyricRows(state: LyricsState?): List<app.yukine.ui.LyricUiLine> {
+         state ?: return emptyList()
+         val visibility = state.trackVisibility
++        if (cachedLyricsDocument === state.document && cachedLyricsVisibility == visibility) {
++            return cachedLyricRows
++        }
+         val enabledTracks = state.document.tracks.filter { visibility.enabled(it.role) && it.lines.isNotEmpty() }
+         val baseTrack = enabledTracks.firstOrNull { it.role == LyricsTrackRole.PRIMARY }
+             ?: enabledTracks.firstOrNull()
+             ?: return emptyList()
+-        val adjustedPosition = positionMs + state.offsetMs
+         val secondary = enabledTracks.associateBy { it.role }
+-        return baseTrack.lines.map { line ->
++        val rows = baseTrack.lines.map { line ->
+             val translation = secondary[LyricsTrackRole.TRANSLATION]
+                 ?.lines?.closestText(line.startMs).orEmpty()
+             val romanization = secondary[LyricsTrackRole.ROMANIZATION]
+                 ?.lines?.closestText(line.startMs).orEmpty()
+             app.yukine.ui.LyricUiLine(
+                 text = line.text,
+-                active = adjustedPosition in line.startMs until line.endMs.coerceAtLeast(line.startMs + 1L),
++                active = false,
+                 timeMs = line.startMs,
+                 endTimeMs = line.endMs,
+                 translation = if (baseTrack.role == LyricsTrackRole.TRANSLATION) "" else translation,
+                 romanization = if (baseTrack.role == LyricsTrackRole.ROMANIZATION) "" else romanization,
+                 words = line.words.map {
+-                    LyricUiWord(it.text, it.startMs, it.endMs)
++                    LyricUiWord(
++                        text = it.text,
++                        startMs = it.startMs,
++                        endMs = it.endMs,
++                        startOffset = it.startOffset,
++                        endOffset = it.endOffset
++                    )
+                 }
+             )
+         }
++        cachedLyricsDocument = state.document
++        cachedLyricsVisibility = visibility
++        cachedLyricRows = rows
++        return rows
+     }
+ 
+     private fun List<app.yukine.model.LyricLine>.closestText(timeMs: Long): String {
+diff --git a/feature/player-ui/src/main/java/app/yukine/ui/LyricUiLine.kt b/feature/player-ui/src/main/java/app/yukine/ui/LyricUiLine.kt
+index a6bf7ef4..3cd475bd 100644
+--- a/feature/player-ui/src/main/java/app/yukine/ui/LyricUiLine.kt
++++ b/feature/player-ui/src/main/java/app/yukine/ui/LyricUiLine.kt
+@@ -13,5 +13,33 @@ data class LyricUiLine(
+ data class LyricUiWord(
+     val text: String,
+     val startMs: Long,
+-    val endMs: Long
++    val endMs: Long,
++    val startOffset: Int = 0,
++    val endOffset: Int = 0
+ )
++
++internal fun adjustedLyricPositionMs(playbackPositionMs: Long, offsetMs: Long): Long =
++    (playbackPositionMs + offsetMs).coerceAtLeast(0L)
++
++internal fun playbackPositionForLyricMs(lyricPositionMs: Long, offsetMs: Long): Long =
++    (lyricPositionMs - offsetMs).coerceAtLeast(0L)
++
++internal fun LyricUiLine.isActiveAt(positionMs: Long): Boolean =
++    positionMs in timeMs until endTimeMs.coerceAtLeast(timeMs + 1L)
++
++internal fun LyricUiWord.isActiveAt(positionMs: Long): Boolean =
++    positionMs in startMs until endMs.coerceAtLeast(startMs + 1L)
++
++internal fun LyricUiWord.textBounds(lineText: String, searchFrom: Int): Pair<Int, Int>? {
++    if (
++        startOffset >= searchFrom &&
++        endOffset > startOffset &&
++        endOffset <= lineText.length &&
++        lineText.substring(startOffset, endOffset) == text
++    ) {
++        return startOffset to endOffset
++    }
++    val start = lineText.indexOf(text, searchFrom)
++    if (start < 0) return null
++    return start to (start + text.length).coerceAtMost(lineText.length)
++}
+diff --git a/feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt b/feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt
+index e07e08eb..4d1fa970 100644
+--- a/feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt
++++ b/feature/player-ui/src/main/java/app/yukine/ui/NowPlayingScreen.kt
+@@ -93,7 +93,8 @@ data class NowPlayingUiState(
+     val onClearLyrics: Runnable = Runnable {},
+     val onPrimaryVisibleChange: (Boolean) -> Unit = {},
+     val onTranslationVisibleChange: (Boolean) -> Unit = {},
+-    val onRomanizationVisibleChange: (Boolean) -> Unit = {}
++    val onRomanizationVisibleChange: (Boolean) -> Unit = {},
++    val lyricsOffsetMs: Long = 0L
+ )
+ 
+ data class NowPlayingSourceOption(
+@@ -126,22 +127,9 @@ fun NowPlayingScreen(
+     gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty,
+     onLyricSeek: (Long) -> Unit = {}
+ ) {
+-    var smoothPositionMs by remember(state.trackId) { mutableStateOf(state.positionMs) }
+-    LaunchedEffect(state.trackId, state.positionMs, state.playing) {
+-        smoothPositionMs = state.positionMs
+-        if (state.playing) {
+-            val anchorRealtime = SystemClock.elapsedRealtime()
+-            while (true) {
+-                delay(50L)
+-                smoothPositionMs = state.positionMs +
+-                    (SystemClock.elapsedRealtime() - anchorRealtime)
+-            }
+-        }
+-    }
+-    val timedLyrics = state.lyrics.map { line ->
+-        line.copy(active = smoothPositionMs in line.timeMs until line.endTimeMs.coerceAtLeast(line.timeMs + 1L))
++    val seekFromLyric: (Long) -> Unit = { lyricPositionMs ->
++        onLyricSeek(playbackPositionForLyricMs(lyricPositionMs, state.lyricsOffsetMs))
+     }
+-    val activeLyricIndex = timedLyrics.indexOfFirst { it.active }
+ 
+     AnimatedContent(
+         targetState = immersive,
+@@ -150,27 +138,27 @@ fun NowPlayingScreen(
+     ) { isImmersive ->
+         if (isImmersive) {
+             ImmersiveLyricsView(
+-                lyrics = timedLyrics,
+-                activeIndex = activeLyricIndex,
+-                positionMs = smoothPositionMs,
++                lyrics = state.lyrics,
++                playbackPositionMs = state.positionMs,
++                playing = state.playing,
++                trackId = state.trackId,
++                offsetMs = state.lyricsOffsetMs,
+                 title = state.title,
+                 subtitle = state.subtitle,
+                 albumArtUri = state.albumArtUri,
+-                onLyricSeek = onLyricSeek,
++                onLyricSeek = seekFromLyric,
+                 onExit = { onImmersiveChanged(false) }
+             )
+         } else {
+             NowPlayingNormalView(
+-                state = state.copy(lyrics = timedLyrics),
+-                activeLyricIndex = activeLyricIndex,
+-                positionMs = smoothPositionMs,
++                state = state,
+                 onArtworkClick = {
+                     if (state.lyrics.isNotEmpty()) {
+                         onImmersiveChanged(true)
+                     }
+                 },
+                 gestureActions = gestureActions,
+-                onLyricSeek = onLyricSeek
++                onLyricSeek = seekFromLyric
+             )
+         }
+     }
+@@ -179,8 +167,10 @@ fun NowPlayingScreen(
+ @Composable
+ private fun ImmersiveLyricsView(
+     lyrics: List<LyricUiLine>,
+-    activeIndex: Int,
+-    positionMs: Long,
++    playbackPositionMs: Long,
++    playing: Boolean,
++    trackId: Long,
++    offsetMs: Long,
+     title: String,
+     subtitle: String,
+     albumArtUri: Uri?,
+@@ -189,6 +179,13 @@ private fun ImmersiveLyricsView(
+ ) {
+     val p = EchoTheme.colors()
+     val listState = rememberLazyListState()
++    val positionMs = rememberSmoothLyricPosition(
++        trackId = trackId,
++        playbackPositionMs = playbackPositionMs,
++        playing = playing,
++        offsetMs = offsetMs
++    )
++    val activeIndex = lyrics.indexOfFirst { line -> line.isActiveAt(positionMs) }
+     androidx.compose.runtime.LaunchedEffect(activeIndex) {
+         if (activeIndex >= 0) {
+             listState.scrollToItem(activeIndex, scrollOffset = -200)
+@@ -258,7 +255,11 @@ private fun ImmersiveLyricsView(
+                     items = lyrics,
+                     key = { index, line -> "imm-$index:${line.text.hashCode()}" }
+                 ) { _, line ->
+-                    ImmersiveLyricRow(line, positionMs, onSeek = onLyricSeek)
++                    ImmersiveLyricRow(
++                        line = line.copy(active = line.isActiveAt(positionMs)),
++                        positionMs = positionMs,
++                        onSeek = onLyricSeek
++                    )
+                 }
+             }
+         }
+@@ -302,8 +303,6 @@ private fun ImmersiveLyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long
+ @Composable
+ private fun NowPlayingNormalView(
+     state: NowPlayingUiState,
+-    activeLyricIndex: Int,
+-    positionMs: Long,
+     onArtworkClick: () -> Unit,
+     gestureActions: NowPlayingGestureActions,
+     onLyricSeek: (Long) -> Unit
+@@ -443,8 +442,10 @@ private fun NowPlayingNormalView(
+                 title = state.lyricsTitle,
+                 status = state.lyricsStatus,
+                 lines = state.lyrics,
+-                activeIndex = activeLyricIndex,
+-                positionMs = positionMs,
++                playbackPositionMs = state.positionMs,
++                playing = state.playing,
++                trackId = state.trackId,
++                offsetMs = state.lyricsOffsetMs,
+                 primaryVisible = state.primaryVisible,
+                 translationVisible = state.translationVisible,
+                 romanizationVisible = state.romanizationVisible,
+@@ -781,8 +782,10 @@ private fun LyricsPanel(
+     title: String,
+     status: String,
+     lines: List<LyricUiLine>,
+-    activeIndex: Int,
+-    positionMs: Long,
++    playbackPositionMs: Long,
++    playing: Boolean,
++    trackId: Long,
++    offsetMs: Long,
+     primaryVisible: Boolean,
+     translationVisible: Boolean,
+     romanizationVisible: Boolean,
+@@ -795,6 +798,12 @@ private fun LyricsPanel(
+ ) {
+     val p = EchoTheme.colors()
+     val listState = rememberLazyListState()
++    val positionMs = rememberSmoothLyricPosition(
++        trackId = trackId,
++        playbackPositionMs = playbackPositionMs,
++        playing = playing,
++        offsetMs = offsetMs
++    )
+     EchoGlassSurface(
+         modifier = Modifier
+             .fillMaxWidth()
+@@ -873,7 +882,11 @@ private fun LyricsPanel(
+                         items = lines,
+                         key = { index, line -> "$index:${line.text.hashCode()}" }
+                     ) { _, line ->
+-                        LyricRow(line, positionMs, onSeek = onLyricSeek)
++                        LyricRow(
++                            line = line.copy(active = line.isActiveAt(positionMs)),
++                            positionMs = positionMs,
++                            onSeek = onLyricSeek
++                        )
+                     }
+                 }
+             }
+@@ -881,6 +894,28 @@ private fun LyricsPanel(
+     }
+ }
+ 
++@Composable
++private fun rememberSmoothLyricPosition(
++    trackId: Long,
++    playbackPositionMs: Long,
++    playing: Boolean,
++    offsetMs: Long
++): Long {
++    var smoothPositionMs by remember(trackId) { mutableStateOf(playbackPositionMs) }
++    LaunchedEffect(trackId, playbackPositionMs, playing) {
++        smoothPositionMs = playbackPositionMs
++        if (playing) {
++            val anchorRealtime = SystemClock.elapsedRealtime()
++            while (true) {
++                delay(50L)
++                smoothPositionMs = playbackPositionMs +
++                    (SystemClock.elapsedRealtime() - anchorRealtime)
++            }
++        }
++    }
++    return adjustedLyricPositionMs(smoothPositionMs, offsetMs)
++}
++
+ @Composable
+ private fun LyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long) -> Unit) {
+     val p = EchoTheme.colors()
+@@ -969,17 +1004,16 @@ private fun highlightedWords(
+     inactiveColor: Color
+ ): AnnotatedString {
+     if (!line.active || line.words.isEmpty()) return AnnotatedString(line.text)
+-    val currentWord = line.words.indexOfLast { positionMs >= it.startMs }
+-    if (currentWord < 0) return AnnotatedString(line.text)
+     val builder = AnnotatedString.Builder(line.text)
+     var searchFrom = 0
+-    line.words.forEachIndexed { index, word ->
+-        val start = line.text.indexOf(word.text, searchFrom).takeIf { it >= 0 } ?: return@forEachIndexed
+-        val end = (start + word.text.length).coerceAtMost(line.text.length)
++    line.words.forEach { word ->
++        val (start, end) = word.textBounds(line.text, searchFrom) ?: return@forEach
++        val current = word.isActiveAt(positionMs)
++        val completed = positionMs >= word.endMs
+         builder.addStyle(
+             SpanStyle(
+-                color = if (index <= currentWord) activeColor else inactiveColor,
+-                fontWeight = if (index == currentWord) FontWeight.Bold else null
++                color = if (current || completed) activeColor else inactiveColor,
++                fontWeight = if (current) FontWeight.Bold else null
+             ),
+             start,
+             end
+diff --git a/feature/player-ui/src/main/java/app/yukine/ui/YukineSearchBar.kt b/feature/player-ui/src/main/java/app/yukine/ui/YukineSearchBar.kt
+index 514cea6d..8051dfa1 100644
+--- a/feature/player-ui/src/main/java/app/yukine/ui/YukineSearchBar.kt
++++ b/feature/player-ui/src/main/java/app/yukine/ui/YukineSearchBar.kt
+@@ -36,6 +36,7 @@ import kotlin.math.sin
+ 
+ @Composable
+ fun YukineSearchBar(
++    modifier: Modifier = Modifier.fillMaxWidth(),
+     label: String = "鎼滅储鏈湴鍜岀綉缁滈煶涔?,
+     actionLabel: String = "鎼滅储",
+     activeDownload: TrackDownloadItem? = null,
+@@ -46,8 +47,7 @@ fun YukineSearchBar(
+     val p = EchoTheme.colors()
+     Surface(
+         onClick = onClick,
+-        modifier = Modifier
+-            .fillMaxWidth()
++        modifier = modifier
+             .height(48.dp)
+             .echoFloatingLayer(p, EchoShapes.medium)
+             .echoGlassLayer(p, EchoShapes.medium)
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+index c1fbd74d..071aa7c3 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+@@ -27,7 +27,8 @@ object SettingsBackStack {
+             SettingsPage.ConcurrentPlayback,
+             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
+ 
+-            SettingsPage.Library -> SettingsPage.LibraryGroup
++            SettingsPage.Library,
++            SettingsPage.DuplicateCandidates -> SettingsPage.LibraryGroup
+             SettingsPage.Lyrics,
+             SettingsPage.StatusBarLyrics,
+             SettingsPage.FloatingLyrics -> SettingsPage.LyricsGroup
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsEffects.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsEffects.kt
+index 2d620a1e..c58701fb 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsEffects.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsEffects.kt
+@@ -1,5 +1,7 @@
+ package app.yukine
+ 
++import app.yukine.identity.LibraryDedupMode
++
+ /** One-time platform commands emitted by focused settings page owners. */
+ sealed interface SettingsEffect {
+     data class ShowStatus(val message: String) : SettingsEffect
+@@ -12,6 +14,12 @@ sealed interface SettingsEffect {
+     data object OpenAudioFolderPicker : SettingsEffect
+     data object RebuildSongIdentity : SettingsEffect
+     data object CancelIdentityBackfill : SettingsEffect
++    data class SetLibraryDedupMode(val mode: LibraryDedupMode) : SettingsEffect
++    data class ConfirmDuplicateCandidate(
++        val leftRecordingId: Long,
++        val rightRecordingId: Long
++    ) : SettingsEffect
++    data object ConfirmHighConfidenceDuplicates : SettingsEffect
+     data object OpenLuoxueSourceManager : SettingsEffect
+     data object ImportLuoxueSource : SettingsEffect
+     data object ReloadCurrentLyrics : SettingsEffect
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+index b41d14c8..6ed3910c 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+@@ -25,6 +25,9 @@ enum class SettingsEntryId {
+     ImportAudioFiles,
+     ImportAudioFolder,
+     IdentityRebuild,
++    LibraryDedupSafe,
++    LibraryDedupAggressive,
++    DuplicateCandidateCenter,
+     RestoreHiddenLibraryItems,
+     StreamingProviders,
+     LuoxueSourceManager,
+@@ -169,6 +172,9 @@ object SettingsInformationArchitecture {
+         entryWithKeywords(SettingsEntryId.ImportAudioFiles, SettingsCategoryId.LibraryMetadata, "import.audio.files", icon = EchoIconKind.Import, keywords = arrayOf("file", "\u6587\u4ef6")),
+         entryWithKeywords(SettingsEntryId.ImportAudioFolder, SettingsCategoryId.LibraryMetadata, "import.audio.folder", icon = EchoIconKind.Folder, keywords = arrayOf("folder", "directory", "\u6587\u4ef6\u5939", "\u76ee\u5f55")),
+         entryWithKeywords(SettingsEntryId.IdentityRebuild, SettingsCategoryId.LibraryMetadata, "identity.backfill.rebuild", icon = EchoIconKind.Refresh, keywords = arrayOf("metadata", "identity", "match", "\u5143\u6570\u636e", "\u5339\u914d")),
++        entryWithKeywords(SettingsEntryId.LibraryDedupSafe, SettingsCategoryId.LibraryMetadata, "library.dedup.safe", icon = EchoIconKind.Library, keywords = arrayOf("dedup", "duplicate", "\u53bb\u91cd", "\u91cd\u590d")),
++        entryWithKeywords(SettingsEntryId.LibraryDedupAggressive, SettingsCategoryId.LibraryMetadata, "library.dedup.aggressive", icon = EchoIconKind.Library, keywords = arrayOf("aggressive", "dedup", "\u6700\u5927\u5316", "\u53bb\u91cd")),
++        entryWithKeywords(SettingsEntryId.DuplicateCandidateCenter, SettingsCategoryId.LibraryMetadata, "library.dedup.candidates", icon = EchoIconKind.Library, keywords = arrayOf("candidate", "duplicate", "\u5019\u9009", "\u91cd\u590d")),
+         entryWithKeywords(SettingsEntryId.RestoreHiddenLibraryItems, SettingsCategoryId.LibraryMetadata, "library.hidden.restore.all", icon = EchoIconKind.Refresh, keywords = arrayOf("hidden", "\u9690\u85cf", "\u6062\u590d")),
+ 
+         entry(SettingsEntryId.StreamingProviders, SettingsCategoryId.SourcesAccountsSync, "streaming.providers.manage", "streaming.providers.manage.hint", EchoIconKind.Network, "account", "provider", "\u8d26\u53f7", "\u5e73\u53f0"),
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+index f4a1ac95..33f8e0c1 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+@@ -31,6 +31,7 @@ sealed class SettingsPage(
+     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
+     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
+     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
++    data object DuplicateCandidates : SettingsPage(MainRoutes.SETTINGS_DUPLICATE_CANDIDATES)
+     data object StreamingGateway : SettingsPage(MainRoutes.SETTINGS_STREAMING_GATEWAY)
+ 
+     companion object {
+@@ -63,6 +64,7 @@ sealed class SettingsPage(
+                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
+                 MainRoutes.SETTINGS_LYRICS -> Lyrics
+                 MainRoutes.SETTINGS_LIBRARY -> Library
++                MainRoutes.SETTINGS_DUPLICATE_CANDIDATES -> DuplicateCandidates
+                 MainRoutes.SETTINGS_STREAMING_GATEWAY -> StreamingGateway
+                 else -> Home
+             }
+@@ -100,6 +102,7 @@ sealed class SettingsPage(
+                 SleepTimer,
+                 Lyrics,
+                 Library,
++                DuplicateCandidates,
+                 StreamingGateway
+             )
+     }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+index a099a5ba..fc67dffd 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+@@ -90,16 +90,30 @@ internal object SettingsPageContentFactory {
+                     runtime.libraryArtistCount,
+                     runtime.audioPermissionGranted,
+                     identityBackfill = runtime.identityBackfill,
++                    dedupMode = runtime.libraryDedupMode,
++                    duplicateCandidateCount = runtime.duplicateCandidateCenter.total,
+                     onNavigate = { nextPage -> onNavigate(nextPage) },
+                     onLoadLibrary = { library.loadLibrary() },
+                     onOpenAudioFilePicker = { library.openAudioFilePicker() },
+                     onOpenAudioFolderPicker = { library.openAudioFolderPicker() },
+                     onRebuildSongIdentity = { library.rebuildSongIdentity() },
+                     onCancelIdentityBackfill = { library.cancelIdentityBackfill() },
++                    onDedupModeChange = { mode -> library.setDedupMode(mode) },
+                     hiddenItems = runtime.hiddenLibraryItems,
+                     onRestoreHidden = { sourceKey -> library.restoreHiddenItem(sourceKey) },
+                     onRestoreAllHidden = { library.restoreAllHiddenItems() }
+                 )
++            SettingsPage.DuplicateCandidates ->
++                SettingsPageStateBuilder.duplicateCandidates(
++                    languageMode = languageMode,
++                    backPage = SettingsBackStack.parent(page),
++                    center = runtime.duplicateCandidateCenter,
++                    onNavigate = { nextPage -> onNavigate(nextPage) },
++                    onConfirm = { leftRecordingId, rightRecordingId ->
++                        library.confirmDuplicateCandidate(leftRecordingId, rightRecordingId)
++                    },
++                    onConfirmBatch = { library.confirmHighConfidenceDuplicates() }
++                )
+             SettingsPage.LyricsGroup ->
+                 SettingsPageStateBuilder.lyricsGroup(
+                     languageMode,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+index b09596e4..e6c4c9e2 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+@@ -1,11 +1,13 @@
+ package app.yukine
+ 
++import app.yukine.identity.LibraryDedupMode
+ import app.yukine.feature.settingsui.R
+ import app.yukine.streaming.StreamingQualityPreference
+ 
+ import app.yukine.playback.AudioEffectSettings
+ import app.yukine.streaming.StreamingAudioQuality
+ import app.yukine.ui.SettingsAction
++import app.yukine.ui.SettingsActionProgress
+ import app.yukine.ui.SettingsActionStyle
+ import app.yukine.ui.SettingsImageDialog
+ import app.yukine.ui.SettingsMetric
+@@ -1448,12 +1450,15 @@ object SettingsPageStateBuilder {
+         artistCount: Int,
+         audioPermissionGranted: Boolean,
+         identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
++        dedupMode: LibraryDedupMode = LibraryDedupMode.SAFE,
++        duplicateCandidateCount: Int = 0,
+         onNavigate: (SettingsPage) -> Unit,
+         onLoadLibrary: () -> Unit,
+         onOpenAudioFilePicker: () -> Unit,
+         onOpenAudioFolderPicker: () -> Unit,
+         onRebuildSongIdentity: () -> Unit = {},
+         onCancelIdentityBackfill: () -> Unit = {},
++        onDedupModeChange: (LibraryDedupMode) -> Unit = {},
+         hiddenItems: List<HiddenLibraryItemUi> = emptyList(),
+         onRestoreHidden: (String) -> Unit = {},
+         onRestoreAllHidden: () -> Unit = {}
+@@ -1504,10 +1509,49 @@ object SettingsPageStateBuilder {
+             add(SettingsAction(
+                 label = text(languageMode, "identity.backfill.rebuild"),
+                 onClick = Runnable { onRebuildSongIdentity() },
++                description = identityBackfillDescription(languageMode, identityBackfill),
++                enabled = !identityBackfill.active,
++                progress = identityBackfillProgress(languageMode, identityBackfill),
+                 icon = EchoIconKind.Refresh,
+                 section = text(languageMode, "settings.section.metadata"),
+                 entryId = SettingsEntryId.IdentityRebuild
+             ))
++            add(SettingsAction(
++                label = text(languageMode, "library.dedup.safe"),
++                description = text(languageMode, "library.dedup.safe.description"),
++                value = if (dedupMode == LibraryDedupMode.SAFE) {
++                    text(languageMode, "selected")
++                } else "",
++                style = SettingsActionStyle.Choice,
++                checked = dedupMode == LibraryDedupMode.SAFE,
++                onClick = Runnable { onDedupModeChange(LibraryDedupMode.SAFE) },
++                icon = EchoIconKind.Library,
++                section = text(languageMode, "library.dedup.mode"),
++                entryId = SettingsEntryId.LibraryDedupSafe
++            ))
++            add(SettingsAction(
++                label = text(languageMode, "library.dedup.aggressive"),
++                description = text(languageMode, "library.dedup.aggressive.description"),
++                value = if (dedupMode == LibraryDedupMode.AGGRESSIVE) {
++                    text(languageMode, "selected")
++                } else "",
++                style = SettingsActionStyle.Choice,
++                checked = dedupMode == LibraryDedupMode.AGGRESSIVE,
++                onClick = Runnable { onDedupModeChange(LibraryDedupMode.AGGRESSIVE) },
++                icon = EchoIconKind.Library,
++                section = text(languageMode, "library.dedup.mode"),
++                entryId = SettingsEntryId.LibraryDedupAggressive
++            ))
++            add(SettingsAction(
++                label = text(languageMode, "library.dedup.candidates"),
++                description = text(languageMode, "library.dedup.candidates.description"),
++                value = duplicateCandidateCount.toString(),
++                style = SettingsActionStyle.Navigation,
++                onClick = Runnable { onNavigate(SettingsPage.DuplicateCandidates) },
++                icon = EchoIconKind.Library,
++                section = text(languageMode, "library.dedup.mode"),
++                entryId = SettingsEntryId.DuplicateCandidateCenter
++            ))
+             if (identityBackfill.running) {
+                 add(SettingsAction(
+                     label = text(languageMode, "identity.backfill.cancel"),
+@@ -1539,6 +1583,132 @@ object SettingsPageStateBuilder {
+         return buildContent(text(languageMode, "library"), metrics, actions)
+     }
+ 
++    private fun identityBackfillDescription(
++        languageMode: String,
++        status: IdentityBackfillStatusUi
++    ): String {
++        if (status.state == IdentityBackfillStateUi.IDLE) return ""
++        val parts = mutableListOf(
++            text(
++                languageMode,
++                when (status.state) {
++                    IdentityBackfillStateUi.IDLE -> "identity.backfill.state.idle"
++                    IdentityBackfillStateUi.QUEUED -> "identity.backfill.state.queued"
++                    IdentityBackfillStateUi.RUNNING -> "identity.backfill.state.running"
++                    IdentityBackfillStateUi.COMPLETED -> "identity.backfill.state.completed"
++                    IdentityBackfillStateUi.FAILED -> "identity.backfill.state.failed"
++                    IdentityBackfillStateUi.CANCELLED -> "identity.backfill.state.cancelled"
++                }
++            )
++        )
++        if (status.state == IdentityBackfillStateUi.RUNNING && status.stage.isNotBlank()) {
++            parts += text(
++                languageMode,
++                when (status.stage.uppercase(Locale.ROOT)) {
++                    "NORMALIZE" -> "identity.backfill.stage.normalize"
++                    "CLASSIFY" -> "identity.backfill.stage.classify"
++                    "INGEST" -> "identity.backfill.stage.ingest"
++                    "LX_CLEANUP" -> "identity.backfill.stage.cleanup"
++                    "VALIDATE" -> "identity.backfill.stage.validate"
++                    else -> "identity.backfill.stage.processing"
++                }
++            )
++        }
++        if (status.total > 0) {
++            parts += "${status.processed}/${status.total}"
++        }
++        if (status.state != IdentityBackfillStateUi.QUEUED) {
++            parts += "${text(languageMode, "identity.backfill.merged")} ${status.merged}"
++            parts += "${text(languageMode, "identity.backfill.pending")} ${status.pending}"
++        }
++        if (status.state == IdentityBackfillStateUi.FAILED && status.errorMessage.isNotBlank()) {
++            parts += status.errorMessage
++        }
++        return parts.joinToString(" 路 ")
++    }
++
++    private fun identityBackfillProgress(
++        languageMode: String,
++        status: IdentityBackfillStatusUi
++    ): SettingsActionProgress? {
++        val fraction = when (status.state) {
++            IdentityBackfillStateUi.IDLE -> return null
++            IdentityBackfillStateUi.QUEUED -> null
++            IdentityBackfillStateUi.RUNNING -> status.progressFraction
++            IdentityBackfillStateUi.COMPLETED -> 1f
++            IdentityBackfillStateUi.FAILED,
++            IdentityBackfillStateUi.CANCELLED -> status.progressFraction ?: return null
++        }
++        return SettingsActionProgress(
++            fraction = fraction,
++            contentDescription = identityBackfillDescription(languageMode, status)
++        )
++    }
++
++    fun duplicateCandidates(
++        languageMode: String,
++        backPage: SettingsPage,
++        center: DuplicateCandidateCenterUi,
++        onNavigate: (SettingsPage) -> Unit,
++        onConfirm: (Long, Long) -> Unit,
++        onConfirmBatch: () -> Unit
++    ): SettingsPageStateContent {
++        val metrics = listOf(
++            SettingsMetric(text(languageMode, "library.dedup.pending"), center.total.toString()),
++            SettingsMetric(
++                text(languageMode, "library.dedup.review.required"),
++                center.reviewRequired.toString()
++            ),
++            SettingsMetric(
++                text(languageMode, "library.dedup.high.confidence"),
++                center.highConfidenceCount.toString()
++            )
++        )
++        val actions = buildList {
++            add(backNavigationAction(text(languageMode, "back"), backPage, onNavigate))
++            if (center.highConfidenceCount > 0) {
++                add(SettingsAction(
++                    label = text(languageMode, "library.dedup.confirm.batch") +
++                        " (${center.highConfidenceCount})",
++                    description = text(languageMode, "library.dedup.confirm.batch.description"),
++                    onClick = Runnable { onConfirmBatch() },
++                    icon = EchoIconKind.Sync,
++                    section = text(languageMode, "library.dedup.candidates"),
++                    entryId = SettingsEntryId.DuplicateCandidateCenter
++                ))
++            }
++            center.items.forEach { candidate ->
++                add(SettingsAction(
++                    label = "${candidate.leftLabel} 鈫?${candidate.rightLabel}",
++                    description = buildString {
++                        append(text(languageMode, "library.dedup.score"))
++                        append(" ")
++                        append("%.1f%%".format(candidate.score * 100.0))
++                        append(" 路 ")
++                        append(text(languageMode, "library.dedup.margin"))
++                        append(" ")
++                        append("%.1f%%".format(candidate.margin * 100.0))
++                        append(" 路 ")
++                        append(candidate.relationType)
++                    },
++                    value = if (candidate.batchEligible) {
++                        text(languageMode, "library.dedup.high.confidence")
++                    } else {
++                        text(languageMode, "library.dedup.needs.review")
++                    },
++                    onClick = Runnable {
++                        onConfirm(candidate.leftRecordingId, candidate.rightRecordingId)
++                    },
++                    enabled = candidate.batchEligible,
++                    icon = EchoIconKind.Library,
++                    section = text(languageMode, "library.dedup.candidates"),
++                    entryId = SettingsEntryId.DuplicateCandidateCenter
++                ))
++            }
++        }
++        return buildContent(text(languageMode, "library.dedup.candidates"), metrics, actions)
++    }
++
+     fun lyricsGroup(
+         languageMode: String,
+         offsetMs: Long,
+@@ -1833,7 +2003,8 @@ object SettingsPageStateBuilder {
+         SettingsPage.FloatingLyrics -> EchoIconKind.Permission
+         SettingsPage.SourcesGroup, SettingsPage.StreamingGateway -> EchoIconKind.Network
+         SettingsPage.StreamingAudioQuality -> EchoIconKind.Gauge
+-        SettingsPage.LibraryGroup, SettingsPage.Library -> EchoIconKind.Library
++        SettingsPage.LibraryGroup, SettingsPage.Library,
++        SettingsPage.DuplicateCandidates -> EchoIconKind.Library
+         SettingsPage.AboutGroup -> EchoIconKind.Info
+         SettingsPage.Downloads -> EchoIconKind.Download
+         SettingsPage.SleepTimer -> EchoIconKind.Timer
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
+index c152e7e3..e15bfff8 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
+@@ -1,5 +1,6 @@
+ package app.yukine
+ 
++import app.yukine.identity.LibraryDedupMode
+ import app.yukine.playback.AudioEffectSettings
+ import app.yukine.streaming.StreamingQualityPreference
+ import app.yukine.ui.EchoTheme
+@@ -369,6 +370,11 @@ class LibrarySettingsStateOwner internal constructor(private val context: Settin
+     fun openAudioFolderPicker() = context.emit(SettingsEffect.OpenAudioFolderPicker)
+     fun rebuildSongIdentity() = context.emit(SettingsEffect.RebuildSongIdentity)
+     fun cancelIdentityBackfill() = context.emit(SettingsEffect.CancelIdentityBackfill)
++    fun setDedupMode(mode: LibraryDedupMode) = context.emit(SettingsEffect.SetLibraryDedupMode(mode))
++    fun confirmDuplicateCandidate(leftRecordingId: Long, rightRecordingId: Long) =
++        context.emit(SettingsEffect.ConfirmDuplicateCandidate(leftRecordingId, rightRecordingId))
++    fun confirmHighConfidenceDuplicates() =
++        context.emit(SettingsEffect.ConfirmHighConfidenceDuplicates)
+     fun restoreHiddenItem(sourceKey: String) = context.emit(SettingsEffect.RestoreHiddenLibraryItem(sourceKey))
+     fun restoreAllHiddenItems() = context.emit(SettingsEffect.RestoreAllHiddenLibraryItems)
+ }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
+index 5b8cc054..22d99253 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
+@@ -4,6 +4,7 @@ import app.yukine.streaming.StreamingQualityPreference
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
+ import app.yukine.playback.AudioEffectSettings
++import app.yukine.identity.LibraryDedupMode
+ import app.yukine.ui.SettingsAction
+ import app.yukine.ui.EchoTheme
+ import app.yukine.ui.HomeDashboardLayout
+@@ -87,6 +88,8 @@ data class RuntimeSettingsStatus(
+     val librarySongCount: Int = 0,
+     val libraryAlbumCount: Int = 0,
+     val libraryArtistCount: Int = 0,
++    val libraryDedupMode: LibraryDedupMode = LibraryDedupMode.SAFE,
++    val duplicateCandidateCenter: DuplicateCandidateCenterUi = DuplicateCandidateCenterUi(),
+     val streamingGatewayEndpoint: String = "gateway://unconfigured",
+     val streamingGatewayConfigured: Boolean = false,
+     val luoxueImportedSourceCount: Int = 0,
+@@ -100,15 +103,34 @@ data class RuntimeSettingsStatus(
+     val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
+ )
+ 
++enum class IdentityBackfillStateUi {
++    IDLE,
++    QUEUED,
++    RUNNING,
++    COMPLETED,
++    FAILED,
++    CANCELLED
++}
++
+ data class IdentityBackfillStatusUi(
+     val total: Int = 0,
+     val processed: Int = 0,
+     val merged: Int = 0,
+     val pending: Int = 0,
+     val lxMigrated: Int = 0,
+-    val lxDeleted: Int = 0
++    val lxDeleted: Int = 0,
++    val state: IdentityBackfillStateUi = IdentityBackfillStateUi.IDLE,
++    val stage: String = "",
++    val errorMessage: String = "",
++    val updatedAt: Long = 0L
+ ) {
+-    val running: Boolean get() = total > 0 && processed < total
++    val active: Boolean
++        get() = state == IdentityBackfillStateUi.QUEUED ||
++            state == IdentityBackfillStateUi.RUNNING
++    val running: Boolean get() = active
++    val progressFraction: Float?
++        get() = total.takeIf { it > 0 }
++            ?.let { (processed.toFloat() / it.toFloat()).coerceIn(0f, 1f) }
+ }
+ 
+ data class HiddenLibraryItemUi(val sourceKey: String, val label: String)
+diff --git a/feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt b/feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt
+index 69f828e8..10f7d19f 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/ui/SettingsScreen.kt
+@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.HorizontalDivider
++import androidx.compose.material3.LinearProgressIndicator
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Slider
+ import androidx.compose.material3.SliderDefaults
+@@ -67,6 +68,13 @@ data class SettingsMetric(
+     val value: String,
+     val compact: Boolean = false
+ )
++
++data class SettingsActionProgress(
++    /** Null renders an indeterminate indicator. */
++    val fraction: Float? = null,
++    val contentDescription: String = ""
++)
++
+ enum class SettingsActionStyle {
+     Default,
+     Navigation,
+@@ -98,7 +106,8 @@ data class SettingsAction(
+     val categoryId: SettingsCategoryId? = null,
+     val sliderDefaultLabel: String = "",
+     val sliderResetLabel: String = "",
+-    val onSliderReset: Runnable? = null
++    val onSliderReset: Runnable? = null,
++    val progress: SettingsActionProgress? = null
+ )
+ 
+ internal data class SettingsActionSection(
+@@ -733,6 +742,30 @@ private fun SettingsActionRow(
+                     color = p.muted
+                 )
+             }
++            action.progress?.let { progress ->
++                val progressModifier = Modifier
++                    .fillMaxWidth()
++                    .height(4.dp)
++                    .semantics {
++                        if (progress.contentDescription.isNotBlank()) {
++                            contentDescription = progress.contentDescription
++                        }
++                    }
++                if (progress.fraction == null) {
++                    LinearProgressIndicator(
++                        modifier = progressModifier,
++                        color = p.accent,
++                        trackColor = p.surfaceVariant.copy(alpha = 0.36f)
++                    )
++                } else {
++                    LinearProgressIndicator(
++                        progress = { progress.fraction.coerceIn(0f, 1f) },
++                        modifier = progressModifier,
++                        color = p.accent,
++                        trackColor = p.surfaceVariant.copy(alpha = 0.36f)
++                    )
++                }
++            }
+         }
+         SettingsActionTrailing(action, onClick)
+     }
+diff --git a/feature/streaming/src/main/java/app/yukine/streaming/LocalStreamingLoginEndpoints.kt b/feature/streaming/src/main/java/app/yukine/streaming/LocalStreamingLoginEndpoints.kt
+index d2c73732..7266629d 100644
+--- a/feature/streaming/src/main/java/app/yukine/streaming/LocalStreamingLoginEndpoints.kt
++++ b/feature/streaming/src/main/java/app/yukine/streaming/LocalStreamingLoginEndpoints.kt
+@@ -145,7 +145,7 @@ object LocalStreamingLoginEndpoints {
+                 "MUSIC_SNS"
+             )
+             StreamingProviderName.QQ_MUSIC -> listOf("qqmusic_key", "qm_keyst", "psrf_qqaccess_token")
+-            StreamingProviderName.KUGOU -> listOf("token", "kg_mid", "t_token")
++            StreamingProviderName.KUGOU -> listOf("token", "t_token")
+             StreamingProviderName.BILIBILI -> listOf("SESSDATA")
+             StreamingProviderName.YOUTUBE -> listOf("SAPISID", "__Secure-3PAPISID", "SID")
+             StreamingProviderName.SOUNDCLOUD -> listOf("oauth_token", "sc_anonymous_id")

@@ -92,7 +92,9 @@ data class LibraryCollectionsResult(
     val mostPlayedRecords: List<TrackPlayRecord> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
     val remoteSources: List<RemoteSource> = emptyList(),
-    val selectedPlaylistTracks: List<Track> = emptyList()
+    val selectedPlaylistTracks: List<Track> = emptyList(),
+    val recentlyAddedTracks: List<Track> = emptyList(),
+    val longUnplayedTracks: List<Track> = emptyList()
 )
 
 interface LibraryCollectionGateway {

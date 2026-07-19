@@ -43,7 +43,47 @@ class LyricsDocumentParserTest {
         assertEquals("你好", line.text)
         assertEquals(listOf("你", "好"), line.words.map { it.text })
         assertEquals(listOf(1_000L, 1_500L), line.words.map { it.startMs })
+        assertEquals(listOf(0 to 1, 1 to 2), line.words.map { it.startOffset to it.endOffset })
         assertTrue(line.words[0].endMs >= line.words[0].startMs)
+    }
+
+    @Test
+    fun providerKaraokeKeepsWordTimingAndTranslationTrack() {
+        val document = parser.parseProvider(
+            primary = "[1000,1000](1000,400,0)你(1400,600,0)好",
+            translation = "[00:01.00]Hello",
+            sourceName = "netease"
+        )
+
+        val primary = document.track(LyricsTrackRole.PRIMARY)!!.lines.single()
+        assertEquals("klyric", document.format)
+        assertEquals("你好", primary.text)
+        assertEquals(listOf(1_000L, 1_400L), primary.words.map { it.startMs })
+        assertEquals(listOf(1_400L, 2_000L), primary.words.map { it.endMs })
+        assertEquals(listOf(0 to 1, 1 to 2), primary.words.map { it.startOffset to it.endOffset })
+        assertEquals("Hello", document.track(LyricsTrackRole.TRANSLATION)!!.lines.single().text)
+    }
+
+    @Test
+    fun providerKaraokeUsesOneRelativeTimeBaseForTheWholeLine() {
+        val document = parser.parseProvider(
+            primary = "[1000,2500](0,1400,0)你(1400,1100,0)好",
+            sourceName = "netease"
+        )
+
+        val words = document.track(LyricsTrackRole.PRIMARY)!!.lines.single().words
+        assertEquals(listOf(1_000L, 2_400L), words.map { it.startMs })
+        assertEquals(listOf(2_400L, 3_500L), words.map { it.endMs })
+    }
+
+    @Test
+    fun elrcFileExtensionUsesEnhancedLrcParser() {
+        val document = parser.parse(
+            "[00:01.00]<00:01.00>A<00:01.50>B".toByteArray(StandardCharsets.UTF_8),
+            "word.elrc"
+        )
+
+        assertEquals(listOf("A", "B"), document.track(LyricsTrackRole.PRIMARY)!!.lines.single().words.map { it.text })
     }
 
     @Test

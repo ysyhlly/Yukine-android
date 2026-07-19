@@ -79,7 +79,30 @@ data class LibraryUiLabels(
     val emptyGroupFilter: String = "当前筛选没有分组",
     val emptyLibrary: String = "曲库中还没有歌曲",
     val groupCountSuffix: String = "个结果",
-    val back: String = "返回"
+    val back: String = "返回",
+    val overviewShelf: String = "为你推荐",
+    val overviewBrowse: String = "按方式浏览",
+    val overviewSaved: String = "收藏与离线",
+    val overviewSourcesSync: String = "音乐来源与同步",
+    val overviewFavorites: String = "喜欢的音乐",
+    val overviewDownloaded: String = "已下载",
+    val overviewSources: String = "音乐来源",
+    val overviewSearchHint: String = "搜索歌曲、专辑、艺人或歌单",
+    val overviewSongUnit: String = " 首",
+    val overviewLocalSource: String = "本机",
+    val overviewAllSongs: String = "全部歌曲",
+    val overviewAlbums: String = "专辑",
+    val overviewArtists: String = "艺人",
+    val overviewPlaylists: String = "歌单",
+    val overviewFolders: String = "文件夹",
+    val smartRecentAdded: String = "最近添加",
+    val smartRecentPlayed: String = "最近播放",
+    val smartWeekFavorites: String = "一周最爱",
+    val smartLongUnplayed: String = "很久没听",
+    val smartRecentAddedEmpty: String = "扫描或导入歌曲后，会出现在这里",
+    val smartRecentPlayedEmpty: String = "暂无最近播放",
+    val smartWeekFavoritesEmpty: String = "本周播放喜欢的歌曲后，会出现在这里",
+    val smartLongUnplayedEmpty: String = "最近所有歌都听过啦，真棒"
 )
 
 sealed interface LibraryAction {

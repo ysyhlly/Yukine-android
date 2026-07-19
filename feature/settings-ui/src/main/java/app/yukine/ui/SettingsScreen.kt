@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -67,6 +68,13 @@ data class SettingsMetric(
     val value: String,
     val compact: Boolean = false
 )
+
+data class SettingsActionProgress(
+    /** Null renders an indeterminate indicator. */
+    val fraction: Float? = null,
+    val contentDescription: String = ""
+)
+
 enum class SettingsActionStyle {
     Default,
     Navigation,
@@ -98,7 +106,8 @@ data class SettingsAction(
     val categoryId: SettingsCategoryId? = null,
     val sliderDefaultLabel: String = "",
     val sliderResetLabel: String = "",
-    val onSliderReset: Runnable? = null
+    val onSliderReset: Runnable? = null,
+    val progress: SettingsActionProgress? = null
 )
 
 internal data class SettingsActionSection(
@@ -732,6 +741,30 @@ private fun SettingsActionRow(
                     style = EchoTypography.caption,
                     color = p.muted
                 )
+            }
+            action.progress?.let { progress ->
+                val progressModifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .semantics {
+                        if (progress.contentDescription.isNotBlank()) {
+                            contentDescription = progress.contentDescription
+                        }
+                    }
+                if (progress.fraction == null) {
+                    LinearProgressIndicator(
+                        modifier = progressModifier,
+                        color = p.accent,
+                        trackColor = p.surfaceVariant.copy(alpha = 0.36f)
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        progress = { progress.fraction.coerceIn(0f, 1f) },
+                        modifier = progressModifier,
+                        color = p.accent,
+                        trackColor = p.surfaceVariant.copy(alpha = 0.36f)
+                    )
+                }
             }
         }
         SettingsActionTrailing(action, onClick)

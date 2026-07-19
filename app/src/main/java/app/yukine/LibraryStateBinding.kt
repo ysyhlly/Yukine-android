@@ -192,7 +192,9 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             inputs.library.favoriteTracks,
             inputs.library.recentRecords,
             modeActions,
-            inputs.playlistSources
+            inputs.playlistSources,
+            recentlyAddedTracks = inputs.library.recentlyAddedTracks,
+            longUnplayedTracks = inputs.library.longUnplayedTracks
         )
     }
 
@@ -287,7 +289,30 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
     emptyGroupFilter = AppLanguage.text(languageMode, "library.empty.group.filter"),
     emptyLibrary = AppLanguage.text(languageMode, "no.music"),
     groupCountSuffix = AppLanguage.text(languageMode, "library.group.count.suffix"),
-    back = AppLanguage.text(languageMode, "back")
+    back = AppLanguage.text(languageMode, "back"),
+    overviewShelf = AppLanguage.text(languageMode, "library.overview.shelf"),
+    overviewBrowse = AppLanguage.text(languageMode, "library.overview.browse"),
+    overviewSaved = AppLanguage.text(languageMode, "library.overview.saved"),
+    overviewSourcesSync = AppLanguage.text(languageMode, "library.overview.sources.sync"),
+    overviewFavorites = AppLanguage.text(languageMode, "library.overview.favorites"),
+    overviewDownloaded = AppLanguage.text(languageMode, "library.overview.downloaded"),
+    overviewSources = AppLanguage.text(languageMode, "library.overview.sources"),
+    overviewSearchHint = AppLanguage.text(languageMode, "library.overview.search.hint"),
+    overviewSongUnit = AppLanguage.text(languageMode, "library.overview.song.unit"),
+    overviewLocalSource = AppLanguage.text(languageMode, "library.overview.local.source"),
+    overviewAllSongs = AppLanguage.text(languageMode, "library.allSongs"),
+    overviewAlbums = AppLanguage.text(languageMode, "albums"),
+    overviewArtists = AppLanguage.text(languageMode, "artists"),
+    overviewPlaylists = AppLanguage.text(languageMode, "playlists"),
+    overviewFolders = AppLanguage.text(languageMode, "folders"),
+    smartRecentAdded = AppLanguage.text(languageMode, "library.smart.recent.added"),
+    smartRecentPlayed = AppLanguage.text(languageMode, "library.smart.recent.played"),
+    smartWeekFavorites = AppLanguage.text(languageMode, "library.smart.week.favorites"),
+    smartLongUnplayed = AppLanguage.text(languageMode, "library.smart.long.unplayed"),
+    smartRecentAddedEmpty = AppLanguage.text(languageMode, "library.empty.smart.recent.added"),
+    smartRecentPlayedEmpty = AppLanguage.text(languageMode, "library.empty.smart.recent.played"),
+    smartWeekFavoritesEmpty = AppLanguage.text(languageMode, "library.empty.smart.week.favorites"),
+    smartLongUnplayedEmpty = AppLanguage.text(languageMode, "library.empty.smart.long.unplayed")
 )
 
 private data class LibraryPresentationProjection(

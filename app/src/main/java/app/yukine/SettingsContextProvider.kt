@@ -30,12 +30,15 @@ internal class SettingsContextProvider(
     fun runtimeStatus(): RuntimeSettingsStatus {
         val allTracks = libraryStore.allTracks()
         val luoxueSources = luoxueSourceStore.load()
-        val identityBackfill = identityBackfillStore.load().progress
+        val identityCheckpoint = identityBackfillStore.load()
+        val identityBackfill = identityCheckpoint.progress
+        val identityRuntime = identityBackfillStore.runtimeStatus()
         val floatingLyricsSettings = floatingLyricsSettingsStore.load()
         val kugouAuth = localStreamingAuthStore.authState(
             app.yukine.streaming.StreamingProviderName.KUGOU
         )
         val kugouSync = kugouExperimentalSyncStore.status(kugouAuth.connected)
+        val duplicateCandidates = repository.loadDuplicateCandidates(50, 0)
         return RuntimeSettingsStatus(
             appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
@@ -55,6 +58,27 @@ internal class SettingsContextProvider(
             librarySongCount = allTracks.size,
             libraryAlbumCount = LibraryGrouping.uniqueAlbumCount(allTracks),
             libraryArtistCount = LibraryGrouping.uniqueArtistCount(allTracks),
+            libraryDedupMode = repository.loadLibraryDedupMode(),
+            duplicateCandidateCenter = DuplicateCandidateCenterUi(
+                total = duplicateCandidates.total,
+                reviewRequired = duplicateCandidates.reviewRequired,
+                items = duplicateCandidates.items.map { candidate ->
+                    DuplicateCandidateUi(
+                        leftRecordingId = candidate.leftRecordingId,
+                        rightRecordingId = candidate.rightRecordingId,
+                        leftLabel = listOf(candidate.leftTitle, candidate.leftArtist)
+                            .filter(String::isNotBlank)
+                            .joinToString(" · "),
+                        rightLabel = listOf(candidate.rightTitle, candidate.rightArtist)
+                            .filter(String::isNotBlank)
+                            .joinToString(" · "),
+                        score = candidate.score,
+                        margin = candidate.margin,
+                        relationType = candidate.relationType,
+                        batchEligible = candidate.batchEligible
+                    )
+                }
+            ),
             streamingGatewayEndpoint = streamingGatewaySettingsStore.endpoint(),
             streamingGatewayConfigured = streamingGatewaySettingsStore.configured(),
             luoxueImportedSourceCount = luoxueSources.size,
@@ -70,7 +94,11 @@ internal class SettingsContextProvider(
                 merged = identityBackfill.merged,
                 pending = identityBackfill.pending,
                 lxMigrated = identityBackfill.lxMigrated,
-                lxDeleted = identityBackfill.lxDeleted
+                lxDeleted = identityBackfill.lxDeleted,
+                state = IdentityBackfillStateUi.valueOf(identityRuntime.state.name),
+                stage = identityCheckpoint.stage.name,
+                errorMessage = identityRuntime.errorMessage,
+                updatedAt = identityRuntime.updatedAt
             ),
             hiddenLibraryItems = repository.loadLibraryExclusions().map { exclusion ->
                 HiddenLibraryItemUi(exclusion.sourceKey, exclusion.displayName())

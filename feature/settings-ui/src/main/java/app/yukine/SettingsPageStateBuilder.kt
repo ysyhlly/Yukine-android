@@ -1,11 +1,13 @@
 package app.yukine
 
+import app.yukine.identity.LibraryDedupMode
 import app.yukine.feature.settingsui.R
 import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.ui.SettingsAction
+import app.yukine.ui.SettingsActionProgress
 import app.yukine.ui.SettingsActionStyle
 import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
@@ -1448,12 +1450,15 @@ object SettingsPageStateBuilder {
         artistCount: Int,
         audioPermissionGranted: Boolean,
         identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
+        dedupMode: LibraryDedupMode = LibraryDedupMode.SAFE,
+        duplicateCandidateCount: Int = 0,
         onNavigate: (SettingsPage) -> Unit,
         onLoadLibrary: () -> Unit,
         onOpenAudioFilePicker: () -> Unit,
         onOpenAudioFolderPicker: () -> Unit,
         onRebuildSongIdentity: () -> Unit = {},
         onCancelIdentityBackfill: () -> Unit = {},
+        onDedupModeChange: (LibraryDedupMode) -> Unit = {},
         hiddenItems: List<HiddenLibraryItemUi> = emptyList(),
         onRestoreHidden: (String) -> Unit = {},
         onRestoreAllHidden: () -> Unit = {}
@@ -1504,9 +1509,48 @@ object SettingsPageStateBuilder {
             add(SettingsAction(
                 label = text(languageMode, "identity.backfill.rebuild"),
                 onClick = Runnable { onRebuildSongIdentity() },
+                description = identityBackfillDescription(languageMode, identityBackfill),
+                enabled = !identityBackfill.active,
+                progress = identityBackfillProgress(languageMode, identityBackfill),
                 icon = EchoIconKind.Refresh,
                 section = text(languageMode, "settings.section.metadata"),
                 entryId = SettingsEntryId.IdentityRebuild
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "library.dedup.safe"),
+                description = text(languageMode, "library.dedup.safe.description"),
+                value = if (dedupMode == LibraryDedupMode.SAFE) {
+                    text(languageMode, "selected")
+                } else "",
+                style = SettingsActionStyle.Choice,
+                checked = dedupMode == LibraryDedupMode.SAFE,
+                onClick = Runnable { onDedupModeChange(LibraryDedupMode.SAFE) },
+                icon = EchoIconKind.Library,
+                section = text(languageMode, "library.dedup.mode"),
+                entryId = SettingsEntryId.LibraryDedupSafe
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "library.dedup.aggressive"),
+                description = text(languageMode, "library.dedup.aggressive.description"),
+                value = if (dedupMode == LibraryDedupMode.AGGRESSIVE) {
+                    text(languageMode, "selected")
+                } else "",
+                style = SettingsActionStyle.Choice,
+                checked = dedupMode == LibraryDedupMode.AGGRESSIVE,
+                onClick = Runnable { onDedupModeChange(LibraryDedupMode.AGGRESSIVE) },
+                icon = EchoIconKind.Library,
+                section = text(languageMode, "library.dedup.mode"),
+                entryId = SettingsEntryId.LibraryDedupAggressive
+            ))
+            add(SettingsAction(
+                label = text(languageMode, "library.dedup.candidates"),
+                description = text(languageMode, "library.dedup.candidates.description"),
+                value = duplicateCandidateCount.toString(),
+                style = SettingsActionStyle.Navigation,
+                onClick = Runnable { onNavigate(SettingsPage.DuplicateCandidates) },
+                icon = EchoIconKind.Library,
+                section = text(languageMode, "library.dedup.mode"),
+                entryId = SettingsEntryId.DuplicateCandidateCenter
             ))
             if (identityBackfill.running) {
                 add(SettingsAction(
@@ -1537,6 +1581,132 @@ object SettingsPageStateBuilder {
             }
         }
         return buildContent(text(languageMode, "library"), metrics, actions)
+    }
+
+    private fun identityBackfillDescription(
+        languageMode: String,
+        status: IdentityBackfillStatusUi
+    ): String {
+        if (status.state == IdentityBackfillStateUi.IDLE) return ""
+        val parts = mutableListOf(
+            text(
+                languageMode,
+                when (status.state) {
+                    IdentityBackfillStateUi.IDLE -> "identity.backfill.state.idle"
+                    IdentityBackfillStateUi.QUEUED -> "identity.backfill.state.queued"
+                    IdentityBackfillStateUi.RUNNING -> "identity.backfill.state.running"
+                    IdentityBackfillStateUi.COMPLETED -> "identity.backfill.state.completed"
+                    IdentityBackfillStateUi.FAILED -> "identity.backfill.state.failed"
+                    IdentityBackfillStateUi.CANCELLED -> "identity.backfill.state.cancelled"
+                }
+            )
+        )
+        if (status.state == IdentityBackfillStateUi.RUNNING && status.stage.isNotBlank()) {
+            parts += text(
+                languageMode,
+                when (status.stage.uppercase(Locale.ROOT)) {
+                    "NORMALIZE" -> "identity.backfill.stage.normalize"
+                    "CLASSIFY" -> "identity.backfill.stage.classify"
+                    "INGEST" -> "identity.backfill.stage.ingest"
+                    "LX_CLEANUP" -> "identity.backfill.stage.cleanup"
+                    "VALIDATE" -> "identity.backfill.stage.validate"
+                    else -> "identity.backfill.stage.processing"
+                }
+            )
+        }
+        if (status.total > 0) {
+            parts += "${status.processed}/${status.total}"
+        }
+        if (status.state != IdentityBackfillStateUi.QUEUED) {
+            parts += "${text(languageMode, "identity.backfill.merged")} ${status.merged}"
+            parts += "${text(languageMode, "identity.backfill.pending")} ${status.pending}"
+        }
+        if (status.state == IdentityBackfillStateUi.FAILED && status.errorMessage.isNotBlank()) {
+            parts += status.errorMessage
+        }
+        return parts.joinToString(" · ")
+    }
+
+    private fun identityBackfillProgress(
+        languageMode: String,
+        status: IdentityBackfillStatusUi
+    ): SettingsActionProgress? {
+        val fraction = when (status.state) {
+            IdentityBackfillStateUi.IDLE -> return null
+            IdentityBackfillStateUi.QUEUED -> null
+            IdentityBackfillStateUi.RUNNING -> status.progressFraction
+            IdentityBackfillStateUi.COMPLETED -> 1f
+            IdentityBackfillStateUi.FAILED,
+            IdentityBackfillStateUi.CANCELLED -> status.progressFraction ?: return null
+        }
+        return SettingsActionProgress(
+            fraction = fraction,
+            contentDescription = identityBackfillDescription(languageMode, status)
+        )
+    }
+
+    fun duplicateCandidates(
+        languageMode: String,
+        backPage: SettingsPage,
+        center: DuplicateCandidateCenterUi,
+        onNavigate: (SettingsPage) -> Unit,
+        onConfirm: (Long, Long) -> Unit,
+        onConfirmBatch: () -> Unit
+    ): SettingsPageStateContent {
+        val metrics = listOf(
+            SettingsMetric(text(languageMode, "library.dedup.pending"), center.total.toString()),
+            SettingsMetric(
+                text(languageMode, "library.dedup.review.required"),
+                center.reviewRequired.toString()
+            ),
+            SettingsMetric(
+                text(languageMode, "library.dedup.high.confidence"),
+                center.highConfidenceCount.toString()
+            )
+        )
+        val actions = buildList {
+            add(backNavigationAction(text(languageMode, "back"), backPage, onNavigate))
+            if (center.highConfidenceCount > 0) {
+                add(SettingsAction(
+                    label = text(languageMode, "library.dedup.confirm.batch") +
+                        " (${center.highConfidenceCount})",
+                    description = text(languageMode, "library.dedup.confirm.batch.description"),
+                    onClick = Runnable { onConfirmBatch() },
+                    icon = EchoIconKind.Sync,
+                    section = text(languageMode, "library.dedup.candidates"),
+                    entryId = SettingsEntryId.DuplicateCandidateCenter
+                ))
+            }
+            center.items.forEach { candidate ->
+                add(SettingsAction(
+                    label = "${candidate.leftLabel} ↔ ${candidate.rightLabel}",
+                    description = buildString {
+                        append(text(languageMode, "library.dedup.score"))
+                        append(" ")
+                        append("%.1f%%".format(candidate.score * 100.0))
+                        append(" · ")
+                        append(text(languageMode, "library.dedup.margin"))
+                        append(" ")
+                        append("%.1f%%".format(candidate.margin * 100.0))
+                        append(" · ")
+                        append(candidate.relationType)
+                    },
+                    value = if (candidate.batchEligible) {
+                        text(languageMode, "library.dedup.high.confidence")
+                    } else {
+                        text(languageMode, "library.dedup.needs.review")
+                    },
+                    onClick = Runnable {
+                        onConfirm(candidate.leftRecordingId, candidate.rightRecordingId)
+                    },
+                    enabled = candidate.batchEligible,
+                    icon = EchoIconKind.Library,
+                    section = text(languageMode, "library.dedup.candidates"),
+                    entryId = SettingsEntryId.DuplicateCandidateCenter
+                ))
+            }
+        }
+        return buildContent(text(languageMode, "library.dedup.candidates"), metrics, actions)
     }
 
     fun lyricsGroup(
@@ -1833,7 +2003,8 @@ object SettingsPageStateBuilder {
         SettingsPage.FloatingLyrics -> EchoIconKind.Permission
         SettingsPage.SourcesGroup, SettingsPage.StreamingGateway -> EchoIconKind.Network
         SettingsPage.StreamingAudioQuality -> EchoIconKind.Gauge
-        SettingsPage.LibraryGroup, SettingsPage.Library -> EchoIconKind.Library
+        SettingsPage.LibraryGroup, SettingsPage.Library,
+        SettingsPage.DuplicateCandidates -> EchoIconKind.Library
         SettingsPage.AboutGroup -> EchoIconKind.Info
         SettingsPage.Downloads -> EchoIconKind.Download
         SettingsPage.SleepTimer -> EchoIconKind.Timer

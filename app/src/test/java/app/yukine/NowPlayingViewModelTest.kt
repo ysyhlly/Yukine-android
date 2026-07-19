@@ -1,6 +1,11 @@
 package app.yukine
 
 import android.net.Uri
+import app.yukine.model.LyricLine
+import app.yukine.model.LyricWord
+import app.yukine.model.LyricsDocument
+import app.yukine.model.LyricsTrack
+import app.yukine.model.LyricsTrackRole
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackRepeatMode
 import app.yukine.playback.PlaybackStateSnapshot
@@ -11,6 +16,7 @@ import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -229,6 +235,47 @@ class NowPlayingViewModelTest {
         assertEquals(180_000L, state.progress.durationMs)
         assertTrue(state.modes.favorite)
         assertEquals(RepeatModeUi.All, state.modes.repeatMode)
+    }
+
+    @Test
+    fun richLyricsKeepWordsOffsetsAndStableRowsAcrossPlaybackTicks() {
+        val document = LyricsDocument(
+            format = "elrc",
+            tracks = listOf(
+                LyricsTrack(
+                    LyricsTrackRole.PRIMARY,
+                    lines = listOf(
+                        LyricLine(
+                            1_000L,
+                            2_000L,
+                            "la la",
+                            listOf(
+                                LyricWord(1_000L, 1_500L, "la", 0, 2),
+                                LyricWord(1_500L, 2_000L, "la", 3, 5)
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val lyrics = LyricsState(
+            trackId = 7L,
+            offsetMs = 250L,
+            statusKind = LyricsStatusKind.LOADED,
+            document = document
+        )
+        val viewModel = NowPlayingViewModel()
+
+        viewModel.updateState(snapshotWithTrack(positionMs = 1_000L), emptySet(), lyrics)
+        val firstRows = viewModel.uiState.value.lyrics.lines
+        viewModel.updateState(snapshotWithTrack(positionMs = 1_500L), emptySet(), lyrics)
+
+        val state = viewModel.uiState.value
+        assertEquals(250L, state.lyrics.offsetMs)
+        assertSame(firstRows, state.lyrics.lines)
+        assertEquals(listOf(0 to 2, 3 to 5), state.lyrics.lines.single().words.map {
+            it.startOffset to it.endOffset
+        })
     }
 
     @Test

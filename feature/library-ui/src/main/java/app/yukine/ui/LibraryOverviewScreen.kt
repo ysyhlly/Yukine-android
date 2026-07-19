@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -16,13 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -33,7 +33,11 @@ import androidx.compose.ui.unit.sp
 import app.yukine.DownloadsUiState
 import app.yukine.LibraryGrouping
 import app.yukine.LibraryStoreState
+import app.yukine.SMART_LONG_UNPLAYED_KEY
+import app.yukine.SMART_RECENT_ADDED_KEY
+import app.yukine.SMART_WEEK_FAVORITES_KEY
 import app.yukine.TrackDownloadItem
+import app.yukine.weekFavoriteRecords
 import app.yukine.core.designsystem.R
 
 private data class LibraryOverviewUiState(
@@ -43,54 +47,43 @@ private data class LibraryOverviewUiState(
     val playlistCount: Int,
     val folderCount: Int,
     val favoriteCount: Int,
-    val recentCount: Int,
+    val recentPlayedCount: Int,
+    val weekFavoritesCount: Int,
+    val recentAddedCount: Int,
+    val longUnplayedCount: Int,
     val downloadedCount: Int,
     val sourceCount: Int,
     val sourceSummary: String,
     val artworkUris: List<Uri>
 )
 
-private data class LibraryOverviewLabels(
-    val title: String,
-    val browse: String,
-    val allSongs: String,
-    val albums: String,
-    val artists: String,
-    val playlists: String,
-    val folders: String,
-    val myMusic: String,
-    val favorites: String,
-    val recent: String,
-    val downloaded: String,
-    val sources: String,
-    val search: String,
-    val manage: String,
-    val songUnit: String
-)
-
 @Composable
 fun LibraryOverviewScreen(
     library: LibraryStoreState,
     downloads: DownloadsUiState,
-    modeActions: List<TrackListModeAction>,
+    labels: LibraryUiLabels,
     onOpenMode: (String) -> Unit,
     onOpenFavorites: () -> Unit,
     onOpenRecent: () -> Unit,
     onOpenDownloads: () -> Unit,
     onOpenSources: () -> Unit,
-    onManageLibrary: () -> Unit,
+    onScanLibrary: () -> Unit,
+    onSyncLibrary: () -> Unit,
+    onOpenSmartCollection: (key: String, title: String) -> Unit,
     onSearch: Runnable = Runnable { },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     compactCards: Boolean = true
 ) {
-    val overview = remember(library, downloads) { buildOverviewState(library, downloads) }
-    val labels = remember(modeActions) { overviewLabels(modeActions) }
-    val modeLabels = remember(modeActions) { modeActions.associate { it.mode to it.label } }
+    val overview = remember(library, downloads, labels) {
+        buildOverviewState(library, downloads, labels.overviewLocalSource)
+    }
     val density = libraryCardDensityTokens(compactCards)
+    val shelfCardWidth = 150.dp
 
     LazyColumn(
+        modifier = Modifier.testTag("library_overview_list"),
         contentPadding = PaddingValues(
             start = density.pageHorizontalPadding,
             top = 8.dp,
@@ -100,57 +93,71 @@ fun LibraryOverviewScreen(
         verticalArrangement = Arrangement.spacedBy(density.sectionSpacing)
     ) {
         item("overview-search") {
-            YukineSearchBar(
-                label = labels.search,
-                activeDownload = activeDownload,
-                playbackQuality = playbackQuality,
-                audioMotion = audioMotion
-            ) { onSearch.run() }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                YukineSearchBar(
+                    modifier = Modifier.weight(1f),
+                    label = labels.overviewSearchHint,
+                    activeDownload = activeDownload,
+                    playbackQuality = playbackQuality,
+                    audioMotion = audioMotion
+                ) { onSearch.run() }
+                LibraryScanChip(labels.scanLibrary, onScanLibrary)
+            }
+        }
+
+        item("overview-shelf") {
+            LibraryOverviewSectionTitle(labels.overviewShelf)
+            Spacer(Modifier.height(8.dp))
+            RecommendShelf(
+                overview = overview,
+                labels = labels,
+                cardWidth = shelfCardWidth,
+                onOpenRecent = onOpenRecent,
+                onOpenSmartCollection = onOpenSmartCollection
+            )
         }
 
         item("overview-browse") {
-            LibraryOverviewSectionTitle(labels.browse)
+            LibraryOverviewSectionTitle(labels.overviewBrowse)
             Spacer(Modifier.height(8.dp))
             BrowseLibraryCard(
                 overview = overview,
                 labels = labels,
-                modeLabels = modeLabels,
                 onOpenMode = onOpenMode,
                 density = density
             )
         }
 
-        item("overview-personal") {
-            LibraryOverviewSectionTitle(labels.myMusic)
+        item("overview-saved") {
+            LibraryOverviewSectionTitle(labels.overviewSaved)
             Spacer(Modifier.height(8.dp))
-            PersonalMusicCard(
+            SavedCard(
                 overview = overview,
                 labels = labels,
                 onOpenFavorites = onOpenFavorites,
-                onOpenRecent = onOpenRecent,
                 onOpenDownloads = onOpenDownloads,
                 density = density
             )
         }
 
-        item("overview-sources") {
-            MusicSourcesCard(overview, labels, onOpenSources, density)
-        }
-
-        item("overview-sync") {
-            LibrarySyncButton(labels.manage, onManageLibrary)
+        item("overview-sources-sync") {
+            LibraryOverviewSectionTitle(labels.overviewSourcesSync)
+            Spacer(Modifier.height(8.dp))
+            MusicSourcesCard(overview, labels, onOpenSources, onSyncLibrary, density)
         }
     }
 }
 
 @Composable
-private fun LibrarySyncButton(label: String, onClick: () -> Unit) {
+private fun LibraryScanChip(label: String, onClick: () -> Unit) {
     val p = EchoTheme.colors()
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
+            .height(48.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
             .semantics { contentDescription = label },
@@ -159,16 +166,138 @@ private fun LibrarySyncButton(label: String, onClick: () -> Unit) {
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(EchoIconKind.Sync, Modifier.size(19.dp), p.accent)
-            Spacer(Modifier.width(8.dp))
+            EchoIcon(EchoIconKind.Refresh, Modifier.size(16.dp), p.accent)
+            Spacer(Modifier.width(6.dp))
             Text(
                 label,
-                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = p.accent
+                style = EchoTypography.label,
+                color = p.accent,
+                maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+private fun RecommendShelf(
+    overview: LibraryOverviewUiState,
+    labels: LibraryUiLabels,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    onOpenRecent: () -> Unit,
+    onOpenSmartCollection: (key: String, title: String) -> Unit
+) {
+    val unit = labels.overviewSongUnit
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            SmartShelfCard(
+                label = labels.smartRecentAdded,
+                count = overview.recentAddedCount,
+                unit = unit,
+                emptyHint = labels.smartRecentAddedEmpty,
+                icon = EchoIconKind.Sparkle,
+                cardWidth = cardWidth,
+                onClick = { onOpenSmartCollection(SMART_RECENT_ADDED_KEY, labels.smartRecentAdded) }
+            )
+        }
+        item {
+            SmartShelfCard(
+                label = labels.smartRecentPlayed,
+                count = overview.recentPlayedCount,
+                unit = unit,
+                emptyHint = labels.smartRecentPlayedEmpty,
+                icon = EchoIconKind.Timer,
+                cardWidth = cardWidth,
+                onClick = onOpenRecent
+            )
+        }
+        item {
+            SmartShelfCard(
+                label = labels.smartWeekFavorites,
+                count = overview.weekFavoritesCount,
+                unit = unit,
+                emptyHint = labels.smartWeekFavoritesEmpty,
+                icon = EchoIconKind.Heart,
+                cardWidth = cardWidth,
+                onClick = { onOpenSmartCollection(SMART_WEEK_FAVORITES_KEY, labels.smartWeekFavorites) }
+            )
+        }
+        item {
+            SmartShelfCard(
+                label = labels.smartLongUnplayed,
+                count = overview.longUnplayedCount,
+                unit = unit,
+                emptyHint = labels.smartLongUnplayedEmpty,
+                icon = EchoIconKind.Refresh,
+                cardWidth = cardWidth,
+                onClick = { onOpenSmartCollection(SMART_LONG_UNPLAYED_KEY, labels.smartLongUnplayed) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SmartShelfCard(
+    label: String,
+    count: Int,
+    unit: String,
+    emptyHint: String,
+    icon: EchoIconKind,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    onClick: () -> Unit
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .width(cardWidth)
+            .echoFloatingLayer(p, EchoShapes.large)
+            .echoGlassLayer(p, EchoShapes.large)
+            .semantics { contentDescription = label },
+        shape = EchoShapes.large,
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier
+                .height(96.dp)
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(30.dp),
+                    shape = EchoShapes.medium,
+                    color = p.accentSoft
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        EchoIcon(icon, Modifier.size(17.dp), p.accent)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    label,
+                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            if (count > 0) {
+                Text(
+                    count.toString() + unit,
+                    style = EchoTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                    color = p.accent
+                )
+            } else {
+                Text(
+                    emptyHint,
+                    style = EchoTypography.caption,
+                    color = p.muted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -182,8 +311,7 @@ private fun LibraryOverviewSectionTitle(title: String) {
 @Composable
 private fun BrowseLibraryCard(
     overview: LibraryOverviewUiState,
-    labels: LibraryOverviewLabels,
-    modeLabels: Map<String, String>,
+    labels: LibraryUiLabels,
     onOpenMode: (String) -> Unit,
     density: LibraryCardDensityTokens
 ) {
@@ -235,12 +363,12 @@ private fun BrowseLibraryCard(
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            labels.allSongs,
+                            labels.overviewAllSongs,
                             style = EchoTypography.title.copy(fontWeight = FontWeight.SemiBold),
                             color = p.text
                         )
                         Text(
-                            songCount(overview.songCount, labels),
+                            songCount(overview.songCount, labels.overviewSongUnit),
                             style = EchoTypography.body,
                             color = p.muted
                         )
@@ -260,7 +388,7 @@ private fun BrowseLibraryCard(
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.ALBUMS,
-                    label = modeLabels[LibraryGrouping.ALBUMS] ?: labels.albums,
+                    label = labels.overviewAlbums,
                     count = overview.albumCount,
                     icon = EchoIconKind.Collections,
                     onOpenMode = onOpenMode,
@@ -272,7 +400,7 @@ private fun BrowseLibraryCard(
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.ARTISTS,
-                    label = modeLabels[LibraryGrouping.ARTISTS] ?: labels.artists,
+                    label = labels.overviewArtists,
                     count = overview.artistCount,
                     icon = EchoIconKind.Artist,
                     onOpenMode = onOpenMode,
@@ -291,7 +419,7 @@ private fun BrowseLibraryCard(
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.PLAYLISTS,
-                    label = modeLabels[LibraryGrouping.PLAYLISTS] ?: labels.playlists,
+                    label = labels.overviewPlaylists,
                     count = overview.playlistCount,
                     icon = EchoIconKind.PlaylistAdd,
                     onOpenMode = onOpenMode,
@@ -303,7 +431,7 @@ private fun BrowseLibraryCard(
                 BrowseModeCell(
                     modifier = Modifier.weight(1f),
                     mode = LibraryGrouping.FOLDERS,
-                    label = modeLabels[LibraryGrouping.FOLDERS] ?: labels.folders,
+                    label = labels.overviewFolders,
                     count = overview.folderCount,
                     icon = EchoIconKind.Folder,
                     onOpenMode = onOpenMode,
@@ -394,11 +522,10 @@ private fun LibraryCoverStack(artworkUris: List<Uri>, coverSize: androidx.compos
 }
 
 @Composable
-private fun PersonalMusicCard(
+private fun SavedCard(
     overview: LibraryOverviewUiState,
-    labels: LibraryOverviewLabels,
+    labels: LibraryUiLabels,
     onOpenFavorites: () -> Unit,
-    onOpenRecent: () -> Unit,
     onOpenDownloads: () -> Unit,
     density: LibraryCardDensityTokens
 ) {
@@ -426,8 +553,8 @@ private fun PersonalMusicCard(
             }
         ) {
             PersonalMusicRow(
-                label = labels.favorites,
-                count = songCount(overview.favoriteCount, labels),
+                label = labels.overviewFavorites,
+                count = songCount(overview.favoriteCount, labels.overviewSongUnit),
                 icon = EchoIconKind.Heart,
                 onClick = onOpenFavorites,
                 rowHeight = density.personalRowHeight,
@@ -435,17 +562,8 @@ private fun PersonalMusicCard(
             )
             if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
             PersonalMusicRow(
-                label = labels.recent,
-                count = songCount(overview.recentCount, labels),
-                icon = EchoIconKind.Timer,
-                onClick = onOpenRecent,
-                rowHeight = density.personalRowHeight,
-                independentCard = density.independentCards
-            )
-            if (!density.independentCards) LibraryOverviewDivider(horizontalPadding = 14.dp)
-            PersonalMusicRow(
-                label = labels.downloaded,
-                count = songCount(overview.downloadedCount, labels),
+                label = labels.overviewDownloaded,
+                count = songCount(overview.downloadedCount, labels.overviewSongUnit),
                 icon = EchoIconKind.Download,
                 onClick = onOpenDownloads,
                 rowHeight = density.personalRowHeight,
@@ -504,13 +622,13 @@ private fun PersonalMusicRow(
 @Composable
 private fun MusicSourcesCard(
     overview: LibraryOverviewUiState,
-    labels: LibraryOverviewLabels,
+    labels: LibraryUiLabels,
     onOpenSources: () -> Unit,
+    onSyncLibrary: () -> Unit,
     density: LibraryCardDensityTokens
 ) {
     val p = EchoTheme.colors()
     Surface(
-        onClick = onOpenSources,
         modifier = Modifier
             .fillMaxWidth()
             .echoFloatingLayer(p, EchoShapes.large)
@@ -518,40 +636,73 @@ private fun MusicSourcesCard(
         shape = EchoShapes.large,
         color = Color.Transparent
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(density.sourceRowHeight)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column {
             Surface(
-                modifier = Modifier.size(44.dp),
-                shape = EchoShapes.medium,
-                color = p.accentSoft
+                onClick = onOpenSources,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = labels.overviewSources },
+                shape = EchoShapes.large,
+                color = Color.Transparent
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    EchoIcon(EchoIconKind.Network, Modifier.size(23.dp), p.accent)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(density.sourceRowHeight)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = EchoShapes.medium,
+                        color = p.accentSoft
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            EchoIcon(EchoIconKind.Network, Modifier.size(23.dp), p.accent)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        overview.sourceSummary,
+                        modifier = Modifier.weight(1f),
+                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        overview.sourceCount.toString(),
+                        style = EchoTypography.caption,
+                        color = p.muted
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    EchoIcon(EchoIconKind.ChevronRight, Modifier.size(17.dp), p.muted)
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    labels.sources,
-                    style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = p.text
-                )
-                Text(
-                    overview.sourceSummary,
-                    style = EchoTypography.caption,
-                    color = p.muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            LibraryOverviewDivider(horizontalPadding = 14.dp)
+            Surface(
+                onClick = onSyncLibrary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = labels.syncLibrary },
+                color = Color.Transparent
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EchoIcon(EchoIconKind.Sync, Modifier.size(18.dp), p.accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        labels.syncLibrary,
+                        style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.accent
+                    )
+                }
             }
-            Text(overview.sourceCount.toString(), style = EchoTypography.caption, color = p.muted)
-            Spacer(Modifier.width(8.dp))
-            EchoIcon(EchoIconKind.ChevronRight, Modifier.size(17.dp), p.muted)
         }
     }
 }
@@ -581,19 +732,25 @@ private fun LibraryOverviewVerticalDivider(height: androidx.compose.ui.unit.Dp) 
 
 private fun buildOverviewState(
     library: LibraryStoreState,
-    downloads: DownloadsUiState
+    downloads: DownloadsUiState,
+    localSourceName: String
 ): LibraryOverviewUiState {
     val tracks = library.visibleTracks
     val artworkUris = tracks
         .mapNotNull { it.albumArtUri }
         .distinctBy(Uri::toString)
         .take(3)
-    val recentCount = library.recentRecords
+    val now = System.currentTimeMillis()
+    val recentPlayedCount = library.recentRecords
+        .map { it.track.id }
+        .distinct()
+        .size
+    val weekFavoritesCount = weekFavoriteRecords(library.recentRecords, now)
         .map { it.track.id }
         .distinct()
         .size
     val sourceNames = buildList {
-        add("本机")
+        add(localSourceName)
         library.remoteSources.mapTo(this) { it.name.ifBlank { it.type } }
     }
     return LibraryOverviewUiState(
@@ -603,7 +760,10 @@ private fun buildOverviewState(
         playlistCount = library.playlists.size,
         folderCount = LibraryGrouping.uniqueFolderCount(tracks),
         favoriteCount = library.favoriteTrackIds.size,
-        recentCount = recentCount,
+        recentPlayedCount = recentPlayedCount,
+        weekFavoritesCount = weekFavoritesCount,
+        recentAddedCount = library.recentlyAddedTracks.size,
+        longUnplayedCount = library.longUnplayedTracks.size,
         downloadedCount = downloads.finished.size,
         sourceCount = sourceNames.size,
         sourceSummary = sourceNames.joinToString(" · "),
@@ -611,48 +771,4 @@ private fun buildOverviewState(
     )
 }
 
-private fun overviewLabels(modeActions: List<TrackListModeAction>): LibraryOverviewLabels {
-    val english = modeActions.firstOrNull { it.mode == LibraryGrouping.SONGS }
-        ?.label
-        ?.equals("Songs", ignoreCase = true) == true
-    return if (english) {
-        LibraryOverviewLabels(
-            title = "Library",
-            browse = "Browse library",
-            allSongs = "All songs",
-            albums = "Albums",
-            artists = "Artists",
-            playlists = "Playlists",
-            folders = "Folders",
-            myMusic = "My music",
-            favorites = "Favorites",
-            recent = "Recently played",
-            downloaded = "Downloaded",
-            sources = "Music sources",
-            search = "Search songs, albums, artists, or playlists",
-            manage = "Sync library",
-            songUnit = " songs"
-        )
-    } else {
-        LibraryOverviewLabels(
-            title = "曲库",
-            browse = "浏览曲库",
-            allSongs = "全部歌曲",
-            albums = "专辑",
-            artists = "艺人",
-            playlists = "歌单",
-            folders = "文件夹",
-            myMusic = "我的音乐",
-            favorites = "喜欢的音乐",
-            recent = "最近播放",
-            downloaded = "已下载",
-            sources = "音乐来源",
-            search = "搜索歌曲、专辑、艺人或歌单",
-            manage = "同步曲库",
-            songUnit = " 首"
-        )
-    }
-}
-
-private fun songCount(count: Int, labels: LibraryOverviewLabels): String =
-    count.toString() + labels.songUnit
+private fun songCount(count: Int, unit: String): String = count.toString() + unit

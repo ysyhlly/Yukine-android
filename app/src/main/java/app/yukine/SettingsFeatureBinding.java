@@ -3,11 +3,17 @@ package app.yukine;
 import android.os.Handler;
 
 import androidx.activity.ComponentActivity;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.streaming.LuoxueSourceStore;
 import app.yukine.streaming.KugouExperimentalSyncStore;
 import app.yukine.ui.EchoTheme;
+
+import java.util.List;
 
 /** Owns Activity-scoped settings state, typed effects, runtime application and lifecycle. */
 final class SettingsFeatureBinding {
@@ -27,6 +33,8 @@ final class SettingsFeatureBinding {
     private CustomBackgroundAccentController customBackgroundAccentController;
     private ComponentActivity activity;
     private MainPermissionController permissionController;
+    private LiveData<List<WorkInfo>> identityBackfillWorkInfos;
+    private Observer<List<WorkInfo>> identityBackfillObserver;
     private boolean released;
 
     SettingsFeatureBinding(
@@ -115,21 +123,64 @@ final class SettingsFeatureBinding {
                         documentPickerController::openAudioFilePicker,
                         documentPickerController::openAudioFolderPicker,
                         () -> executors.io(() -> {
-                            IdentityBackfillScheduler.INSTANCE.rebuildOrReuseBlocking(activity);
+                            IdentityBackfillScheduleResult result =
+                                    IdentityBackfillScheduler.INSTANCE.rebuildOrReuseBlocking(activity);
                             mainHandler.post(() -> {
-                                statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.started"));
+                                showIdentityBackfillScheduleFeedback(statusMessages, result);
                                 viewModel.refreshSettingsContext();
                             });
                         }),
                         () -> {
                             IdentityBackfillScheduler.INSTANCE.cancel(activity);
-                            statusMessages.setStatus(AppLanguage.text(languageMode(), "identity.backfill.cancelled"));
+                            statusMessages.showFeedback(
+                                    AppLanguage.text(languageMode(), "identity.backfill.cancelled")
+                            );
                             viewModel.refreshSettingsContext();
                         },
                         luoxueSourceImportDialogController::showSourceManager,
                         luoxueSourceImportDialogController::showImportDialog,
                         library::restoreHidden,
-                        library::restoreAllHidden
+                        library::restoreAllHidden,
+                        mode -> executors.io(() -> {
+                            repository.saveLibraryDedupMode(mode);
+                            IdentityBackfillScheduler.INSTANCE.scheduleManual(activity, true);
+                            mainHandler.post(() -> {
+                                statusMessages.setStatus(AppLanguage.text(
+                                        languageMode(),
+                                        "library.dedup.mode.changed"
+                                ));
+                                viewModel.refreshSettingsContext();
+                            });
+                        }),
+                        (leftRecordingId, rightRecordingId) -> executors.io(() -> {
+                            app.yukine.data.DuplicateBatchConfirmResult result =
+                                    repository.confirmDuplicateCandidate(
+                                            leftRecordingId,
+                                            rightRecordingId
+                                    );
+                            mainHandler.post(() -> {
+                                library.loadLibrary(false);
+                                statusMessages.setStatus(
+                                        AppLanguage.text(languageMode(), "library.dedup.confirm.result") +
+                                                " " + result.getConfirmed() + "/" +
+                                                (result.getConfirmed() + result.getSkipped() + result.getFailed())
+                                );
+                                viewModel.refreshSettingsContext();
+                            });
+                        }),
+                        () -> executors.io(() -> {
+                            app.yukine.data.DuplicateBatchConfirmResult result =
+                                    repository.confirmHighConfidenceDuplicateCandidates(50);
+                            mainHandler.post(() -> {
+                                library.loadLibrary(false);
+                                statusMessages.setStatus(
+                                        AppLanguage.text(languageMode(), "library.dedup.confirm.result") +
+                                                " " + result.getConfirmed() + "/" +
+                                                (result.getConfirmed() + result.getSkipped() + result.getFailed())
+                                );
+                                viewModel.refreshSettingsContext();
+                            });
+                        })
                 ),
                 new SettingsPlaybackEffectActions(
                         () -> lyricsViewModel.reloadCurrentLyrics(languageMode()),
@@ -186,6 +237,7 @@ final class SettingsFeatureBinding {
                 repository
         );
         viewModel.bindContextLoader(contextProvider);
+        bindIdentityBackfillStatus(activity);
         viewModel.bindRouteState(navigationViewModel.getSettingsRouteState());
     }
 
@@ -220,6 +272,11 @@ final class SettingsFeatureBinding {
 
     void release() {
         released = true;
+        if (identityBackfillWorkInfos != null && identityBackfillObserver != null) {
+            identityBackfillWorkInfos.removeObserver(identityBackfillObserver);
+        }
+        identityBackfillWorkInfos = null;
+        identityBackfillObserver = null;
         viewModel.bindRouteState(null);
         viewModel.bindContextLoader(null);
         viewModel.bindEffectListener(null);
@@ -231,6 +288,46 @@ final class SettingsFeatureBinding {
     void onResume() {
         viewModel.refreshSettingsContext();
         reconcileFloatingLyricsState();
+    }
+
+    private void bindIdentityBackfillStatus(ComponentActivity activity) {
+        identityBackfillWorkInfos = WorkManager.getInstance(activity.getApplicationContext())
+                .getWorkInfosForUniqueWorkLiveData(IdentityBackfillScheduler.UNIQUE_WORK_NAME);
+        identityBackfillObserver = workInfos -> {
+            if (released || workInfos == null || executors == null || mainHandler == null) return;
+            executors.io(() -> {
+                IdentityBackfillScheduler.INSTANCE.syncRuntimeStatus(activity, workInfos);
+                mainHandler.post(() -> {
+                    if (!released) viewModel.refreshSettingsContext();
+                });
+            });
+        };
+        identityBackfillWorkInfos.observe(activity, identityBackfillObserver);
+    }
+
+    private void showIdentityBackfillScheduleFeedback(
+            StatusMessageController statusMessages,
+            IdentityBackfillScheduleResult result
+    ) {
+        String key;
+        switch (result.getKind()) {
+            case ENQUEUED:
+                key = "identity.backfill.queued";
+                break;
+            case ALREADY_ACTIVE:
+                key = "identity.backfill.already.active";
+                break;
+            case FAILED:
+            default:
+                key = "identity.backfill.schedule.failed";
+                break;
+        }
+        String message = AppLanguage.text(languageMode(), key);
+        if (result.getKind() == IdentityBackfillScheduleKind.FAILED
+                && !result.getErrorMessage().isBlank()) {
+            message += ": " + result.getErrorMessage();
+        }
+        statusMessages.showFeedback(message);
     }
 
     private void reconcileFloatingLyricsState() {

@@ -113,6 +113,32 @@ class LocalStreamingLoginEndpointsTest {
     }
 
     @Test
+    fun kugouSessionRequiresAccountTokenNotAnonymousDeviceId() {
+        assertFalse(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.KUGOU,
+                listOf("kg_mid")
+            )
+        )
+        assertTrue(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.KUGOU,
+                listOf("kg_mid", "token")
+            )
+        )
+        assertTrue(
+            LocalStreamingLoginEndpoints.hasSessionToken(
+                StreamingProviderName.KUGOU,
+                listOf("t_token")
+            )
+        )
+        assertEquals(
+            listOf("token", "t_token"),
+            LocalStreamingLoginEndpoints.sessionTokenNames(StreamingProviderName.KUGOU)
+        )
+    }
+
+    @Test
     fun qqMusicSessionRequiresCredentialCookieNotOnlyUin() {
         assertFalse(
             LocalStreamingLoginEndpoints.hasSessionToken(

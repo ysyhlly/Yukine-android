@@ -4,6 +4,7 @@ import app.yukine.streaming.StreamingQualityPreference
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.identity.LibraryDedupMode
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.HomeDashboardLayout
@@ -87,6 +88,8 @@ data class RuntimeSettingsStatus(
     val librarySongCount: Int = 0,
     val libraryAlbumCount: Int = 0,
     val libraryArtistCount: Int = 0,
+    val libraryDedupMode: LibraryDedupMode = LibraryDedupMode.SAFE,
+    val duplicateCandidateCenter: DuplicateCandidateCenterUi = DuplicateCandidateCenterUi(),
     val streamingGatewayEndpoint: String = "gateway://unconfigured",
     val streamingGatewayConfigured: Boolean = false,
     val luoxueImportedSourceCount: Int = 0,
@@ -100,15 +103,34 @@ data class RuntimeSettingsStatus(
     val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
 )
 
+enum class IdentityBackfillStateUi {
+    IDLE,
+    QUEUED,
+    RUNNING,
+    COMPLETED,
+    FAILED,
+    CANCELLED
+}
+
 data class IdentityBackfillStatusUi(
     val total: Int = 0,
     val processed: Int = 0,
     val merged: Int = 0,
     val pending: Int = 0,
     val lxMigrated: Int = 0,
-    val lxDeleted: Int = 0
+    val lxDeleted: Int = 0,
+    val state: IdentityBackfillStateUi = IdentityBackfillStateUi.IDLE,
+    val stage: String = "",
+    val errorMessage: String = "",
+    val updatedAt: Long = 0L
 ) {
-    val running: Boolean get() = total > 0 && processed < total
+    val active: Boolean
+        get() = state == IdentityBackfillStateUi.QUEUED ||
+            state == IdentityBackfillStateUi.RUNNING
+    val running: Boolean get() = active
+    val progressFraction: Float?
+        get() = total.takeIf { it > 0 }
+            ?.let { (processed.toFloat() / it.toFloat()).coerceIn(0f, 1f) }
 }
 
 data class HiddenLibraryItemUi(val sourceKey: String, val label: String)

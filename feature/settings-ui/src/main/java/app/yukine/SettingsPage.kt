@@ -31,6 +31,7 @@ sealed class SettingsPage(
     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
+    data object DuplicateCandidates : SettingsPage(MainRoutes.SETTINGS_DUPLICATE_CANDIDATES)
     data object StreamingGateway : SettingsPage(MainRoutes.SETTINGS_STREAMING_GATEWAY)
 
     companion object {
@@ -63,6 +64,7 @@ sealed class SettingsPage(
                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
                 MainRoutes.SETTINGS_LYRICS -> Lyrics
                 MainRoutes.SETTINGS_LIBRARY -> Library
+                MainRoutes.SETTINGS_DUPLICATE_CANDIDATES -> DuplicateCandidates
                 MainRoutes.SETTINGS_STREAMING_GATEWAY -> StreamingGateway
                 else -> Home
             }
@@ -100,6 +102,7 @@ sealed class SettingsPage(
                 SleepTimer,
                 Lyrics,
                 Library,
+                DuplicateCandidates,
                 StreamingGateway
             )
     }

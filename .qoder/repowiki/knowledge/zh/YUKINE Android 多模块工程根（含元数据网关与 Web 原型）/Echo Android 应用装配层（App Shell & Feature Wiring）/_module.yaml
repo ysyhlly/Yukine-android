@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: app
+title: Echo Android 应用装配层（App Shell & Feature Wiring）
+scope:
+    - app/
+source_files: []
+depends_on: []
+related_to:
+    - path: metadata_gateway/core_api

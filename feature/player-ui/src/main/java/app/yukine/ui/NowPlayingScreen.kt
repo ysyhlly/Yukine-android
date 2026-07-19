@@ -93,7 +93,8 @@ data class NowPlayingUiState(
     val onClearLyrics: Runnable = Runnable {},
     val onPrimaryVisibleChange: (Boolean) -> Unit = {},
     val onTranslationVisibleChange: (Boolean) -> Unit = {},
-    val onRomanizationVisibleChange: (Boolean) -> Unit = {}
+    val onRomanizationVisibleChange: (Boolean) -> Unit = {},
+    val lyricsOffsetMs: Long = 0L
 )
 
 data class NowPlayingSourceOption(
@@ -126,22 +127,9 @@ fun NowPlayingScreen(
     gestureActions: NowPlayingGestureActions = NowPlayingGestureActions.Empty,
     onLyricSeek: (Long) -> Unit = {}
 ) {
-    var smoothPositionMs by remember(state.trackId) { mutableStateOf(state.positionMs) }
-    LaunchedEffect(state.trackId, state.positionMs, state.playing) {
-        smoothPositionMs = state.positionMs
-        if (state.playing) {
-            val anchorRealtime = SystemClock.elapsedRealtime()
-            while (true) {
-                delay(50L)
-                smoothPositionMs = state.positionMs +
-                    (SystemClock.elapsedRealtime() - anchorRealtime)
-            }
-        }
+    val seekFromLyric: (Long) -> Unit = { lyricPositionMs ->
+        onLyricSeek(playbackPositionForLyricMs(lyricPositionMs, state.lyricsOffsetMs))
     }
-    val timedLyrics = state.lyrics.map { line ->
-        line.copy(active = smoothPositionMs in line.timeMs until line.endTimeMs.coerceAtLeast(line.timeMs + 1L))
-    }
-    val activeLyricIndex = timedLyrics.indexOfFirst { it.active }
 
     AnimatedContent(
         targetState = immersive,
@@ -150,27 +138,27 @@ fun NowPlayingScreen(
     ) { isImmersive ->
         if (isImmersive) {
             ImmersiveLyricsView(
-                lyrics = timedLyrics,
-                activeIndex = activeLyricIndex,
-                positionMs = smoothPositionMs,
+                lyrics = state.lyrics,
+                playbackPositionMs = state.positionMs,
+                playing = state.playing,
+                trackId = state.trackId,
+                offsetMs = state.lyricsOffsetMs,
                 title = state.title,
                 subtitle = state.subtitle,
                 albumArtUri = state.albumArtUri,
-                onLyricSeek = onLyricSeek,
+                onLyricSeek = seekFromLyric,
                 onExit = { onImmersiveChanged(false) }
             )
         } else {
             NowPlayingNormalView(
-                state = state.copy(lyrics = timedLyrics),
-                activeLyricIndex = activeLyricIndex,
-                positionMs = smoothPositionMs,
+                state = state,
                 onArtworkClick = {
                     if (state.lyrics.isNotEmpty()) {
                         onImmersiveChanged(true)
                     }
                 },
                 gestureActions = gestureActions,
-                onLyricSeek = onLyricSeek
+                onLyricSeek = seekFromLyric
             )
         }
     }
@@ -179,8 +167,10 @@ fun NowPlayingScreen(
 @Composable
 private fun ImmersiveLyricsView(
     lyrics: List<LyricUiLine>,
-    activeIndex: Int,
-    positionMs: Long,
+    playbackPositionMs: Long,
+    playing: Boolean,
+    trackId: Long,
+    offsetMs: Long,
     title: String,
     subtitle: String,
     albumArtUri: Uri?,
@@ -189,6 +179,13 @@ private fun ImmersiveLyricsView(
 ) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
+    val positionMs = rememberSmoothLyricPosition(
+        trackId = trackId,
+        playbackPositionMs = playbackPositionMs,
+        playing = playing,
+        offsetMs = offsetMs
+    )
+    val activeIndex = lyrics.indexOfFirst { line -> line.isActiveAt(positionMs) }
     androidx.compose.runtime.LaunchedEffect(activeIndex) {
         if (activeIndex >= 0) {
             listState.scrollToItem(activeIndex, scrollOffset = -200)
@@ -258,7 +255,11 @@ private fun ImmersiveLyricsView(
                     items = lyrics,
                     key = { index, line -> "imm-$index:${line.text.hashCode()}" }
                 ) { _, line ->
-                    ImmersiveLyricRow(line, positionMs, onSeek = onLyricSeek)
+                    ImmersiveLyricRow(
+                        line = line.copy(active = line.isActiveAt(positionMs)),
+                        positionMs = positionMs,
+                        onSeek = onLyricSeek
+                    )
                 }
             }
         }
@@ -302,8 +303,6 @@ private fun ImmersiveLyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long
 @Composable
 private fun NowPlayingNormalView(
     state: NowPlayingUiState,
-    activeLyricIndex: Int,
-    positionMs: Long,
     onArtworkClick: () -> Unit,
     gestureActions: NowPlayingGestureActions,
     onLyricSeek: (Long) -> Unit
@@ -443,8 +442,10 @@ private fun NowPlayingNormalView(
                 title = state.lyricsTitle,
                 status = state.lyricsStatus,
                 lines = state.lyrics,
-                activeIndex = activeLyricIndex,
-                positionMs = positionMs,
+                playbackPositionMs = state.positionMs,
+                playing = state.playing,
+                trackId = state.trackId,
+                offsetMs = state.lyricsOffsetMs,
                 primaryVisible = state.primaryVisible,
                 translationVisible = state.translationVisible,
                 romanizationVisible = state.romanizationVisible,
@@ -781,8 +782,10 @@ private fun LyricsPanel(
     title: String,
     status: String,
     lines: List<LyricUiLine>,
-    activeIndex: Int,
-    positionMs: Long,
+    playbackPositionMs: Long,
+    playing: Boolean,
+    trackId: Long,
+    offsetMs: Long,
     primaryVisible: Boolean,
     translationVisible: Boolean,
     romanizationVisible: Boolean,
@@ -795,6 +798,12 @@ private fun LyricsPanel(
 ) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
+    val positionMs = rememberSmoothLyricPosition(
+        trackId = trackId,
+        playbackPositionMs = playbackPositionMs,
+        playing = playing,
+        offsetMs = offsetMs
+    )
     EchoGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
@@ -873,12 +882,38 @@ private fun LyricsPanel(
                         items = lines,
                         key = { index, line -> "$index:${line.text.hashCode()}" }
                     ) { _, line ->
-                        LyricRow(line, positionMs, onSeek = onLyricSeek)
+                        LyricRow(
+                            line = line.copy(active = line.isActiveAt(positionMs)),
+                            positionMs = positionMs,
+                            onSeek = onLyricSeek
+                        )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun rememberSmoothLyricPosition(
+    trackId: Long,
+    playbackPositionMs: Long,
+    playing: Boolean,
+    offsetMs: Long
+): Long {
+    var smoothPositionMs by remember(trackId) { mutableStateOf(playbackPositionMs) }
+    LaunchedEffect(trackId, playbackPositionMs, playing) {
+        smoothPositionMs = playbackPositionMs
+        if (playing) {
+            val anchorRealtime = SystemClock.elapsedRealtime()
+            while (true) {
+                delay(50L)
+                smoothPositionMs = playbackPositionMs +
+                    (SystemClock.elapsedRealtime() - anchorRealtime)
+            }
+        }
+    }
+    return adjustedLyricPositionMs(smoothPositionMs, offsetMs)
 }
 
 @Composable
@@ -969,17 +1004,16 @@ private fun highlightedWords(
     inactiveColor: Color
 ): AnnotatedString {
     if (!line.active || line.words.isEmpty()) return AnnotatedString(line.text)
-    val currentWord = line.words.indexOfLast { positionMs >= it.startMs }
-    if (currentWord < 0) return AnnotatedString(line.text)
     val builder = AnnotatedString.Builder(line.text)
     var searchFrom = 0
-    line.words.forEachIndexed { index, word ->
-        val start = line.text.indexOf(word.text, searchFrom).takeIf { it >= 0 } ?: return@forEachIndexed
-        val end = (start + word.text.length).coerceAtMost(line.text.length)
+    line.words.forEach { word ->
+        val (start, end) = word.textBounds(line.text, searchFrom) ?: return@forEach
+        val current = word.isActiveAt(positionMs)
+        val completed = positionMs >= word.endMs
         builder.addStyle(
             SpanStyle(
-                color = if (index <= currentWord) activeColor else inactiveColor,
-                fontWeight = if (index == currentWord) FontWeight.Bold else null
+                color = if (current || completed) activeColor else inactiveColor,
+                fontWeight = if (current) FontWeight.Bold else null
             ),
             start,
             end

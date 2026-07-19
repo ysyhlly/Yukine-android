@@ -72,6 +72,7 @@ fun NowPlayingDestination(
             lyricsTitle = uiState.lyrics.title,
             lyricsStatus = uiState.lyrics.status,
             lyrics = uiState.lyrics.lines,
+            lyricsOffsetMs = uiState.lyrics.offsetMs,
             artistName = uiState.track.artist,
             albumName = uiState.track.album.orEmpty(),
             audioSpec = track.audioSpecSummary(),

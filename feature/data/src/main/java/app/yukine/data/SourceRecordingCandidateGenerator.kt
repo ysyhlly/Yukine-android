@@ -17,7 +17,8 @@ internal enum class CandidateRecallSource {
     TRIGRAM,
     BIGRAM,
     EMBEDDING_LSH,
-    CHROMAPRINT_BUCKET
+    CHROMAPRINT_BUCKET,
+    ARTIST_TRIGRAM
 }
 
 internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
@@ -57,6 +58,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         val exactTitle = HashMap<String, MutableList<Descriptor>>()
         val trigramPostings = HashMap<String, MutableList<Descriptor>>()
         val bigramPostings = HashMap<String, MutableList<Descriptor>>()
+        val artistTrigramPostings = HashMap<String, MutableList<Descriptor>>()
         descriptors.forEach { descriptor ->
             exactTitleArtist.getOrPut(
                 TitleArtistKey(descriptor.coreTitle, descriptor.normalizedArtist)
@@ -67,6 +69,9 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
             }
             descriptor.titleBigrams.forEach { gram ->
                 bigramPostings.getOrPut(gram) { ArrayList() } += descriptor
+            }
+            descriptor.artistTrigrams.forEach { gram ->
+                artistTrigramPostings.getOrPut(gram) { ArrayList() } += descriptor
             }
         }
         val descriptorsBySourceId = descriptors.associateBy(Descriptor::sourceId)
@@ -109,6 +114,14 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 baselinePool,
                 CandidateRecallSource.TRIGRAM
             )
+            if (query.artistTrigrams.isNotEmpty()) {
+                addRarePostings(
+                    query.artistTrigrams,
+                    artistTrigramPostings,
+                    baselinePool,
+                    CandidateRecallSource.ARTIST_TRIGRAM
+                )
+            }
             if (baselinePool.size < MIN_COARSE_POOL) {
                 addRarePostings(
                     query.titleBigrams,
@@ -279,6 +292,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
             versionSignature = current.versionSignature,
             titleBigrams = decodeSet(current.titleBigrams),
             titleTrigrams = decodeSet(current.titleTrigrams),
+            artistTrigrams = ngrams(current.normalizedArtist, 3),
             metadataVector = validEmbedding,
             embeddingVersion = if (validEmbedding == null) 0 else current.metadataVectorVersion,
             simHash = if (validEmbedding == null) null else current.metadataSimHash
@@ -320,7 +334,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         val artistScore = when {
             query.normalizedArtist.isBlank() || candidate.normalizedArtist.isBlank() -> 0.0
             query.normalizedArtist == candidate.normalizedArtist -> 1.0
-            else -> 0.0
+            else -> dice(query.artistTrigrams, candidate.artistTrigrams) * 0.8
         }
         val durationScore = if (query.durationBucket < 0L || candidate.durationBucket < 0L) {
             0.5
@@ -461,6 +475,17 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         RecordingVersionType.valueOf(this)
     }.getOrDefault(RecordingVersionType.UNKNOWN)
 
+    private fun ngrams(value: String, width: Int): Set<String> {
+        val points = value.codePoints()
+            .filter { !Character.isWhitespace(it) }
+            .toArray()
+        if (points.isEmpty()) return emptySet()
+        if (points.size < width) return setOf(String(points, 0, points.size))
+        return (0..points.size - width).mapTo(sortedSetOf()) { index ->
+            String(points, index, width)
+        }
+    }
+
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(StandardCharsets.UTF_8))
         .joinToString("") { byte -> "%02x".format(byte) }
@@ -488,6 +513,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         val versionSignature: String,
         val titleBigrams: Set<String>,
         val titleTrigrams: Set<String>,
+        val artistTrigrams: Set<String>,
         val metadataVector: ByteArray?,
         val embeddingVersion: Int,
         val simHash: Long?

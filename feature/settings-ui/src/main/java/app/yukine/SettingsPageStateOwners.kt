@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.identity.LibraryDedupMode
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
@@ -369,6 +370,11 @@ class LibrarySettingsStateOwner internal constructor(private val context: Settin
     fun openAudioFolderPicker() = context.emit(SettingsEffect.OpenAudioFolderPicker)
     fun rebuildSongIdentity() = context.emit(SettingsEffect.RebuildSongIdentity)
     fun cancelIdentityBackfill() = context.emit(SettingsEffect.CancelIdentityBackfill)
+    fun setDedupMode(mode: LibraryDedupMode) = context.emit(SettingsEffect.SetLibraryDedupMode(mode))
+    fun confirmDuplicateCandidate(leftRecordingId: Long, rightRecordingId: Long) =
+        context.emit(SettingsEffect.ConfirmDuplicateCandidate(leftRecordingId, rightRecordingId))
+    fun confirmHighConfidenceDuplicates() =
+        context.emit(SettingsEffect.ConfirmHighConfidenceDuplicates)
     fun restoreHiddenItem(sourceKey: String) = context.emit(SettingsEffect.RestoreHiddenLibraryItem(sourceKey))
     fun restoreAllHiddenItems() = context.emit(SettingsEffect.RestoreAllHiddenLibraryItems)
 }

@@ -27,7 +27,8 @@ object SettingsBackStack {
             SettingsPage.ConcurrentPlayback,
             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
 
-            SettingsPage.Library -> SettingsPage.LibraryGroup
+            SettingsPage.Library,
+            SettingsPage.DuplicateCandidates -> SettingsPage.LibraryGroup
             SettingsPage.Lyrics,
             SettingsPage.StatusBarLyrics,
             SettingsPage.FloatingLyrics -> SettingsPage.LyricsGroup

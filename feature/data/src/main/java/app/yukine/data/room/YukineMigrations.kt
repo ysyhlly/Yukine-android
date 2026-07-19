@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 32
+    const val TARGET_VERSION: Int = 33
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -24,6 +24,7 @@ object YukineMigrations {
                 normalizeV30(db)
                 normalizeV31(db)
                 normalizeV32(db)
+                normalizeV33(db)
             }
         }
     }.toTypedArray()
@@ -443,6 +444,32 @@ object YukineMigrations {
                 "SELECT work_id,'MUSICBRAINZ_WORK_ID','',lower(trim(musicbrainz_work_id))," +
                 "'MIGRATION_V32',confidence,updated_at FROM recordings " +
                 "WHERE work_id IS NOT NULL AND trim(musicbrainz_work_id) != ''"
+        )
+    }
+
+    internal fun normalizeV33(db: SupportSQLiteDatabase) {
+        addTextColumn(db, "identity_operations", "dedup_mode")
+        addIntegerColumn(db, "identity_operations", "policy_version")
+        addTextColumn(db, "identity_operations", "evaluation_batch")
+        if (!columnExists(db, "identity_operations", "rollback_status")) {
+            db.execSQL(
+                "ALTER TABLE `identity_operations` ADD COLUMN " +
+                    "`rollback_status` TEXT NOT NULL DEFAULT 'NONE'"
+            )
+        }
+        addTextColumn(db, "identity_operations", "post_state_hash")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_source_candidates_global` ON " +
+                "`source_recording_candidates` (`state`,`coarse_score`,`updated_at`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_identity_operations_dedup_rollback` ON " +
+                "`identity_operations` (`dedup_mode`,`rollback_status`,`created_at`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_recording_relations_global_candidates` ON " +
+                "`recording_relations` " +
+                "(`locked`,`relation_type`,`same_recording_probability`,`updated_at`)"
         )
     }
 

@@ -610,6 +610,20 @@ interface SettingsDao {
     fun delete(key: String): Int
 }
 
+data class GlobalDedupCandidateRow(
+    @ColumnInfo(name = "left_recording_id") val leftRecordingId: Long,
+    @ColumnInfo(name = "right_recording_id") val rightRecordingId: Long,
+    @ColumnInfo(name = "left_title") val leftTitle: String,
+    @ColumnInfo(name = "left_artist") val leftArtist: String,
+    @ColumnInfo(name = "right_title") val rightTitle: String,
+    @ColumnInfo(name = "right_artist") val rightArtist: String,
+    @ColumnInfo(name = "same_recording_probability") val sameRecordingProbability: Double,
+    @ColumnInfo(name = "runner_up_probability") val runnerUpProbability: Double,
+    @ColumnInfo(name = "relation_type") val relationType: String,
+    @ColumnInfo(name = "evidence_json") val evidenceJson: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
 @Dao
 interface RemoteSourceDao {
     @Query("SELECT * FROM remote_sources ORDER BY updated_at DESC, name COLLATE NOCASE")
@@ -651,6 +665,79 @@ interface StreamingTrackMatchDao {
 
 @Dao
 interface MusicIdentityDao {
+    @Query(
+        "SELECT rel.left_recording_id, rel.right_recording_id, " +
+            "left_recording.title AS left_title, " +
+            "left_recording.primary_artist_display AS left_artist, " +
+            "right_recording.title AS right_title, " +
+            "right_recording.primary_artist_display AS right_artist, " +
+            "rel.same_recording_probability, " +
+            "COALESCE((SELECT MAX(competing.same_recording_probability) " +
+            "FROM recording_relations competing " +
+            "WHERE competing.locked = 0 " +
+            "AND competing.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
+            "AND (competing.left_recording_id IN " +
+            "(rel.left_recording_id, rel.right_recording_id) " +
+            "OR competing.right_recording_id IN " +
+            "(rel.left_recording_id, rel.right_recording_id)) " +
+            "AND NOT (competing.left_recording_id = rel.left_recording_id " +
+            "AND competing.right_recording_id = rel.right_recording_id)), 0) " +
+            "AS runner_up_probability, " +
+            "rel.relation_type, rel.evidence_json, rel.updated_at " +
+            "FROM recording_relations rel " +
+            "JOIN recordings left_recording ON left_recording.id = rel.left_recording_id " +
+            "JOIN recordings right_recording ON right_recording.id = rel.right_recording_id " +
+            "WHERE rel.locked = 0 " +
+            "AND rel.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
+            "ORDER BY rel.same_recording_probability DESC, rel.updated_at DESC, " +
+            "rel.left_recording_id, rel.right_recording_id LIMIT :limit OFFSET :offset"
+    )
+    fun globalDedupCandidates(limit: Int, offset: Int): List<GlobalDedupCandidateRow>
+
+    @Query(
+        "SELECT rel.left_recording_id, rel.right_recording_id, " +
+            "left_recording.title AS left_title, " +
+            "left_recording.primary_artist_display AS left_artist, " +
+            "right_recording.title AS right_title, " +
+            "right_recording.primary_artist_display AS right_artist, " +
+            "rel.same_recording_probability, " +
+            "COALESCE((SELECT MAX(competing.same_recording_probability) " +
+            "FROM recording_relations competing " +
+            "WHERE competing.locked = 0 " +
+            "AND competing.relation_type IN ('SAME_RECORDING','UNKNOWN') " +
+            "AND (competing.left_recording_id IN " +
+            "(rel.left_recording_id, rel.right_recording_id) " +
+            "OR competing.right_recording_id IN " +
+            "(rel.left_recording_id, rel.right_recording_id)) " +
+            "AND NOT (competing.left_recording_id = rel.left_recording_id " +
+            "AND competing.right_recording_id = rel.right_recording_id)), 0) " +
+            "AS runner_up_probability, " +
+            "rel.relation_type, rel.evidence_json, rel.updated_at " +
+            "FROM recording_relations rel " +
+            "JOIN recordings left_recording ON left_recording.id = rel.left_recording_id " +
+            "JOIN recordings right_recording ON right_recording.id = rel.right_recording_id " +
+            "WHERE rel.left_recording_id = :leftRecordingId " +
+            "AND rel.right_recording_id = :rightRecordingId " +
+            "AND rel.locked = 0 " +
+            "AND rel.relation_type IN ('SAME_RECORDING','UNKNOWN') LIMIT 1"
+    )
+    fun globalDedupCandidate(
+        leftRecordingId: Long,
+        rightRecordingId: Long
+    ): GlobalDedupCandidateRow?
+
+    @Query(
+        "SELECT COUNT(*) FROM recording_relations " +
+            "WHERE locked = 0 AND relation_type IN ('SAME_RECORDING','UNKNOWN')"
+    )
+    fun globalDedupCandidateCount(): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM identity_operations " +
+            "WHERE dedup_mode = 'AGGRESSIVE' AND rollback_status = 'REVIEW_REQUIRED' " +
+            "AND reverted_at IS NULL"
+    )
+    fun dedupRollbackReviewRequiredCount(): Int
     @Query("SELECT * FROM works WHERE id = :workId LIMIT 1")
     fun work(workId: Long): CanonicalWorkEntity?
 
@@ -1322,6 +1409,16 @@ interface MusicIdentityDao {
     fun identityOperation(operationId: Long): IdentityOperationEntity?
 
     @Query(
+        "SELECT * FROM identity_operations WHERE dedup_mode = 'AGGRESSIVE' " +
+            "AND rollback_status = 'ELIGIBLE' AND reverted_at IS NULL " +
+            "ORDER BY id DESC LIMIT :limit"
+    )
+    fun aggressiveDedupRollbackOperations(limit: Int): List<IdentityOperationEntity>
+
+    @Query("UPDATE identity_operations SET rollback_status = :status WHERE id = :operationId")
+    fun updateIdentityOperationRollbackStatus(operationId: Long, status: String): Int
+
+    @Query(
         "SELECT COUNT(*) FROM identity_operations WHERE id > :operationId AND (" +
             "source_recording_id IN (:recordingIds) OR target_recording_id IN (:recordingIds)) " +
             "AND operation_type != 'MANUAL_MATCH_DECISION'"
@@ -1440,8 +1537,44 @@ interface MusicIdentityDao {
         generatedAt: Long
     ): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsert(identifier: RecordingIdentifierEntity)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    fun insertIdentifier(identifier: RecordingIdentifierEntity)
+
+    @Update
+    fun updateIdentifier(identifier: RecordingIdentifierEntity): Int
+
+    @Query(
+        "UPDATE recording_identifiers SET recording_id = :targetRecordingId " +
+            "WHERE recording_id = :sourceRecordingId"
+    )
+    fun moveIdentifiersForConfirmedMerge(
+        sourceRecordingId: Long,
+        targetRecordingId: Long
+    ): Int
+
+    /**
+     * A globally stable identifier must never change recording ownership as a side effect of
+     * SQLite REPLACE. Callers must explicitly merge recordings before moving an identifier.
+     */
+    @Transaction
+    fun upsert(identifier: RecordingIdentifierEntity) {
+        val existing = identifier(
+            identifier.identifierType,
+            identifier.namespace,
+            identifier.identifierValue
+        )
+        when {
+            existing == null -> insertIdentifier(identifier)
+            existing.recordingId != identifier.recordingId -> {
+                throw IllegalArgumentException(
+                    "Recording identifier already belongs to recording ${existing.recordingId}"
+                )
+            }
+            updateIdentifier(identifier) != 1 -> {
+                throw IllegalStateException("Recording identifier disappeared during update")
+            }
+        }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(variant: RecordingVariantEntity)

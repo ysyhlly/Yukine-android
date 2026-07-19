@@ -8,6 +8,7 @@ import app.yukine.model.TrackPlayRecord
 
 private const val PLAY_HISTORY_RECAP_LIMIT = 2000
 private const val PLAY_HISTORY_RECAP_WINDOW_MS = 4L * 7L * 24L * 60L * 60L * 1000L
+private const val SMART_COLLECTION_LIMIT = 60
 
 internal data class LibraryCollectionsSnapshot(
     @JvmField val selectedPlaylistId: Long,
@@ -17,7 +18,9 @@ internal data class LibraryCollectionsSnapshot(
     @JvmField val mostPlayedRecords: List<TrackPlayRecord>,
     @JvmField val playlists: List<Playlist>,
     @JvmField val remoteSources: List<RemoteSource>,
-    @JvmField val selectedPlaylistTracks: List<Track>
+    @JvmField val selectedPlaylistTracks: List<Track>,
+    @JvmField val recentlyAddedTracks: List<Track>,
+    @JvmField val longUnplayedTracks: List<Track>
 )
 
 internal interface LibraryCollectionOperations {
@@ -31,6 +34,8 @@ internal interface LibraryCollectionOperations {
     fun loadRemoteSources(): List<RemoteSource>
     fun loadPlaylistTracks(playlistId: Long): List<Track>
     fun clearPlayHistory(): Int
+    fun loadRecentlyAdded(limit: Int): List<Track> = emptyList()
+    fun loadLongUnplayed(limit: Int): List<Track> = emptyList()
 }
 
 internal class MusicLibraryCollectionOperations(
@@ -59,6 +64,10 @@ internal class MusicLibraryCollectionOperations(
         repository.loadPlaylistTracks(playlistId)
 
     override fun clearPlayHistory(): Int = repository.clearPlayHistory()
+
+    override fun loadRecentlyAdded(limit: Int): List<Track> = repository.loadRecentlyAdded(limit)
+
+    override fun loadLongUnplayed(limit: Int): List<Track> = repository.loadLongUnplayed(limit)
 }
 
 internal class LoadLibraryCollectionsUseCase @JvmOverloads constructor(
@@ -98,7 +107,9 @@ internal class LoadLibraryCollectionsUseCase @JvmOverloads constructor(
             mostPlayedRecords = operations.loadMostPlayed(PLAY_HISTORY_RECAP_LIMIT),
             playlists = playlists,
             remoteSources = operations.loadRemoteSources(),
-            selectedPlaylistTracks = selectedPlaylistTracks
+            selectedPlaylistTracks = selectedPlaylistTracks,
+            recentlyAddedTracks = operations.loadRecentlyAdded(SMART_COLLECTION_LIMIT),
+            longUnplayedTracks = operations.loadLongUnplayed(SMART_COLLECTION_LIMIT)
         )
     }
 }
@@ -122,7 +133,9 @@ internal class MainLibraryCollectionGateway(
             mostPlayedRecords = loaded.mostPlayedRecords,
             playlists = loaded.playlists,
             remoteSources = loaded.remoteSources,
-            selectedPlaylistTracks = loaded.selectedPlaylistTracks
+            selectedPlaylistTracks = loaded.selectedPlaylistTracks,
+            recentlyAddedTracks = loaded.recentlyAddedTracks,
+            longUnplayedTracks = loaded.longUnplayedTracks
         )
     }
 

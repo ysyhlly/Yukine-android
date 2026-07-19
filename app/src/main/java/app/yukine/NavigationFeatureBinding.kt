@@ -112,6 +112,10 @@ internal class NavigationFeatureBinding(
     fun openPlayHistory() {
         openPlayHistoryRoute(routeController, settingsStore.languageMode())
     }
+
+    fun openSmartCollection(key: String, title: String) {
+        routeController.openLibraryGroup(LibraryGrouping.PLAYLISTS, key, title)
+    }
     fun handleBack(): Boolean = intentOwner.handleBack()
 
     private fun createNavHostState(
@@ -150,6 +154,7 @@ internal class NavigationFeatureBinding(
             libraryActionHandler = viewModels.libraryViewModel.presentation::onAction,
             openPlayHistoryAction = Runnable(::openPlayHistory),
             openNetworkSourcesAction = Runnable { navigateToNetworkTabPage(NetworkPage.Sources) },
+            openSmartCollectionAction = ::openSmartCollection,
             navigateUpAction = Runnable { intentOwner.handleBack() },
             recordingMatchStateProvider = viewModels.recordingMatchViewModel
         ),

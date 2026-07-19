@@ -98,6 +98,46 @@ class MusicIdentityRepositoriesTest {
     }
 
     @Test
+    fun strongIdentifierConflictNeverSilentlyChangesRecordingOwner() {
+        val first = recordings.ensureCanonicalForTrack(track(3L, "Original", "Artist"))
+        val second = recordings.ensureCanonicalForTrack(track(4L, "Different", "Other Artist"))
+        val value = "US-AAA-26-00001"
+
+        recordings.attachIdentifier(
+            first.recordingId,
+            RecordingIdentifier(
+                recordingId = first.recordingId,
+                canonicalId = first.canonicalId,
+                identifierType = "ISRC",
+                identifierValue = value,
+                source = "TAG",
+                confidence = 1.0,
+                verifiedAt = 100L
+            )
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            recordings.attachIdentifier(
+                second.recordingId,
+                RecordingIdentifier(
+                    recordingId = second.recordingId,
+                    canonicalId = second.canonicalId,
+                    identifierType = "ISRC",
+                    identifierValue = value,
+                    source = "TAG",
+                    confidence = 1.0,
+                    verifiedAt = 200L
+                )
+            )
+        }
+
+        assertEquals(
+            first.recordingId,
+            database.musicIdentityDao().identifier("ISRC", "", "USAAA2600001")?.recordingId
+        )
+    }
+
+    @Test
     fun mergeMovesEveryIdentityDependentRowAndSplitCreatesNewStableUuid() {
         val source = recordings.ensureCanonicalForTrack(track(10L, "Song", "Same Artist"))
         val target = recordings.ensureCanonicalForTrack(track(11L, "Song candidate", "Same Artist"))

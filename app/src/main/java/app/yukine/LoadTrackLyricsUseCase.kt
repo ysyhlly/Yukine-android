@@ -14,6 +14,15 @@ internal interface TrackLyricsOperations {
         onlineEnabled: Boolean,
         neteaseProviderTrackId: String
     ): List<LyricsLine>
+
+    suspend fun loadDocumentForTrack(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): LyricsDocument = LyricsDocument.fromLegacy(
+        loadForTrack(track, onlineEnabled, neteaseProviderTrackId),
+        format = "legacy"
+    )
 }
 
 internal class LyricsRepositoryLoadOperations @JvmOverloads constructor(
@@ -24,6 +33,12 @@ internal class LyricsRepositoryLoadOperations @JvmOverloads constructor(
         onlineEnabled: Boolean,
         neteaseProviderTrackId: String
     ): List<LyricsLine> = repository.loadForTrack(track, onlineEnabled, neteaseProviderTrackId)
+
+    override suspend fun loadDocumentForTrack(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): LyricsDocument = repository.loadDocumentForTrack(track, onlineEnabled, neteaseProviderTrackId)
 }
 
 /**
@@ -55,6 +70,26 @@ internal class LuoxueFirstTrackLyricsOperations(
         }
         return fallback.loadForTrack(track, onlineEnabled, neteaseProviderTrackId)
     }
+
+    override suspend fun loadDocumentForTrack(
+        track: Track,
+        onlineEnabled: Boolean,
+        neteaseProviderTrackId: String
+    ): LyricsDocument {
+        val lxDocument = try {
+            resolver.resolveLyrics(track)?.let { lyrics ->
+                repository.parseProviderLyricsDocument(lyrics.lyric, lyrics.translation.orEmpty())
+            } ?: LyricsDocument.empty()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            LyricsDocument.empty()
+        }
+        if (!lxDocument.isEmpty()) {
+            return lxDocument
+        }
+        return fallback.loadDocumentForTrack(track, onlineEnabled, neteaseProviderTrackId)
+    }
 }
 
 internal class LoadTrackLyricsUseCase(
@@ -79,9 +114,10 @@ internal class LoadTrackLyricsUseCase(
     ): LyricsDocument {
         if (track == null) return LyricsDocument.empty()
         customLyricsRepository?.loadForTrack(track)?.document?.let { return it }
-        return LyricsDocument.fromLegacy(
-            execute(track, onlineEnabled, neteaseProviderTrackId),
-            format = "legacy"
+        return operations.loadDocumentForTrack(
+            track,
+            onlineEnabled,
+            neteaseProviderTrackId.orEmpty()
         )
     }
 }

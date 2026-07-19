@@ -1,0 +1,88 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-07-19T18:29:08Z"
+modules:
+    "":
+        dir_name: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
+        title: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
+        scope:
+            - README.md
+            - .editorconfig
+            - .gitignore
+            - build.gradle
+            - gradle.properties
+            - settings.gradle
+            - memory_phase2_proposed_update.md
+        source_files: []
+        children:
+            - app
+            - docs_and_audits
+            - metadata_gateway
+            - scripts_and_artifacts
+            - web_prototype
+        depends_on: []
+        related_to: []
+    app:
+        dir_name: Echo Android 应用装配层（App Shell & Feature Wiring）
+        title: Echo Android 应用装配层（App Shell & Feature Wiring）
+        scope:
+            - app/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: metadata_gateway/core_api
+    docs_and_audits:
+        dir_name: 架构文档与 UX 审计归档
+        title: 架构文档与 UX 审计归档
+        scope:
+            - docs/
+            - ux-audit/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    metadata_gateway:
+        dir_name: 元数据网关（多运行时聚合服务）
+        title: 元数据网关（多运行时聚合服务）
+        scope:
+            - metadata-gateway/
+        source_files: []
+        children:
+            - metadata_gateway/core_api
+        depends_on: []
+        related_to: []
+    metadata_gateway/core_api:
+        dir_name: 元数据网关核心 API（Cloudflare Worker）
+        title: 元数据网关核心 API（Cloudflare Worker）
+        scope:
+            - metadata-gateway/src/core.ts
+            - metadata-gateway/src/types.ts
+            - metadata-gateway/src/index.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: app
+    scripts_and_artifacts:
+        dir_name: 发布门禁与播放稳定性验证脚本及证据归档
+        title: 发布门禁与播放稳定性验证脚本及证据归档
+        scope:
+            - scripts/
+            - artifacts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    web_prototype:
+        dir_name: YUKINE 音乐 App Web 原型
+        title: YUKINE 音乐 App Web 原型
+        scope:
+            - web-prototype/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

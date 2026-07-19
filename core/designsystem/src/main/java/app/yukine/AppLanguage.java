@@ -60,6 +60,24 @@ public final class AppLanguage {
         put("library.delete.result", "Removed %d, failed %f, skipped %s", "\u5df2\u79fb\u9664 %d \u9879\uff0c\u5931\u8d25 %f \u9879\uff0c\u8df3\u8fc7 %s \u9879");
         put("library.hidden.restore", "Restore hidden song", "\u6062\u590d\u5df2\u9690\u85cf\u6b4c\u66f2");
         put("library.hidden.restore.all", "Restore all hidden songs", "\u6062\u590d\u5168\u90e8\u5df2\u9690\u85cf\u6b4c\u66f2");
+        put("library.overview.shelf", "For you", "\u4e3a\u4f60\u63a8\u8350");
+        put("library.overview.browse", "Browse by type", "\u6309\u65b9\u5f0f\u6d4f\u89c8");
+        put("library.overview.saved", "Saved & offline", "\u6536\u85cf\u4e0e\u79bb\u7ebf");
+        put("library.overview.sources.sync", "Sources & sync", "\u97f3\u4e50\u6765\u6e90\u4e0e\u540c\u6b65");
+        put("library.overview.favorites", "Favorites", "\u559c\u6b22\u7684\u97f3\u4e50");
+        put("library.overview.downloaded", "Downloaded", "\u5df2\u4e0b\u8f7d");
+        put("library.overview.sources", "Music sources", "\u97f3\u4e50\u6765\u6e90");
+        put("library.overview.search.hint", "Search songs, albums, artists, or playlists", "\u641c\u7d22\u6b4c\u66f2\u3001\u4e13\u8f91\u3001\u827a\u4eba\u6216\u6b4c\u5355");
+        put("library.overview.song.unit", " songs", " \u9996");
+        put("library.overview.local.source", "Local device", "\u672c\u673a");
+        put("library.smart.recent.added", "Recently added", "\u6700\u8fd1\u6dfb\u52a0");
+        put("library.smart.recent.played", "Recently played", "\u6700\u8fd1\u64ad\u653e");
+        put("library.smart.week.favorites", "Weekly favorites", "\u4e00\u5468\u6700\u7231");
+        put("library.smart.long.unplayed", "Long unplayed", "\u5f88\u4e45\u6ca1\u542c");
+        put("library.empty.smart.recent.added", "Songs you scan or import will show up here", "\u626b\u63cf\u6216\u5bfc\u5165\u6b4c\u66f2\u540e\uff0c\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc");
+        put("library.empty.smart.week.favorites", "Play a few favorites this week and they will show up here", "\u672c\u5468\u64ad\u653e\u559c\u6b22\u7684\u6b4c\u66f2\u540e\uff0c\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc");
+        put("library.empty.smart.long.unplayed", "You have listened to everything recently. Nice!", "\u6700\u8fd1\u6240\u6709\u6b4c\u90fd\u542c\u8fc7\u5566\uff0c\u771f\u68d2");
+        put("library.empty.smart.recent.played", "No recently played songs yet", "\u6682\u65e0\u6700\u8fd1\u64ad\u653e");
         put("search.no.results", "No matching songs found", "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u6b4c\u66f2");
         put("app.name", "YUKINE", "YUKINE");
         put("onboarding.enter", "Enter YUKINE", "\u8fdb\u5165 YUKINE");
@@ -480,7 +498,51 @@ public final class AppLanguage {
         put("identity.backfill.pending", "pending", "\u5f85\u786e\u8ba4");
         put("identity.backfill.lx", "LX migrated/deleted", "LX \u8fc1\u79fb/\u5220\u9664");
         put("identity.backfill.started", "Song identity rebuild started", "\u5df2\u5f00\u59cb\u91cd\u5efa\u6b4c\u66f2\u8eab\u4efd");
+        put("identity.backfill.queued", "Song identity rebuild queued", "\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa\u5df2\u6392\u961f");
+        put("identity.backfill.already.active", "Song identity rebuild is already active", "\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa\u5df2\u5728\u6392\u961f\u6216\u8fd0\u884c");
+        put("identity.backfill.schedule.failed", "Unable to schedule identity rebuild", "\u65e0\u6cd5\u6392\u961f\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa");
         put("identity.backfill.cancelled", "Song identity rebuild cancelled", "\u5df2\u53d6\u6d88\u6b4c\u66f2\u8eab\u4efd\u91cd\u5efa");
+        put("identity.backfill.state.idle", "Not started", "\u672a\u5f00\u59cb");
+        put("identity.backfill.state.queued",
+                "Queued; waiting for system scheduling",
+                "\u5df2\u6392\u961f\uff0c\u7b49\u5f85\u7cfb\u7edf\u8c03\u5ea6");
+        put("identity.backfill.state.running", "Processing", "\u6b63\u5728\u5904\u7406");
+        put("identity.backfill.state.completed", "Completed", "\u5df2\u5b8c\u6210");
+        put("identity.backfill.state.failed", "Failed", "\u5931\u8d25");
+        put("identity.backfill.state.cancelled", "Cancelled", "\u5df2\u53d6\u6d88");
+        put("identity.backfill.stage.normalize", "Normalizing sources", "\u6b63\u5728\u6574\u7406\u6765\u6e90");
+        put("identity.backfill.stage.classify", "Building local identities", "\u6b63\u5728\u5efa\u7acb\u672c\u5730\u6b4c\u66f2\u8eab\u4efd");
+        put("identity.backfill.stage.ingest", "Merging duplicate identities", "\u6b63\u5728\u5408\u5e76\u91cd\u590d\u8eab\u4efd");
+        put("identity.backfill.stage.cleanup", "Cleaning legacy sources", "\u6b63\u5728\u6e05\u7406\u65e7\u6765\u6e90");
+        put("identity.backfill.stage.validate", "Validating results", "\u6b63\u5728\u6821\u9a8c\u7ed3\u679c");
+        put("identity.backfill.stage.processing", "Processing library", "\u6b63\u5728\u5904\u7406\u66f2\u5e93");
+        put("library.dedup.mode", "Duplicate song management", "\u91cd\u590d\u6b4c\u66f2\u7ba1\u7406");
+        put("library.dedup.safe", "Safe deduplication", "\u5b89\u5168\u589e\u5f3a");
+        put("library.dedup.safe.description",
+                "Merge only with strict metadata, stable identifiers, or reliable audio evidence",
+                "\u4ec5\u5728\u4e25\u683c\u5143\u6570\u636e\u3001\u7a33\u5b9a\u6807\u8bc6\u6216\u53ef\u9760\u97f3\u9891\u8bc1\u636e\u4e0b\u81ea\u52a8\u5408\u5e76");
+        put("library.dedup.aggressive", "Maximum deduplication", "\u6700\u5927\u5316\u53bb\u91cd");
+        put("library.dedup.aggressive.description",
+                "Use enhanced recall and lower thresholds while preserving every hard conflict",
+                "\u542f\u7528\u589e\u5f3a\u53ec\u56de\u4e0e\u8f83\u4f4e\u9608\u503c\uff0c\u4ecd\u4fdd\u7559\u6240\u6709\u786c\u51b2\u7a81\u95e8\u7981");
+        put("library.dedup.mode.changed",
+                "Deduplication mode saved; full-library reevaluation queued",
+                "\u53bb\u91cd\u6a21\u5f0f\u5df2\u4fdd\u5b58\uff0c\u5df2\u6392\u961f\u5168\u5e93\u91cd\u8bc4");
+        put("library.dedup.candidates", "Duplicate candidate center", "\u91cd\u590d\u6b4c\u66f2\u5019\u9009\u4e2d\u5fc3");
+        put("library.dedup.candidates.description",
+                "Review complete-link evidence and confirm safe recording merges",
+                "\u67e5\u770b complete-link \u8bc1\u636e\u5e76\u786e\u8ba4\u5b89\u5168\u7684\u5f55\u97f3\u5408\u5e76");
+        put("library.dedup.pending", "Pending pairs", "\u5f85\u5904\u7406\u914d\u5bf9");
+        put("library.dedup.review.required", "Rollback review required", "\u9700\u4eba\u5de5\u590d\u6838\u7684\u56de\u6eda");
+        put("library.dedup.high.confidence", "High confidence", "\u9ad8\u7f6e\u4fe1\u5ea6");
+        put("library.dedup.confirm.batch", "Confirm high-confidence pairs", "\u6279\u91cf\u786e\u8ba4\u9ad8\u5206\u5019\u9009");
+        put("library.dedup.confirm.batch.description",
+                "Only non-overlapping pairs with score at least 95% and margin at least 8% are included",
+                "\u4ec5\u5305\u542b\u5206\u6570\u4e0d\u4f4e\u4e8e 95%\u3001\u9886\u5148\u5e45\u5ea6\u4e0d\u4f4e\u4e8e 8% \u4e14\u4e92\u4e0d\u91cd\u53e0\u7684\u914d\u5bf9");
+        put("library.dedup.score", "Score", "\u5206\u6570");
+        put("library.dedup.margin", "Margin", "\u9886\u5148\u5e45\u5ea6");
+        put("library.dedup.needs.review", "Needs review", "\u9700\u590d\u6838");
+        put("library.dedup.confirm.result", "Duplicate confirmation complete", "\u91cd\u590d\u6b4c\u66f2\u786e\u8ba4\u5b8c\u6210");
         put("import.audio.files", "Import audio files", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6");
         put("import.audio.folder", "Import audio folder", "\u5bfc\u5165\u97f3\u9891\u6587\u4ef6\u5939");
         put("offset", "Offset", "\u504f\u79fb");
