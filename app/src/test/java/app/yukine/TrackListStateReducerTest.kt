@@ -169,6 +169,30 @@ class TrackListStateReducerTest {
     }
 
     @Test
+    fun favoritePendingChangeUsesTheFastRowPatch() {
+        val viewModel = LibraryViewModel()
+        val controller = TrackListStateReducer(viewModel, FakeListener())
+        val tracks = listOf(track(21L), track(22L), track(23L))
+        val modes = listOf(TrackListModeAction("Songs", "songs", true, Runnable { }))
+
+        controller.reduce(
+            "Songs", tracks, true, emptyList(), false,
+            emptyList(), emptyList(), "", modes, TrackListLabels(), null, emptySet()
+        )
+        val beforeRows = viewModel.trackList.value.rows
+        val beforeActions = viewModel.trackList.value.actions
+
+        controller.updateFavoritePendingIds(setOf(22L))
+        val after = viewModel.trackList.value
+
+        assertSame(beforeRows[0], after.rows[0])
+        assertNotSame(beforeRows[1], after.rows[1])
+        assertSame(beforeRows[2], after.rows[2])
+        assertSame(beforeActions, after.actions)
+        assertEquals(true, after.rows[1].favoritePending)
+    }
+
+    @Test
     fun favoriteFilterRebuildsMembershipWhenFavoriteIdsChange() {
         val viewModel = LibraryViewModel()
         viewModel.presentation.onAction(LibraryAction.FilterChanged(LibraryFilter.Favorites))

@@ -13,12 +13,14 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import app.yukine.data.RoomArtistIdentityRepository
+import app.yukine.data.RoomAlbumIdentityRepository
 import app.yukine.data.RoomIdentityCandidateRepository
 import app.yukine.data.RoomIdentityJobRepository
 import app.yukine.data.RoomProviderResponseCacheRepository
 import app.yukine.data.RoomRecordingIdentityRepository
 import app.yukine.data.enrichment.IdentityEnhancementEngine
 import app.yukine.data.enrichment.MetadataGatewayArtistProvider
+import app.yukine.data.enrichment.MetadataGatewayAlbumProvider
 import app.yukine.data.enrichment.MetadataGatewayClient
 import app.yukine.data.enrichment.MetadataGatewayRecordingProvider
 import app.yukine.data.enrichment.MusicBrainzMetadataClient
@@ -62,6 +64,7 @@ class IdentityEnhancementWorker(
             transport = transport,
             endpoint = metadataEndpoint,
             applicationVersion = BuildConfig.VERSION_NAME,
+            requestQuota = PersistentMetadataGatewayRequestQuota(context)
         )
         val musicBrainzClient = MusicBrainzMetadataClient(
             cache = cache,
@@ -86,6 +89,7 @@ class IdentityEnhancementWorker(
         val engine = IdentityEnhancementEngine(
             recordings = RoomRecordingIdentityRepository(database),
             artists = RoomArtistIdentityRepository(database),
+            albums = RoomAlbumIdentityRepository(database),
             candidates = RoomIdentityCandidateRepository(database),
             jobs = jobs,
             providers = providers,
@@ -95,9 +99,10 @@ class IdentityEnhancementWorker(
                     musicBrainzClient::artistAvatarUrl
                 )
             ),
+            albumProviders = listOf(MetadataGatewayAlbumProvider(metadataGatewayClient)),
             missingCoverWriter = RoomMissingRecordingCoverWriter(database)
         )
-        val run = runCatching { engine.runReadyJobs(MAX_JOBS_PER_RUN) }
+        val run = runCatching { engine.runReadyJobs(Int.MAX_VALUE) }
         run.fold(
             onSuccess = { outcome ->
                 if (outcome.retried > 0 && outcome.succeeded == 0) Result.retry() else Result.success()
@@ -111,7 +116,6 @@ class IdentityEnhancementWorker(
 
     private companion object {
         const val TAG = "IdentityEnhancement"
-        const val MAX_JOBS_PER_RUN = 100
         const val MUSICBRAINZ_CONTACT = "https://github.com/ysyhlly/Yukine-android"
     }
 }

@@ -232,7 +232,11 @@ public final class WebDavClient {
                             metadata.isrc,
                             metadata.acoustId,
                             metadata.artistMusicBrainzIds
-                    )
+                    ),
+                    metadata.albumArtist,
+                    metadata.composer,
+                    metadata.releaseType,
+                    metadata.year
             ));
         }
         return stats;
@@ -543,7 +547,11 @@ public final class WebDavClient {
                 cached.channelCount,
                 cached.replayGainTrackDb,
                 cached.replayGainAlbumDb,
-                cached.identityTags
+                cached.identityTags,
+                cached.albumArtist,
+                cached.composer,
+                cached.releaseType,
+                cached.year
         );
     }
 

@@ -340,7 +340,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(database.contains("abstract class YukineDatabase : RoomDatabase()"));
         assertTrue(database.contains(".addMigrations(*YukineMigrations.all)"));
         assertFalse(database.contains("fallbackToDestructiveMigration"));
-        assertTrue(migrations.contains("TARGET_VERSION: Int = 28"));
+        assertTrue(migrations.contains("TARGET_VERSION: Int = 30"));
         assertTrue(migrations.contains("(1 until TARGET_VERSION)"));
         assertFalse(libraryFacade.contains("SQLiteDatabase"));
         assertFalse(libraryFacade.contains("rawQuery"));
@@ -360,12 +360,21 @@ public final class MainActivityArchitectureContractTest {
     }
 
     @Test
-    public void identityEnhancementRunsEveryFifteenMinutesAndCapsEachBatchAtOneHundred() throws Exception {
+    public void identityEnhancementRunsEveryFifteenMinutesWithoutOneHundredRequestBatchCap() throws Exception {
         String worker = read("app/src/main/java/app/yukine/IdentityEnhancementWorker.kt");
+        String quota = read("app/src/main/java/app/yukine/PersistentMetadataGatewayRequestQuota.kt");
+        String engine = read(
+                "feature/data/src/main/java/app/yukine/data/enrichment/IdentityEnhancementEngine.kt");
+        String jobs = read(
+                "feature/data/src/main/java/app/yukine/data/RoomIdentityJobRepository.kt");
 
-        assertTrue(worker.contains("MAX_JOBS_PER_RUN = 100"));
+        assertFalse(worker.contains("MAX_JOBS_PER_RUN = 100"));
+        assertTrue(worker.contains("engine.runReadyJobs(Int.MAX_VALUE)"));
+        assertFalse(engine.contains("limit.coerceIn(1, 100)"));
+        assertFalse(jobs.contains("limit.coerceIn(1, 100)"));
         assertTrue(worker.contains("PERIODIC_INTERVAL_MINUTES = 15L"));
         assertTrue(worker.contains("TimeUnit.MINUTES"));
+        assertTrue(quota.contains("DAILY_REQUEST_LIMIT = 5_000"));
     }
 
     @Test

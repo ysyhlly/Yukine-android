@@ -35,7 +35,11 @@ public final class PlaybackTrackSourceOverlay {
                 source.channelCount > 0 ? source.channelCount : logical.channelCount,
                 logical.replayGainTrackDb,
                 logical.replayGainAlbumDb,
-                logical.identityTags
+                logical.identityTags,
+                firstNonBlank(source.albumArtist, logical.albumArtist),
+                firstNonBlank(source.composer, logical.composer),
+                firstNonBlank(source.releaseType, logical.releaseType),
+                source.year > 0 ? source.year : logical.year
         );
     }
 

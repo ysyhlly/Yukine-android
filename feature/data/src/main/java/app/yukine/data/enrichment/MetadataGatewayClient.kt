@@ -2,10 +2,13 @@ package app.yukine.data.enrichment
 
 import app.yukine.identity.AnonymousArtistCandidate
 import app.yukine.identity.AnonymousArtistProviderResult
+import app.yukine.identity.AnonymousAlbumCandidate
+import app.yukine.identity.AnonymousAlbumProviderResult
 import app.yukine.identity.AnonymousProviderResult
 import app.yukine.identity.AnonymousRecordingCandidate
 import app.yukine.identity.ArtistType
 import app.yukine.identity.CanonicalArtist
+import app.yukine.identity.CanonicalAlbum
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.ProviderArtistCandidate
 import app.yukine.identity.ProviderCacheFreshness
@@ -36,6 +39,10 @@ data class GatewayLyricsSearchResult(
     val allEndpointsFailed: Boolean = false
 )
 
+fun interface MetadataGatewayRequestQuota {
+    fun tryAcquire(now: Long): Boolean
+}
+
 /** Client for the normalized ECHO metadata gateway contract. */
 class MetadataGatewayClient(
     private val cache: ProviderResponseCacheRepository,
@@ -43,7 +50,8 @@ class MetadataGatewayClient(
     endpoint: String,
     applicationVersion: String,
     private val now: () -> Long = System::currentTimeMillis,
-    private val cacheTtlMs: Long = 30L * 24L * 60L * 60L * 1_000L
+    private val cacheTtlMs: Long = 30L * 24L * 60L * 60L * 1_000L,
+    private val requestQuota: MetadataGatewayRequestQuota = MetadataGatewayRequestQuota { true }
 ) {
     val endpoint: String = normalizeEndpoint(endpoint)
     private val userAgent = "EchoAndroid/${applicationVersion.trim().ifBlank { "unknown" }}"
@@ -57,14 +65,13 @@ class MetadataGatewayClient(
         val params = linkedMapOf(
             "title" to recording.title,
             "artist" to primaryArtist,
-            "durationMs" to recording.durationMs.takeIf { it > 0L }?.toString().orEmpty(),
             "recordingMbid" to recording.musicBrainzRecordingId,
             "isrc" to recording.isrc,
             "fingerprint" to fingerprint?.fingerprint.orEmpty(),
             "fingerprintDuration" to fingerprint?.durationSeconds?.toString().orEmpty(),
             "limit" to "12"
         )
-        return fetch("v1/recordings/search", params, ::parseRecordings)
+        return fetch("v2/recordings/search", params, ::parseRecordings)
             ?: AnonymousProviderResult(emptyList(), allEndpointsFailed = true)
     }
 
@@ -72,13 +79,26 @@ class MetadataGatewayClient(
         if (endpoint.isBlank()) return AnonymousArtistProviderResult(emptyList(), allEndpointsFailed = true)
         val params = linkedMapOf(
             "name" to artist.displayName,
-            "aliases" to aliases.joinToString("\u001f"),
             "artistMbid" to artist.musicBrainzArtistId,
-            "limit" to "10",
-            "responseVersion" to "artist-profile-v2"
+            "limit" to "10"
         )
-        return fetch("v1/artists/search", params, ::parseArtists)
+        return fetch("v2/artists/search", params, ::parseArtists)
             ?: AnonymousArtistProviderResult(emptyList(), allEndpointsFailed = true)
+    }
+
+    fun searchAlbum(album: CanonicalAlbum, aliases: List<String>): AnonymousAlbumProviderResult {
+        if (endpoint.isBlank()) return AnonymousAlbumProviderResult(emptyList(), allEndpointsFailed = true)
+        val params = linkedMapOf(
+            "title" to album.displayName,
+            "artist" to album.albumArtistDisplay,
+            "releaseGroupMbid" to album.musicBrainzReleaseGroupId,
+            "releaseMbid" to album.musicBrainzReleaseId,
+            "year" to album.year.takeIf { it > 0 }?.toString().orEmpty(),
+            "type" to album.releaseType,
+            "limit" to "10"
+        )
+        return fetch("v2/albums/search", params, ::parseAlbums)
+            ?: AnonymousAlbumProviderResult(emptyList(), allEndpointsFailed = true)
     }
 
     fun searchLyrics(
@@ -95,7 +115,7 @@ class MetadataGatewayClient(
             "durationMs" to durationMs.takeIf { it > 0L }?.toString().orEmpty()
         )
         return fetch(
-            "v1/lyrics/search",
+            "v2/lyrics/search",
             params,
             ::parseLyrics,
             LYRICS_CACHE_TTL_MS
@@ -113,11 +133,15 @@ class MetadataGatewayClient(
             .joinToString("&") { "${encode(it.key)}=${encode(it.value)}" }
         val requestPath = "$path?$query"
         val requestHash = sha256(requestPath)
-        val cached = cache.response(PROVIDER, endpoint, requestHash, now())
+        val requestedAt = now()
+        val cached = cache.response(PROVIDER, endpoint, requestHash, requestedAt)
         if (cached?.freshness == ProviderCacheFreshness.FRESH) {
             parser(cached.responseJson, true)?.let { return it }
         }
-        if (!cache.endpointHealth(PROVIDER, endpoint).canRequest(now())) {
+        if (!cache.endpointHealth(PROVIDER, endpoint).canRequest(requestedAt)) {
+            return cached?.responseJson?.let { parser(it, true) }
+        }
+        if (!requestQuota.tryAcquire(requestedAt)) {
             return cached?.responseJson?.let { parser(it, true) }
         }
         val response = runCatching {
@@ -129,7 +153,7 @@ class MetadataGatewayClient(
         val value = response.getOrNull()
         if (value != null && value.statusCode in 200..299 && value.body.isNotBlank()) {
             parser(value.body, false)?.let {
-                cache.saveSuccess(PROVIDER, endpoint, requestHash, value.body, now(), ttlMs)
+                cache.saveSuccess(PROVIDER, endpoint, requestHash, value.body, requestedAt, ttlMs)
                 return it
             }
         }
@@ -137,7 +161,7 @@ class MetadataGatewayClient(
             PROVIDER,
             endpoint,
             response.exceptionOrNull()?.message ?: "HTTP ${value?.statusCode ?: 0}",
-            now()
+            requestedAt
         )
         return cached?.responseJson?.let { parser(it, true) }
     }
@@ -148,9 +172,9 @@ class MetadataGatewayClient(
         val candidates = buildList {
             for (index in 0 until values.length()) {
                 val item = values.optJSONObject(index) ?: continue
-                val id = item.optString("id")
+                val source = sourceIdentity(item)
                 val title = item.optString("title")
-                if (id.isBlank() || title.isBlank()) continue
+                if (source.itemId.isBlank() || title.isBlank()) continue
                 val artists = buildList {
                     val array = item.optJSONArray("artists")
                     if (array != null) for (artistIndex in 0 until array.length()) {
@@ -162,21 +186,22 @@ class MetadataGatewayClient(
                         ))
                     }
                 }
+                val identifiers = item.optJSONObject("identifiers") ?: JSONObject()
                 add(AnonymousRecordingCandidate(
-                    provider = item.optString("provider", "musicbrainz"),
-                    providerItemId = id,
+                    provider = source.provider,
+                    providerItemId = source.itemId,
                     title = title,
                     artists = artists,
                     album = item.optString("album"),
                     durationMs = item.optLong("durationMs", 0L),
-                    isrc = item.optString("isrc"),
-                    recordingMbid = item.optString("recordingMbid"),
-                    workMbid = item.optString("workMbid"),
-                    acoustId = item.optString("acoustId"),
+                    isrc = identifiers.optString("isrc"),
+                    recordingMbid = identifiers.optString("recordingMbid"),
+                    workMbid = identifiers.optString("workMbid"),
+                    acoustId = identifiers.optString("acoustId"),
                     coverUrl = trustedCoverUrl(item.optString("coverUrl")),
                     fingerprintVerified = item.optBoolean("fingerprintVerified", false),
                     variantType = RecordingVariantRecognizer.recognize(title, item.optString("album")),
-                    providerScore = item.optDouble("score", 0.0).coerceIn(0.0, 1.0)
+                    providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
                 ))
             }
         }
@@ -189,26 +214,27 @@ class MetadataGatewayClient(
         val candidates = buildList {
             for (index in 0 until values.length()) {
                 val item = values.optJSONObject(index) ?: continue
-                val id = item.optString("id")
+                val source = sourceIdentity(item)
                 val name = item.optString("name")
-                if (id.isBlank() || name.isBlank()) continue
+                if (source.itemId.isBlank() || name.isBlank()) continue
                 val aliases = buildSet {
                     val array = item.optJSONArray("aliases")
                     if (array != null) for (aliasIndex in 0 until array.length()) {
                         array.optString(aliasIndex).takeIf(String::isNotBlank)?.let(::add)
                     }
                 }
+                val identifiers = item.optJSONObject("identifiers") ?: JSONObject()
                 add(AnonymousArtistCandidate(
-                    provider = item.optString("provider", "musicbrainz"),
-                    providerItemId = id,
+                    provider = source.provider,
+                    providerItemId = source.itemId,
                     displayName = name,
                     sortName = item.optString("sortName"),
                     aliases = aliases,
                     countryCode = item.optString("country"),
                     artistType = artistType(item.optString("type")),
-                    artistMbid = item.optString("artistMbid"),
+                    artistMbid = identifiers.optString("artistMbid"),
                     avatarUrl = httpsUrl(item.optString("avatarUrl")),
-                    providerScore = item.optDouble("score", 0.0).coerceIn(0.0, 1.0),
+                    providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0),
                     description = item.optString("description").trim()
                         .take(MAX_ARTIST_DESCRIPTION_LENGTH)
                 ))
@@ -223,10 +249,12 @@ class MetadataGatewayClient(
         val synced = item.optString("syncedLyrics")
         val plain = item.optString("plainLyrics")
         if (synced.isBlank() && plain.isBlank()) return@runCatching GatewayLyricsSearchResult(null)
+        val source = sourceIdentity(item)
+        val canonicalId = item.optString("canonicalId").trim()
         GatewayLyricsSearchResult(
             GatewayLyrics(
-                provider = item.optString("provider", "lrclib"),
-                id = item.optString("id"),
+                provider = source.provider,
+                id = canonicalId.ifBlank { source.itemId },
                 title = item.optString("title"),
                 artist = item.optString("artist"),
                 album = item.optString("album"),
@@ -236,6 +264,67 @@ class MetadataGatewayClient(
             )
         )
     }.getOrNull()
+
+    private fun parseAlbums(body: String, fromCache: Boolean): AnonymousAlbumProviderResult? = runCatching {
+        val values = JSONObject(body).optJSONArray("albums")
+            ?: return@runCatching AnonymousAlbumProviderResult(emptyList())
+        val candidates = buildList {
+            for (index in 0 until values.length()) {
+                val item = values.optJSONObject(index) ?: continue
+                val source = sourceIdentity(item)
+                val title = item.optString("title").trim()
+                if (source.itemId.isBlank() || title.isBlank()) continue
+                val aliases = buildSet {
+                    val array = item.optJSONArray("aliases")
+                    if (array != null) for (aliasIndex in 0 until array.length()) {
+                        array.optString(aliasIndex).trim().takeIf(String::isNotBlank)?.let(::add)
+                    }
+                }
+                val artists = item.optJSONArray("artists")
+                val artist = item.optString("artist").trim().ifBlank {
+                    artists?.optJSONObject(0)?.optString("name")?.trim().orEmpty()
+                }
+                val identifiers = item.optJSONObject("identifiers") ?: JSONObject()
+                add(
+                    AnonymousAlbumCandidate(
+                        provider = source.provider,
+                        providerAlbumId = source.itemId,
+                        title = title,
+                        aliases = aliases,
+                        artist = artist,
+                        musicBrainzReleaseGroupId = identifiers.optString("releaseGroupMbid").trim(),
+                        musicBrainzReleaseId = identifiers.optString("releaseMbid").trim(),
+                        releaseType = item.optString("type").trim(),
+                        year = item.optInt("year", 0).coerceAtLeast(0),
+                        providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
+                    )
+                )
+            }
+        }
+        AnonymousAlbumProviderResult(candidates, endpoint, fromCache = fromCache)
+    }.getOrNull()
+
+    private fun sourceIdentity(item: JSONObject): GatewaySourceIdentity {
+        val sources = item.optJSONArray("sources")
+        var firstValid: GatewaySourceIdentity? = null
+        if (sources != null) {
+            for (index in 0 until sources.length()) {
+                val source = sources.optJSONObject(index) ?: continue
+                val provider = source.optString("provider").trim()
+                val itemId = source.optString("id").trim()
+                if (provider.isBlank() || itemId.isBlank()) continue
+                val identity = GatewaySourceIdentity(provider, itemId)
+                if (source.optString("role").equals("identity", ignoreCase = true)) {
+                    return identity
+                }
+                if (firstValid == null) firstValid = identity
+            }
+        }
+        return firstValid ?: GatewaySourceIdentity(
+            provider = PROVIDER,
+            itemId = item.optString("canonicalId").trim()
+        )
+    }
 
     private fun artistType(value: String): ArtistType = runCatching {
         ArtistType.valueOf(value.trim().uppercase())
@@ -271,4 +360,9 @@ class MetadataGatewayClient(
             return trimmed.trimEnd('/') + "/"
         }
     }
+
+    private data class GatewaySourceIdentity(
+        val provider: String,
+        val itemId: String
+    )
 }

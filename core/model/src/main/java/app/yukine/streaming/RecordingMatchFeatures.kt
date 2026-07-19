@@ -22,6 +22,24 @@ data class FingerprintFeature(
     val algorithmVersion: Int = 1
 )
 
+enum class VersionEvidenceSource {
+    TITLE,
+    PROVIDER,
+    ALBUM,
+    NONE
+}
+
+data class RecordingVersionEvidence(
+    val type: RecordingVersionType,
+    val signature: String,
+    val source: VersionEvidenceSource,
+    val confidence: Double
+) {
+    val strongForConflict: Boolean
+        get() = source == VersionEvidenceSource.TITLE ||
+            source == VersionEvidenceSource.PROVIDER
+}
+
 /** Immutable, Android-free feature snapshot used by every recording matching policy. */
 data class RecordingMatchFeatures(
     val normalizedTitle: String,
@@ -32,7 +50,12 @@ data class RecordingMatchFeatures(
     val durationMs: Long?,
     val versionType: RecordingVersionType,
     val versionSignature: String,
+    val versionEvidence: RecordingVersionEvidence,
     val albumKey: String?,
+    val canonicalWorkId: String?,
+    val canonicalWorkConfirmed: Boolean,
+    val canonicalAlbumId: String?,
+    val canonicalAlbumConfirmed: Boolean,
     val isrc: String?,
     val recordingMbid: String?,
     val workMbid: String?,
@@ -45,8 +68,12 @@ data class RecordingMatchFeatures(
 object RecordingMatchFeatureExtractor {
     fun extract(reference: StreamingTrackMatchPolicy.Reference): RecordingMatchFeatures {
         val normalizedTitle = RecordingVersionClassifier.coreTitle(reference.title)
-        val versionType = reference.versionType
-            ?: RecordingVersionClassifier.classify(reference.title, reference.album.orEmpty())
+        val versionEvidence = RecordingVersionClassifier.extractEvidence(
+            title = reference.title,
+            album = reference.album.orEmpty(),
+            explicitType = reference.versionType
+        )
+        val versionType = versionEvidence.type
         val aliases = reference.titleAliases.asSequence()
             .map(RecordingVersionClassifier::coreTitle)
             .filter(String::isNotBlank)
@@ -80,14 +107,15 @@ object RecordingMatchFeatureExtractor {
             canonicalArtists = primaryArtists + secondaryArtists,
             durationMs = reference.durationMs?.takeIf { it > 0L },
             versionType = versionType,
-            versionSignature = RecordingVersionClassifier.versionSignature(
-                reference.title,
-                reference.album.orEmpty(),
-                versionType
-            ),
+            versionSignature = versionEvidence.signature,
+            versionEvidence = versionEvidence,
             albumKey = reference.album.orEmpty()
                 .let(StreamingTrackMatchPolicy::canonicalAlbum)
                 .takeIf(String::isNotBlank),
+            canonicalWorkId = normalizeIdentifier(reference.canonicalWorkId).takeIf(String::isNotBlank),
+            canonicalWorkConfirmed = reference.canonicalWorkConfirmed,
+            canonicalAlbumId = normalizeIdentifier(reference.canonicalAlbumId).takeIf(String::isNotBlank),
+            canonicalAlbumConfirmed = reference.canonicalAlbumConfirmed,
             isrc = StreamingTrackMatchPolicy.normalizeIsrc(reference.isrc).takeIf(String::isNotBlank),
             recordingMbid = normalizeIdentifier(reference.recordingMbid).takeIf(String::isNotBlank),
             workMbid = normalizeIdentifier(reference.workMbid).takeIf(String::isNotBlank),

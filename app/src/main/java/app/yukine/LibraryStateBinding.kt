@@ -51,6 +51,7 @@ internal class LibraryStateBinding @JvmOverloads constructor(
 ) {
     private var bindingJob: Job? = null
     private var playlistSourcesJob: Job? = null
+    private var favoritePendingJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
     private val playlistSources = MutableStateFlow<Map<Long, StreamingProviderName>>(emptyMap())
 
@@ -62,8 +63,10 @@ internal class LibraryStateBinding @JvmOverloads constructor(
     ) {
         bindingJob?.cancel()
         playlistSourcesJob?.cancel()
+        favoritePendingJob?.cancel()
         bindingJob = null
         playlistSourcesJob = null
+        favoritePendingJob = null
         playbackReadModel = playback
         if (routeState == null || libraryState == null || settingsState == null || playback == null) {
             return
@@ -89,7 +92,10 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             }
         }
         playlistSourcesJob = scope.launch {
-            combine(route, libraryState) { routeInput, library -> routeInput to library.playlists }
+            combine(
+                route,
+                libraryState.map { it.playlists }.distinctUntilChanged()
+            ) { routeInput, playlists -> routeInput to playlists }
                 .collectLatest { (routeInput, playlists) ->
                     if (routeInput.active && routeInput.libraryMode == LibraryGrouping.PLAYLISTS) {
                         playlistSources.value = withContext(ioDispatcher) {
@@ -98,13 +104,24 @@ internal class LibraryStateBinding @JvmOverloads constructor(
                     }
                 }
         }
+        favoritePendingJob = scope.launch {
+            combine(route, libraryStore.favoritePendingTrackIds) { routeInput, pendingIds ->
+                routeInput to pendingIds
+            }.collect { (routeInput, pendingIds) ->
+                if (routeInput.active) {
+                    trackListReducer.updateFavoritePendingIds(pendingIds)
+                }
+            }
+        }
     }
 
     fun release() {
         bindingJob?.cancel()
         playlistSourcesJob?.cancel()
+        favoritePendingJob?.cancel()
         bindingJob = null
         playlistSourcesJob = null
+        favoritePendingJob = null
         playbackReadModel = null
         scope.cancel()
     }
@@ -158,7 +175,8 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             trackListLabels(inputs.languageMode),
             playbackReadModel?.state?.value,
             inputs.library.favoriteTrackIds,
-            context = LibraryListContext.Songs
+            context = LibraryListContext.Songs,
+            favoritePendingIds = libraryStore.favoritePendingTrackIds.value
         )
     }
 
@@ -290,5 +308,7 @@ private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLa
     AppLanguage.text(languageMode, "play.all"),
     AppLanguage.text(languageMode, "shuffle"),
     AppLanguage.text(languageMode, "recording.match.manage"),
-    AppLanguage.text(languageMode, "songs")
+    AppLanguage.text(languageMode, "songs"),
+    AppLanguage.text(languageMode, "more"),
+    AppLanguage.text(languageMode, "library.favorite.updating")
 )

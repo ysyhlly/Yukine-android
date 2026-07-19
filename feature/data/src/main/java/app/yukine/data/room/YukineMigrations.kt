@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 28
+    const val TARGET_VERSION: Int = 31
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -20,6 +20,9 @@ object YukineMigrations {
                 normalizeV26(db)
                 normalizeV27(db)
                 normalizeV28(db)
+                YukineSchema.normalizeV29(db)
+                normalizeV30(db)
+                normalizeV31(db)
             }
         }
     }.toTypedArray()
@@ -281,6 +284,154 @@ object YukineMigrations {
                 "CAST(strftime('%s','now') AS INTEGER)*1000 " +
                 "FROM `canonical_artists` WHERE `description`=''"
         )
+    }
+
+    internal fun normalizeV30(db: SupportSQLiteDatabase) {
+        addTextColumn(db, "tracks", "album_artist")
+        addTextColumn(db, "tracks", "composer")
+        addTextColumn(db, "tracks", "release_type")
+        addIntegerColumn(db, "tracks", "year")
+        addTextColumn(db, "playback_queue", "album_artist")
+        addTextColumn(db, "playback_queue", "composer")
+        addTextColumn(db, "playback_queue", "release_type")
+        addIntegerColumn(db, "playback_queue", "year")
+        addTextColumn(db, "track_sources", "album_artist")
+        addTextColumn(db, "track_sources", "composer")
+        addTextColumn(db, "track_sources", "release_type")
+        addIntegerColumn(db, "track_sources", "year")
+        if (!columnExists(db, "source_match_features", "metadata_vector")) {
+            db.execSQL("ALTER TABLE `source_match_features` ADD COLUMN `metadata_vector` BLOB")
+        }
+        if (!columnExists(db, "source_match_features", "metadata_vector_version")) {
+            db.execSQL(
+                "ALTER TABLE `source_match_features` ADD COLUMN " +
+                    "`metadata_vector_version` INTEGER NOT NULL DEFAULT 0"
+            )
+        }
+        if (!columnExists(db, "source_match_features", "metadata_sim_hash")) {
+            db.execSQL("ALTER TABLE `source_match_features` ADD COLUMN `metadata_sim_hash` INTEGER")
+        }
+    }
+
+    internal fun normalizeV31(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `canonical_albums` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "`album_uuid` TEXT NOT NULL, `identity_key` TEXT NOT NULL, " +
+                "`display_name` TEXT NOT NULL, `sort_name` TEXT NOT NULL DEFAULT '', " +
+                "`album_artist_id` INTEGER, " +
+                "`musicbrainz_release_group_id` TEXT NOT NULL DEFAULT '', " +
+                "`musicbrainz_release_id` TEXT NOT NULL DEFAULT '', " +
+                "`release_type` TEXT NOT NULL DEFAULT '', `year` INTEGER NOT NULL DEFAULT 0, " +
+                "`match_status` TEXT NOT NULL DEFAULT 'UNRESOLVED', " +
+                "`confidence` REAL NOT NULL DEFAULT 0, " +
+                "`metadata_source` TEXT NOT NULL DEFAULT '', " +
+                "`created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`album_artist_id`) REFERENCES `canonical_artists`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE SET NULL)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `album_aliases` (" +
+                "`album_id` INTEGER NOT NULL, `alias` TEXT NOT NULL, " +
+                "`normalized_alias` TEXT NOT NULL, `locale` TEXT NOT NULL DEFAULT '', " +
+                "`alias_type` TEXT NOT NULL DEFAULT 'ALIAS', `source` TEXT NOT NULL DEFAULT '', " +
+                "`confidence` REAL NOT NULL DEFAULT 0, `verified_at` INTEGER NOT NULL DEFAULT 0, " +
+                "PRIMARY KEY(`album_id`, `normalized_alias`, `locale`), " +
+                "FOREIGN KEY(`album_id`) REFERENCES `canonical_albums`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `album_source_mappings` (" +
+                "`mapping_id` INTEGER PRIMARY KEY AUTOINCREMENT, `album_id` INTEGER NOT NULL, " +
+                "`provider` TEXT NOT NULL, `provider_album_id` TEXT NOT NULL, " +
+                "`display_name` TEXT NOT NULL DEFAULT '', " +
+                "`musicbrainz_release_group_id` TEXT NOT NULL DEFAULT '', " +
+                "`musicbrainz_release_id` TEXT NOT NULL DEFAULT '', " +
+                "`status` TEXT NOT NULL DEFAULT 'UNRESOLVED', " +
+                "`confidence` REAL NOT NULL DEFAULT 0, `last_verified_at` INTEGER NOT NULL DEFAULT 0, " +
+                "FOREIGN KEY(`album_id`) REFERENCES `canonical_albums`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        if (!columnExists(db, "track_sources", "album_id")) {
+            db.execSQL(
+                "ALTER TABLE `track_sources` ADD COLUMN `album_id` INTEGER " +
+                    "REFERENCES `canonical_albums`(`id`) ON DELETE SET NULL"
+            )
+        }
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `idx_album_uuid` ON `canonical_albums` (`album_uuid`)")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_album_identity_key` " +
+                "ON `canonical_albums` (`identity_key`)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `idx_album_artist` ON `canonical_albums` (`album_artist_id`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_album_mbid_release_group` " +
+                "ON `canonical_albums` (`musicbrainz_release_group_id`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_album_mbid_release` " +
+                "ON `canonical_albums` (`musicbrainz_release_id`)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `idx_album_status` ON `canonical_albums` (`match_status`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_album_aliases_normalized` " +
+                "ON `album_aliases` (`normalized_alias`)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `idx_album_aliases_album` ON `album_aliases` (`album_id`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_album_source_album` " +
+                "ON `album_source_mappings` (`album_id`)"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_album_source_provider_album` " +
+                "ON `album_source_mappings` (`provider`, `provider_album_id`)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `idx_track_source_album` ON `track_sources` (`album_id`)")
+        backfillCanonicalAlbums(db)
+    }
+
+    private fun backfillCanonicalAlbums(db: SupportSQLiteDatabase) {
+        val identityKey =
+            "lower(trim(album)) || '|' || lower(trim(CASE WHEN album_artist != '' " +
+                "THEN album_artist ELSE artist END)) || '|' || year || '|' || lower(trim(release_type))"
+        val outerIdentityKey =
+            "lower(trim(track_sources.album)) || '|' || " +
+                "lower(trim(CASE WHEN track_sources.album_artist != '' " +
+                "THEN track_sources.album_artist ELSE track_sources.artist END)) || '|' || " +
+                "track_sources.year || '|' || lower(trim(track_sources.release_type))"
+        db.execSQL(
+            "INSERT OR IGNORE INTO canonical_albums(" +
+                "album_uuid, identity_key, display_name, sort_name, album_artist_id, " +
+                "musicbrainz_release_group_id, musicbrainz_release_id, release_type, year, " +
+                "match_status, confidence, metadata_source, created_at, updated_at) " +
+                "SELECT lower(hex(randomblob(16))), $identityKey, max(trim(album)), " +
+                "lower(trim(album)), NULL, '', '', max(release_type), max(year), " +
+                "'UNRESOLVED', 0, 'MIGRATION_V31', 0, 0 FROM track_sources " +
+                "WHERE trim(album) != '' GROUP BY $identityKey"
+        )
+        db.execSQL(
+            "UPDATE track_sources SET album_id=(" +
+                "SELECT id FROM canonical_albums WHERE identity_key=$outerIdentityKey LIMIT 1" +
+                ") WHERE album_id IS NULL AND trim(album) != ''"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO album_aliases(" +
+                "album_id, alias, normalized_alias, locale, alias_type, source, confidence, verified_at) " +
+                "SELECT album_id, album, lower(trim(album)), '', 'PRIMARY', 'MIGRATION_V31', 0, 0 " +
+                "FROM track_sources WHERE album_id IS NOT NULL AND trim(album) != ''"
+        )
+    }
+
+    private fun addTextColumn(db: SupportSQLiteDatabase, table: String, column: String) {
+        if (!columnExists(db, table, column)) {
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
+    private fun addIntegerColumn(db: SupportSQLiteDatabase, table: String, column: String) {
+        if (!columnExists(db, table, column)) {
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     private fun columnExists(

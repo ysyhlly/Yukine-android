@@ -35,6 +35,7 @@ data class IdentityOperation(
 internal object IdentityOperationType {
     const val CONFIRM_CANDIDATE = "CONFIRM_CANDIDATE"
     const val REJECT_CANDIDATE = "REJECT_CANDIDATE"
+    const val MANUAL_MATCH_DECISION = "MANUAL_MATCH_DECISION"
     const val MERGE_RECORDINGS = "MERGE_RECORDINGS"
     const val SPLIT_RECORDING = "SPLIT_RECORDING"
     const val SET_ACTIVE_SOURCE = "SET_ACTIVE_SOURCE"

@@ -12,6 +12,7 @@ import app.yukine.fingerprint.ChromaprintAlignment
 import app.yukine.fingerprint.ChromaprintSegmentAligner
 import app.yukine.fingerprint.TraditionalAudioEvidence
 import app.yukine.streaming.MatchEvaluation
+import app.yukine.streaming.MetadataRecallEvidence
 import app.yukine.streaming.ProviderRolePolicy
 import app.yukine.streaming.RecordingMatchFeatureExtractor
 import app.yukine.streaming.RecordingMatchEvaluatorV2
@@ -82,6 +83,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         recordingIds: List<Long>
     ): Int {
         val totalStartedAt = diagnostics.startNanos()
+        val embeddingRecallMode = EmbeddingRecallModeStore(database.settingsDao()).mode()
         val pendingTrackIds = localTrackIds.asSequence()
             .filter { it != 0L }
             .distinct()
@@ -155,7 +157,11 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             refreshedFeatures.size.toLong()
         )
         val candidateGenerationStartedAt = diagnostics.startNanos()
-        val snapshotSignature = candidateGenerator.snapshotSignature(featureSources, effectiveFeatures)
+        val snapshotSignature = candidateGenerator.snapshotSignature(
+            featureSources,
+            effectiveFeatures,
+            embeddingRecallMode
+        )
         val reusableCandidateSnapshot = refreshedFeatures.isEmpty() &&
             effectiveFeatures.isNotEmpty() &&
             effectiveFeatures.values.all { feature ->
@@ -174,9 +180,10 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             val generated = replaceCandidateSnapshot(
                 featureSources,
                 effectiveFeatures,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                embeddingRecallMode
             )
-            candidateRows = generated.candidates
+            candidateRows = generated.candidates + generated.shadowCandidates
             coarseComparisonCount = generated.coarseComparisonCount
         }
         diagnostics.recordElapsed(
@@ -189,9 +196,15 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             sources = identityAnchors,
             featuresBySourceId = effectiveFeatures,
             precomputedCandidatesBySourceId = candidateRows
+                .asSequence()
+                .filter { candidate -> candidate.state == SourceRecordingCandidateGenerator.STATE_GENERATED }
                 .groupBy(SourceRecordingCandidateEntity::sourceId)
                 .mapValues { (_, rows) -> rows.map(SourceRecordingCandidateEntity::candidateRecordingId) }
         )
+        val shadowCandidatesBySourceId = candidateRows
+            .asSequence()
+            .filter { candidate -> candidate.state == SourceRecordingCandidateGenerator.STATE_SHADOW }
+            .groupBy(SourceRecordingCandidateEntity::sourceId)
         val redirects = HashMap<Long, Long>()
         val processed = HashSet<Long>()
         var mergedCount = 0
@@ -202,6 +215,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 val currentRecording = dao.recording(currentRecordingId) ?: break
                 val currentSources = candidateIndex.sources(currentRecordingId)
                 if (!eligibleGroup(currentRecordingId, currentSources)) break
+                if (embeddingRecallMode == EmbeddingRecallMode.SHADOW) {
+                    evaluateShadowCandidates(
+                        currentRecording,
+                        currentSources,
+                        candidateIndex,
+                        shadowCandidatesBySourceId,
+                        audioEvidenceBySourceId,
+                        effectiveFeatures
+                    )
+                }
 
                 val candidateGenerationStartedAt = diagnostics.startNanos()
                 val candidateRecordingIds = candidateIndex.candidateRecordingIds(currentRecordingId)
@@ -230,7 +253,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                                 currentSources,
                                 candidateRecording,
                                 candidateSources,
-                                audioEvidenceBySourceId
+                                audioEvidenceBySourceId,
+                                effectiveFeatures
                             )
                             ?: return@mapNotNull null
                         EvaluatedRecording(candidateRecordingId, evaluation, manual != null)
@@ -282,7 +306,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 if (ambiguousCandidates.size > 1 && !sameRecordingClique(
                         ambiguousCandidates,
                         candidateIndex,
-                        audioEvidenceBySourceId
+                        audioEvidenceBySourceId,
+                        effectiveFeatures
                     )
                 ) break
 
@@ -315,7 +340,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             val generated = replaceCandidateSnapshot(
                 refreshedSources,
                 effectiveFeatures,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                embeddingRecallMode
             )
             diagnostics.recordElapsed(
                 OPERATION,
@@ -342,7 +368,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     private fun sameRecordingClique(
         candidates: List<RankedRecording>,
         candidateIndex: SourceIdentityCandidateIndex,
-        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
     ): Boolean {
         candidates.indices.forEach { leftIndex ->
             val leftId = candidates[leftIndex].recordingId
@@ -360,7 +387,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                     leftSources,
                     rightRecording,
                     rightSources,
-                    audioEvidenceBySourceId
+                    audioEvidenceBySourceId,
+                    featuresBySourceId
                 ) ?: return false
                 if (evaluation.relationship != RecordingRelationship.SAME_RECORDING ||
                     evaluation.sameRecordingProbability <
@@ -374,13 +402,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     private fun replaceCandidateSnapshot(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        generatedAt: Long
+        generatedAt: Long,
+        mode: EmbeddingRecallMode
     ): SourceCandidateGenerationResult {
-        val generated = candidateGenerator.generate(sources, featuresBySourceId, generatedAt)
+        val generated = candidateGenerator.generate(sources, featuresBySourceId, generatedAt, mode)
         val sourceIds = sources.mapNotNull(TrackSourceMappingEntity::sourceId).distinct()
         var validCandidates = generated.candidates
+        var validShadowCandidates = generated.shadowCandidates
         database.runInTransaction {
-            val existingRecordingIds = generated.candidates
+            val allGeneratedCandidates = generated.candidates + generated.shadowCandidates
+            val existingRecordingIds = allGeneratedCandidates
                 .map(SourceRecordingCandidateEntity::candidateRecordingId)
                 .distinct()
                 .chunked(SQLITE_IN_BATCH_SIZE)
@@ -389,8 +420,13 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             validCandidates = generated.candidates.filter { candidate ->
                 candidate.candidateRecordingId in existingRecordingIds
             }
+            validShadowCandidates = generated.shadowCandidates.filter { candidate ->
+                candidate.candidateRecordingId in existingRecordingIds
+            }
             dao.clearSourceRecordingCandidates()
-            validCandidates.chunked(CANDIDATE_WRITE_BATCH_SIZE).forEach { candidates ->
+            (validCandidates + validShadowCandidates)
+                .chunked(CANDIDATE_WRITE_BATCH_SIZE)
+                .forEach { candidates ->
                 dao.upsertSourceRecordingCandidates(candidates)
             }
             sourceIds.chunked(SQLITE_IN_BATCH_SIZE).forEach { ids ->
@@ -402,7 +438,10 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 )
             }
         }
-        return generated.copy(candidates = validCandidates)
+        return generated.copy(
+            candidates = validCandidates,
+            shadowCandidates = validShadowCandidates
+        )
     }
 
     private fun eligibleGroup(
@@ -410,12 +449,59 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         sources: List<TrackSourceMappingEntity>
     ): Boolean = sources.isNotEmpty() && dao.activeSplitOperationCount(recordingId) == 0
 
+    private fun evaluateShadowCandidates(
+        currentRecording: CanonicalRecordingEntity,
+        currentSources: List<TrackSourceMappingEntity>,
+        candidateIndex: SourceIdentityCandidateIndex,
+        shadowCandidatesBySourceId: Map<Long, List<SourceRecordingCandidateEntity>>,
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+    ) {
+        val rows = currentSources.asSequence()
+            .mapNotNull(TrackSourceMappingEntity::sourceId)
+            .flatMap { sourceId -> shadowCandidatesBySourceId[sourceId].orEmpty().asSequence() }
+            .distinctBy { candidate -> candidate.candidateRecordingId }
+            .take(SourceRecordingCandidateGenerator.MAX_EMBEDDING_ONLY_TOP_K)
+            .toList()
+        if (rows.isEmpty()) return
+        val startedAt = diagnostics.startNanos()
+        rows.forEach { row ->
+            val candidateRecording = dao.recording(row.candidateRecordingId) ?: return@forEach
+            val candidateSources = candidateIndex.sources(row.candidateRecordingId)
+            if (!eligibleGroup(row.candidateRecordingId, candidateSources)) return@forEach
+            val evaluation = completeLinkEvaluation(
+                currentRecording,
+                currentSources,
+                candidateRecording,
+                candidateSources,
+                audioEvidenceBySourceId,
+                featuresBySourceId
+            ) ?: return@forEach
+            val evidence = runCatching { JSONObject(row.evidenceJson) }.getOrElse { JSONObject() }
+                .put("shadowEvaluation", JSONObject(evaluation.evidenceJson))
+                .put("shadowEvaluatedAt", System.currentTimeMillis())
+            dao.updateShadowCandidateEvidence(
+                sourceId = row.sourceId,
+                candidateRecordingId = row.candidateRecordingId,
+                evidenceJson = evidence.toString(),
+                updatedAt = System.currentTimeMillis()
+            )
+        }
+        diagnostics.recordElapsed(
+            OPERATION,
+            MusicIdentityDiagnostics.Stage.SCORING,
+            startedAt,
+            rows.size.toLong()
+        )
+    }
+
     private fun completeLinkEvaluation(
         leftRecording: CanonicalRecordingEntity,
         leftSources: List<TrackSourceMappingEntity>,
         rightRecording: CanonicalRecordingEntity,
         rightSources: List<TrackSourceMappingEntity>,
-        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
     ): GroupEvaluation? {
         var minimumRecordingProbability = 1.0
         var minimumWorkProbability = 1.0
@@ -424,6 +510,11 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val audioAlignments = JSONArray()
         var scoreVersion = RecordingMatchEvaluatorV2.SCORE_VERSION
         var comparisonCount = 0
+        var embeddingMinimum = 1.0
+        var embeddingMaximum = 0.0
+        var embeddingTotal = 0.0
+        var embeddingCount = 0
+        var embeddingVersion = 0
         leftSources.forEach { left ->
             rightSources.forEach { right ->
                 val pair = evaluatePair(
@@ -431,9 +522,21 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                     right,
                     reference(left, leftRecording),
                     reference(right, rightRecording),
-                    audioEvidenceBySourceId
+                    audioEvidenceBySourceId,
+                    featuresBySourceId
                 )
                 val evaluation = pair.evaluation
+                val recallEvidence = evaluation.metadataRecallEvidence
+                recallEvidence?.embeddingSimilarity?.let { similarity ->
+                    embeddingMinimum = minOf(embeddingMinimum, similarity)
+                    embeddingMaximum = maxOf(embeddingMaximum, similarity)
+                    embeddingTotal += similarity
+                    embeddingCount++
+                    embeddingVersion = maxOf(
+                        embeddingVersion,
+                        recallEvidence.embeddingVersion
+                    )
+                }
                 scoreVersion = maxOf(scoreVersion, evaluation.scoreVersion)
                 pair.alignment?.let { alignment ->
                     audioAlignments.put(JSONObject()
@@ -465,21 +568,33 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             RecordingRelationship.CANNOT_LINK -> 1.0 - minimumRecordingProbability
             RecordingRelationship.UNKNOWN -> maxOf(minimumRecordingProbability, minimumWorkProbability)
         }.coerceIn(0.0, 1.0)
+        val evidenceJson = JSONObject()
+            .put("scoreVersion", scoreVersion)
+            .put("completeLinkComparisons", comparisonCount)
+            .put("sameRecording", minimumRecordingProbability)
+            .put("sameWork", minimumWorkProbability)
+            .put("relationship", relationship.name)
+            .put("hardConflicts", JSONArray(hardConflicts.toList()))
+            .put("audioAlignments", audioAlignments)
+        if (embeddingCount > 0) {
+            evidenceJson.put(
+                "embedding",
+                JSONObject()
+                    .put("version", embeddingVersion)
+                    .put("minimumSimilarity", embeddingMinimum)
+                    .put("maximumSimilarity", embeddingMaximum)
+                    .put("meanSimilarity", embeddingTotal / embeddingCount)
+                    .put("comparisonCount", embeddingCount)
+                    .put("recallOnly", true)
+            )
+        }
         return GroupEvaluation(
             sameRecordingProbability = minimumRecordingProbability,
             sameWorkProbability = minimumWorkProbability,
             relationship = relationship,
             confidence = confidence,
             scoreVersion = scoreVersion,
-            evidenceJson = JSONObject()
-                .put("scoreVersion", scoreVersion)
-                .put("completeLinkComparisons", comparisonCount)
-                .put("sameRecording", minimumRecordingProbability)
-                .put("sameWork", minimumWorkProbability)
-                .put("relationship", relationship.name)
-                .put("hardConflicts", JSONArray(hardConflicts.toList()))
-                .put("audioAlignments", audioAlignments)
-                .toString()
+            evidenceJson = evidenceJson.toString()
         )
     }
 
@@ -488,9 +603,38 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         right: TrackSourceMappingEntity,
         leftReference: StreamingTrackMatchPolicy.Reference,
         rightReference: StreamingTrackMatchPolicy.Reference,
-        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
     ): PairEvaluation {
-        val metadata = RecordingMatchEvaluatorV2.evaluate(leftReference, rightReference)
+        val leftFeature = left.sourceId?.let(featuresBySourceId::get)
+        val rightFeature = right.sourceId?.let(featuresBySourceId::get)
+        val embeddingVersion = minOf(
+            leftFeature?.metadataVectorVersion ?: 0,
+            rightFeature?.metadataVectorVersion ?: 0
+        )
+        val embeddingSimilarity = if (
+            embeddingVersion == MetadataHashEmbeddingEncoder.VECTOR_VERSION
+        ) {
+            MetadataHashEmbeddingEncoder.cosine(
+                leftFeature?.metadataVector,
+                rightFeature?.metadataVector
+            )
+        } else {
+            0.0
+        }
+        val metadata = if (embeddingVersion > 0) {
+            RecordingMatchEvaluatorV2.evaluate(
+                leftReference,
+                rightReference,
+                MetadataRecallEvidence(
+                    embeddingSimilarity = embeddingSimilarity,
+                    embeddingVersion = embeddingVersion,
+                    recallOnly = true
+                )
+            )
+        } else {
+            RecordingMatchEvaluatorV2.evaluate(leftReference, rightReference)
+        }
         val leftEvidence = left.sourceId?.let(audioEvidenceBySourceId::get)
         val rightEvidence = right.sourceId?.let(audioEvidenceBySourceId::get)
         if (leftEvidence == null || rightEvidence == null ||
@@ -541,6 +685,10 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         isrc = recording.isrc,
         recordingMbid = recording.musicBrainzRecordingId,
         workMbid = recording.musicBrainzWorkId,
+        canonicalWorkId = recording.workId?.toString().orEmpty(),
+        canonicalWorkConfirmed = recording.workId != null && source.matchStatus == "CONFIRMED",
+        canonicalAlbumId = source.albumId?.toString().orEmpty(),
+        canonicalAlbumConfirmed = source.albumId != null,
         fingerprint = recording.acoustId
     )
 
@@ -789,13 +937,22 @@ internal class SourceIdentityCandidateIndex(
 
 /** Shared feature schema policy. Bump [ALGORITHM_VERSION] whenever normalization semantics change. */
 internal object SourceMatchFeaturePolicy {
-    const val ALGORITHM_VERSION = 1
+    const val ALGORITHM_VERSION = 2
     private const val DURATION_BUCKET_MS = 10_000L
     private const val FEATURE_SEPARATOR = "\u001F"
     private const val SIGNATURE_SEPARATOR = "\u001E"
 
     fun metadataSignature(source: TrackSourceMappingEntity): String = sha256(
-        listOf(source.title, source.artist, source.album, source.durationMs.toString())
+        listOf(
+            source.title,
+            source.artist,
+            source.album,
+            source.albumArtist,
+            source.composer,
+            source.releaseType,
+            source.year.toString(),
+            source.durationMs.toString()
+        )
             .joinToString(SIGNATURE_SEPARATOR)
     )
 
@@ -812,6 +969,16 @@ internal object SourceMatchFeaturePolicy {
             durationMs = source.durationMs.takeIf { it > 0L }
         )
         val extracted = RecordingMatchFeatureExtractor.extract(reference)
+        val embedding = MetadataHashEmbeddingEncoder.encode(
+            title = source.title,
+            artist = source.artist,
+            album = source.album,
+            albumArtist = source.albumArtist,
+            composer = source.composer,
+            versionSignature = extracted.versionSignature,
+            releaseType = source.releaseType,
+            year = source.year
+        )
         return SourceMatchFeatureEntity(
             sourceId = sourceId,
             normalizedTitle = StreamingTrackMatchPolicy.canonicalTitle(source.title),
@@ -828,7 +995,10 @@ internal object SourceMatchFeaturePolicy {
             titleTrigrams = ngrams(extracted.normalizedTitle, 3).joinToString(FEATURE_SEPARATOR),
             metadataSignature = metadataSignature,
             algorithmVersion = ALGORITHM_VERSION,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            metadataVector = embedding?.vector,
+            metadataVectorVersion = embedding?.version ?: 0,
+            metadataSimHash = embedding?.simHash
         )
     }
 

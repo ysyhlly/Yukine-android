@@ -23,6 +23,10 @@ public final class FlacMetadataParserTest {
         assertEquals("17さいのうた。", result.title);
         assertEquals("『ユイカ』", result.artist);
         assertEquals("17さいのうた。", result.album);
+        assertEquals("『ユイカ』", result.albumArtist);
+        assertEquals("作者甲", result.composer);
+        assertEquals("album", result.releaseType);
+        assertEquals(2024, result.year);
         assertEquals(309_663L, result.durationMs);
         assertEquals(96_000, result.sampleRateHz);
         assertEquals(24, result.bitsPerSample);
@@ -93,6 +97,10 @@ public final class FlacMetadataParserTest {
                 "title=17さいのうた。",
                 "artist=『ユイカ』",
                 "album=17さいのうた。",
+                "ALBUMARTIST=『ユイカ』",
+                "COMPOSER=作者甲",
+                "DATE=2024-04-12",
+                "MUSICBRAINZ_ALBUMTYPE=album",
                 "REPLAYGAIN_TRACK_GAIN=-6.25 dB",
                 "MUSICBRAINZ_TRACKID=123e4567-e89b-12d3-a456-426614174000",
                 "MUSICBRAINZ_WORKID=123e4567-e89b-12d3-a456-426614174001",

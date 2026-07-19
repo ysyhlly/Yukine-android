@@ -52,6 +52,10 @@ object StreamingTrackMatchPolicy {
         val providerTrackIdConfirmed: Boolean = false,
         val recordingMbid: String = "",
         val workMbid: String = "",
+        val canonicalWorkId: String = "",
+        val canonicalWorkConfirmed: Boolean = false,
+        val canonicalAlbumId: String = "",
+        val canonicalAlbumConfirmed: Boolean = false,
         val fingerprint: String = "",
         val versionType: RecordingVersionType? = null
     )

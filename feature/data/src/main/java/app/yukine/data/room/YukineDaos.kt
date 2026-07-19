@@ -664,6 +664,27 @@ interface MusicIdentityDao {
     fun upsert(work: CanonicalWorkEntity)
 
     @Query(
+        "SELECT * FROM works WHERE normalized_title = :normalizedTitle " +
+            "AND primary_creator_id = :primaryCreatorId ORDER BY created_at, id LIMIT 1"
+    )
+    fun workForIdentity(normalizedTitle: String, primaryCreatorId: Long): CanonicalWorkEntity?
+
+    @Query(
+        "SELECT artist_id FROM recording_artist_credits WHERE recording_id = :recordingId " +
+            "AND role = 'PRIMARY' ORDER BY position, artist_id LIMIT 1"
+    )
+    fun primaryArtistId(recordingId: Long): Long?
+
+    @Query("UPDATE recordings SET work_id = :workId, updated_at = :updatedAt WHERE id = :recordingId")
+    fun updateRecordingWork(recordingId: Long, workId: Long, updatedAt: Long): Int
+
+    @Query(
+        "UPDATE works SET normalized_title = :normalizedTitle, updated_at = :updatedAt " +
+            "WHERE id = :workId"
+    )
+    fun updateWorkTitle(workId: Long, normalizedTitle: String, updatedAt: Long): Int
+
+    @Query(
         "UPDATE works SET primary_creator_id=(SELECT c.artist_id FROM recording_artist_credits c " +
             "INNER JOIN recordings r ON r.id=c.recording_id WHERE r.work_id=works.id " +
             "AND c.role='PRIMARY' ORDER BY c.position,c.artist_id LIMIT 1), updated_at=:updatedAt " +
@@ -788,6 +809,9 @@ interface MusicIdentityDao {
             "WHERE local_track_id = :localTrackId LIMIT 1"
     )
     fun sourceForLocalTrack(localTrackId: Long): TrackSourceMappingEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM tracks WHERE id = :localTrackId)")
+    fun localTrackExists(localTrackId: Long): Boolean
 
     @Query("SELECT * FROM track_sources WHERE local_track_id IN (:localTrackIds)")
     fun sourcesForLocalTracks(localTrackIds: List<Long>): List<TrackSourceMappingEntity>
@@ -1131,6 +1155,37 @@ interface MusicIdentityDao {
     @Query("SELECT * FROM artist_source_mappings WHERE mapping_id = :mappingId LIMIT 1")
     fun artistMapping(mappingId: Long): ArtistSourceMappingEntity?
 
+    @Query("SELECT * FROM canonical_albums WHERE id = :albumId LIMIT 1")
+    fun album(albumId: Long): CanonicalAlbumEntity?
+
+    @Query("SELECT * FROM canonical_albums WHERE album_uuid = :albumUuid LIMIT 1")
+    fun canonicalAlbum(albumUuid: String): CanonicalAlbumEntity?
+
+    @Query("SELECT * FROM canonical_albums WHERE identity_key = :identityKey LIMIT 1")
+    fun albumForIdentity(identityKey: String): CanonicalAlbumEntity?
+
+    @Query(
+        "SELECT a.* FROM canonical_albums a INNER JOIN album_source_mappings m " +
+            "ON m.album_id = a.id WHERE m.provider = :provider " +
+            "AND m.provider_album_id = :providerAlbumId LIMIT 1"
+    )
+    fun albumForProvider(provider: String, providerAlbumId: String): CanonicalAlbumEntity?
+
+    @Query(
+        "SELECT a.* FROM canonical_albums a INNER JOIN album_aliases x ON x.album_id = a.id " +
+            "WHERE x.normalized_alias = :normalizedAlias ORDER BY a.created_at, a.id"
+    )
+    fun albumsForNormalizedAlias(normalizedAlias: String): List<CanonicalAlbumEntity>
+
+    @Query(
+        "SELECT * FROM album_aliases WHERE album_id = :albumId " +
+            "ORDER BY confidence DESC, alias"
+    )
+    fun albumAliases(albumId: Long): List<AlbumAliasEntity>
+
+    @Query("SELECT * FROM album_source_mappings WHERE album_id = :albumId")
+    fun albumMappings(albumId: Long): List<AlbumSourceMappingEntity>
+
     @Query(
         "SELECT * FROM recording_artist_credits WHERE recording_id = :recordingId " +
             "ORDER BY position, role, artist_id"
@@ -1206,10 +1261,18 @@ interface MusicIdentityDao {
     fun jobs(targetType: String, targetId: Long): List<IdentityResolutionJobEntity>
 
     @Query(
-        "SELECT * FROM identity_operations WHERE source_recording_id = :recordingId " +
-            "OR target_recording_id = :recordingId ORDER BY created_at DESC, id DESC LIMIT :limit"
+        "SELECT * FROM identity_operations WHERE (" +
+            "source_recording_id = :recordingId OR target_recording_id = :recordingId) " +
+            "AND operation_type != 'MANUAL_MATCH_DECISION' " +
+            "ORDER BY created_at DESC, id DESC LIMIT :limit"
     )
     fun identityOperations(recordingId: Long, limit: Int): List<IdentityOperationEntity>
+
+    @Query(
+        "SELECT * FROM identity_operations WHERE operation_type = :operationType " +
+            "AND reverted_at IS NULL ORDER BY created_at, id LIMIT :limit"
+    )
+    fun identityOperationsByType(operationType: String, limit: Int): List<IdentityOperationEntity>
 
     @Query(
         "SELECT COUNT(*) FROM identity_operations WHERE reverted_at IS NULL " +
@@ -1223,7 +1286,8 @@ interface MusicIdentityDao {
 
     @Query(
         "SELECT COUNT(*) FROM identity_operations WHERE id > :operationId AND (" +
-            "source_recording_id IN (:recordingIds) OR target_recording_id IN (:recordingIds))"
+            "source_recording_id IN (:recordingIds) OR target_recording_id IN (:recordingIds)) " +
+            "AND operation_type != 'MANUAL_MATCH_DECISION'"
     )
     fun newerIdentityOperationCount(operationId: Long, recordingIds: List<Long>): Int
 
@@ -1239,17 +1303,29 @@ interface MusicIdentityDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insert(artist: CanonicalArtistEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun insert(album: CanonicalAlbumEntity): Long
+
     @Update
     fun update(recording: CanonicalRecordingEntity): Int
 
     @Update
     fun update(artist: CanonicalArtistEntity): Int
 
+    @Update
+    fun update(album: CanonicalAlbumEntity): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(alias: ArtistAliasEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(mapping: ArtistSourceMappingEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(alias: AlbumAliasEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(mapping: AlbumSourceMappingEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(credit: RecordingArtistCreditEntity)
@@ -1265,6 +1341,18 @@ interface MusicIdentityDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsertSourceRecordingCandidates(candidates: List<SourceRecordingCandidateEntity>)
+
+    @Query(
+        "UPDATE source_recording_candidates SET evidence_json = :evidenceJson, " +
+            "updated_at = :updatedAt WHERE source_id = :sourceId " +
+            "AND candidate_recording_id = :candidateRecordingId AND state = 'SHADOW'"
+    )
+    fun updateShadowCandidateEvidence(
+        sourceId: Long,
+        candidateRecordingId: Long,
+        evidenceJson: String,
+        updatedAt: Long
+    ): Int
 
     @Upsert
     fun upsertRecordingRelation(relation: RecordingRelationEntity)

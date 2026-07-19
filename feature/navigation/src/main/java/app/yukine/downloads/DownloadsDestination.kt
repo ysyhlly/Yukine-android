@@ -8,11 +8,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import app.yukine.DownloadsDestinationActions
 import app.yukine.DownloadsUiState
 import app.yukine.ui.DownloadsScreen
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-
-private const val DownloadsRefreshIntervalMs = 1000L
 
 @Composable
 fun DownloadsDestination(
@@ -21,12 +18,6 @@ fun DownloadsDestination(
     actions: DownloadsDestinationActions = DownloadsDestinationActions()
 ) {
     val latestActions by rememberUpdatedState(actions)
-    LaunchedEffect(Unit) {
-        while (true) {
-            latestActions.refresh()
-            delay(DownloadsRefreshIntervalMs)
-        }
-    }
     LaunchedEffect(openDirectoryRequests) {
         openDirectoryRequests.collect {
             latestActions.openDirectoryPicker()

@@ -3,10 +3,14 @@ package app.yukine.data.enrichment
 import app.yukine.data.room.YukineDatabase
 import app.yukine.identity.AnonymousArtistMetadataProvider
 import app.yukine.identity.AnonymousArtistProviderResult
+import app.yukine.identity.AnonymousAlbumMetadataProvider
+import app.yukine.identity.AnonymousAlbumProviderResult
 import app.yukine.identity.AnonymousProviderResult
 import app.yukine.identity.AnonymousRecordingMetadataProvider
 import app.yukine.identity.ArtistAlias
+import app.yukine.identity.AlbumAlias
 import app.yukine.identity.CanonicalArtist
+import app.yukine.identity.CanonicalAlbum
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityTextNormalizer
 import org.json.JSONObject
@@ -53,6 +57,15 @@ class MetadataGatewayArtistProvider(
             }
         )
     }
+}
+
+class MetadataGatewayAlbumProvider(
+    private val client: MetadataGatewayClient
+) : AnonymousAlbumMetadataProvider {
+    override val providerName: String = MetadataGatewayClient.PROVIDER
+
+    override fun search(album: CanonicalAlbum, aliases: List<AlbumAlias>): AnonymousAlbumProviderResult =
+        client.searchAlbum(album, aliases.map(AlbumAlias::alias))
 }
 
 fun interface ArtistAvatarLookup {

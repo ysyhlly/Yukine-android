@@ -15,6 +15,10 @@ public final class Track implements Parcelable {
     public final String title;
     public final String artist;
     public final String album;
+    public final String albumArtist;
+    public final String composer;
+    public final String releaseType;
+    public final int year;
     public final long durationMs;
     public final Uri contentUri;
     public final String dataPath;
@@ -149,10 +153,62 @@ public final class Track implements Parcelable {
             float replayGainAlbumDb,
             TrackIdentityTags identityTags
     ) {
+        this(
+                id,
+                title,
+                artist,
+                album,
+                durationMs,
+                contentUri,
+                dataPath,
+                albumId,
+                albumArtUri,
+                codec,
+                bitrateKbps,
+                sampleRateHz,
+                bitsPerSample,
+                channelCount,
+                replayGainTrackDb,
+                replayGainAlbumDb,
+                identityTags,
+                "",
+                "",
+                "",
+                0
+        );
+    }
+
+    public Track(
+            long id,
+            String title,
+            String artist,
+            String album,
+            long durationMs,
+            Uri contentUri,
+            String dataPath,
+            long albumId,
+            Uri albumArtUri,
+            String codec,
+            int bitrateKbps,
+            int sampleRateHz,
+            int bitsPerSample,
+            int channelCount,
+            float replayGainTrackDb,
+            float replayGainAlbumDb,
+            TrackIdentityTags identityTags,
+            String albumArtist,
+            String composer,
+            String releaseType,
+            int year
+    ) {
         this.id = id;
         this.title = clean(title, UNKNOWN_TITLE);
         this.artist = clean(artist, UNKNOWN_ARTIST);
         this.album = clean(album, UNKNOWN_ALBUM);
+        this.albumArtist = cleanOptional(albumArtist);
+        this.composer = cleanOptional(composer);
+        this.releaseType = cleanOptional(releaseType);
+        this.year = sanitizeYear(year);
         this.durationMs = Math.max(durationMs, 0L);
         this.contentUri = contentUri == null ? Uri.EMPTY : contentUri;
         this.dataPath = dataPath == null ? "" : dataPath;
@@ -195,6 +251,10 @@ public final class Track implements Parcelable {
                 in.readString(),
                 in.createStringArrayList()
         );
+        albumArtist = in.dataAvail() > 0 ? cleanOptional(in.readString()) : "";
+        composer = in.dataAvail() > 0 ? cleanOptional(in.readString()) : "";
+        releaseType = in.dataAvail() > 0 ? cleanOptional(in.readString()) : "";
+        year = in.dataAvail() > 0 ? sanitizeYear(in.readInt()) : 0;
     }
 
     public String subtitle() {
@@ -280,6 +340,10 @@ public final class Track implements Parcelable {
         dest.writeString(identityTags.isrc);
         dest.writeString(identityTags.acoustId);
         dest.writeStringList(identityTags.artistMusicBrainzIds);
+        dest.writeString(albumArtist);
+        dest.writeString(composer);
+        dest.writeString(releaseType);
+        dest.writeInt(year);
     }
 
     public static final Creator<Track> CREATOR = new Creator<Track>() {
@@ -317,6 +381,14 @@ public final class Track implements Parcelable {
             trimmed = trimmed.substring("audio/".length());
         }
         return trimmed;
+    }
+
+    private static String cleanOptional(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static int sanitizeYear(int value) {
+        return value >= 1000 && value <= 9999 ? value : 0;
     }
 
     private static float sanitizeReplayGain(float value) {

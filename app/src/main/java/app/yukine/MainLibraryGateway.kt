@@ -39,7 +39,7 @@ internal class MainLibraryGateway(
     }
 
     fun interface FavoriteApplier {
-        fun setFavorite(trackId: Long, favorite: Boolean)
+        fun setFavorites(trackIds: Set<Long>, favorite: Boolean)
     }
 
     fun interface CollectionsLoader {
@@ -79,7 +79,13 @@ internal class MainLibraryGateway(
     }
 
     override fun applyFavorite(trackId: Long, favorite: Boolean) {
-        favoriteApplier.setFavorite(trackId, favorite)
+        favoriteApplier.setFavorites(setOf(trackId), favorite)
+        collectionsLoader.loadCollections()
+    }
+
+    override fun applyFavorites(trackIds: Set<Long>, favorite: Boolean) {
+        if (trackIds.isEmpty()) return
+        favoriteApplier.setFavorites(trackIds, favorite)
         collectionsLoader.loadCollections()
     }
 

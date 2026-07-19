@@ -24,6 +24,7 @@ class TrackListStatePublisherTest {
         val publisher = TrackListStatePublisher(
             TrackListStateReducer(viewModel, FakeListener()),
             library,
+            MutableStateFlow(emptySet()),
             settings,
             MutablePlaybackReadModel()
         )

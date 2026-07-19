@@ -4,6 +4,7 @@ import android.net.Uri;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
 
 public final class TrackEntityMapper {
     private TrackEntityMapper() {
@@ -30,7 +31,11 @@ public final class TrackEntityMapper {
                 track.channelCount,
                 (double) track.replayGainTrackDb,
                 (double) track.replayGainAlbumDb,
-                updatedAt
+                updatedAt,
+                track.albumArtist,
+                track.composer,
+                track.releaseType,
+                track.year
         );
     }
 
@@ -74,7 +79,11 @@ public final class TrackEntityMapper {
                 existing.getChannelCount(),
                 existing.getReplayGainTrackDb(),
                 existing.getReplayGainAlbumDb(),
-                incoming.getUpdatedAt()
+                incoming.getUpdatedAt(),
+                incoming.getAlbumArtist(),
+                incoming.getComposer(),
+                incoming.getReleaseType(),
+                incoming.getYear()
         );
     }
 
@@ -99,7 +108,11 @@ public final class TrackEntityMapper {
                 track.bitsPerSample,
                 track.channelCount,
                 (double) track.replayGainTrackDb,
-                (double) track.replayGainAlbumDb
+                (double) track.replayGainAlbumDb,
+                track.albumArtist,
+                track.composer,
+                track.releaseType,
+                track.year
         );
     }
 
@@ -123,7 +136,12 @@ public final class TrackEntityMapper {
                 entity.getBitsPerSample(),
                 entity.getChannelCount(),
                 (float) entity.getReplayGainTrackDb(),
-                (float) entity.getReplayGainAlbumDb()
+                (float) entity.getReplayGainAlbumDb(),
+                TrackIdentityTags.EMPTY,
+                entity.getAlbumArtist(),
+                entity.getComposer(),
+                entity.getReleaseType(),
+                entity.getYear()
         );
     }
 
@@ -150,7 +168,12 @@ public final class TrackEntityMapper {
                 entity.getBitsPerSample(),
                 entity.getChannelCount(),
                 (float) entity.getReplayGainTrackDb(),
-                (float) entity.getReplayGainAlbumDb()
+                (float) entity.getReplayGainAlbumDb(),
+                TrackIdentityTags.EMPTY,
+                entity.getAlbumArtist(),
+                entity.getComposer(),
+                entity.getReleaseType(),
+                entity.getYear()
         );
     }
 

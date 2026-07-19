@@ -71,7 +71,7 @@ rule CUSTOM_COMMAND
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = C:\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\cmake.exe --regenerate-during-build -S"E:\ECHO andriod\echo-android\app\src\main\cpp" -B"E:\ECHO andriod\echo-android\app\.cxx\Debug\184q4g1k\arm64-v8a"
+  command = D:\MigratedFromC\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\cmake.exe --regenerate-during-build -S"E:\ECHO andriod\echo-android\app\src\main\cpp" -B"E:\ECHO andriod\echo-android\app\.cxx\Debug\184q4g1k\arm64-v8a"
   description = Re-running CMake...
   generator = 1
 
@@ -80,7 +80,7 @@ rule RERUN_CMAKE
 # Rule for cleaning all built files.
 
 rule CLEAN
-  command = C:\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe $FILE_ARG -t clean $TARGETS
+  command = D:\MigratedFromC\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe $FILE_ARG -t clean $TARGETS
   description = Cleaning all built files...
 
 
@@ -88,6 +88,6 @@ rule CLEAN
 # Rule for printing all primary targets available.
 
 rule HELP
-  command = C:\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe -t targets
+  command = D:\MigratedFromC\Users\31283\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe -t targets
   description = All primary targets available:
 

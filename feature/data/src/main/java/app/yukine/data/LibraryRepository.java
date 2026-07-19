@@ -17,6 +17,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.UUID;
 
 import app.yukine.data.room.RecordingFavoriteEntity;
@@ -86,17 +87,33 @@ public final class LibraryRepository {
     private final PlaybackPersistenceRepository playbackPersistence;
     private final OfflineMusicIdentityStore musicIdentityStore;
     private final PlaybackSourcePolicy playbackSourcePolicy;
+    private final Function<Track, String> contentSignatureProvider;
     private final PolicyAwarePlaybackSourceSelector playbackSourceSelector;
     private final AtomicLong legacyMatchComparisons = new AtomicLong();
     private final AtomicLong legacyMatchDivergences = new AtomicLong();
 
     public LibraryRepository(YukineDatabase database) {
-        this(database, DefaultPlaybackSourcePolicy.INSTANCE);
+        this(database, DefaultPlaybackSourcePolicy.INSTANCE, ignored -> "");
     }
 
     public LibraryRepository(
             YukineDatabase database,
             PlaybackSourcePolicy playbackSourcePolicy
+    ) {
+        this(database, playbackSourcePolicy, ignored -> "");
+    }
+
+    LibraryRepository(
+            YukineDatabase database,
+            Function<Track, String> contentSignatureProvider
+    ) {
+        this(database, DefaultPlaybackSourcePolicy.INSTANCE, contentSignatureProvider);
+    }
+
+    LibraryRepository(
+            YukineDatabase database,
+            PlaybackSourcePolicy playbackSourcePolicy,
+            Function<Track, String> contentSignatureProvider
     ) {
         this.database = database;
         libraryDao = database.libraryDao();
@@ -110,6 +127,9 @@ public final class LibraryRepository {
         this.playbackSourcePolicy = playbackSourcePolicy == null
                 ? DefaultPlaybackSourcePolicy.INSTANCE
                 : playbackSourcePolicy;
+        this.contentSignatureProvider = contentSignatureProvider == null
+                ? ignored -> ""
+                : contentSignatureProvider;
         playbackPersistence = new PlaybackPersistenceRepository(database, this.playbackSourcePolicy);
         musicIdentityStore = new OfflineMusicIdentityStore(database);
         playbackSourceSelector = new PolicyAwarePlaybackSourceSelector(database, this.playbackSourcePolicy);
@@ -231,7 +251,11 @@ public final class LibraryRepository {
                 logical.channelCount,
                 logical.replayGainTrackDb,
                 logical.replayGainAlbumDb,
-                logical.identityTags
+                logical.identityTags,
+                firstNonBlank(source.getAlbumArtist(), logical.albumArtist),
+                firstNonBlank(source.getComposer(), logical.composer),
+                firstNonBlank(source.getReleaseType(), logical.releaseType),
+                source.getYear() > 0 ? source.getYear() : logical.year
         );
     }
 
@@ -384,10 +408,16 @@ public final class LibraryRepository {
         if (values == null || values.isEmpty()) {
             return;
         }
+        Map<Long, String> contentSignatures = contentSignatures(values);
         database.runInTransaction(() -> {
             Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
             long now = System.currentTimeMillis();
-            upsertTrackRows(trackEntities(values, exclusions, now), identityTags(values), now);
+            upsertTrackRows(
+                    trackEntities(values, exclusions, now),
+                    identityTags(values),
+                    contentSignatures,
+                    now
+            );
         });
         ingestConfirmedIdentitySources(localTrackIds(values));
     }
@@ -395,6 +425,7 @@ public final class LibraryRepository {
     public void replaceScanManagedTracks(List<Track> values) {
         throwIfInterrupted();
         List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
+        Map<Long, String> contentSignatures = contentSignatures(replacementTracks);
         database.runInTransaction(() -> {
             throwIfInterrupted();
             LinkedHashSet<Long> removedIds = new LinkedHashSet<>(libraryDao.loadScanManagedTrackIds());
@@ -409,7 +440,12 @@ public final class LibraryRepository {
             );
             deleteTrackRows(new ArrayList<>(removedIds));
             if (!replacements.isEmpty()) {
-                upsertTrackRows(replacements, identityTags(replacementTracks), now);
+                upsertTrackRows(
+                        replacements,
+                        identityTags(replacementTracks),
+                        contentSignatures,
+                        now
+                );
                 for (TrackEntity replacement : replacements) {
                     if (replacement.getId() != null) {
                         removedIds.remove(replacement.getId());
@@ -428,6 +464,7 @@ public final class LibraryRepository {
 
     public int replaceTracksByDataPathPattern(String pattern, List<Track> replacements) {
         AtomicInteger removed = new AtomicInteger();
+        Map<Long, String> contentSignatures = contentSignatures(replacements);
         database.runInTransaction(() -> {
             List<Long> ids = libraryDao.loadTrackIdsByDataPathPattern(pattern);
             removed.set(deleteTrackIdsInCurrentTransaction(ids));
@@ -437,7 +474,7 @@ public final class LibraryRepository {
                         replacements,
                         Collections.emptySet(),
                         now
-                ), identityTags(replacements), now);
+                ), identityTags(replacements), contentSignatures, now);
             }
             musicIdentityStore.pruneMissingTracks();
         });
@@ -447,6 +484,7 @@ public final class LibraryRepository {
 
     public int applyTrackDelta(List<Long> removedIds, List<Track> upserts) {
         AtomicInteger removed = new AtomicInteger();
+        Map<Long, String> contentSignatures = contentSignatures(upserts);
         database.runInTransaction(() -> {
             removed.set(deleteTrackIdsInCurrentTransaction(
                     removedIds == null ? Collections.emptyList() : removedIds
@@ -457,10 +495,11 @@ public final class LibraryRepository {
                         upserts,
                         Collections.emptySet(),
                         now
-                ), identityTags(upserts), now);
+                ), identityTags(upserts), contentSignatures, now);
             }
             musicIdentityStore.pruneMissingTracks();
         });
+        ingestConfirmedIdentitySources(localTrackIds(upserts));
         return removed.get();
     }
 
@@ -1077,6 +1116,7 @@ public final class LibraryRepository {
         if (replacement == null) {
             return;
         }
+        Map<Long, String> contentSignatures = contentSignatures(List.of(replacement));
         database.runInTransaction(() -> {
             long now = System.currentTimeMillis();
             long oldRecordingId = musicIdentityStore.recordingIdForTrack(oldTrackId);
@@ -1086,6 +1126,7 @@ public final class LibraryRepository {
             upsertTrackRows(
                     List.of(TrackEntityMapper.entity(replacement, now)),
                     identityTags(List.of(replacement)),
+                    contentSignatures,
                     now
             );
             long newTrackId = replacement.id;
@@ -1320,13 +1361,15 @@ public final class LibraryRepository {
     private void upsertTrackRows(
             List<TrackEntity> rows,
             Map<Long, TrackIdentityTags> identityTags,
+            Map<Long, String> contentSignatures,
             long now
     ) {
         if (rows == null || rows.isEmpty()) {
             return;
         }
-        ArrayList<Long> ids = new ArrayList<>(rows.size());
-        for (TrackEntity row : rows) {
+        List<TrackEntity> uniqueRows = uniqueSourceRows(rows);
+        ArrayList<Long> ids = new ArrayList<>(uniqueRows.size());
+        for (TrackEntity row : uniqueRows) {
             if (row != null && row.getId() != null) ids.add(row.getId());
         }
         HashMap<Long, TrackEntity> existingById = new HashMap<>();
@@ -1337,15 +1380,54 @@ public final class LibraryRepository {
                 }
             }
         }
-        ArrayList<TrackEntity> persistedRows = new ArrayList<>(rows.size());
-        for (TrackEntity row : rows) {
+        ArrayList<TrackEntity> persistedRows = new ArrayList<>(uniqueRows.size());
+        for (TrackEntity row : uniqueRows) {
             TrackEntity existing = row == null || row.getId() == null
                     ? null
                     : existingById.get(row.getId());
-            persistedRows.add(TrackEntityMapper.preserveAudioSpecs(row, existing));
+            TrackEntity persisted = TrackEntityMapper.preserveAudioSpecs(row, existing);
+            TrackSourceIdentity identity = TrackSourceIdentity.from(
+                    persisted.getId(),
+                    persisted.getContentUri(),
+                    persisted.getDataPath()
+            );
+            TrackSourceMappingEntity owner = musicIdentityDao.source(
+                    identity.provider,
+                    identity.providerTrackId
+            );
+            if (owner != null
+                    && owner.getLocalTrackId() != null
+                    && !owner.getLocalTrackId().equals(persisted.getId())
+                    && libraryDao.loadTrack(owner.getLocalTrackId()) != null) {
+                continue;
+            }
+            persistedRows.add(persisted);
+        }
+        if (persistedRows.isEmpty()) {
+            return;
         }
         libraryDao.upsertTracks(persistedRows);
-        musicIdentityStore.ensureTracks(persistedRows, identityTags, now);
+        musicIdentityStore.ensureTracks(persistedRows, identityTags, contentSignatures, now);
+    }
+
+    private static List<TrackEntity> uniqueSourceRows(List<TrackEntity> rows) {
+        LinkedHashMap<String, TrackEntity> bySource = new LinkedHashMap<>();
+        for (TrackEntity row : rows) {
+            if (row == null || row.getId() == null) {
+                continue;
+            }
+            TrackSourceIdentity identity = TrackSourceIdentity.from(
+                    row.getId(),
+                    row.getContentUri(),
+                    row.getDataPath()
+            );
+            String key = identity.provider + '\u0000' + identity.providerTrackId;
+            TrackEntity selected = bySource.get(key);
+            if (selected == null || selected.getId().equals(row.getId())) {
+                bySource.put(key, row);
+            }
+        }
+        return new ArrayList<>(bySource.values());
     }
 
     public void markAudioSpecAttempt(long trackId, long attemptedAt) {
@@ -1363,6 +1445,30 @@ public final class LibraryRepository {
             }
         }
         return tags;
+    }
+
+    private Map<Long, String> contentSignatures(List<Track> values) {
+        HashMap<Long, String> signatures = new HashMap<>();
+        if (values == null) {
+            return signatures;
+        }
+        for (Track track : values) {
+            if (track == null) {
+                continue;
+            }
+            String signature;
+            try {
+                String value = contentSignatureProvider.apply(track);
+                signature = value == null ? "" : value.trim();
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Unable to compute content signature for track " + track.id, error);
+                signature = "";
+            }
+            if (!signature.isEmpty()) {
+                signatures.put(track.id, signature);
+            }
+        }
+        return signatures;
     }
 
     private void deleteTrackRows(List<Long> ids) {

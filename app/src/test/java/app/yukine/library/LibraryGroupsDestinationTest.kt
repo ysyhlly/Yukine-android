@@ -1,6 +1,8 @@
 package app.yukine.library
 
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -8,6 +10,7 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import app.yukine.LibraryGroupsDestinationState
 import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryActionHandler
@@ -19,7 +22,6 @@ import app.yukine.ui.LibraryPlaylistFolderEntryUiState
 import app.yukine.ui.LibraryPlaylistFolderUiState
 import app.yukine.ui.LibraryUiState
 import app.yukine.ui.TrackListModeAction
-import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Assert.assertEquals
@@ -57,10 +59,7 @@ class LibraryGroupsDestinationTest {
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                LibraryGroupsDestination(
-                    state,
-                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
-                )
+                LibraryGroupsDestination(state)
             }
         }
 
@@ -71,6 +70,53 @@ class LibraryGroupsDestinationTest {
         composeRule.onNodeWithText("收藏").assertIsDisplayed()
         composeRule.onNodeWithText("Artist One").assertIsDisplayed()
         composeRule.onNodeWithText("Artist Two").assertIsDisplayed()
+    }
+
+    @Test
+    fun modeSelectorKeepsCompactVisualsWithA48DpClickTarget() {
+        var modeClicks = 0
+        val state = MutableStateFlow(
+            LibraryGroupsDestinationState(
+                title = "Artists",
+                modeActions = listOf(
+                    TrackListModeAction("Songs", "songs", false, Runnable { modeClicks++ })
+                ),
+                libraryUi = LibraryUiState(mode = LibraryMode.Artists)
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryGroupsDestination(state)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Songs")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        assertEquals(1, modeClicks)
+    }
+
+    @Test
+    fun playlistEmptyStateDoesNotOfferLibraryScanOrImport() {
+        val state = MutableStateFlow(
+            LibraryGroupsDestinationState(
+                title = "歌单",
+                emptyText = "暂无歌单",
+                libraryUi = LibraryUiState(mode = LibraryMode.Playlists)
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryGroupsDestination(state)
+            }
+        }
+
+        composeRule.onNodeWithText("暂无歌单").assertIsDisplayed()
+        composeRule.onNodeWithText("扫描曲库").assertDoesNotExist()
+        composeRule.onNodeWithText("导入文件").assertDoesNotExist()
     }
 
     @Test
@@ -191,10 +237,7 @@ class LibraryGroupsDestinationTest {
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
-                LibraryGroupsDestination(
-                    state,
-                    audioMotion = YukineOrbAudioMotion.Empty.copy(visualMotionEnabled = false)
-                )
+                LibraryGroupsDestination(state)
             }
         }
 

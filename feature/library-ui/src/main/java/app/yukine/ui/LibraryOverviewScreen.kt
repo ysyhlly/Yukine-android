@@ -136,6 +136,40 @@ fun LibraryOverviewScreen(
         item("overview-sources") {
             MusicSourcesCard(overview, labels, onOpenSources, density)
         }
+
+        item("overview-sync") {
+            LibrarySyncButton(labels.manage, onManageLibrary)
+        }
+    }
+}
+
+@Composable
+private fun LibrarySyncButton(label: String, onClick: () -> Unit) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .echoFloatingLayer(p, EchoShapes.medium)
+            .echoGlassLayer(p, EchoShapes.medium)
+            .semantics { contentDescription = label },
+        shape = EchoShapes.medium,
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EchoIcon(EchoIconKind.Sync, Modifier.size(19.dp), p.accent)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                label,
+                style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = p.accent
+            )
+        }
     }
 }
 

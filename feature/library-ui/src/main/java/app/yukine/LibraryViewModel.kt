@@ -55,6 +55,9 @@ interface LibraryGateway {
     fun playTrackList(tracks: List<Track>, index: Int)
     fun showStatusKey(key: String)
     fun applyFavorite(trackId: Long, favorite: Boolean)
+    fun applyFavorites(trackIds: Set<Long>, favorite: Boolean) {
+        trackIds.forEach { trackId -> applyFavorite(trackId, favorite) }
+    }
     fun addToPlaylist(track: Track)
     fun changeGroupMode(mode: String)
     fun openGroup(key: String, title: String)
@@ -207,7 +210,8 @@ class LibraryViewModel @JvmOverloads constructor(
 ) : ViewModel() {
     private var gateway: LibraryGateway? = null
     private val mutations = LibraryMutationContext(viewModelScope, ioDispatcher) { gateway }
-    internal val favorites = LibraryFavoriteStateOwner(viewModelScope, mutations) { gateway }
+    val data = LibraryDataStateOwner(viewModelScope, preparationDispatcher)
+    internal val favorites = LibraryFavoriteStateOwner(viewModelScope, mutations, data) { gateway }
     val playlists = LibraryPlaylistStateOwner(viewModelScope, mutations) { gateway }
     val loading = LibraryLoadStateOwner(
         viewModelScope,
@@ -216,12 +220,12 @@ class LibraryViewModel @JvmOverloads constructor(
         libraryRefreshDiagnosticTimeoutMs
     )
     val presentation = LibraryPresentationStateOwner({ gateway }, favorites, playlists)
-    val data = LibraryDataStateOwner(viewModelScope, preparationDispatcher)
 
     val trackList: StateFlow<LibraryTrackListDestinationState> = presentation.trackList
     val libraryGroups: StateFlow<LibraryGroupsDestinationState> = presentation.groups
     val libraryUi: StateFlow<LibraryUiState> = presentation.ui
     val library: StateFlow<LibraryStoreState> = data.state
+    val favoritePendingTrackIds: StateFlow<Set<Long>> = data.favoritePendingTrackIds
 
     @JvmName("dataOwner")
     fun dataOwner(): LibraryDataStateOwner = data

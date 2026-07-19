@@ -50,7 +50,8 @@ class HandoffExperienceContractTest {
 
         assertTrue(trackList.contains("ModalBottomSheet"))
         assertTrue(trackList.contains("TrackActionSheet("))
-        assertTrue(trackList.contains("onLongPress = { actionSheetState = TrackActionSheetState(track, action) }"))
+        assertTrue(trackList.contains("onLongPress = { actionSheetTrackKey = track.key }"))
+        assertTrue(trackList.contains("tracks.indexOfFirst { it.key == selectedKey }"))
         assertTrue(trackList.contains("TrackActionSheetRow(EchoIconKind.Import, labels.downloadLabel)"))
     }
 

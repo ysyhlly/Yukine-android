@@ -19,6 +19,21 @@ import app.yukine.playback.service.PlaybackServiceActions
 import app.yukine.playback.state.PlaybackStateListener
 import kotlinx.coroutines.flow.StateFlow
 
+internal class PlaybackReadModelStateListener(
+    private val publish: (PlaybackStateSnapshot) -> Unit,
+    private val downstream: PlaybackStateListener
+) : PlaybackStateListener {
+    override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
+        publish(snapshot)
+        downstream.onPlaybackStateChanged(snapshot)
+    }
+
+    override fun onPlaybackBuffering(snapshot: PlaybackStateSnapshot) {
+        publish(snapshot)
+        downstream.onPlaybackBuffering(snapshot)
+    }
+}
+
 internal class PlaybackServiceConnectionController(
     private val context: Context,
     private val playbackStateListener: PlaybackStateListener,
@@ -41,16 +56,8 @@ internal class PlaybackServiceConnectionController(
     override val queue: StateFlow<PlaybackQueueSnapshot> = readModel.queue
     override val connection: StateFlow<PlaybackConnectionState> = readModel.connection
 
-    private val readModelListener = object : PlaybackStateListener {
-        override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
-            publishReadModel(snapshot)
-            playbackStateListener.onPlaybackStateChanged(snapshot)
-        }
-
-        override fun onPlaybackBuffering(snapshot: PlaybackStateSnapshot) {
-            playbackStateListener.onPlaybackBuffering(snapshot)
-        }
-    }
+    private val readModelListener =
+        PlaybackReadModelStateListener(::publishReadModel, playbackStateListener)
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {

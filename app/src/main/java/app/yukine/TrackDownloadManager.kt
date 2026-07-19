@@ -29,6 +29,10 @@ import java.util.concurrent.Future
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Singleton
 import kotlin.math.min
 
@@ -53,6 +57,11 @@ class TrackDownloadManager internal constructor(
     private val records = linkedMapOf<Long, TrackDownloadRecord>()
     private val preferences = context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE)
     private val customIdCounter = AtomicLong(-2L)
+    private val mutableChanges = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    override val changes: Flow<Unit> = mutableChanges.asSharedFlow()
     @Volatile
     private var shutdown = false
 
@@ -98,6 +107,7 @@ class TrackDownloadManager internal constructor(
 
     override fun setDownloadDirectory(directory: String) {
         preferences.edit().putString(KEY_DIRECTORY, normalizeDirectory(directory)).apply()
+        notifyChanged()
     }
 
     override fun setCustomDownloadDirectory(treeUri: Uri) {
@@ -105,6 +115,7 @@ class TrackDownloadManager internal constructor(
             .putString(KEY_DIRECTORY, DOWNLOAD_DIRECTORY_CUSTOM)
             .putString(KEY_CUSTOM_TREE_URI, treeUri.toString())
             .apply()
+        notifyChanged()
     }
 
     override fun snapshot(): List<TrackDownloadItem> {
@@ -186,6 +197,7 @@ class TrackDownloadManager internal constructor(
             persistRecordsLocked()
             true
         }
+        if (changed) notifyChanged()
         return if (changed) TrackDownloadActionResult(true, "已暂停下载") else TrackDownloadActionResult(false, "暂停失败")
     }
 
@@ -207,6 +219,7 @@ class TrackDownloadManager internal constructor(
             persistRecordsLocked()
             recordToResume = resumed
         }
+        notifyChanged()
         val record = recordToResume ?: return TrackDownloadActionResult(false, "继续失败")
         if (record.sourceUri.isBlank()) {
             return TrackDownloadActionResult(false, "旧下载任务缺少音源信息，请重新添加下载")
@@ -228,6 +241,7 @@ class TrackDownloadManager internal constructor(
                 persistRecordsLocked()
             }
         } ?: return TrackDownloadActionResult(false, "未找到下载任务")
+        notifyChanged()
         if (downloadId >= 0L) {
             val manager = context.getSystemService(DownloadManager::class.java)
                 ?: return TrackDownloadActionResult(true, "已移除下载记录")
@@ -249,6 +263,7 @@ class TrackDownloadManager internal constructor(
                 persistRecordsLocked()
             }
         }
+        if (changed > 0) notifyChanged()
         return if (changed > 0) {
             TrackDownloadActionResult(true, "已暂停 $changed 个下载任务")
         } else {
@@ -273,6 +288,7 @@ class TrackDownloadManager internal constructor(
                 persistRecordsLocked()
             }
         }
+        if (toResume.isNotEmpty()) notifyChanged()
         val resumable = toResume.filter { it.sourceUri.isNotBlank() }
         for (record in resumable) {
             if (!submitCustomTask {
@@ -323,11 +339,13 @@ class TrackDownloadManager internal constructor(
             )
             persistRecordsLocked()
         }
+        notifyChanged()
         if (!submitCustomTask { runAppManagedDownload(id, track, sourceUri, treeUri) }) {
             synchronized(records) {
                 records.remove(id)
                 persistRecordsLocked()
             }
+            notifyChanged()
             return TrackDownloadResult(false, id, "下载服务已关闭")
         }
         return TrackDownloadResult(true, id, downloadStartedMessage("已开始下载", track))
@@ -865,11 +883,21 @@ class TrackDownloadManager internal constructor(
     }
 
     private fun updateCustomRecord(id: Long, transform: (TrackDownloadRecord) -> TrackDownloadRecord) {
+        var changed = false
         synchronized(records) {
             val current = records[id] ?: return
-            records[id] = transform(current)
-            persistRecordsLocked()
+            val updated = transform(current)
+            if (updated != current) {
+                records[id] = updated
+                persistRecordsLocked()
+                changed = true
+            }
         }
+        if (changed) notifyChanged()
+    }
+
+    private fun notifyChanged() {
+        mutableChanges.tryEmit(Unit)
     }
 
     private fun customDownloadTreeUri(): Uri? {

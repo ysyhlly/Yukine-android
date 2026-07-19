@@ -42,16 +42,26 @@ final class AudioSpecParser {
                 || ReplayGainParser.hasGain(track.replayGainAlbumDb)
                 ? new ReplayGainParser.ReplayGain(track.replayGainTrackDb, track.replayGainAlbumDb)
                 : replayGainParser.read(track.contentUri);
+        PortableAudioMetadataReader.Metadata portable = portableMetadataReader.read(
+                track.contentUri,
+                displayName(track.dataPath),
+                track.dataPath,
+                false
+        );
         TrackIdentityTags identityTags = track.identityTags;
         if (identityTags == null || identityTags.isEmpty()) {
-            identityTags = portableMetadataReader.read(
-                    track.contentUri,
-                    displayName(track.dataPath),
-                    track.dataPath,
-                    false
-            ).identityTags;
+            identityTags = portable.identityTags;
         }
-        if (!spec.hasAudioSpec() && !replayGain.hasValue() && identityTags.isEmpty()) {
+        String albumArtist = firstNonBlank(track.albumArtist, portable.albumArtist);
+        String composer = firstNonBlank(track.composer, portable.composer);
+        String releaseType = firstNonBlank(track.releaseType, portable.releaseType);
+        int year = track.year > 0 ? track.year : portable.year;
+        boolean metadataChanged = !albumArtist.equals(track.albumArtist)
+                || !composer.equals(track.composer)
+                || !releaseType.equals(track.releaseType)
+                || year != track.year;
+        if (!spec.hasAudioSpec() && !replayGain.hasValue() && identityTags.isEmpty()
+                && !metadataChanged) {
             return track;
         }
         return new Track(
@@ -71,7 +81,11 @@ final class AudioSpecParser {
                 spec.channelCount,
                 replayGain.trackDb,
                 replayGain.albumDb,
-                identityTags
+                identityTags,
+                albumArtist,
+                composer,
+                releaseType,
+                year
         );
     }
 
@@ -81,6 +95,12 @@ final class AudioSpecParser {
         }
         int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
         return slash < 0 ? path : path.substring(slash + 1);
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.trim().isEmpty()
+                ? fallback == null ? "" : fallback.trim()
+                : preferred.trim();
     }
 
     private boolean isStreamingTrack(Track track) {

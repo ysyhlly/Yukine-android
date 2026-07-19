@@ -105,7 +105,10 @@ public final class RemoteSourceRepository {
         }
         ArrayList<Long> removedIds = new ArrayList<>();
         for (Map.Entry<String, Track> entry : previousByPath.entrySet()) {
-            if (!currentByPath.containsKey(entry.getKey())
+            Track currentAtPath = currentByPath.get(entry.getKey());
+            boolean sourceReplacedAtPath = currentAtPath != null
+                    && currentAtPath.id != entry.getValue().id;
+            if ((!currentByPath.containsKey(entry.getKey()) || sourceReplacedAtPath)
                     && !currentTrackIds.contains(entry.getValue().id)) {
                 removedIds.add(entry.getValue().id);
             }
@@ -247,7 +250,11 @@ public final class RemoteSourceRepository {
                 track.channelCount,
                 track.replayGainTrackDb,
                 track.replayGainAlbumDb,
-                track.identityTags
+                track.identityTags,
+                track.albumArtist,
+                track.composer,
+                track.releaseType,
+                track.year
         );
     }
 

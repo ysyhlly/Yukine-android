@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 internal class LibraryFavoriteStateOwner(
     private val scope: CoroutineScope,
     private val mutations: LibraryMutationContext,
+    private val data: LibraryDataStateOwner,
     private val gateway: () -> LibraryGateway?
 ) {
     private var writer: LibraryFavoriteWriter? = null
@@ -31,6 +32,7 @@ internal class LibraryFavoriteStateOwner(
             gateway()?.applyFavorite(track.id, favorite)
             return
         }
+        if (!data.beginFavoriteMutation(track.id)) return
         scope.launch {
             try {
                 val (favorite, written) = mutations.runLocked {
@@ -47,25 +49,46 @@ internal class LibraryFavoriteStateOwner(
             } catch (_: Exception) {
                 gateway()?.showStatusKey("library.favorite.failed")
             }
+        }.invokeOnCompletion {
+            data.endFavoriteMutations(setOf(track.id))
         }
     }
 
     fun favoriteAll(tracks: List<Track>) {
         val currentWriter = writer ?: return
-        if (tracks.isEmpty()) return
+        val tracksById = tracks
+            .asSequence()
+            .filter { TrackIdentity.isUsable(it.id) }
+            .associateBy { it.id }
+        val pendingIds = data.beginFavoriteMutations(tracksById.keys)
+        if (pendingIds.isEmpty()) return
         scope.launch {
-            val succeeded = mutations.runLocked {
-                tracks.count { track ->
-                    try {
-                        currentWriter.writeFavorite(track, true)
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (_: Exception) {
-                        false
+            try {
+                val succeededIds = mutations.runLocked {
+                    pendingIds.mapNotNullTo(LinkedHashSet()) { trackId ->
+                        val track = tracksById.getValue(trackId)
+                        try {
+                            trackId.takeIf { currentWriter.writeFavorite(track, true) }
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            null
+                        }
                     }
                 }
+                if (succeededIds.isNotEmpty()) {
+                    gateway()?.applyFavorites(succeededIds, true)
+                }
+                if (succeededIds.size < pendingIds.size) {
+                    gateway()?.showStatusKey("library.favorite.failed")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                gateway()?.showStatusKey("library.favorite.failed")
             }
-            if (succeeded < tracks.size) gateway()?.showStatusKey("library.favorite.failed")
+        }.invokeOnCompletion {
+            data.endFavoriteMutations(pendingIds)
         }
     }
 }

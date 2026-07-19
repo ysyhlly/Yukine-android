@@ -21,7 +21,7 @@ class RoomIdentityJobRepository(
             val staleBefore = (safeNow - STALE_RUNNING_TIMEOUT_MS).coerceAtLeast(0L)
             dao.deleteRetryPeersForStaleRunningJobs(staleBefore)
             dao.recoverStaleRunningJobs(staleBefore, safeNow)
-            dao.readyJobs(safeNow, limit.coerceIn(1, 100)).map { it.toModel() }
+            dao.readyJobs(safeNow, limit.coerceAtLeast(1)).map { it.toModel() }
         })
 
     override fun claim(jobId: String, now: Long): IdentityResolutionJob? =

@@ -6,6 +6,10 @@ internal class DownloadsDestinationOwner(
     private val downloadController: TrackDownloadDirectoryController,
     private val openDirectoryPicker: () -> Unit
 ) {
+    init {
+        viewModel.bind(downloadController)
+    }
+
     fun actions(): DownloadsDestinationActions = DownloadsDestinationActions(
         refresh = { viewModel.refreshDirectory(downloadController) },
         useMusicDirectory = { viewModel.useMusicDirectory(downloadController) },

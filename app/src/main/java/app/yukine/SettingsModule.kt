@@ -38,7 +38,8 @@ internal object SettingsModule {
         cache = RoomProviderResponseCacheRepository(YukineDatabase.getInstance(context)),
         transport = UrlConnectionMetadataHttpTransport(),
         endpoint = IdentityEnhancementSettingsStore(context).effectiveGatewayEndpoint(),
-        applicationVersion = BuildConfig.VERSION_NAME
+        applicationVersion = BuildConfig.VERSION_NAME,
+        requestQuota = PersistentMetadataGatewayRequestQuota(context)
     )
 
     @Provides

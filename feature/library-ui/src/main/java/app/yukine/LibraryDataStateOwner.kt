@@ -48,6 +48,9 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     val state: StateFlow<LibraryStoreState> = mutableState.asStateFlow()
     private val mutableFavoriteTrackIds = MutableStateFlow<Set<Long>>(emptySet())
     val favoriteTrackIds: StateFlow<Set<Long>> = mutableFavoriteTrackIds.asStateFlow()
+    private val mutableFavoritePendingTrackIds = MutableStateFlow<Set<Long>>(emptySet())
+    val favoritePendingTrackIds: StateFlow<Set<Long>> = mutableFavoritePendingTrackIds.asStateFlow()
+    private val favoriteMutationLock = Any()
     private var replacementJob: Job? = null
     private var searchJob: Job? = null
     private var libraryRevision = 0L
@@ -141,6 +144,7 @@ class LibraryDataStateOwner @JvmOverloads constructor(
 
     fun replaceLibrary(tracks: List<Track>, favorites: Set<Long>, searchQuery: String?) {
         latestSearchQuery = normalizedSearchQuery(searchQuery)
+        searchJob?.cancel()
         applyPreparedLibrary(prepareLibrary(tracks, favorites, latestSearchQuery))
     }
 
@@ -225,7 +229,8 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             sourceCandidatesByTrackId = prepared.sourceCandidatesByTrackId,
             allTracks = prepared.allTracks,
             visibleTracks = prepared.visibleTracks,
-            favoriteTrackIds = prepared.favoriteTrackIds
+            favoriteTrackIds = prepared.favoriteTrackIds,
+            favoriteTracks = prepared.allTracks.filter { it.id in prepared.favoriteTrackIds }
         )
         mutableFavoriteTrackIds.value = prepared.favoriteTrackIds
         libraryRevision++
@@ -247,6 +252,7 @@ class LibraryDataStateOwner @JvmOverloads constructor(
 
     fun applySearch(query: String?) {
         latestSearchQuery = normalizedSearchQuery(query)
+        searchJob?.cancel()
         updateVisibleTracks(searchVisibleTracks(state(), latestSearchQuery))
     }
 
@@ -258,18 +264,15 @@ class LibraryDataStateOwner @JvmOverloads constructor(
             if (latestSearchQuery.isNotEmpty()) {
                 delay(SEARCH_DEBOUNCE_MS)
             }
-            while (true) {
-                val queryForSearch = latestSearchQuery
-                val source = state()
-                val revision = libraryRevision
-                val visibleTracks = withContext(preparationDispatcher) {
-                    searchVisibleTracks(source, queryForSearch)
-                }
-                if (queryForSearch == latestSearchQuery && revision == libraryRevision) {
-                    updateVisibleTracks(visibleTracks)
-                    onApplied.run()
-                    return@launch
-                }
+            val queryForSearch = latestSearchQuery
+            val source = state()
+            val revision = libraryRevision
+            val visibleTracks = withContext(preparationDispatcher) {
+                searchVisibleTracks(source, queryForSearch)
+            }
+            if (queryForSearch == latestSearchQuery && revision == libraryRevision) {
+                updateVisibleTracks(visibleTracks)
+                onApplied.run()
             }
         }
     }
@@ -349,15 +352,48 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     }
 
     fun setFavorite(trackId: Long, favorite: Boolean) {
+        setFavorites(setOf(trackId), favorite)
+    }
+
+    fun setFavorites(trackIds: Set<Long>, favorite: Boolean) {
+        if (trackIds.isEmpty()) return
         val current = mutableState.value
         val favoriteIds = current.favoriteTrackIds.toMutableSet().apply {
-            if (favorite) add(trackId) else remove(trackId)
+            if (favorite) addAll(trackIds) else removeAll(trackIds)
         }
+        if (favoriteIds == current.favoriteTrackIds) return
         mutableState.value = current.copy(
             favoriteTrackIds = favoriteIds,
-            favoriteTracks = updateFavoriteTracks(current, trackId, favorite)
+            favoriteTracks = updateFavoriteTracks(current, trackIds, favorite)
         )
         mutableFavoriteTrackIds.value = favoriteIds
+    }
+
+    fun beginFavoriteMutation(trackId: Long): Boolean =
+        beginFavoriteMutations(listOf(trackId)).isNotEmpty()
+
+    fun beginFavoriteMutations(trackIds: Collection<Long>): Set<Long> =
+        synchronized(favoriteMutationLock) {
+            val current = mutableFavoritePendingTrackIds.value
+            val accepted = trackIds
+                .asSequence()
+                .filter { it !in current }
+                .toCollection(LinkedHashSet())
+            if (accepted.isNotEmpty()) {
+                mutableFavoritePendingTrackIds.value = current + accepted
+            }
+            accepted
+        }
+
+    fun endFavoriteMutations(trackIds: Collection<Long>) {
+        if (trackIds.isEmpty()) return
+        synchronized(favoriteMutationLock) {
+            val current = mutableFavoritePendingTrackIds.value
+            val remaining = current - trackIds.toSet()
+            if (remaining != current) {
+                mutableFavoritePendingTrackIds.value = remaining
+            }
+        }
     }
 
     private fun state(): LibraryStoreState {
@@ -410,16 +446,22 @@ class LibraryDataStateOwner @JvmOverloads constructor(
 
     private fun updateFavoriteTracks(
         current: LibraryStoreState,
-        trackId: Long,
+        trackIds: Set<Long>,
         favorite: Boolean
     ): List<Track> {
-        if (!favorite) return current.favoriteTracks.filterNot { it.id == trackId }
-        if (current.favoriteTracks.any { it.id == trackId }) return current.favoriteTracks
-        val track = current.allTracks.firstOrNull { it.id == trackId }
-            ?: current.visibleTracks.firstOrNull { it.id == trackId }
-            ?: current.selectedPlaylistTracks.firstOrNull { it.id == trackId }
-            ?: return current.favoriteTracks
-        return current.favoriteTracks + track
+        if (!favorite) return current.favoriteTracks.filterNot { it.id in trackIds }
+        val existingIds = current.favoriteTracks.asSequence().mapTo(HashSet()) { it.id }
+        val candidates = LinkedHashMap<Long, Track>()
+        current.allTracks.forEach { candidates.putIfAbsent(it.id, it) }
+        current.visibleTracks.forEach { candidates.putIfAbsent(it.id, it) }
+        current.selectedPlaylistTracks.forEach { candidates.putIfAbsent(it.id, it) }
+        val updated = ArrayList(current.favoriteTracks)
+        trackIds.forEach { trackId ->
+            if (existingIds.add(trackId)) {
+                candidates[trackId]?.let(updated::add)
+            }
+        }
+        return updated
     }
 
     private data class PreparedLibraryBase(

@@ -296,6 +296,7 @@ final class LibraryFeatureBinding {
         trackListStatePublisher = new TrackListStatePublisher(
                 trackListStateReducer,
                 viewModel.getLibrary(),
+                viewModel.getFavoritePendingTrackIds(),
                 settingsViewModel.getState(),
                 playback.readModel()
         );
@@ -402,7 +403,7 @@ final class LibraryFeatureBinding {
                 (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),
                 this::languageMode,
                 statusMessages::setStatus,
-                store::setFavorite,
+                store::setFavorites,
                 collectionsOwner::load,
                 playlistDialogController::showAddToPlaylist,
                 navigation.getRouteController(),

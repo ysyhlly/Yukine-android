@@ -10,6 +10,11 @@ interface AnonymousArtistMetadataProvider {
     fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>): AnonymousArtistProviderResult
 }
 
+interface AnonymousAlbumMetadataProvider {
+    val providerName: String
+    fun search(album: CanonicalAlbum, aliases: List<AlbumAlias>): AnonymousAlbumProviderResult
+}
+
 data class IdentityEnhancementRunResult(
     val claimed: Int,
     val succeeded: Int,

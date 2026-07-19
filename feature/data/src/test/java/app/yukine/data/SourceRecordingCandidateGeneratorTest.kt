@@ -98,6 +98,72 @@ class SourceRecordingCandidateGeneratorTest {
         assertEquals(64, after.length)
     }
 
+    @Test
+    fun shadowKeepsEmbeddingOnlyCandidatesOutOfTheActiveTopK() {
+        val first = source(41L, 6L, "甲", "First", 180_000L)
+        val second = source(42L, 7L, "乙", "Second", 180_100L, "webdav")
+        val vector = ByteArray(64).also { it[0] = 1 }
+        val features = features(listOf(first, second)).mapValues { (_, feature) ->
+            feature.copy(
+                metadataVector = vector.copyOf(),
+                metadataVectorVersion = MetadataHashEmbeddingEncoder.VECTOR_VERSION,
+                metadataSimHash = 1L
+            )
+        }
+
+        val result = SourceRecordingCandidateGenerator().generate(
+            listOf(first, second),
+            features,
+            400L,
+            EmbeddingRecallMode.SHADOW
+        )
+
+        assertTrue(result.candidates.isEmpty())
+        assertTrue(result.shadowCandidates.any { row ->
+            row.sourceId == first.sourceId &&
+                row.candidateRecordingId == second.recordingId &&
+                row.state == SourceRecordingCandidateGenerator.STATE_SHADOW &&
+                row.evidenceJson.contains("\"EMBEDDING_LSH\"")
+        })
+    }
+
+    @Test
+    fun onPromotesEmbeddingOnlyCandidatesButOffDoesNot() {
+        val first = source(51L, 8L, "Alpha", "One", 180_000L)
+        val second = source(52L, 9L, "Omega", "Two", 180_100L, "webdav")
+        val vector = ByteArray(64).also { it[3] = 2 }
+        val features = features(listOf(first, second)).mapValues { (_, feature) ->
+            feature.copy(
+                metadataVector = vector.copyOf(),
+                metadataVectorVersion = MetadataHashEmbeddingEncoder.VECTOR_VERSION,
+                metadataSimHash = 8L
+            )
+        }
+        val generator = SourceRecordingCandidateGenerator()
+
+        val off = generator.generate(
+            listOf(first, second),
+            features,
+            500L,
+            EmbeddingRecallMode.OFF
+        )
+        val on = generator.generate(
+            listOf(first, second),
+            features,
+            500L,
+            EmbeddingRecallMode.ON
+        )
+
+        assertTrue(off.candidates.isEmpty())
+        assertTrue(on.candidates.any { row ->
+            row.sourceId == first.sourceId && row.candidateRecordingId == second.recordingId
+        })
+        assertNotEquals(
+            generator.snapshotSignature(listOf(first, second), features, EmbeddingRecallMode.OFF),
+            generator.snapshotSignature(listOf(first, second), features, EmbeddingRecallMode.ON)
+        )
+    }
+
     private fun features(
         sources: List<TrackSourceMappingEntity>
     ): Map<Long, SourceMatchFeatureEntity> = sources.associate { source ->

@@ -17,7 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import app.yukine.TrackDownloadStatus
 import app.yukine.TrackDownloadItem
 import app.yukine.NowPlayingEvent
 import app.yukine.MainRoutes
@@ -124,22 +123,9 @@ fun EchoNavGraph(
     val nowBarState by hostState.player.nowPlayingStateProvider.nowBarState.collectAsState()
     val settingsChromeState by hostState.settings.settingsChromeState.collectAsState()
     val streamingState by hostState.streaming.streamingState.collectAsState()
-    var activeDownload by remember(hostState.player.trackDownloadController) {
-        mutableStateOf<TrackDownloadItem?>(null)
-    }
+    val downloadsState by hostState.library.downloadsState.collectAsState()
     val activeDownloadVisible = selectedInPager || selectedTab == SearchTab || selectedTab == NowTab
-    LaunchedEffect(hostState.player.trackDownloadController, activeDownloadVisible) {
-        if (!activeDownloadVisible) {
-            activeDownload = null
-            return@LaunchedEffect
-        }
-        while (true) {
-            activeDownload = hostState.player.trackDownloadController
-                ?.snapshot()
-                ?.firstOrNull { it.status != TrackDownloadStatus.Finished }
-            delay(1000L)
-        }
-    }
+    val activeDownload = downloadsState.active.firstOrNull().takeIf { activeDownloadVisible }
     val openSearchAction = remember(hostState) { Runnable { onTabChanged(SearchTab) } }
     val openDownloadsAction = remember(hostState) { Runnable { onTabChanged(DownloadsTab) } }
     var nowPlayingImmersive by remember { mutableStateOf(false) }
@@ -451,12 +437,7 @@ private fun LibraryDestination(
     if (renderGroups) {
         LibraryGroupsDestination(
             state = groupsState,
-            onSearch = openSearchAction,
-            activeDownload = activeDownload,
-            playbackQuality = playbackQuality,
-            audioMotion = audioMotion,
             actionHandler = actionHandler,
-            libraryControlsEnabled = true,
             compactCards = compactCards,
             onNavigateUp = Runnable { showOverview = true }
         )

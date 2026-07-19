@@ -2,6 +2,8 @@ package app.yukine.data
 
 import app.yukine.data.room.ArtistAliasEntity
 import app.yukine.data.room.ArtistSourceMappingEntity
+import app.yukine.data.room.AlbumAliasEntity
+import app.yukine.data.room.CanonicalAlbumEntity
 import app.yukine.data.room.CanonicalArtistEntity
 import app.yukine.data.room.CanonicalRecordingEntity
 import app.yukine.data.room.IdentityCandidateEntity
@@ -14,8 +16,10 @@ import app.yukine.identity.ArtistAliasType
 import app.yukine.identity.ArtistCredit
 import app.yukine.identity.ArtistCreditRole
 import app.yukine.identity.ArtistSourceMapping
+import app.yukine.identity.AlbumAlias
 import app.yukine.identity.ArtistType
 import app.yukine.identity.CanonicalArtist
+import app.yukine.identity.CanonicalAlbum
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityCandidate
 import app.yukine.identity.IdentityCandidateStatus
@@ -55,6 +59,11 @@ internal fun TrackSourceMappingEntity.toModel(recording: CanonicalRecordingEntit
         title = title,
         artist = artist,
         album = album,
+        albumArtist = albumArtist,
+        composer = composer,
+        releaseType = releaseType,
+        year = year,
+        albumId = albumId,
         durationMs = durationMs,
         quality = quality,
         playable = playable,
@@ -69,6 +78,35 @@ internal fun TrackSourceMappingEntity.toModel(recording: CanonicalRecordingEntit
         failureReason = failureReason,
         failureCount = failureCount
     )
+
+internal fun CanonicalAlbumEntity.toModel(albumArtistDisplay: String = ""): CanonicalAlbum = CanonicalAlbum(
+    albumKey = requireNotNull(id),
+    albumId = albumUuid,
+    displayName = displayName,
+    sortName = sortName,
+    albumArtistKey = albumArtistId,
+    albumArtistDisplay = albumArtistDisplay,
+    musicBrainzReleaseGroupId = musicBrainzReleaseGroupId,
+    musicBrainzReleaseId = musicBrainzReleaseId,
+    releaseType = releaseType,
+    year = year,
+    matchStatus = enumValueOr(matchStatus, IdentityMatchStatus.UNRESOLVED),
+    confidence = confidence,
+    metadataSource = metadataSource,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+internal fun AlbumAliasEntity.toModel(): AlbumAlias = AlbumAlias(
+    albumKey = albumId,
+    alias = alias,
+    normalizedAlias = normalizedAlias,
+    locale = locale,
+    aliasType = aliasType,
+    source = source,
+    confidence = confidence,
+    verifiedAt = verifiedAt
+)
 
 internal fun RecordingIdentifierEntity.toModel(recording: CanonicalRecordingEntity): RecordingIdentifier =
     RecordingIdentifier(

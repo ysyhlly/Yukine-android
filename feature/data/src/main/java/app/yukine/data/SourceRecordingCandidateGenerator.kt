@@ -10,14 +10,15 @@ import java.security.MessageDigest
 import java.util.Locale
 import kotlin.math.abs
 
-/**
- * Bounded, metadata-only candidate generation for the offline/background ingestion path.
- *
- * Exact title/artist buckets and rare title n-gram postings provide recall without running the
- * expensive V2 evaluator against the whole library. The result is capped per source and persisted;
- * hard version conflicts remain visible as candidates but are rejected later by complete-link V2.
- */
-internal class SourceRecordingCandidateGenerator(
+internal enum class CandidateRecallSource {
+    EXACT_TITLE_ARTIST,
+    EXACT_TITLE,
+    TRIGRAM,
+    BIGRAM,
+    EMBEDDING_LSH
+}
+
+internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
     private val topK: Int = DEFAULT_TOP_K
 ) {
     init {
@@ -27,14 +28,21 @@ internal class SourceRecordingCandidateGenerator(
     fun generate(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        generatedAt: Long
+        generatedAt: Long,
+        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF
     ): SourceCandidateGenerationResult {
         val descriptors = sources.mapNotNull { source ->
             descriptor(source, featuresBySourceId[source.sourceId])
         }
-        val snapshotSignature = snapshotSignature(sources, featuresBySourceId)
+        val snapshotSignature = snapshotSignature(sources, featuresBySourceId, mode)
         if (descriptors.isEmpty()) {
-            return SourceCandidateGenerationResult(emptyList(), snapshotSignature, 0, 0)
+            return SourceCandidateGenerationResult(
+                candidates = emptyList(),
+                shadowCandidates = emptyList(),
+                snapshotSignature = snapshotSignature,
+                coarseComparisonCount = 0,
+                sourceCount = 0
+            )
         }
 
         val exactTitleArtist = HashMap<TitleArtistKey, MutableList<Descriptor>>()
@@ -53,14 +61,23 @@ internal class SourceRecordingCandidateGenerator(
                 bigramPostings.getOrPut(gram) { ArrayList() } += descriptor
             }
         }
+        val descriptorsBySourceId = descriptors.associateBy(Descriptor::sourceId)
+        val embeddingIndex = EmbeddingPostingIndex(
+            descriptors.mapNotNull { descriptor ->
+                descriptor.simHash?.let { simHash -> EmbeddingIndexItem(descriptor.sourceId, simHash) }
+            }
+        )
 
         var coarseComparisons = 0
-        val rows = ArrayList<SourceRecordingCandidateEntity>(descriptors.size * topK)
+        val activeRows = ArrayList<SourceRecordingCandidateEntity>(descriptors.size * topK)
+        val shadowRows = ArrayList<SourceRecordingCandidateEntity>()
         descriptors.forEach { query ->
-            val pool = linkedSetOf<Descriptor>()
+            val baselinePool = linkedMapOf<Descriptor, MutableSet<CandidateRecallSource>>()
             exactTitleArtist[TitleArtistKey(query.coreTitle, query.normalizedArtist)]
                 .orEmpty()
-                .forEach(pool::add)
+                .forEach { candidate ->
+                    baselinePool.add(candidate, CandidateRecallSource.EXACT_TITLE_ARTIST)
+                }
             exactTitle[query.coreTitle]
                 .orEmpty()
                 .asSequence()
@@ -70,52 +87,106 @@ internal class SourceRecordingCandidateGenerator(
                 }
                 .sortedWith(
                     compareBy<Descriptor> { candidate ->
-                        if (query.durationBucket < 0L || candidate.durationBucket < 0L) {
-                            Long.MAX_VALUE
-                        } else {
-                            abs(query.durationBucket - candidate.durationBucket)
-                        }
+                        durationDistance(query, candidate)
                     }.thenBy(Descriptor::sourceId)
                 )
                 .take(MAX_EXACT_TITLE_POSTING)
-                .forEach(pool::add)
-            addRarePostings(query.titleTrigrams, trigramPostings, pool)
-            if (pool.size < MIN_COARSE_POOL) {
-                addRarePostings(query.titleBigrams, bigramPostings, pool)
+                .forEach { candidate ->
+                    baselinePool.add(candidate, CandidateRecallSource.EXACT_TITLE)
+                }
+            addRarePostings(
+                query.titleTrigrams,
+                trigramPostings,
+                baselinePool,
+                CandidateRecallSource.TRIGRAM
+            )
+            if (baselinePool.size < MIN_COARSE_POOL) {
+                addRarePostings(
+                    query.titleBigrams,
+                    bigramPostings,
+                    baselinePool,
+                    CandidateRecallSource.BIGRAM
+                )
+            }
+            baselinePool.removeIneligible(query)
+
+            val baselineBest = HashMap<Long, RankedCandidate>()
+            baselinePool.forEach { (candidate, recallSources) ->
+                coarseComparisons++
+                baselineBest.keepBest(rank(query, candidate, recallSources, bandMatches = 0, fused = false))
+            }
+            val baselineTop = baselineBest.values.sortedCandidates().take(topK)
+
+            if (mode == EmbeddingRecallMode.OFF || query.simHash == null) {
+                baselineTop.forEach { ranked ->
+                    activeRows += ranked.toEntity(query.sourceId, generatedAt, STATE_GENERATED)
+                }
+                return@forEach
             }
 
-            val bestByRecording = HashMap<Long, RankedCandidate>()
-            pool.forEach { candidate ->
-                if (candidate.sourceId == query.sourceId || candidate.recordingId == query.recordingId) {
-                    return@forEach
+            val embeddingHits = embeddingIndex.recall(query.simHash, query.sourceId)
+                .asSequence()
+                .mapNotNull { hit ->
+                    descriptorsBySourceId[hit.sourceId]?.let { descriptor -> descriptor to hit.bandMatches }
                 }
+                .filter { (candidate, _) -> candidate.recordingId != query.recordingId }
+                .sortedWith(
+                    compareByDescending<Pair<Descriptor, Int>> { (_, bandMatches) -> bandMatches }
+                        .thenByDescending { (candidate, _) ->
+                            candidate.normalizedArtist.isNotBlank() &&
+                                candidate.normalizedArtist == query.normalizedArtist
+                        }
+                        .thenBy { (candidate, _) -> durationDistance(query, candidate) }
+                        .thenBy { (candidate, _) -> candidate.sourceId }
+                )
+                .take(MAX_INTERNAL_EMBEDDING_CANDIDATES)
+                .toList()
+            val bandMatchesBySourceId = embeddingHits.associate { (candidate, count) ->
+                candidate.sourceId to count
+            }
+            val fusedPool = linkedMapOf<Descriptor, MutableSet<CandidateRecallSource>>()
+            baselinePool.forEach { (candidate, origins) ->
+                fusedPool.getOrPut(candidate) { linkedSetOf() }.addAll(origins)
+            }
+            embeddingHits.forEach { (candidate, _) ->
+                fusedPool.add(candidate, CandidateRecallSource.EMBEDDING_LSH)
+            }
+
+            val fusedBest = HashMap<Long, RankedCandidate>()
+            fusedPool.forEach { (candidate, recallSources) ->
                 coarseComparisons++
-                val ranked = rank(query, candidate)
-                val current = bestByRecording[candidate.recordingId]
-                if (current == null || ranked.isBetterThan(current)) {
-                    bestByRecording[candidate.recordingId] = ranked
+                val bandMatches = bandMatchesBySourceId[candidate.sourceId] ?: 0
+                val effectiveSources = recallSources.toMutableSet()
+                if (bandMatches > 0) effectiveSources += CandidateRecallSource.EMBEDDING_LSH
+                fusedBest.keepBest(
+                    rank(query, candidate, effectiveSources, bandMatches, fused = true)
+                )
+            }
+            val enhancedTop = selectEnhanced(baselineTop, fusedBest.values)
+            when (mode) {
+                EmbeddingRecallMode.OFF -> Unit
+                EmbeddingRecallMode.SHADOW -> {
+                    baselineTop.forEach { ranked ->
+                        activeRows += ranked.toEntity(query.sourceId, generatedAt, STATE_GENERATED)
+                    }
+                    val baselineRecordingIds = baselineTop.mapTo(hashSetOf()) {
+                        it.candidateRecordingId
+                    }
+                    enhancedTop.asSequence()
+                        .filter { ranked -> ranked.candidateRecordingId !in baselineRecordingIds }
+                        .take(MAX_EMBEDDING_ONLY_TOP_K)
+                        .forEach { ranked ->
+                            shadowRows += ranked.toEntity(query.sourceId, generatedAt, STATE_SHADOW)
+                        }
+                }
+                EmbeddingRecallMode.ON -> enhancedTop.forEach { ranked ->
+                    activeRows += ranked.toEntity(query.sourceId, generatedAt, STATE_GENERATED)
                 }
             }
-            bestByRecording.values
-                .sortedWith(
-                    compareByDescending<RankedCandidate>(RankedCandidate::coarseScore)
-                        .thenBy(RankedCandidate::candidateRecordingId)
-                        .thenBy(RankedCandidate::candidateSourceId)
-                )
-                .take(topK)
-                .forEach { ranked ->
-                    rows += SourceRecordingCandidateEntity(
-                        sourceId = query.sourceId,
-                        candidateRecordingId = ranked.candidateRecordingId,
-                        coarseScore = ranked.coarseScore,
-                        evidenceJson = ranked.evidenceJson(),
-                        algorithmVersion = ALGORITHM_VERSION,
-                        updatedAt = generatedAt
-                    )
-                }
         }
         return SourceCandidateGenerationResult(
-            candidates = rows,
+            candidates = activeRows,
+            shadowCandidates = shadowRows,
             snapshotSignature = snapshotSignature,
             coarseComparisonCount = coarseComparisons,
             sourceCount = descriptors.size
@@ -124,13 +195,16 @@ internal class SourceRecordingCandidateGenerator(
 
     fun snapshotSignature(
         sources: List<TrackSourceMappingEntity>,
-        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF
     ): String {
         val payload = sources.asSequence()
             .mapNotNull { source ->
                 val sourceId = source.sourceId ?: return@mapNotNull null
                 val feature = featuresBySourceId[sourceId] ?: return@mapNotNull null
-                "$sourceId|${source.recordingId}|${feature.algorithmVersion}|${feature.metadataSignature}"
+                "$sourceId|${source.recordingId}|${feature.algorithmVersion}|" +
+                    "${feature.metadataSignature}|${feature.metadataVectorVersion}|" +
+                    "${feature.metadataSimHash ?: 0L}|${mode.name}"
             }
             .sorted()
             .joinToString("\u001E")
@@ -146,6 +220,11 @@ internal class SourceRecordingCandidateGenerator(
             ?.takeIf { it.algorithmVersion == SourceMatchFeaturePolicy.ALGORITHM_VERSION }
             ?: return null
         if (current.coreTitle.isBlank()) return null
+        val validEmbedding = current.metadataVector
+            ?.takeIf { vector ->
+                current.metadataVectorVersion == MetadataHashEmbeddingEncoder.VECTOR_VERSION &&
+                    vector.size == MetadataHashEmbeddingEncoder.DIMENSIONS
+            }
         return Descriptor(
             sourceId = sourceId,
             recordingId = source.recordingId,
@@ -155,24 +234,36 @@ internal class SourceRecordingCandidateGenerator(
             versionType = current.versionType.toVersionType(),
             versionSignature = current.versionSignature,
             titleBigrams = decodeSet(current.titleBigrams),
-            titleTrigrams = decodeSet(current.titleTrigrams)
+            titleTrigrams = decodeSet(current.titleTrigrams),
+            metadataVector = validEmbedding,
+            embeddingVersion = if (validEmbedding == null) 0 else current.metadataVectorVersion,
+            simHash = if (validEmbedding == null) null else current.metadataSimHash
         )
     }
 
     private fun addRarePostings(
         grams: Set<String>,
         postings: Map<String, List<Descriptor>>,
-        destination: MutableSet<Descriptor>
+        destination: MutableMap<Descriptor, MutableSet<CandidateRecallSource>>,
+        origin: CandidateRecallSource
     ) {
         grams.asSequence()
             .mapNotNull { gram -> postings[gram]?.let { gram to it } }
             .filter { (_, rows) -> rows.size <= MAX_NGRAM_POSTING }
             .sortedWith(compareBy<Pair<String, List<Descriptor>>> { it.second.size }.thenBy { it.first })
             .take(MAX_RARE_GRAMS)
-            .forEach { (_, rows) -> rows.forEach(destination::add) }
+            .forEach { (_, rows) ->
+                rows.forEach { candidate -> destination.add(candidate, origin) }
+            }
     }
 
-    private fun rank(query: Descriptor, candidate: Descriptor): RankedCandidate {
+    private fun rank(
+        query: Descriptor,
+        candidate: Descriptor,
+        recallSources: Set<CandidateRecallSource>,
+        bandMatches: Int,
+        fused: Boolean
+    ): RankedCandidate {
         val titleScore = if (query.coreTitle == candidate.coreTitle) {
             1.0
         } else {
@@ -198,27 +289,111 @@ internal class SourceRecordingCandidateGenerator(
             candidate.versionSignature
         )
         val versionScore = if (hardVersionConflict) 0.0 else 1.0
-        val coarseScore = (
+        val baselineScore = (
             titleScore * 0.60 +
                 artistScore * 0.25 +
                 durationScore * 0.10 +
                 versionScore * 0.05
             ).coerceIn(0.0, 1.0)
+        val embeddingSimilarity = if (fused) {
+            MetadataHashEmbeddingEncoder.cosine(query.metadataVector, candidate.metadataVector)
+        } else {
+            0.0
+        }
+        val coarseScore = if (fused) {
+            (
+                titleScore * 0.50 +
+                    artistScore * 0.20 +
+                    durationScore * 0.10 +
+                    versionScore * 0.05 +
+                    embeddingSimilarity * 0.10 +
+                    (bandMatches.toDouble() / EmbeddingPostingIndex.BAND_COUNT) * 0.05
+                ).coerceIn(0.0, 1.0)
+        } else {
+            baselineScore
+        }
         return RankedCandidate(
             candidateRecordingId = candidate.recordingId,
             candidateSourceId = candidate.sourceId,
             coarseScore = coarseScore,
+            baselineScore = baselineScore,
             titleScore = titleScore,
             artistScore = artistScore,
             durationScore = durationScore,
-            hardVersionConflict = hardVersionConflict
+            hardVersionConflict = hardVersionConflict,
+            recallSources = recallSources.toSortedSet(compareBy(CandidateRecallSource::name)),
+            embeddingSimilarity = embeddingSimilarity,
+            embeddingVersion = minOf(query.embeddingVersion, candidate.embeddingVersion),
+            bandMatches = bandMatches
         )
+    }
+
+    private fun selectEnhanced(
+        baselineTop: List<RankedCandidate>,
+        fusedCandidates: Collection<RankedCandidate>
+    ): List<RankedCandidate> {
+        val fusedByRecording = fusedCandidates.associateBy(RankedCandidate::candidateRecordingId)
+        val selected = LinkedHashMap<Long, RankedCandidate>()
+        baselineTop.take(BASELINE_RESERVED_TOP_K).forEach { baseline ->
+            selected[baseline.candidateRecordingId] = fusedByRecording[baseline.candidateRecordingId] ?: baseline
+        }
+        val baselineRecordingIds = baselineTop.mapTo(hashSetOf()) { it.candidateRecordingId }
+        fusedCandidates.sortedCandidates()
+            .asSequence()
+            .filter { candidate ->
+                candidate.candidateRecordingId !in baselineRecordingIds &&
+                    CandidateRecallSource.EMBEDDING_LSH in candidate.recallSources
+            }
+            .take(MAX_EMBEDDING_ONLY_TOP_K)
+            .forEach { candidate -> selected[candidate.candidateRecordingId] = candidate }
+        (fusedCandidates.sortedCandidates() + baselineTop)
+            .asSequence()
+            .filter { candidate -> candidate.candidateRecordingId !in selected }
+            .take(topK - selected.size)
+            .forEach { candidate -> selected[candidate.candidateRecordingId] = candidate }
+        return selected.values.sortedCandidates().take(topK)
     }
 
     private fun dice(left: Set<String>, right: Set<String>): Double {
         if (left.isEmpty() || right.isEmpty()) return 0.0
         return 2.0 * left.intersect(right).size / (left.size + right.size).toDouble()
     }
+
+    private fun durationDistance(left: Descriptor, right: Descriptor): Long =
+        if (left.durationBucket < 0L || right.durationBucket < 0L) {
+            Long.MAX_VALUE
+        } else {
+            abs(left.durationBucket - right.durationBucket)
+        }
+
+    private fun MutableMap<Descriptor, MutableSet<CandidateRecallSource>>.add(
+        candidate: Descriptor,
+        source: CandidateRecallSource
+    ) {
+        getOrPut(candidate) { linkedSetOf() } += source
+    }
+
+    private fun MutableMap<Descriptor, MutableSet<CandidateRecallSource>>.removeIneligible(
+        query: Descriptor
+    ) {
+        keys.removeAll { candidate ->
+            candidate.sourceId == query.sourceId || candidate.recordingId == query.recordingId
+        }
+    }
+
+    private fun MutableMap<Long, RankedCandidate>.keepBest(candidate: RankedCandidate) {
+        val current = this[candidate.candidateRecordingId]
+        if (current == null || candidate.isBetterThan(current)) {
+            this[candidate.candidateRecordingId] = candidate
+        }
+    }
+
+    private fun Collection<RankedCandidate>.sortedCandidates(): List<RankedCandidate> =
+        sortedWith(
+            compareByDescending<RankedCandidate>(RankedCandidate::coarseScore)
+                .thenBy(RankedCandidate::candidateRecordingId)
+                .thenBy(RankedCandidate::candidateSourceId)
+        )
 
     private fun decodeSet(value: String): Set<String> = value
         .split(FEATURE_SEPARATOR)
@@ -242,7 +417,10 @@ internal class SourceRecordingCandidateGenerator(
         val versionType: RecordingVersionType,
         val versionSignature: String,
         val titleBigrams: Set<String>,
-        val titleTrigrams: Set<String>
+        val titleTrigrams: Set<String>,
+        val metadataVector: ByteArray?,
+        val embeddingVersion: Int,
+        val simHash: Long?
     )
 
     private data class TitleArtistKey(
@@ -254,32 +432,66 @@ internal class SourceRecordingCandidateGenerator(
         val candidateRecordingId: Long,
         val candidateSourceId: Long,
         val coarseScore: Double,
+        val baselineScore: Double,
         val titleScore: Double,
         val artistScore: Double,
         val durationScore: Double,
-        val hardVersionConflict: Boolean
+        val hardVersionConflict: Boolean,
+        val recallSources: Set<CandidateRecallSource>,
+        val embeddingSimilarity: Double,
+        val embeddingVersion: Int,
+        val bandMatches: Int
     ) {
         fun isBetterThan(other: RankedCandidate): Boolean =
             coarseScore > other.coarseScore ||
                 (coarseScore == other.coarseScore && candidateSourceId < other.candidateSourceId)
 
-        fun evidenceJson(): String = String.format(
-            Locale.ROOT,
-            "{\"titleScore\":%.4f,\"artistScore\":%.4f," +
-                "\"durationScore\":%.4f,\"hardVersionConflict\":%s," +
-                "\"candidateSourceId\":%d}",
-            titleScore,
-            artistScore,
-            durationScore,
-            hardVersionConflict,
-            candidateSourceId
+        fun toEntity(
+            sourceId: Long,
+            generatedAt: Long,
+            state: String
+        ): SourceRecordingCandidateEntity = SourceRecordingCandidateEntity(
+            sourceId = sourceId,
+            candidateRecordingId = candidateRecordingId,
+            coarseScore = coarseScore,
+            evidenceJson = evidenceJson(),
+            state = state,
+            algorithmVersion = ALGORITHM_VERSION,
+            updatedAt = generatedAt
         )
+
+        private fun evidenceJson(): String {
+            val sources = recallSources.joinToString(",") { source -> "\"${source.name}\"" }
+            return String.format(
+                Locale.ROOT,
+                "{\"titleScore\":%.4f,\"artistScore\":%.4f,\"durationScore\":%.4f," +
+                    "\"baselineScore\":%.4f,\"hardVersionConflict\":%s," +
+                    "\"candidateSourceId\":%d,\"candidateSources\":[%s]," +
+                    "\"bandMatches\":%d,\"embeddingSimilarity\":%.4f," +
+                    "\"embeddingVersion\":%d,\"embeddingRecallOnly\":true}",
+                titleScore,
+                artistScore,
+                durationScore,
+                baselineScore,
+                hardVersionConflict,
+                candidateSourceId,
+                sources,
+                bandMatches,
+                embeddingSimilarity,
+                embeddingVersion
+            )
+        }
     }
 
     internal companion object {
-        const val ALGORITHM_VERSION = 6
+        const val ALGORITHM_VERSION = 7
         const val DEFAULT_TOP_K = 20
         const val MAX_TOP_K = 20
+        const val MAX_INTERNAL_EMBEDDING_CANDIDATES = 100
+        const val BASELINE_RESERVED_TOP_K = 12
+        const val MAX_EMBEDDING_ONLY_TOP_K = 8
+        const val STATE_GENERATED = "GENERATED"
+        const val STATE_SHADOW = "SHADOW"
         private const val FEATURE_SEPARATOR = '\u001F'
         private const val MAX_RARE_GRAMS = 6
         private const val MAX_NGRAM_POSTING = 128
@@ -291,6 +503,7 @@ internal class SourceRecordingCandidateGenerator(
 
 internal data class SourceCandidateGenerationResult(
     val candidates: List<SourceRecordingCandidateEntity>,
+    val shadowCandidates: List<SourceRecordingCandidateEntity>,
     val snapshotSignature: String,
     val coarseComparisonCount: Int,
     val sourceCount: Int

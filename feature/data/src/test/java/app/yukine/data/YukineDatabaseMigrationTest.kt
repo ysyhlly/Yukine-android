@@ -816,6 +816,108 @@ class YukineDatabaseMigrationTest {
         helper.close()
     }
 
+    @Test
+    fun v28ToV29AddsContentSignatureWithoutChangingExistingSources() {
+        val name = databaseName("v28-content-signature")
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(28) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "CREATE TABLE track_sources(" +
+                                    "source_id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                    "provider TEXT NOT NULL," +
+                                    "provider_track_id TEXT NOT NULL," +
+                                    "failure_count INTEGER NOT NULL DEFAULT 0)"
+                            )
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+        db.execSQL(
+            "INSERT INTO track_sources(source_id,provider,provider_track_id) " +
+                "VALUES(2901,'local','/music/existing.flac')"
+        )
+
+        YukineSchema.normalizeV29(db)
+        YukineSchema.normalizeV29(db)
+        db.version = 29
+
+        assertEquals(29, db.version)
+        assertTrue(columnExists(db, "track_sources", "content_signature"))
+        assertEquals(
+            "",
+            stringValue(
+                db,
+                "SELECT content_signature FROM track_sources WHERE source_id=2901"
+            )
+        )
+        assertEquals(1L, longValue(db, "SELECT COUNT(*) FROM track_sources"))
+        assertEquals("ok", stringValue(db, "PRAGMA integrity_check"))
+        helper.close()
+    }
+
+    @Test
+    fun v29ToV30AddsExtendedMetadataAndEmbeddingColumnsIdempotently() {
+        val name = databaseName("v29-recording-embedding")
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(name)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(29) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            db.execSQL("CREATE TABLE tracks(id INTEGER PRIMARY KEY,title TEXT NOT NULL)")
+                            db.execSQL(
+                                "CREATE TABLE playback_queue(" +
+                                    "position INTEGER PRIMARY KEY,track_id INTEGER NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE track_sources(" +
+                                    "source_id INTEGER PRIMARY KEY,provider TEXT NOT NULL)"
+                            )
+                            db.execSQL(
+                                "CREATE TABLE source_match_features(" +
+                                    "source_id INTEGER PRIMARY KEY,algorithm_version INTEGER NOT NULL)"
+                            )
+                        }
+
+                        override fun onUpgrade(
+                            db: SupportSQLiteDatabase,
+                            oldVersion: Int,
+                            newVersion: Int
+                        ) = Unit
+                    }
+                )
+                .build()
+        )
+        val db = helper.writableDatabase
+
+        YukineMigrations.normalizeV30(db)
+        YukineMigrations.normalizeV30(db)
+        db.version = 30
+
+        listOf("album_artist", "composer", "release_type", "year").forEach { column ->
+            assertTrue(columnExists(db, "tracks", column))
+            assertTrue(columnExists(db, "playback_queue", column))
+            assertTrue(columnExists(db, "track_sources", column))
+        }
+        assertTrue(columnExists(db, "source_match_features", "metadata_vector"))
+        assertTrue(columnExists(db, "source_match_features", "metadata_vector_version"))
+        assertTrue(columnExists(db, "source_match_features", "metadata_sim_hash"))
+        assertEquals("ok", stringValue(db, "PRAGMA integrity_check"))
+        helper.close()
+    }
+
     private fun createVersionOneFixture(name: String) {
         createMinimalLegacyFixture(name, 1)
     }

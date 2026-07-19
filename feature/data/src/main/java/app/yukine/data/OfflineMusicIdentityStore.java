@@ -11,7 +11,10 @@ import java.util.UUID;
 
 import app.yukine.data.room.ArtistSourceMappingEntity;
 import app.yukine.data.room.ArtistAliasEntity;
+import app.yukine.data.room.AlbumAliasEntity;
+import app.yukine.data.room.AlbumSourceMappingEntity;
 import app.yukine.data.room.ArtistCreditParser;
+import app.yukine.data.room.CanonicalAlbumEntity;
 import app.yukine.data.room.CanonicalArtistEntity;
 import app.yukine.data.room.CanonicalRecordingEntity;
 import app.yukine.data.room.CanonicalWorkEntity;
@@ -30,6 +33,8 @@ import app.yukine.identity.RecordingVariantType;
 import app.yukine.identity.IdentityTextNormalizer;
 import app.yukine.model.TrackIdentityTags;
 import app.yukine.streaming.ProviderRolePolicy;
+import app.yukine.streaming.RecordingVersionClassifier;
+import app.yukine.streaming.StreamingTrackMatchPolicy;
 
 /**
  * Creates recording/source/artist identities in the caller's track persistence transaction.
@@ -55,7 +60,7 @@ final class OfflineMusicIdentityStore {
     }
 
     void ensureTracks(List<TrackEntity> tracks, long now) {
-        ensureTracks(tracks, Collections.emptyMap(), now);
+        ensureTracks(tracks, Collections.emptyMap(), Collections.emptyMap(), now);
     }
 
     void ensureTracks(
@@ -63,17 +68,30 @@ final class OfflineMusicIdentityStore {
             Map<Long, TrackIdentityTags> identityTags,
             long now
     ) {
+        ensureTracks(tracks, identityTags, Collections.emptyMap(), now);
+    }
+
+    void ensureTracks(
+            List<TrackEntity> tracks,
+            Map<Long, TrackIdentityTags> identityTags,
+            Map<Long, String> contentSignatures,
+            long now
+    ) {
         if (tracks == null || tracks.isEmpty()) {
             return;
         }
         for (TrackEntity track : tracks) {
-            long recordingId = ensureTrack(track, now);
+            TrackIdentityTags tags = track == null || track.getId() == null || identityTags == null
+                    ? null
+                    : identityTags.get(track.getId());
+            String contentSignature =
+                    track == null || track.getId() == null || contentSignatures == null
+                            ? ""
+                            : contentSignatures.get(track.getId());
+            long recordingId = ensureTrack(track, tags, contentSignature, now);
             if (track != null && track.getId() != null) {
-                if (identityTags != null) {
-                    TrackIdentityTags tags = identityTags.get(track.getId());
-                    if (tags != null && !tags.isEmpty()) {
-                        applyIdentityTags(recordingId, tags, now);
-                    }
+                if (recordingId > 0L && tags != null && !tags.isEmpty()) {
+                    applyIdentityTags(recordingId, tags, now);
                 }
             }
         }
@@ -100,7 +118,12 @@ final class OfflineMusicIdentityStore {
         dao.deleteDanglingJobs();
     }
 
-    private long ensureTrack(TrackEntity track, long now) {
+    private long ensureTrack(
+            TrackEntity track,
+            TrackIdentityTags tags,
+            String contentSignature,
+            long now
+    ) {
         if (track == null || track.getId() == null) {
             return -1L;
         }
@@ -115,20 +138,45 @@ final class OfflineMusicIdentityStore {
         }
         TrackSourceMappingEntity localSource = dao.sourceForLocalTrack(trackId);
         TrackSourceMappingEntity keyedSource = dao.source(identity.provider, identity.providerTrackId);
+        if (ownedByAnotherExistingTrack(keyedSource, trackId)) {
+            return -1L;
+        }
+        if (shouldDetachForIncomingTrack(
+                keyedSource,
+                track,
+                tags,
+                contentSignature,
+                trackId
+        )) {
+            deleteSource(keyedSource);
+            if (localSource != null && sameSource(localSource, keyedSource)) {
+                localSource = null;
+            }
+            keyedSource = null;
+        }
         Long relocatedRecordingId = null;
         if (localSource != null && !sameProviderIdentity(localSource, identity)) {
-            relocatedRecordingId = localSource.getRecordingId();
-            if (localSource.getSourceId() != null) {
-                dao.deleteSource(localSource.getSourceId());
+            if (!hasHardContentConflict(localSource, track, tags, contentSignature)) {
+                relocatedRecordingId = localSource.getRecordingId();
             }
+            deleteSource(localSource);
             localSource = null;
-            dao.clearMissingActiveSources();
         }
 
         TrackSourceMappingEntity persistedSource = keyedSource != null ? keyedSource : localSource;
         TrackSourceMappingEntity dataPathAnchor = clean(track.getDataPath()).isEmpty()
                 ? null
                 : dao.sourceForDataPath(clean(track.getDataPath()));
+        if (persistedSource == null && dataPathAnchor != null
+                && dataPathAnchor.getLocalTrackId() != null
+                && dataPathAnchor.getLocalTrackId() != trackId) {
+            if (dao.localTrackExists(dataPathAnchor.getLocalTrackId())) {
+                dataPathAnchor = null;
+            } else if (!canRelocateSource(dataPathAnchor, track, tags, contentSignature)) {
+                deleteSource(dataPathAnchor);
+                dataPathAnchor = null;
+            }
+        }
         TrackSourceMappingEntity recordingAnchor = persistedSource != null
                 ? persistedSource
                 : dataPathAnchor;
@@ -141,15 +189,153 @@ final class OfflineMusicIdentityStore {
             recordingId = insertRecording(track, now);
         }
 
-        dao.upsert(sourceEntity(persistedSource, recordingId, identity, track, trackId));
+        ensureArtistCredits(recordingId, track.getArtist(), now);
+        dao.refreshWorkPrimaryCreator(recordingId, now);
+        canonicalizeWork(recordingId, track.getTitle(), now);
+        Long albumId = ensureAlbum(recordingId, identity, track, now);
+        dao.upsert(sourceEntity(
+                persistedSource,
+                recordingId,
+                identity,
+                track,
+                trackId,
+                contentSignature,
+                albumId
+        ));
         TrackSourceMappingEntity saved = dao.source(identity.provider, identity.providerTrackId);
         if (saved != null) {
             dao.refreshActiveSource(saved.getRecordingId());
         }
-        ensureArtistCredits(recordingId, track.getArtist(), now);
-        dao.refreshWorkPrimaryCreator(recordingId, now);
         enqueueJob("RECORDING", recordingId, now);
         return recordingId;
+    }
+
+    private boolean ownedByAnotherExistingTrack(
+            TrackSourceMappingEntity source,
+            long incomingTrackId
+    ) {
+        return source != null
+                && source.getLocalTrackId() != null
+                && source.getLocalTrackId() != incomingTrackId
+                && dao.localTrackExists(source.getLocalTrackId());
+    }
+
+    private boolean shouldDetachForIncomingTrack(
+            TrackSourceMappingEntity source,
+            TrackEntity track,
+            TrackIdentityTags tags,
+            String contentSignature,
+            long incomingTrackId
+    ) {
+        if (source == null || source.getLocalTrackId() == null) {
+            return false;
+        }
+        if (source.getLocalTrackId() == incomingTrackId) {
+            return hasHardContentConflict(source, track, tags, contentSignature);
+        }
+        return !canRelocateSource(source, track, tags, contentSignature);
+    }
+
+    private boolean canRelocateSource(
+            TrackSourceMappingEntity source,
+            TrackEntity track,
+            TrackIdentityTags tags,
+            String contentSignature
+    ) {
+        if (hasHardContentConflict(source, track, tags, contentSignature)) {
+            return false;
+        }
+        if (sameContentSignature(source, contentSignature)) {
+            return true;
+        }
+        CanonicalRecordingEntity recording = dao.recording(source.getRecordingId());
+        if (recording != null && tags != null && (
+                sameNonEmpty(recording.getMusicBrainzRecordingId(), tags.recordingMusicBrainzId)
+                        || sameNonEmpty(recording.getIsrc(), tags.isrc)
+                        || sameNonEmpty(recording.getAcoustId(), tags.acoustId)
+        )) {
+            return true;
+        }
+        if (source.getDurationMs() > 0L && track.getDurationMs() > 0L
+                && Math.abs(source.getDurationMs() - track.getDurationMs()) > 2_000L) {
+            return false;
+        }
+        return normalized(source.getTitle()).equals(normalized(track.getTitle()))
+                && normalized(source.getArtist()).equals(normalized(track.getArtist()));
+    }
+
+    private boolean hasHardContentConflict(
+            TrackSourceMappingEntity source,
+            TrackEntity track,
+            TrackIdentityTags tags,
+            String contentSignature
+    ) {
+        if (source == null || track == null) {
+            return false;
+        }
+        String persistedSignature = clean(source.getContentSignature());
+        String incomingSignature = clean(contentSignature);
+        if (!persistedSignature.isEmpty() && !incomingSignature.isEmpty()) {
+            return !persistedSignature.equals(incomingSignature);
+        }
+        CanonicalRecordingEntity recording = dao.recording(source.getRecordingId());
+        if (recording != null && tags != null && (
+                differentNonEmpty(recording.getMusicBrainzRecordingId(), tags.recordingMusicBrainzId)
+                        || differentNonEmpty(recording.getIsrc(), tags.isrc)
+                        || differentNonEmpty(recording.getAcoustId(), tags.acoustId)
+        )) {
+            return true;
+        }
+        RecordingVariantType previousVariant = RecordingVariantRecognizer.INSTANCE.recognize(
+                source.getTitle(),
+                source.getAlbum()
+        );
+        RecordingVariantType incomingVariant = RecordingVariantRecognizer.INSTANCE.recognize(
+                track.getTitle(),
+                track.getAlbum()
+        );
+        if (isProtectedVariant(previousVariant)
+                && isProtectedVariant(incomingVariant)
+                && previousVariant != incomingVariant) {
+            return true;
+        }
+        if (source.getDurationMs() > 0L && track.getDurationMs() > 0L
+                && Math.abs(source.getDurationMs() - track.getDurationMs()) > 5_000L) {
+            return true;
+        }
+        return !normalized(source.getTitle()).equals(normalized(track.getTitle()))
+                && !normalized(source.getArtist()).equals(normalized(track.getArtist()));
+    }
+
+    private static boolean sameContentSignature(
+            TrackSourceMappingEntity source,
+            String contentSignature
+    ) {
+        if (source == null) {
+            return false;
+        }
+        String persistedSignature = clean(source.getContentSignature());
+        String incomingSignature = clean(contentSignature);
+        return !persistedSignature.isEmpty()
+                && !incomingSignature.isEmpty()
+                && persistedSignature.equals(incomingSignature);
+    }
+
+    private void deleteSource(TrackSourceMappingEntity source) {
+        if (source != null && source.getSourceId() != null) {
+            dao.deleteSource(source.getSourceId());
+            dao.clearMissingActiveSources();
+        }
+    }
+
+    private static boolean sameSource(
+            TrackSourceMappingEntity first,
+            TrackSourceMappingEntity second
+    ) {
+        return first != null
+                && second != null
+                && first.getSourceId() != null
+                && first.getSourceId().equals(second.getSourceId());
     }
 
     private void applyIdentityTags(long initialRecordingId, TrackIdentityTags tags, long now) {
@@ -462,7 +648,7 @@ final class OfflineMusicIdentityStore {
         long workId = dao.insertWork(new CanonicalWorkEntity(
                 null,
                 canonicalUuid,
-                IdentityTextNormalizer.INSTANCE.normalizeForSearch(clean(track.getTitle())),
+                RecordingVersionClassifier.INSTANCE.coreTitle(clean(track.getTitle())),
                 null,
                 now,
                 now
@@ -500,6 +686,117 @@ final class OfflineMusicIdentityStore {
             throw new IllegalStateException("Recording UUID insert did not produce an internal ID");
         }
         return existing.getId();
+    }
+
+    private void canonicalizeWork(long recordingId, String rawTitle, long now) {
+        CanonicalRecordingEntity recording = dao.recording(recordingId);
+        if (recording == null || recording.getWorkId() == null) {
+            return;
+        }
+        Long primaryArtistId = dao.primaryArtistId(recordingId);
+        if (primaryArtistId == null) {
+            return;
+        }
+        String normalizedTitle = RecordingVersionClassifier.INSTANCE.coreTitle(clean(rawTitle));
+        if (normalizedTitle.isEmpty()) {
+            return;
+        }
+        dao.updateWorkTitle(recording.getWorkId(), normalizedTitle, now);
+        CanonicalWorkEntity canonical = dao.workForIdentity(normalizedTitle, primaryArtistId);
+        if (canonical == null || canonical.getId() == null
+                || canonical.getId().equals(recording.getWorkId())) {
+            return;
+        }
+        dao.updateRecordingWork(recordingId, canonical.getId(), now);
+        dao.deleteOrphanWorks();
+    }
+
+    private Long ensureAlbum(
+            long recordingId,
+            TrackSourceIdentity identity,
+            TrackEntity track,
+            long now
+    ) {
+        String displayName = clean(track.getAlbum());
+        String normalizedAlbum = StreamingTrackMatchPolicy.INSTANCE.canonicalAlbum(displayName);
+        if (normalizedAlbum.isEmpty()) {
+            return null;
+        }
+        String providerAlbumId = track.getAlbumId() > 0L
+                ? Long.toString(track.getAlbumId())
+                : "";
+        CanonicalAlbumEntity album = providerAlbumId.isEmpty()
+                ? null
+                : dao.albumForProvider(identity.provider, providerAlbumId);
+        Long primaryArtistId = dao.primaryArtistId(recordingId);
+        String albumArtist = clean(track.getAlbumArtist()).isEmpty()
+                ? clean(track.getArtist())
+                : clean(track.getAlbumArtist());
+        String artistIdentity = primaryArtistId == null
+                ? ArtistCreditParser.normalizeAlias(albumArtist)
+                : "artist:" + primaryArtistId;
+        String identityKey = normalizedAlbum + "\u001f" + artistIdentity + "\u001f"
+                + Math.max(0, track.getYear()) + "\u001f"
+                + IdentityTextNormalizer.INSTANCE.normalizeForSearch(clean(track.getReleaseType()));
+        if (album == null) {
+            album = dao.albumForIdentity(identityKey);
+        }
+        long albumId;
+        if (album != null && album.getId() != null) {
+            albumId = album.getId();
+        } else {
+            String albumUuid = UUID.randomUUID().toString();
+            albumId = dao.insert(new CanonicalAlbumEntity(
+                    null,
+                    albumUuid,
+                    identityKey,
+                    displayName,
+                    normalizedAlbum,
+                    primaryArtistId,
+                    "",
+                    "",
+                    clean(track.getReleaseType()),
+                    Math.max(0, track.getYear()),
+                    STATUS_UNRESOLVED,
+                    0.0d,
+                    METADATA_SOURCE,
+                    now,
+                    now
+            ));
+            if (albumId <= 0L) {
+                CanonicalAlbumEntity existing = dao.albumForIdentity(identityKey);
+                if (existing == null || existing.getId() == null) {
+                    throw new IllegalStateException("Album insert did not produce an internal ID");
+                }
+                albumId = existing.getId();
+            }
+        }
+        dao.upsert(new AlbumAliasEntity(
+                albumId,
+                displayName,
+                normalizedAlbum,
+                "",
+                "PRIMARY",
+                METADATA_SOURCE,
+                0.0d,
+                0L
+        ));
+        if (!providerAlbumId.isEmpty()) {
+            dao.upsert(new AlbumSourceMappingEntity(
+                    null,
+                    albumId,
+                    identity.provider,
+                    providerAlbumId,
+                    displayName,
+                    "",
+                    "",
+                    STATUS_UNRESOLVED,
+                    0.0d,
+                    0L
+            ));
+        }
+        enqueueJob("ALBUM", albumId, now);
+        return albumId;
     }
 
     private void ensureArtistCredits(long recordingId, String rawArtist, long now) {
@@ -588,7 +885,9 @@ final class OfflineMusicIdentityStore {
             long recordingId,
             TrackSourceIdentity identity,
             TrackEntity track,
-            long trackId
+            long trackId,
+            String contentSignature,
+            Long albumId
     ) {
         String quality = clean(track.getCodec()).isEmpty()
                 ? existing == null ? "" : existing.getQuality()
@@ -627,7 +926,17 @@ final class OfflineMusicIdentityStore {
                         : existing == null ? 0 : existing.getBitrateKbps(),
                 existing == null ? 0L : existing.getLastFailureAt(),
                 existing == null ? "" : existing.getFailureReason(),
-                existing == null ? 0 : existing.getFailureCount()
+                existing == null ? 0 : existing.getFailureCount(),
+                clean(contentSignature).isEmpty()
+                        ? existing == null ? "" : existing.getContentSignature()
+                        : clean(contentSignature),
+                clean(track.getAlbumArtist()),
+                clean(track.getComposer()),
+                clean(track.getReleaseType()),
+                track.getYear(),
+                albumId == null
+                        ? existing == null ? null : existing.getAlbumId()
+                        : albumId
         );
     }
 
@@ -667,6 +976,20 @@ final class OfflineMusicIdentityStore {
         return "local".equals(provider)
                 || "webdav".equals(provider)
                 || "document".equals(provider);
+    }
+
+    private static boolean sameNonEmpty(String first, String second) {
+        return !clean(first).isEmpty() && clean(first).equalsIgnoreCase(clean(second));
+    }
+
+    private static boolean differentNonEmpty(String first, String second) {
+        return !clean(first).isEmpty()
+                && !clean(second).isEmpty()
+                && !clean(first).equalsIgnoreCase(clean(second));
+    }
+
+    private static String normalized(String value) {
+        return IdentityTextNormalizer.INSTANCE.normalizeForSearch(clean(value));
     }
 
     private static String clean(String value) {

@@ -8,6 +8,7 @@ import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -148,6 +149,39 @@ class RemoteSourceRepositoryTest {
         assertEquals(live.id, repository.loadTracks(sourceId).single().id)
     }
 
+    @Test
+    fun samePathContentReplacementDropsOldTrackAndCreatesNewRecording() {
+        val sourceId = repository.save(source(-1L, "Replacement", "secret"))
+        val original = trackAtPath(
+            sourceId,
+            81L,
+            "/same/song.flac",
+            title = "Original song",
+            artist = "Original artist"
+        )
+        repository.replaceTracks(sourceId, listOf(original))
+        val originalRecording = library.loadRecordingId(original.id)
+        library.setFavorite(original.id, true)
+        val replacement = trackAtPath(
+            sourceId,
+            82L,
+            "/same/song.flac",
+            title = "Replacement song",
+            artist = "Replacement artist"
+        )
+
+        assertEquals(
+            1,
+            repository.applyIncrementalTracks(listOf(original), listOf(replacement))
+        )
+
+        assertEquals(listOf(replacement.id), repository.loadTracks(sourceId).map { it.id })
+        val replacementRecording = library.loadRecordingId(replacement.id)
+        assertTrue(replacementRecording > 0L)
+        assertTrue(originalRecording != replacementRecording)
+        assertFalse(library.isFavorite(replacement.id))
+    }
+
     private fun source(id: Long, name: String, password: String) = RemoteSource(
         id,
         RemoteSource.TYPE_WEBDAV,
@@ -176,13 +210,15 @@ class RemoteSourceRepositoryTest {
         sourceId: Long,
         id: Long,
         path: String,
-        title: String = "Stable title"
+        title: String = "Stable title",
+        artist: String = "Stable artist",
+        durationMs: Long = 180_000L
     ) = Track(
         id,
         title,
-        "Stable artist",
+        artist,
         "Album",
-        180_000L,
+        durationMs,
         Uri.parse("https://dav.example.test$path"),
         "webdav:$sourceId:https://dav.example.test$path",
         0L,

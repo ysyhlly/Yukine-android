@@ -125,6 +125,15 @@ final class FlacMetadataParser {
                 result.albumArtist = value;
             } else if ("ALBUM".equals(key) && result.album.isEmpty()) {
                 result.album = value;
+            } else if ("COMPOSER".equals(key) && result.composer.isEmpty()) {
+                result.composer = value;
+            } else if (("RELEASETYPE".equals(key)
+                    || "RELEASE_TYPE".equals(key)
+                    || "MUSICBRAINZ_ALBUMTYPE".equals(key))
+                    && result.releaseType.isEmpty()) {
+                result.releaseType = value;
+            } else if (("DATE".equals(key) || "YEAR".equals(key)) && result.year == 0) {
+                result.year = parseYear(value);
             } else if (("MUSICBRAINZ_TRACKID".equals(key)
                     || "MUSICBRAINZ_RECORDINGID".equals(key))
                     && result.recordingMusicBrainzId.isEmpty()) {
@@ -238,12 +247,27 @@ final class FlacMetadataParser {
         return value & 0xff;
     }
 
+    private static int parseYear(String value) {
+        if (value == null || value.length() < 4) {
+            return 0;
+        }
+        try {
+            int year = Integer.parseInt(value.substring(0, 4));
+            return year >= 1000 && year <= 9999 ? year : 0;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
     static final class Result {
         boolean recognized;
         String title = "";
         String artist = "";
         String albumArtist = "";
         String album = "";
+        String composer = "";
+        String releaseType = "";
+        int year;
         String recordingMusicBrainzId = "";
         String workMusicBrainzId = "";
         String isrc = "";

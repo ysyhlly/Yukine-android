@@ -1,417 +1,140 @@
 # YUKINE Android
 
-YUKINE 是一款以本地曲库为核心、兼顾流媒体导入和后台播放体验的 Android 音乐播放器。当前工程仍保留部分 `Echo` 命名作为迁移期内部标识，但对外应用名、主体验和文档统一使用 `YUKINE`。
+YUKINE 是一款以本地曲库为核心、兼顾流媒体导入与后台播放的 Android 音乐播放器。外部品牌统一写作 `YUKINE`，桌面显示名为 `Yukine`；工程中的部分 `Echo` 命名是迁移期内部标识。
 
-> English documentation is included after the Chinese version. Keep both sections updated when changing product behavior.
-
+> 当前项目按个人学习与 Beta 测试用途维护。
+>
 > 项目交流群 QQ 群：1013122077
+>
+> [English summary](#english-summary)
 
-## 当前定位
-
-YUKINE 面向重度听歌和本地曲库用户，优先保证这些体验：
+## 核心能力
 
 - 本地歌曲扫描、曲库浏览、收藏、播放历史和歌单管理。
-- Media3 后台播放、媒体通知、桌面小部件、耳机/车机控制入口。
-- 正在播放页、底部 NowBar、歌词、波形和沉浸歌词。
-- 网易云等流媒体账号接入、搜索、歌单选择导入、播放源解析。
-- WebDAV、M3U/M3U8、远程流列表等网络曲库入口。
-- 音效、ReplayGain、状态栏歌词、悬浮歌词、下载管理等播放器增强能力。
+- Media3 后台播放、媒体通知、桌面小部件及耳机/车机控制入口。
+- NowBar、正在播放页、本地/在线歌词、波形、沉浸歌词和悬浮歌词。
+- 网易云、QQ、LX/洛雪等在线来源的登录、搜索、导入与播放源解析。
+- WebDAV、远程流列表和 M3U/M3U8 网络曲库。
+- 多音源聚合与切换、断点下载、ReplayGain、系统音效和安全备份恢复。
 
-## 技术栈
+## 功能状态
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 本地曲库、播放队列、后台播放、歌词 | 已实现 | 核心播放链路可用 |
+| 搜索、多音源合并与切换 | 已实现 | 支持本地与已启用在线来源 |
+| 备份与恢复 | 已实现 | ZIP 导出；恢复前校验，并在冷启动时执行可回滚替换 |
+| WebDAV、远程流、M3U/M3U8 | 已实现 | 更多服务端和机型组合仍在回归 |
+| 网易云、QQ、LX/洛雪等在线来源 | 部分实现 | 受账号、会员、地区、接口及脚本兼容性影响 |
+| Android Auto | 基础能力 | 已接入 `MediaLibraryService`，完整浏览树仍待验收 |
+| OPPO 流体云 | 机型相关 | 依赖系统对播放通知和歌词内容的支持 |
+
+近期工作主要集中在模块化架构收敛、大曲库与队列性能、流媒体临时地址恢复、多音源识别、下载续传和备份安全。具体成熟度与后续计划见 [成熟度路线](docs/MATURITY_ROADMAP.md)。
+
+## 技术与架构
 
 | 层级 | 当前实现 |
 |---|---|
-| 平台 | Android, minSdk 23, targetSdk 35, compileSdk 35 |
-| UI | Jetpack Compose, Material3, 单 Activity + Compose NavHost |
-| 播放 | AndroidX Media3 ExoPlayer, MediaSession, MediaLibraryService |
-| 数据 | Room `YukineDatabase` v15 + 聚焦 DAO/Repository，显式迁移 v1-v14 |
-| 架构 | 精简 Kotlin Activity + 聚焦 feature 模块 + 单向 StateFlow |
+| 平台 | Android，minSdk 23，targetSdk / compileSdk 35 |
+| UI | Jetpack Compose、Material3、单 Activity、Compose NavHost |
+| 播放 | AndroidX Media3 ExoPlayer、MediaSession、MediaLibraryService |
+| 数据 | Room `YukineDatabase` v30，显式迁移覆盖 v1-v29 |
+| 状态 | 聚焦 feature 模块、单向 `StateFlow` |
 | 依赖注入 | Hilt |
-| 网络与账号 | StreamingGateway, provider descriptor, WebView/cookie/local auth store |
-| 构建 | Gradle, Kotlin, Java 17 |
+| 构建 | Gradle、Kotlin、Java 17 |
 
-## 架构总览
+主要模块：
 
-```mermaid
-flowchart TD
-    Activity["MainActivity\n生命周期、Compose 根节点、Service/launcher 委托"] --> Nav[":feature:navigation\n类型化 route 与 destination 装配"]
-    Nav --> Features[":feature:*‑ui\nLibrary / Player / Settings / Streaming"]
-    Features --> ReadModel["PlaybackReadModel + PlaybackCommands"]
-    ReadModel --> Service["EchoPlaybackService\nMedia3、MediaSession、通知、资源生命周期"]
-    Service --> Queue["PlaybackQueueManager\n队列与当前索引唯一可变 owner"]
-    Features --> Repositories["聚焦 Repository / Use case"]
-    Repositories --> Room["YukineDatabase v15\nDAO + 显式零损迁移"]
-    Repositories --> Streaming[":feature:streaming\nprovider、认证、解析与缓存"]
-```
-
-### 主要模块
-
-- `:app`：精简入口、DI 汇合、Android 平台能力、播放 Service 与跨 feature 状态绑定；不拥有业务 screen 或 ViewModel。
-- `:core:model` / `:core:common` / `:core:designsystem`：稳定模型、通用能力、主题 token 与纯 UI primitive。
-- `:feature:player-ui`：Now Bar、Now Playing、Queue、Lyrics 及其 ViewModel/state owner。
-- `:feature:library-ui` / `:feature:settings-ui` / `:feature:streaming-ui`：各自 screen、状态、typed intent 与 reducer。
-- `:feature:navigation`：类型化 route、SavedState 和 destination 装配。
+- `:app`：应用入口、依赖注入汇合、Android 平台能力和播放服务。
+- `:core:*`：稳定模型、通用能力和设计系统。
+- `:feature:*‑ui`：曲库、播放、设置、流媒体等界面与状态。
 - `:feature:playback` / `:feature:data` / `:feature:streaming`：播放契约、Room 数据层和流媒体底层能力。
+- `:feature:navigation`：类型化路由与 destination 装配。
+- `metadata-gateway/`：可选的独立元数据网关；本地开发需要 Node.js 24。
 
-详细边界、状态所有权和迁移策略见 [当前架构](docs/ARCHITECTURE.md)、[数据库迁移](docs/DATABASE_MIGRATIONS.md) 与 [设备回归矩阵](docs/DEVICE_REGRESSION_MATRIX.md)。
+详细边界与状态所有权见 [架构说明](docs/ARCHITECTURE.md)。
 
-## 功能矩阵
+## 快速开始
 
-## 最新更新
+### 环境要求
 
-- **架构债集中消除（2026-07-14）**：删除 `MainActivityBase`、`MainPlaybackStore`、手动页面 render 链、`EchoDatabaseHelper` 和旧 `ui-common` 业务集合；播放状态、业务 ViewModel、screen/reducer 已进入聚焦 feature，数据库切换为 Room v15 且 v1-v14 只允许显式零损迁移。
-- **曲库交互重写（2026-07-11）**：曲库增加页内搜索、排序、来源筛选、播放全部/随机播放、歌曲与分组多选；单曲左滑会停靠显示“更多/删除”，不会全滑误删。删除会区分歌单移除、曲库隐藏、网络记录删除和经系统授权的本地文件永久删除；隐藏歌曲写入排除表，重新扫描不会恢复，并可在“设置 → 曲库”逐项或全部恢复。
-- 启动体验优化：实时音频频谱轮询只在实际播放时运行，服务未连接或未播放时复用空频谱，避免打开动画期间每帧触发 Compose 重组。
-- 播放缓存提速：当前歌曲首段缓存改为立即高优先级执行，旧预缓存会主动取消；下一首 URL 预解析不再阻塞用户刚点击的当前歌曲解析，减少点播放时的卡顿。
-- 大曲库刷新提速：Android 11+ 的 MediaStore generation 未变化时跳过全量扫描，无法读取 generation 或旧系统会安全回退全扫；刷新会依次提示检查、扫描、原子更新和重载阶段，超过 45 秒会给出可重新扫描的提示；整库去重与搜索在后台运行且旧任务不能覆盖新结果，列表每次刷新只发布一次状态、父层只订阅分支布尔值，音频规格解析仅处理当前批量候选。
-- 队列解析与刷新提速：大队列恢复先在普通列表中完成过滤和索引计算，再一次性写入线程安全队列；在线预解析窗口会合并同一未完成解析请求，并将同一窗口的解析结果作为一次队列提交，避免多次持久化、全队列复制和中间 UI 版本。队列内容版本变化会立即刷新当前列表，但单纯播放进度不会重建整条队列；当前行按实际播放索引标记，重复曲目不会同时显示为正在播放。
-- 播放进度隔离：暂停只暂存当前未切歌时的位置；手动切歌、随机切歌、自动切歌和自然播放完成后的新歌曲都会清除旧检查点并从 0 开始，避免旧进度被流媒体换源带到下一首。
-- 流媒体地址恢复：后台播放或冷启动恢复遇到临时 URL 过期时，会优先换用仍有效的缓存地址；即使界面已被回收，播放服务也会强制绕过旧缓存重新解析并热替换当前歌曲 URL，保留队列、进度和继续播放状态，不再依赖重新打开应用恢复。
-- 自定义页面背景预览：新图会先完整显示原图，并以手机画幅选框标出最终可见区域；可双指缩放、拖动图片选择截取范围。每次应用的新图都会获得新的本地身份，清空后再选图也不会复用旧位图缓存；应用后仍按所选区域铺满页面，且不会继承上一张图的缩放或偏移。进入沉浸式播放页时会淡出当前页的自定义背景及其遮罩、保留主题渐变，退出时恢复，避免半透明专辑封面叠在壁纸上。
-- 浮动底栏：底部导航和 Now Bar 覆盖在页面内容顶层，不再占用内容布局高度；Android 12+ 可在“设置 → 外观”独立开启卡片玻璃模糊和自定义背景图高斯模糊，两者各自拥有强度设置。卡片模糊会在各自圆角范围内实时采样后方内容，并支持把所有卡片调至 100% 完全不透明；背景图模糊只处理已选择的页面背景，不影响卡片与默认主题渐变。
-- 应用内流体云：完整 NowBar 或左右停靠胶囊均可上滑，沿当前位置直接形变到状态栏下方并居中显示歌词、播放进度和播放按钮；胶囊手势采用 24dp / 500dp/s 阈值，左右方向锁定放宽为横向位移达到纵向的 1.2 倍。普通顶部胶囊宽 188dp，点击主体可展开为更细长的 304 × 52dp 歌曲名与歌手详情，左侧同时显示 36dp 圆形歌曲封面，但不会放大到完整 NowBar。顶部胶囊和折叠把手始终作为页面顶层浮层，本身不进入内容布局；页面会按普通态 52dp、展开态 66dp、把手态 14dp 动态留出避让空间，避免遮挡第一行。继续上滑或在其他页面向上滚动会收缩为顶部把手；下滑把手或在页面中向下滚动会重新展开流体云。顶部云向左下滑停靠左侧、向右下滑停靠右侧，正下滑则直接恢复完整 NowBar。该形态仅属于应用内 UI，不接入 ColorOS 系统流体云。暂停后的已解析流媒体会直接恢复当前播放器，不会重复拉取 URL。
-- 统一悬浮卡片：页面内容卡片统一使用 6dp 悬浮层级、磨砂半透明材质与一致圆角；Now Bar 和底部导航使用更高的 10dp 层级，按钮、标签和列表操作保持轻量。
-- 曲库同曲多音源合并：本地扫描、文档导入、WebDAV、远程流和已导入的网络曲目在歌名、歌手、专辑归一化后匹配且时长相差不超过 3 秒时折叠为一条；会识别并忽略有明确译名标记或中文语法信号的括号译名，以及歌名/专辑末尾的 `feat.` / `featuring` 客串尾缀。所有源文件和数据库条目都会保留，并可在播放页“音源切换”中切换。Remix、Live、Ver.、混音、现场、不同专辑、未知元数据和时长明显不同的版本不会合并。
-- 播放页音源切换：同一提供方且同一曲目 ID 的多个音质档（如 QQ 音乐 `STANDARD` / `HIGH`）合并为一个选项，优先使用最高可用音质；真正不同的提供方仍可热切换并保持当前播放进度，点击音源卡片会立即开始解析和切换，无需先暂停；连续点击时以最后一次选择为准。
-- QQ 音乐登录态修正：QQ 本机直连不再把只有 `uin/p_uin` 的 Cookie 当作有效登录，播放解析前会要求 `qqmusic_key` / `qm_keyst` / `psrf_qqaccess_token` 等真实凭证，减少“已登录但无法解析需登录”的假阳性。
-- QQ 音乐播放解析兼容：仅使用新版无签名 `UrlGetVkey` 与新版 CDN 分发，不再请求旧 `CgiGetVkey`；有 `mediaMid` 时使用该文件标识，缺失时按 `songMid + songMid` 兼容。搜索建议会保留 `mediaMid`，避免解析时丢失文件标识；仅接受合法 HTTP(S) SIP 与可播放 `purl`，会拒绝 `IP;invalid;` 等内部诊断值，旧的坏播放缓存也不会恢复到播放器。`104009` / IP 校验失败会立即停止候选重试，避免反复卡住。QQ 网页登录前会显示平台风控和当前网络受限风险提示，需等待 5 秒后确认；异常时建议通过 QQ 音乐官方客户端退出并重新登录或联系官方支持。`psrf_qqaccess_token` 仍随 Cookie 保留，Netscape `#HttpOnly_` Cookie 记录可导入。QQ CDN 返回的 HTTP SIP 会在本机转换为 HTTPS；会员、地区、IP 校验和登录失败会显示明确原因，而不再被通用“需登录”提示覆盖。
-- QQ 音乐歌单元数据兼容：兼容歌单歌曲顶层的 `albumname`、`albumid`、`albummid`、`strMediaMid` 字段；搜索和歌单条目会显示接口返回的专辑名与封面。
-- 设置迁移继续推进：设置页面状态由 `SettingsViewModel` 直接构建，`SettingsRenderCoordinator`、`SettingsPageEventController`、`SettingsPageChromeBindings`、`SettingsScrollStateSink` 已移除，页面背景和备份选择通过平台 owner/effect 处理。
-- 备份恢复采用安全两阶段流程：选择文件后必须明确确认，备份会先经过条目白名单、大小限制与 SQLite 完整性校验；数据库仅在下次冷启动、尚未打开时通过带回滚的替换流程恢复，失败不会覆盖当前数据。
-- 设置体验改造：首页按“授权/曲库 → 播放 → 歌词 → 外观”排序并展示当前状态；常用开关可直接操作，单选项会显示选中状态，缺少音乐权限时可从首页直接授权。
-- 搜索页升级为本地 + 多音源聚合搜索：一次搜索会并发查询所有已启用且支持搜索的在线音源；同歌手、同曲名且时长接近的结果合并为一条，并以 `+N` 标记备用音源。所有合并音源仍保留，可在主音源解析失败时自动回退，并在播放页手动切换。
-- 下载管理增强：应用内下载支持断点续传、暂停后保留缓存、继续下载不再清零进度；支持 HTTP Range 的音源会使用有限分片并发下载，不支持时自动回退单连接下载。
-- 歌曲和封面下载：下载完成后会把标题、作者、专辑和封面写入音频文件标签，同时继续单独保存封面；元数据或封面写入失败不会反向标记音频下载失败。
-- 状态环优化：中心音质色球、下载进度细环、内部频谱、常态呼吸和低频鼓点缩放继续保留；频谱显示更强调变化量，降低持续响度占比，避免一直撑满。
-- NowBar 排版优化：新 CJK 字体下歌名、歌手、专辑信息和收藏/循环/队列按钮不再挤压，底部控制区高度已重新分配。
-- 艺人详情增强：先显示本地统计和懒加载简介，再补充在线简介；歌手全部在线专辑以底部卡片展示，点击专辑可加载曲目并播放。
-- 流媒体账号与导入：网易云登录后可弹窗选择导入歌单；QQ 支持 Cookie 导入格式适配；LX/洛雪支持本地 `.js` 文件和网络链接导入多个自定义音源脚本，并可由脚本独立提供搜索结果、播放链接、歌词和封面，其中搜索结果支持 `tx`/QQ 音乐字段。
-- 文档与合规：README 补充测试版定位、版权与音源风险、Cookie 本机保存、APK 分发和上架注意事项。
+- JDK 17。
+- Android SDK 35；原生指纹模块使用 CMake 3.22.1。
+- Android 6.0（API 23）或更高版本的设备/模拟器。
+- 当前 APK ABI 为 `arm64-v8a` 和 `x86_64`。
+- 无需单独安装 Gradle，仓库使用 Gradle Wrapper 8.11.1。
 
-### 已实现
-
-- 首次启动引导：权限、扫描、歌单导入、流媒体连接入口。
-- 本地曲库：歌曲、专辑、艺人、文件夹、歌单分组。
-- 曲库操作：页内搜索、排序、来源筛选、左滑更多/删除、多选批量操作、隐藏/恢复及系统授权文件删除。
-- 收藏歌单：曲库歌单页提供 `收藏歌单` 入口，收藏歌曲集中查看。
-- 播放队列：顺序播放、列表循环、单曲循环、随机、关闭循环播完停止。
-- 后台播放：Media3 前台服务、MediaSession、媒体通知、耳机控制、开机恢复入口。
-- 音频独占：播放设置中默认开启，使用系统媒体焦点让兼容的其他媒体应用暂停或静音；关闭后可与其他媒体同时播放。Android 无法强制不遵守音频焦点的应用停止。
-- 桌面小部件：封面、标题、艺人、上一首、播放/暂停、下一首。
-- NowBar：歌词条、可直接点击和拖动的进度条、波形、收藏、随机、循环、队列入口；点击时间区域可展开或收起波形。
-- 歌词：本地/在线歌词加载、偏移、当前行高亮、沉浸歌词、复制和状态同步；沉浸态仅点击实际歌词文字区域才会跳转进度，左右空白不再误触。
-- 状态栏/悬浮歌词：播放通知歌词、锁屏/状态栏歌词、悬浮窗歌词，歌词行变化、前后台切换和界面被系统回收但播放仍继续时，都会由播放服务同步刷新通知与媒体会话；支持 OPPO 流体云依赖通知展示。歌词设置还提供默认关闭的「系统媒体歌词标题兼容模式」，供只显示标题的车机或媒体面板把当前歌词作为标题，同时保留歌曲名和歌手元数据；兼容模式会随每句歌词发送 MediaSession 元数据更新，避免系统媒体标题停在第一句。
-- 音效：系统 Equalizer、BassBoost、Virtualizer、LoudnessEnhancer 设置入口。
-- ReplayGain：读取本地音频 ReplayGain 标签并在播放时应用。
-- 流媒体：网易云登录、账号歌单加载、登录后弹窗选择导入歌单、在线搜索和播放源解析；QQ Cookie 导入，以及 LX 自定义源的启用/排序、脚本搜索、播放、歌词和封面解析已接入。
-- 网络曲库：WebDAV、远程流列表、M3U/M3U8 导入。
-- 下载管理：设置页入口、当前歌曲/封面下载、单首暂停/继续、全部暂停/继续、应用内断点续传、Range 分片并发下载和应用内下载状态。
-- 搜索：本地和多音源在线聚合搜索入口，同曲多源合并并保留自动回退/手动切换候选；搜索历史保留，离开搜索后不污染曲库显示。
-- 艺人详情：本地艺人目录、在线资料补充、懒加载简介和在线专辑卡片入口。
-- 多语言：应用内语言映射、Android 13+ per-app language `LocaleConfig`。
-
-### 部分实现或受限
-
-- QQ 音乐、LX/洛雪等 provider：LX 已覆盖 kw/kg/wy/tx 本机基础搜索和播放，并支持已导入脚本通过可选 `search` 扩展直接返回歌曲、通过 `musicUrl`/`lyric`/`pic` 解析播放和元数据；LX 歌单导入、更多子源及第三方脚本兼容性仍需逐项补齐，其他 provider 也需按平台实现。
-
-LX 脚本搜索是 Yukine 的向后兼容扩展，并非 LX 官方自定义源的必选能力。脚本可在子源 `actions` 中声明 `search`；请求 `info` 包含 `query`、`keyword`、`page`、`limit`、`pageSize`、`offset`，返回歌曲数组或 `{ list/items/tracks/songs, total, hasMore }`。QQ 子源使用 `tx`，歌曲对象应至少包含 `songmid` 或 `mid`，可携带 `file.media_mid` 以提高后续播放解析兼容性。未声明该动作的旧脚本继续使用内置搜索。
-- 流媒体下载：应用内下载已支持断点续传和 Range 分片并发，但受音源鉴权、会员、地区、Range 支持和临时 URL 时效影响，仍可能失败。
-- OPPO 流体云：通过播放通知和状态栏歌词提供内容，实际展示形态由系统和机型决定。
-- Android Auto：服务已以 MediaLibraryService 暴露基础能力，完整车机浏览树仍需继续验收和扩展。
-- 频谱/波形：NowBar 波形和状态环频谱已可用，仍属于体验调优项，不能阻塞音频播放。
-
-### 规划中
-
-- QQ Provider 完整能力、LX 歌单导入、更多子源，以及更广泛的第三方脚本兼容性。
-- 可配置多音源优先级、记住单曲首选音源，并继续完善不同 provider/音质的切换策略。
-- 歌曲介绍、更多歌词源、更多播放源优先级策略。
-- 批量歌单下载的 provider 鉴权链路和失败重试。
-- 标签编辑器、备份/恢复、Last.fm Scrobble。
-- 平板/折叠屏双栏布局、Predictive back 深度适配。
-
-## 多语言要求
-
-本项目以中文体验为主，英文为同步维护语言。
-
-### UI 文案
-
-- 新增任何用户可见文案时，必须同时提供中文和英文。
-- 现阶段主要入口是 `app/src/main/java/app/yukine/AppLanguage.java`：
-  - 英文写在第二个参数。
-  - 中文写在第三个参数。
-  - 中文语气优先自然、短句、面向普通用户。
-- 避免在 Compose 页面、Activity、Service、Dialog 中硬编码单语言文案。
-- 如果必须临时硬编码，必须在同一次改动里补回 `AppLanguage` key。
-
-示例：
-
-```java
-put("download.manager", "Download manager", "下载管理");
-```
-
-### 系统语言
-
-- Android 13+ per-app language 使用 `android:localeConfig="@xml/locales_config"`。
-- 新增语言时需要同步检查：
-  - `app/src/main/res/xml/locales_config.xml`
-  - `AppLanguage.java`
-  - README 的语言说明
-
-### README 和文档
-
-- README 必须保持中文主文档和英文文档同步。
-- 面向用户的功能说明优先中文，面向贡献者的构建/测试命令保持原始命令格式。
-- 设计、发布、迁移类文档可以只写中文，但新增公共能力时 README 必须补英文摘要。
-
-## 免责声明与测试版说明
-
-YUKINE 当前按个人学习、本地音乐管理和测试体验定位维护。请在合规前提下使用本项目和测试包。
-
-- 版权与音源：流媒体搜索、播放、下载、歌词和封面能力可能受版权、会员、地区、平台协议和接口策略限制。本项目不提供、鼓励或承诺绕过版权保护，也不应宣传为“免费下载付费音乐”“破解音源”或“全网无损”工具。
-- 账号与 Cookie：网易云、QQ 等账号登录可能通过本机 WebView 捕获 Cookie。凭据仅用于本机播放、搜索和歌单同步，不应上传到第三方服务器。设置中应保留退出登录和清除登录态能力。
-- 第三方平台：网易云、QQ、LX/洛雪、酷狗等名称仅表示可选的第三方来源适配目标，不代表官方合作、授权或背书。相关接口可能随时变更、限流、失效，功能可用性不保证。
-- 隐私与权限：应用可能读取本地音乐、媒体库、通知权限、悬浮窗权限、下载目录、网络请求和本机保存的账号凭据。测试和分发时应提供清晰的隐私说明。
-- 下载功能：下载仅用于用户有权保存的个人内容和本地管理场景。批量下载、封面下载和歌词下载都应遵守来源平台规则和当地法律。
-- 稳定性：当前包含播放、歌词、下载、流体云、状态环、后台保活和多音源实验能力，仍建议以 Beta/自用测试包形式分发，并收集设备型号、系统版本、复现步骤和日志。
-- APK 分发：公开分发时应固定发布渠道，标注版本号、更新时间和校验值，避免旧包、二改包或来源不明的 APK 混用。
-- 上架限制：Google Play 和国内应用商店可能对后台播放、悬浮窗、下载、第三方音源和版权内容有额外审核要求。正式上架前需单独完成合规、隐私和版权风险评估。
-
-## 构建
+### 构建与安装
 
 ```powershell
 .\gradlew.bat :app:assembleDebug --console=plain
+adb install -r .\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-Debug APK:
+Debug APK 位于：
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Release 签名通过环境变量或 Gradle property 提供：
+多设备连接时使用 `adb -s <serial> install -r ...`。默认应用 ID 为 `app.yukine`，当前版本与构建配置以 Gradle 文件为准。
 
-```text
-ECHO_RELEASE_STORE_FILE
-ECHO_RELEASE_STORE_PASSWORD
-ECHO_RELEASE_KEY_ALIAS
-ECHO_RELEASE_KEY_PASSWORD
-```
+### 首次启动
+
+1. 授予本地音频读取权限。
+2. 按引导扫描本地曲库；通知权限用于后台播放控制，悬浮歌词需单独授予悬浮窗权限。
+3. WebDAV、远程列表和在线音源均为可选能力。登录 Cookie 保存在本机，但仍应只在受信任设备上使用。
 
 ## 测试
 
-常用验证命令：
-
 ```powershell
 .\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
 .\gradlew.bat :app:testDebugUnitTest --console=plain
 .\gradlew.bat :app:assembleDebug --console=plain
 ```
 
-完整 `check` 会额外执行 mojibake 扫描：
+完整检查会额外执行 lint 和乱码扫描：
 
 ```powershell
 .\gradlew.bat :app:check --console=plain
 ```
 
-## 维护约束
+## 开发约定
 
-- 应用图标受保护，详见 `docs/APP_ICON_LOCK.md`。
-- 外部显示名保持 `YUKINE`，内部遗留 `Echo` 命名只作为迁移期技术债处理。
-- 播放线程优先级高于视觉分析、波形、频谱、封面解码和下载 UI。
-- 不要让下载、频谱、歌词源请求阻塞 ExoPlayer 播放链路。
-- 修改播放服务、队列恢复或后台保活时，参考 `docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md`。
-- 修改成熟度路线时，参考 `docs/MATURITY_ROADMAP.md`。
+- 新增用户可见文案时，同时提供中文和英文；主要入口为 `app/src/main/java/app/yukine/AppLanguage.java`。
+- 避免在 Compose、Activity、Service 或 Dialog 中硬编码单语言文案。
+- 音频播放优先级高于波形、频谱、封面解码、下载和 UI 反馈；外围任务不得阻塞 ExoPlayer。
+- 外部品牌保持 `YUKINE`；内部遗留 `Echo` 命名按迁移技术债处理。
+- 应用图标受保护，修改前阅读 [图标锁定说明](docs/APP_ICON_LOCK.md)。
 
----
+## 文档索引
 
-# YUKINE Android English
+- [架构说明](docs/ARCHITECTURE.md)
+- [数据库迁移](docs/DATABASE_MIGRATIONS.md)
+- [设备回归矩阵](docs/DEVICE_REGRESSION_MATRIX.md)
+- [播放服务稳定性矩阵](docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md)
+- [成熟度路线](docs/MATURITY_ROADMAP.md)
 
-YUKINE is an Android music player centered on local libraries, streaming playlist import, lyrics, and reliable background playback. Some internal classes still use `Echo` names during the migration, but the user-facing app identity is `YUKINE`.
+## 使用与分发说明
 
-> Project discussion QQ group: 1013122077
+- 在线搜索、播放、下载、歌词和封面受版权、会员、地区、平台协议和接口变化影响；项目不提供或承诺绕过版权保护。
+- 网易云、QQ、LX/洛雪等名称仅表示可选第三方来源适配，不代表官方合作、授权或背书。
+- 账号 Cookie 仅用于本机播放、搜索和歌单同步，不应上传到第三方服务器。
+- 下载功能仅应用于用户有权保存和管理的内容，并应遵守来源平台规则与当地法律。
+- 公开 APK 应来自固定渠道，并标注版本、发布时间和校验值。正式上架前需单独完成隐私、版权和商店合规评估。
 
-## Product Focus
+## English Summary
 
-YUKINE is designed for local-library and long-session music listeners:
+YUKINE is a Chinese-first Android music player focused on local libraries, reliable Media3 background playback, lyrics, playlists, and optional online sources.
 
-- Scan and browse local tracks, albums, artists, folders, favorites, history, and playlists.
-- Play through a Media3 foreground service with notifications, widget controls, headset controls, and car/media session integration.
-- Use a Now Playing page, bottom NowBar, synchronized lyrics, waveform progress, and immersive lyrics.
-- Connect streaming accounts, search online music, choose account playlists after login, and import them into the local library.
-- Use WebDAV, M3U/M3U8, and remote stream lists as network library sources.
-- Configure audio effects, ReplayGain, live lyric notifications, floating lyrics, and download management.
+- Built with Jetpack Compose, Media3, Room, Hilt, Kotlin, and Java 17.
+- Supports local scanning, queues, playlists, lyrics, widgets, WebDAV, remote lists, M3U/M3U8, downloads, and backup/restore.
+- NetEase, QQ Music, LX, Android Auto, and device-specific integrations remain partially implemented or environment-dependent.
+- Requires JDK 17, Android SDK 35, and an Android 6.0+ device or emulator.
+- Online features may be limited by authentication, membership, region, platform policy, and API changes.
 
-## Stack
-
-| Layer | Implementation |
-|---|---|
-| Platform | Android, minSdk 23, targetSdk 35, compileSdk 35 |
-| UI | Jetpack Compose, Material3, single Activity + Compose NavHost |
-| Playback | AndroidX Media3 ExoPlayer, MediaSession, MediaLibraryService |
-| Data | Room `YukineDatabase` v15 with focused DAOs/repositories and explicit v1-v14 migrations |
-| Architecture | Thin Kotlin Activity, focused feature modules, unidirectional StateFlow |
-| DI | Hilt |
-| Streaming | StreamingGateway, provider descriptors, WebView/cookie/local auth store |
-| Build | Gradle, Kotlin, Java 17 |
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Activity["MainActivity\nlifecycle, Compose root, service/launcher delegates"] --> Nav[":feature:navigation\ntyped routes and destinations"]
-    Nav --> Features[":feature:*‑ui\nLibrary / Player / Settings / Streaming"]
-    Features --> ReadModel["PlaybackReadModel + PlaybackCommands"]
-    ReadModel --> Service["EchoPlaybackService\nMedia3, MediaSession, notification, lifecycle"]
-    Service --> Queue["PlaybackQueueManager\nsingle mutable queue/index owner"]
-    Features --> Repositories["Focused repositories and use cases"]
-    Repositories --> Room["YukineDatabase v15\nDAOs and explicit zero-loss migrations"]
-    Repositories --> Streaming[":feature:streaming\nproviders, auth, resolution, cache"]
-```
-
-## Features
-
-## Latest Updates
-
-- **Architecture debt elimination (2026-07-14):** removed `MainActivityBase`, `MainPlaybackStore`, manual page-render fan-out, `EchoDatabaseHelper`, and the business-heavy `ui-common` module. Playback state, business ViewModels, screens, and reducers now live in focused features; Room v15 accepts existing v1-v14 databases only through explicit zero-loss migrations. See [Architecture](docs/ARCHITECTURE.md), [Database migrations](docs/DATABASE_MIGRATIONS.md), and [Device regression matrix](docs/DEVICE_REGRESSION_MATRIX.md).
-- **Library interaction rewrite (2026-07-11):** The Library now supports inline search, sorting, source filters, play-all/shuffle, and track/group multi-select. Swiping a track reveals docked More/Delete actions without full-swipe deletion. Removal distinguishes playlist-only removal, persistent library hiding, network-record deletion, and system-authorized local file deletion; hidden tracks stay excluded from rescans and can be restored individually or together from Settings → Library.
-- Startup smoothness: realtime audio-spectrum polling now runs only while playback is active, and disconnected/stopped playback reuses an empty band array so app-open transitions do not trigger frame-by-frame Compose recomposition.
-- Playback cache startup is faster: the current track's leading cache range now starts immediately with high priority, stale precache writers are cancelled, and next-track URL pre-resolve no longer blocks the track the user just tapped.
-- Large-library refresh is faster: on Android 11+, an unchanged MediaStore generation skips the full scan; unavailable generation data and older Android versions safely fall back to a full scan. Refresh status now identifies checking, scanning, atomic replacement, and reloading, then offers a retryable scan message after 45 seconds. Whole-library deduplication and search run in the background, stale jobs cannot publish over newer results, each refresh publishes list state once while the parent observes only branch booleans, and audio-spec parsing handles only the current batch candidates.
-- Queue parsing and refresh are faster: large restored queues are filtered and indexed in a regular list before one thread-safe queue commit; the streaming pre-resolve window coalesces the same in-flight target and commits one window's results as one queue mutation, avoiding repeated persistence, full-queue copies, and intermediate UI versions. A queue-content revision refreshes the visible list immediately, while progress-only updates still avoid rebuilding it; the active row uses the actual playback index so duplicate tracks do not all appear active.
-- Playback-position isolation: a pause checkpoint is valid only until the current song changes. Manual, shuffled, and automatic track changes plus natural completion clear it, and the next song starts at 0 rather than inheriting an old streaming-source position.
-- Streaming URL recovery: background playback and cold-start queue restore reuse a still-valid cached source when available. Even after the Activity is gone, the playback service bypasses stale cache, resolves a fresh current URL, and hot-swaps it while preserving the queue, position, and resume intent.
-- Custom page-background preview: a newly selected image first shows the full original with a phone-aspect crop frame. Pinch and drag the image to choose the crop. Each newly applied image receives a fresh local identity, so clearing and then choosing another image cannot reuse the old bitmap cache; after applying, that selection still fills the page, and no zoom or pan is inherited from the previous image. Entering immersive Now Playing fades out the active page's custom background and dim mask while preserving the base theme gradient, then restores them on exit so semi-transparent album art never stacks over custom wallpaper.
-- Floating playback chrome: the bottom navigation and Now Bar overlay page content instead of consuming layout height. On Android 12+, Appearance settings expose separate switches and strengths for card backdrop blur and custom-background image blur. Card blur samples content behind each rounded surface and supports a fully opaque 100% setting; background blur affects only selected page images, not cards or the built-in theme gradient.
-- In-app fluid cloud: either the full NowBar or a docked capsule can be swiped directly into a centered capsule below the status bar while retaining lyrics, progress, and play/pause. Capsule gestures use 24dp / 500dp/s thresholds, and horizontal locking now requires only 1.2× the vertical drift. The normal top capsule is 188dp wide, and tapping its body opens a slimmer 304 × 52dp title-and-artist detail state with a 36dp circular track cover on the left, without growing to full NowBar size. The top capsule and folded handle remain page-overlay elements rather than joining the content layout, while the page dynamically reserves 52dp, 66dp, or 14dp of avoidance space for the normal, expanded, and handle states so the first row stays visible. Another upward swipe or upward page scroll contracts it into a small handle; pulling the handle down or scrolling the page downward expands the cloud again. A down-left drag docks left, a down-right drag docks right, and a straight downward drag restores the full NowBar. This is app-local UI and does not integrate with the ColorOS system fluid cloud. Paused resolved streams resume the loaded player directly without fetching another URL.
-- Unified floating cards: page content cards share a 6dp floating layer, frosted translucency, and consistent corners; the Now Bar and bottom navigation use a higher 10dp chrome layer while buttons, chips, and list actions stay lightweight.
-- Library same-song source merging: matching copies from device scans, document import, WebDAV, remote streams, and imported online tracks collapse into one item in the library, search, and play-all list when normalized title, artist, album, and duration (within three seconds) agree. Parenthesized aliases are ignored only with an explicit translation label or conservative Chinese-language signal, along with trailing `feat.` / `featuring` credits in titles or albums. Source files and database rows remain intact, and every alternative can be selected from the Now Playing source switcher. Remix, Live, Ver., mix, distinct albums, unknown metadata, and materially different durations remain separate.
-- Now Playing source switching: quality variants with the same provider and provider track ID (for example, QQ Music `STANDARD` / `HIGH`) are one option, using the highest available quality. Genuine different providers hot-switch at the current position; tapping a source card starts resolution and switching immediately without a prior pause, and rapid taps honor the most recent choice.
-- QQ Music auth state: QQ local playback no longer treats `uin/p_uin` alone as a valid login. Playback resolution now requires a real credential cookie such as `qqmusic_key`, `qm_keyst`, or `psrf_qqaccess_token`, reducing false "logged in but login required" failures.
-- QQ Music playback compatibility: only the unsigned modern `UrlGetVkey` plus current CDN dispatch are used; legacy `CgiGetVkey` is no longer requested. A track uses its `mediaMid` filename when present and `songMid + songMid` only when it is absent. Smartbox search preserves `mediaMid` so resolution does not lose the file identifier. Only valid HTTP(S) SIP values and playable `purl` values are accepted; internal diagnostics such as `IP;invalid;` and stale invalid playback cache entries never reach the player. `104009` / IP-validation failures stop candidate retries immediately to avoid repeated stalls. QQ web sign-in now presents a five-second acknowledgement about risk controls and current-network restrictions; on failure, users should sign out and back in with the official QQ Music client or contact official support. `psrf_qqaccess_token` remains in the Cookie header and Netscape `#HttpOnly_` records are importable. HTTP QQ CDN SIP URLs are normalized to HTTPS, while membership, region, IP-validation, and login failures now show their real reason instead of a generic login prompt.
-- QQ Music playlist metadata compatibility: top-level `albumname`, `albumid`, `albummid`, and `strMediaMid` fields are now handled; streaming search and playlist rows show the returned album title and artwork.
-- Settings migration: settings page state is now built by `SettingsViewModel`; `SettingsRenderCoordinator`, `SettingsPageEventController`, `SettingsPageChromeBindings`, and `SettingsScrollStateSink` have been removed, while page-background and backup pickers route through platform owners/effects.
-- Backup restore now uses a safe two-phase flow: the user confirms after choosing a file, the archive is staged only after allowlist, size, and SQLite integrity checks, and database files are replaced with rollback protection only on the next cold start before the database opens.
-- Settings experience refresh: the home page now leads with permission/library setup, then playback, lyrics, and appearance; common switches work inline, choices show their selection, and missing music access can be granted directly from Settings.
-- Search now combines local results with multi-source online aggregation. Results with the same artist, title, and a close duration are collapsed into one row with a `+N` source indicator. Every merged source remains available for automatic playback fallback and manual switching on the Now Playing screen.
-- Download management now supports resumable in-app downloads. Paused tasks keep cache files and continue without resetting progress; sources with HTTP Range support use limited segmented parallel downloads, while unsupported sources fall back to a single connection.
-- Track and artwork downloads are linked: completed audio files embed title, artist, album, and cover-art tags while still saving the artwork separately; metadata or artwork failures do not mark the audio download as failed.
-- The status ring keeps the quality center, download progress arc, internal spectrum, idle breathing, and kick-driven scaling. Spectrum rendering now emphasizes changes and reduces the weight of constant loudness.
-- NowBar layout was adjusted for the CJK font so title, artist/album, favorite, repeat, and queue controls do not crowd each other.
-- Artist detail pages now show local stats first, lazy-load online introductions, and render online album cards at the bottom. Album cards can load tracks and start playback.
-- Streaming account/import flow now includes NetEase playlist import selection after login, QQ cookie import normalization, and LX custom-source import from local `.js` files or network links. Imported LX scripts can independently provide search results, playback URLs, lyrics, and artwork, including `tx`/QQ Music search objects.
-- Documentation now calls out beta status, copyright/source risk, local-only cookie storage, APK distribution expectations, and store-review caveats.
-
-### Implemented
-
-- First-run onboarding for permissions, scanning, playlist import, and streaming connection.
-- Local library by songs, albums, artists, folders, and playlists.
-- Library actions include inline search, sorting, source filters, swipe-reveal More/Delete, batch selection, persistent hide/restore, and system-authorized file deletion.
-- Favorites collection entry from the playlist grouping page.
-- Queue modes: sequential playback, repeat all, repeat one, shuffle, and repeat off that stops after the current track.
-- Background playback through Media3 foreground service, MediaSession, notifications, headset controls, and boot restore entry.
-- Audio exclusive: enabled by default in Playback settings. It requests system media focus so compatible media apps pause or mute; turning it off allows mixing with other media. Android cannot force apps that ignore audio focus to stop.
-- Home screen widget with artwork, title, artist, previous, play/pause, and next actions.
-- NowBar with a directly tappable and draggable progress bar, lyric strip, waveform, favorite, shuffle, repeat, and queue controls; tap the time row to expand or collapse the waveform.
-- Lyrics loading, offset control, active-line highlight, immersive lyrics, copy support, and state publishing. In immersive mode, seeking is limited to the actual lyric text bounds so taps in the surrounding blank space no longer seek accidentally.
-- Live lyric notification and floating lyrics. Lyric-line updates, foreground/background transitions, and Activity destruction while playback continues are synchronized by the playback service to both the notification and MediaSession; supported OPPO fluid cloud panels can display lyric content from the notification. Lyrics settings also include a default-off system-media lyric-title compatibility mode for car head units or media panels that only show a title; it keeps the real track title and artist in metadata and emits a MediaSession metadata update for every lyric line so title-only surfaces do not stay on the first line.
-- Android system audio effects: Equalizer, BassBoost, Virtualizer, and LoudnessEnhancer.
-- ReplayGain parsing and playback gain application for local tracks.
-- NetEase login, account playlist loading, post-login playlist picker, online search, and playback URL resolution; QQ cookie import plus LX custom-source enablement, ordering, script search, playback, lyric, and artwork resolution are available.
-- WebDAV, remote stream lists, and M3U/M3U8 import.
-- Download manager entry, current track/cover downloads, per-item pause/resume, pause/resume all, in-app resumable downloads, Range segmented downloads, and in-app download status.
-- Local plus multi-source online aggregate search with same-track source merging, automatic fallback, manual source candidates, and history preservation.
-- Artist directory, online artist profile enrichment, lazy-loaded introductions, and online album card entry.
-- In-app language mapping plus Android 13+ per-app language support.
-
-### Partial or Limited
-
-- LX covers basic built-in kw/kg/wy/tx search and playback. Imported scripts can optionally return songs through the `search` extension and resolve playback, lyrics, and artwork through `musicUrl`/`lyric`/`pic`. LX playlist import, more sub-sources, and wider third-party script compatibility still need provider-specific work, as do other providers.
-
-LX script search is a backward-compatible Yukine extension, not a required part of the official LX custom-source contract. A script may declare `search` in a sub-source's `actions`; request `info` contains `query`, `keyword`, `page`, `limit`, `pageSize`, and `offset`, and the response may be an array or `{ list/items/tracks/songs, total, hasMore }`. QQ uses the `tx` key; each song should contain at least `songmid` or `mid`, with optional `file.media_mid` for better playback compatibility. Existing scripts without `search` continue through built-in search.
-- Streaming downloads support resumable in-app downloads and Range segmented downloads, but may still fail because of authentication, membership, region, missing Range support, or temporary URL expiry.
-- OPPO fluid cloud display is driven through notifications and depends on OS support.
-- Android Auto support has a MediaLibraryService base; the full browsable tree still needs device/emulator validation.
-- Spectrum and waveform visuals are available but remain tuning surfaces and must never block audio playback.
-
-### Planned
-
-- Complete QQ provider support, LX playlist import and more sub-sources, plus wider third-party script compatibility.
-- Configurable source priority, remembered per-track source preference, and richer provider/quality switching policies.
-- Song descriptions, more lyric sources, and richer playback source ranking.
-- Authenticated batch playlist downloads with retry handling.
-- Tag editor, backup/restore, and Last.fm scrobbling.
-- Tablet/foldable layouts and deeper predictive back handling.
-
-## Localization Requirements
-
-YUKINE is Chinese-first, with English maintained in parallel.
-
-- Every new user-visible string must provide both Chinese and English.
-- The main string registry is currently `app/src/main/java/app/yukine/AppLanguage.java`.
-- Avoid hardcoded single-language strings in Compose screens, Activity, Service, or dialogs.
-- If a temporary hardcoded label is unavoidable, add its `AppLanguage` key in the same change.
-- New Android per-app languages must update `app/src/main/res/xml/locales_config.xml`.
-- README must keep Chinese and English feature descriptions in sync.
-
-Example:
-
-```java
-put("download.manager", "Download manager", "下载管理");
-```
-
-## Disclaimer And Beta Notes
-
-YUKINE is maintained as a personal learning, local music management, and beta testing project. Use the project and test APKs only where you have the right to do so.
-
-- Copyright and sources: streaming search, playback, downloads, lyrics, and artwork may be limited by copyright, membership status, region, platform terms, and API changes. This project does not provide, encourage, or guarantee bypassing copyright protection, and should not be advertised as a free paid-music or source-unlocking tool.
-- Accounts and cookies: NetEase, QQ, and similar logins may capture cookies through a local WebView. Credentials are intended only for local playback, search, and playlist sync, and should not be uploaded to third-party servers. Settings should keep sign-out and clear-login-state actions available.
-- Third-party platforms: NetEase, QQ, LX, KuGou, and similar names only describe optional third-party source adapters. They do not imply official partnership, authorization, or endorsement. Interfaces may change, rate-limit, or stop working at any time.
-- Privacy and permissions: the app may read local audio, media library data, notification permission, floating-window permission, download directories, network requests, and locally stored account credentials. Test builds and public distribution should include a clear privacy notice.
-- Downloads: downloads are intended only for personal content that the user has the right to save and manage locally. Batch downloads, artwork downloads, and lyric downloads must follow source-platform rules and local law.
-- Stability: playback, lyrics, downloads, OPPO fluid cloud, status-ring visuals, background keep-alive, and multi-source experiments can affect one another. Public builds should be labeled as Beta or personal test builds, with feedback including device model, OS version, reproduction steps, and logs.
-- APK distribution: public APKs should come from a fixed official channel and include version number, release time, and checksum to avoid stale, modified, or unknown packages.
-- Store review: Google Play and domestic app stores may apply additional review requirements to background playback, floating windows, downloads, third-party sources, and copyrighted content. Complete compliance, privacy, and copyright review before any formal store release.
-
-## Build
+Build with:
 
 ```powershell
 .\gradlew.bat :app:assembleDebug --console=plain
 ```
-
-Debug APK:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-Release signing can be supplied through environment variables or Gradle properties:
-
-```text
-ECHO_RELEASE_STORE_FILE
-ECHO_RELEASE_STORE_PASSWORD
-ECHO_RELEASE_KEY_ALIAS
-ECHO_RELEASE_KEY_PASSWORD
-```
-
-## Test
-
-```powershell
-.\gradlew.bat :app:compileDebugKotlin :app:compileDebugJavaWithJavac --console=plain
-.\gradlew.bat :app:testDebugUnitTest --console=plain
-.\gradlew.bat :app:assembleDebug --console=plain
-```
-
-`check` also runs the mojibake scan:
-
-```powershell
-.\gradlew.bat :app:check --console=plain
-```
-
-## Maintenance Notes
-
-- The app icon is locked. See `docs/APP_ICON_LOCK.md`.
-- User-facing identity is `YUKINE`; legacy `Echo` names are migration debt.
-- Audio playback must stay higher priority than visual analysis, waveform/spectrum work, artwork decoding, downloads, and UI feedback.
-- Download, spectrum, lyric, and metadata requests must not block ExoPlayer playback.
-- For playback-service changes, see `docs/PLAYBACK_SERVICE_STABILITY_MATRIX.md`.
-- For roadmap changes, see `docs/MATURITY_ROADMAP.md`.

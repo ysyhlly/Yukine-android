@@ -13,18 +13,20 @@ object TrackRowStateFactory {
         favoriteIds: Set<Long>,
         detail: String,
         showPlaylistAction: Boolean,
-        key: String = track.id.toString()
+        key: String = track.id.toString(),
+        favoritePendingIds: Set<Long> = emptySet()
     ): TrackRowUiState = TrackRowUiState(
-        track.id,
-        track.title,
-        track.subtitle(),
-        detail.ifBlank { track.audioSpecSummary() },
-        Track.formatDuration(track.durationMs),
-        track.albumArtUri,
-        isCurrent(track, currentTrack),
-        favoriteIds.contains(track.id),
-        showPlaylistAction,
-        key
+        id = track.id,
+        title = track.title,
+        subtitle = track.subtitle(),
+        detail = detail.ifBlank { track.audioSpecSummary() },
+        duration = Track.formatDuration(track.durationMs),
+        albumArtUri = track.albumArtUri,
+        current = isCurrent(track, currentTrack),
+        favorite = favoriteIds.contains(track.id),
+        showPlaylistAction = showPlaylistAction,
+        key = key,
+        favoritePending = track.id in favoritePendingIds
     )
 
     @JvmStatic

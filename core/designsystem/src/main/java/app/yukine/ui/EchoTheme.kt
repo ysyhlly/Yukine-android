@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
@@ -466,10 +465,9 @@ object EchoTheme {
         overridePresetAccent: Boolean
     ): EchoPalette {
         val normalized = normalizeMode(mode)
-        EchoThemePresets.paletteFor(normalized, dark)?.let { preset ->
-            return if (overridePresetAccent) preset.withDynamicAccent(accent, dark) else preset
-        }
-        return when (normalized) {
+        val palette = EchoThemePresets.paletteFor(normalized, dark)?.let { preset ->
+            if (overridePresetAccent) preset.withDynamicAccent(accent, dark) else preset
+        } ?: when (normalized) {
             MODE_AMOLED   -> amoledPalette(accent)
             MODE_CONTRAST -> contrastPalette(accent)
             MODE_GRAPHITE -> graphitePalette(accent)
@@ -480,6 +478,7 @@ object EchoTheme {
             MODE_DAYLIGHT -> daylightPalette(accent)
             else          -> defaultPalette(dark, accent)
         }
+        return palette.withAccessibleContentColors()
     }
 
     private fun EchoPalette.withDynamicAccent(accent: Color, dark: Boolean): EchoPalette = copy(
@@ -490,50 +489,82 @@ object EchoTheme {
         onAccent = readableOnAccent(accent)
     )
 
-    private fun colorSchemeFrom(p: EchoPalette): ColorScheme = when {
-        // dark scheme
-        p.background.red < 0.3f && p.background.green < 0.3f && p.background.blue < 0.3f ->
+    internal fun colorSchemeFrom(p: EchoPalette): ColorScheme {
+        val dark = p.background.red < 0.3f &&
+            p.background.green < 0.3f &&
+            p.background.blue < 0.3f
+        val background = p.background.copy(alpha = 1f)
+        val surface = p.surface.copy(alpha = 1f)
+        val surfaceVariant = opaqueComposite(p.surfaceVariant, surface)
+        val primary = p.accent.copy(alpha = 1f)
+        val primaryContainer = opaqueComposite(p.accentSoft, surface)
+        val secondary = p.secondary.copy(alpha = 1f)
+        val secondaryContainer = surfaceVariant
+        val error = (
+            if (dark) AccentPalettes.darkAccent(ACCENT_RED)
+            else AccentPalettes.lightAccent(ACCENT_RED)
+            ).copy(alpha = 1f)
+        val errorContainer = opaqueComposite(
+            error.copy(alpha = if (dark) 0.18f else 0.12f),
+            surface
+        )
+        val onPrimary = readableContentColor(primary, p.onAccent, p.text)
+        val onPrimaryContainer = readableContentColor(primaryContainer, p.accentStrong, p.text)
+        val onSecondary = readableContentColor(secondary, p.text, p.onAccent)
+        val onSecondaryContainer = readableContentColor(secondaryContainer, p.text, p.muted)
+        val onBackground = readableContentColor(background, p.text, p.heading)
+        val onSurface = readableContentColor(surface, p.text, p.heading)
+        val onSurfaceVariant = readableContentColor(surfaceVariant, p.muted, p.text)
+        val onError = readableContentColor(error, Color.White, p.text)
+        val onErrorContainer = readableContentColor(errorContainer, p.text, error)
+
+        return if (dark) {
             darkColorScheme(
-                primary = p.accent,
-                onPrimary = p.onAccent,
-                primaryContainer = p.accentSoft,
-                onPrimaryContainer = p.accent,
-                secondary = p.muted,
-                onSecondary = p.onAccent,
-                secondaryContainer = p.surfaceVariant,
-                onSecondaryContainer = p.text,
-                background = p.background,
-                onBackground = p.text,
-                surface = p.surface,
-                onSurface = p.text,
-                surfaceVariant = p.surfaceVariant,
-                onSurfaceVariant = p.muted,
+                primary = primary,
+                onPrimary = onPrimary,
+                primaryContainer = primaryContainer,
+                onPrimaryContainer = onPrimaryContainer,
+                secondary = secondary,
+                onSecondary = onSecondary,
+                secondaryContainer = secondaryContainer,
+                onSecondaryContainer = onSecondaryContainer,
+                background = background,
+                onBackground = onBackground,
+                surface = surface,
+                onSurface = onSurface,
+                surfaceVariant = surfaceVariant,
+                onSurfaceVariant = onSurfaceVariant,
                 outline = p.border,
                 outlineVariant = p.border,
-                error = AccentPalettes.darkAccent(ACCENT_RED),
-                onError = Color.White
+                error = error,
+                onError = onError,
+                errorContainer = errorContainer,
+                onErrorContainer = onErrorContainer
             )
-        else ->
+        } else {
             lightColorScheme(
-                primary = p.accent,
-                onPrimary = p.onAccent,
-                primaryContainer = p.accentSoft,
-                onPrimaryContainer = p.accent,
-                secondary = p.muted,
-                onSecondary = p.onAccent,
-                secondaryContainer = p.surfaceVariant,
-                onSecondaryContainer = p.text,
-                background = p.background,
-                onBackground = p.text,
-                surface = p.surface,
-                onSurface = p.text,
-                surfaceVariant = p.surfaceVariant,
-                onSurfaceVariant = p.muted,
+                primary = primary,
+                onPrimary = onPrimary,
+                primaryContainer = primaryContainer,
+                onPrimaryContainer = onPrimaryContainer,
+                secondary = secondary,
+                onSecondary = onSecondary,
+                secondaryContainer = secondaryContainer,
+                onSecondaryContainer = onSecondaryContainer,
+                background = background,
+                onBackground = onBackground,
+                surface = surface,
+                onSurface = onSurface,
+                surfaceVariant = surfaceVariant,
+                onSurfaceVariant = onSurfaceVariant,
                 outline = p.border,
                 outlineVariant = p.border,
-                error = AccentPalettes.lightAccent(ACCENT_RED),
-                onError = Color.White
+                error = error,
+                onError = onError,
+                errorContainer = errorContainer,
+                onErrorContainer = onErrorContainer
             )
+        }
     }
 
     // ── Palette definitions ─────────────────────────────────────────────────
@@ -577,15 +608,10 @@ object EchoTheme {
     }
 
     /**
-     * Chooses the foreground with the higher WCAG contrast ratio. A luminance threshold alone
-     * can leave white labels faint on medium-bright dynamic colors.
+     * Chooses a WCAG-readable foreground while preferring the existing light label color.
      */
-    private fun readableOnAccent(accent: Color): Color {
-        val luminance = accent.luminance()
-        val blackContrast = (luminance + 0.05f) / 0.05f
-        val whiteContrast = 1.05f / (luminance + 0.05f)
-        return if (blackContrast >= whiteContrast) Color.Black else Color.White
-    }
+    private fun readableOnAccent(accent: Color): Color =
+        readableContentColor(accent, Color.White, Color.Black)
 
     private fun amoledPalette(accent: Color): EchoPalette {
         val a = accent

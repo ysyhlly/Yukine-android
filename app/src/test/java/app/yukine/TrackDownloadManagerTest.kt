@@ -13,10 +13,29 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.concurrent.Executors
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class TrackDownloadManagerTest {
+    @Test
+    fun directoryChangesEmitAControllerChangeNotification() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("track_downloads", Context.MODE_PRIVATE).edit().clear().commit()
+        val manager = TrackDownloadManager(context, FakeStreamingPlaybackHeaderStore())
+        val notification = async { manager.changes.first() }
+        yield()
+
+        manager.setDownloadDirectory(DOWNLOAD_DIRECTORY_DOWNLOADS)
+
+        withTimeout(1_000L) { notification.await() }
+        manager.shutdownNow()
+    }
+
     @Test
     fun shutdownStopsExecutorsAndRejectsNewAppManagedDownloads() {
         val context = ApplicationProvider.getApplicationContext<Context>()

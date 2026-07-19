@@ -32,6 +32,7 @@ enum class RecordingMatchHardConflict {
     WORK_MBID,
     FINGERPRINT,
     ISRC,
+    CANONICAL_WORK,
     PRIMARY_ARTIST,
     VERSION
 }
@@ -42,11 +43,14 @@ enum class MatchEvidence {
     WORK_MBID,
     FINGERPRINT,
     ISRC,
+    CANONICAL_WORK,
+    CANONICAL_ALBUM,
     TITLE,
     PRIMARY_ARTIST,
     DURATION,
     VERSION,
-    ALBUM
+    ALBUM,
+    METADATA_EMBEDDING_RECALL
 }
 
 enum class RecordingRelationship {
@@ -55,6 +59,14 @@ enum class RecordingRelationship {
     CANNOT_LINK,
     UNKNOWN
 }
+
+data class MetadataRecallEvidence(
+    val candidateSources: Set<String> = emptySet(),
+    val embeddingSimilarity: Double? = null,
+    val embeddingVersion: Int = 0,
+    val bandMatches: Int = 0,
+    val recallOnly: Boolean = true
+)
 
 data class MatchEvaluation(
     val sameRecordingProbability: Double,
@@ -67,15 +79,19 @@ data class MatchEvaluation(
     val durationScore: Double,
     val versionScore: Double,
     val albumScore: Double,
+    val canonicalWorkIdentityScore: Double,
     val identifierEvidence: Set<String>,
     val evidence: Set<MatchEvidence>,
     val hardConflicts: Set<RecordingMatchHardConflict>,
     val versionType: RecordingVersionType,
     val referenceVersionType: RecordingVersionType,
+    val versionEvidence: RecordingVersionEvidence,
+    val referenceVersionEvidence: RecordingVersionEvidence,
     val durationDeltaMs: Long?,
     val durationToleranceMs: Long,
     val explanation: List<String>,
-    val scoreVersion: Int = RecordingMatchEvaluatorV2.SCORE_VERSION
+    val scoreVersion: Int = RecordingMatchEvaluatorV2.SCORE_VERSION,
+    val metadataRecallEvidence: MetadataRecallEvidence? = null
 ) {
     val hasHardConflict: Boolean get() = hardConflicts.isNotEmpty()
 
@@ -85,15 +101,13 @@ data class MatchEvaluation(
 
 /** Pure V2 recording identity evaluator. Source availability and quality are intentionally absent. */
 object RecordingMatchEvaluatorV2 {
-    const val SCORE_VERSION = 3
+    const val SCORE_VERSION = 4
     const val AUTO_MERGE_MINIMUM_SCORE = 0.92
     const val AUTO_MERGE_MINIMUM_MARGIN = 0.08
 
-    private const val TITLE_WEIGHT = 0.34
-    private const val ARTIST_WEIGHT = 0.28
-    private const val DURATION_WEIGHT = 0.18
-    private const val VERSION_WEIGHT = 0.15
-    private const val ALBUM_WEIGHT = 0.05
+    private const val WORK_IDENTITY_WEIGHT = 0.50
+    private const val DURATION_WEIGHT = 0.30
+    private const val VERSION_WEIGHT = 0.20
 
     fun evaluate(
         reference: StreamingTrackMatchPolicy.Reference,
@@ -109,14 +123,28 @@ object RecordingMatchEvaluatorV2 {
     )
 
     fun evaluate(
+        reference: StreamingTrackMatchPolicy.Reference,
+        candidate: StreamingTrackMatchPolicy.Reference,
+        recallEvidence: MetadataRecallEvidence
+    ): MatchEvaluation = evaluate(
+        RecordingMatchFeatureExtractor.extract(reference),
+        RecordingMatchFeatureExtractor.extract(candidate),
+        recallEvidence = recallEvidence
+    )
+
+    fun evaluate(
         reference: RecordingMatchFeatures,
         candidate: RecordingMatchFeatures,
-        includeExplanation: Boolean = true
+        includeExplanation: Boolean = true,
+        recallEvidence: MetadataRecallEvidence? = null
     ): MatchEvaluation {
         val explanation = mutableListOf<String>()
         val identifiers = linkedSetOf<String>()
         val evidence = linkedSetOf<MatchEvidence>()
         val hardConflicts = linkedSetOf<RecordingMatchHardConflict>()
+        if (recallEvidence?.embeddingSimilarity != null) {
+            evidence += MatchEvidence.METADATA_EMBEDDING_RECALL
+        }
 
         compareIdentifier(
             reference.provider.takeIf { reference.providerTrackIdConfirmed }.orEmpty(),
@@ -141,6 +169,16 @@ object RecordingMatchEvaluatorV2 {
             candidate.workMbid.orEmpty(),
             "work_mbid",
             RecordingMatchHardConflict.WORK_MBID,
+            identifiers,
+            hardConflicts
+        )
+        compareConfirmedCanonicalIdentity(
+            reference.canonicalWorkId.orEmpty(),
+            reference.canonicalWorkConfirmed,
+            candidate.canonicalWorkId.orEmpty(),
+            candidate.canonicalWorkConfirmed,
+            "canonical_work",
+            RecordingMatchHardConflict.CANONICAL_WORK,
             identifiers,
             hardConflicts
         )
@@ -200,7 +238,15 @@ object RecordingMatchEvaluatorV2 {
         val referenceVersion = reference.versionType
         val candidateVersion = candidate.versionType
         val versionScore = versionSimilarity(referenceVersion, candidateVersion)
-        if (RecordingVersionClassifier.hardConflict(referenceVersion, candidateVersion, reference.versionSignature, candidate.versionSignature)) {
+        if (reference.versionEvidence.strongForConflict &&
+            candidate.versionEvidence.strongForConflict &&
+            RecordingVersionClassifier.hardConflict(
+                referenceVersion,
+                candidateVersion,
+                reference.versionSignature,
+                candidate.versionSignature
+            )
+        ) {
             hardConflicts += RecordingMatchHardConflict.VERSION
         }
         if (versionScore >= 0.75) evidence += MatchEvidence.VERSION
@@ -209,14 +255,29 @@ object RecordingMatchEvaluatorV2 {
         }
 
         val albumScore = albumSimilarity(reference.albumKey.orEmpty(), candidate.albumKey.orEmpty())
+        if (sameConfirmedCanonicalIdentity(
+                reference.canonicalAlbumId,
+                reference.canonicalAlbumConfirmed,
+                candidate.canonicalAlbumId,
+                candidate.canonicalAlbumConfirmed
+            )
+        ) {
+            evidence += MatchEvidence.CANONICAL_ALBUM
+        }
         if (albumScore >= 0.65) evidence += MatchEvidence.ALBUM
         if (includeExplanation) explanation += "album=${formatScore(albumScore)}"
 
-        var sameRecordingProbability = titleScore * TITLE_WEIGHT +
-            artistScore * ARTIST_WEIGHT +
+        val canonicalWorkIdentityScore = canonicalWorkIdentityScore(
+            reference = reference,
+            candidate = candidate,
+            titleScore = titleScore,
+            artistScore = artistScore,
+            identifiers = identifiers,
+            hardConflicts = hardConflicts
+        )
+        var sameRecordingProbability = canonicalWorkIdentityScore * WORK_IDENTITY_WEIGHT +
             durationScore * DURATION_WEIGHT +
-            versionScore * VERSION_WEIGHT +
-            albumScore * ALBUM_WEIGHT
+            versionScore * VERSION_WEIGHT
 
         sameRecordingProbability = min(
             sameRecordingProbability,
@@ -247,18 +308,21 @@ object RecordingMatchEvaluatorV2 {
                 "work_mbid" -> MatchEvidence.WORK_MBID
                 "fingerprint" -> MatchEvidence.FINGERPRINT
                 "isrc" -> MatchEvidence.ISRC
+                "canonical_work" -> MatchEvidence.CANONICAL_WORK
                 else -> null
             }
         }
 
+        val hasResolvedWorkIdentity = "canonical_work" in identifiers || "work_mbid" in identifiers
         val recordingConfidenceCeiling = recordingConfidenceCeiling(
             reference = reference,
             candidate = candidate,
-            hasStrongRecordingIdentity = directIdentity || isrcIdentity
+            hasStrongRecordingIdentity = directIdentity || isrcIdentity,
+            hasResolvedWorkIdentity = hasResolvedWorkIdentity
         )
         sameRecordingProbability = min(sameRecordingProbability, recordingConfidenceCeiling)
 
-        val sameWorkIdentity = "work_mbid" in identifiers
+        val sameWorkIdentity = hasResolvedWorkIdentity
         val explicitVersionRelationship = RecordingMatchHardConflict.VERSION in hardConflicts
         val workConfidenceCeiling = workConfidenceCeiling(
             reference = reference,
@@ -304,14 +368,18 @@ object RecordingMatchEvaluatorV2 {
             durationScore = durationScore,
             versionScore = versionScore,
             albumScore = albumScore,
+            canonicalWorkIdentityScore = canonicalWorkIdentityScore,
             identifierEvidence = identifiers,
             evidence = evidence,
             hardConflicts = hardConflicts,
             versionType = candidateVersion,
             referenceVersionType = referenceVersion,
+            versionEvidence = candidate.versionEvidence,
+            referenceVersionEvidence = reference.versionEvidence,
             durationDeltaMs = durationDeltaMs,
             durationToleranceMs = durationToleranceMs,
-            explanation = explanation
+            explanation = explanation,
+            metadataRecallEvidence = recallEvidence
         )
     }
 
@@ -319,8 +387,8 @@ object RecordingMatchEvaluatorV2 {
         val duration = sequenceOf(leftDurationMs, rightDurationMs)
             .mapNotNull { it?.takeIf { value -> value > 0L } }
             .minOrNull()
-            ?: return 8_000L
-        return max(2_500L, min(8_000L, (duration * 0.025).toLong()))
+            ?: return 6_000L
+        return max(2_000L, min(6_000L, (duration * 0.02).toLong()))
     }
 
     private fun compareIdentifier(
@@ -349,6 +417,49 @@ object RecordingMatchEvaluatorV2 {
         val cleanRight = normalizedIdentifier(right)
         if (cleanLeft.isBlank() || cleanRight.isBlank()) return
         if (cleanLeft == cleanRight) identifiers += evidence else hardConflicts += conflict
+    }
+
+    private fun compareConfirmedCanonicalIdentity(
+        left: String,
+        leftConfirmed: Boolean,
+        right: String,
+        rightConfirmed: Boolean,
+        evidence: String,
+        conflict: RecordingMatchHardConflict,
+        identifiers: MutableSet<String>,
+        hardConflicts: MutableSet<RecordingMatchHardConflict>
+    ) {
+        if (!leftConfirmed || !rightConfirmed) return
+        compareStrongIdentifier(left, right, evidence, conflict, identifiers, hardConflicts)
+    }
+
+    private fun sameConfirmedCanonicalIdentity(
+        left: String?,
+        leftConfirmed: Boolean,
+        right: String?,
+        rightConfirmed: Boolean
+    ): Boolean {
+        if (!leftConfirmed || !rightConfirmed) return false
+        val cleanLeft = normalizedIdentifier(left.orEmpty())
+        val cleanRight = normalizedIdentifier(right.orEmpty())
+        return cleanLeft.isNotBlank() && cleanLeft == cleanRight
+    }
+
+    private fun canonicalWorkIdentityScore(
+        reference: RecordingMatchFeatures,
+        candidate: RecordingMatchFeatures,
+        titleScore: Double,
+        artistScore: Double,
+        identifiers: Set<String>,
+        hardConflicts: Set<RecordingMatchHardConflict>
+    ): Double {
+        if (RecordingMatchHardConflict.WORK_MBID in hardConflicts ||
+            RecordingMatchHardConflict.CANONICAL_WORK in hardConflicts ||
+            RecordingMatchHardConflict.PRIMARY_ARTIST in hardConflicts
+        ) return 0.0
+        if ("work_mbid" in identifiers || "canonical_work" in identifiers) return 1.0
+        if (reference.normalizedTitle.isBlank() || candidate.normalizedTitle.isBlank()) return 0.0
+        return (titleScore * 0.70 + artistScore * 0.30).coerceIn(0.0, 1.0)
     }
 
     private fun titleSimilarity(left: RecordingMatchFeatures, right: RecordingMatchFeatures): Double {
@@ -463,7 +574,8 @@ object RecordingMatchEvaluatorV2 {
     }
 
     private fun hardConflictScoreCeiling(conflicts: Set<RecordingMatchHardConflict>): Double = when {
-        RecordingMatchHardConflict.WORK_MBID in conflicts -> 0.30
+        RecordingMatchHardConflict.WORK_MBID in conflicts ||
+            RecordingMatchHardConflict.CANONICAL_WORK in conflicts -> 0.30
         RecordingMatchHardConflict.RECORDING_MBID in conflicts ||
             RecordingMatchHardConflict.FINGERPRINT in conflicts ||
             RecordingMatchHardConflict.ISRC in conflicts -> 0.40
@@ -475,7 +587,8 @@ object RecordingMatchEvaluatorV2 {
     private fun recordingConfidenceCeiling(
         reference: RecordingMatchFeatures,
         candidate: RecordingMatchFeatures,
-        hasStrongRecordingIdentity: Boolean
+        hasStrongRecordingIdentity: Boolean,
+        hasResolvedWorkIdentity: Boolean
     ): Double {
         if (hasStrongRecordingIdentity) return 1.0
         val hasTitle = reference.normalizedTitle.isNotBlank() && candidate.normalizedTitle.isNotBlank()
@@ -483,7 +596,9 @@ object RecordingMatchEvaluatorV2 {
             candidate.canonicalArtists.any { it.role == ArtistRole.PRIMARY }
         val hasDuration = reference.durationMs != null && candidate.durationMs != null
         return when {
-            hasTitle && hasArtist && hasDuration -> 1.0
+            hasResolvedWorkIdentity && hasDuration -> 1.0
+            hasResolvedWorkIdentity -> 0.90
+            hasTitle && hasArtist && hasDuration -> 0.91
             hasTitle && hasArtist -> 0.94
             hasTitle && hasDuration -> 0.88
             hasTitle -> 0.75
@@ -587,6 +702,10 @@ object RecordingVersionClassifier {
         RecordingVersionType.INSTRUMENTAL,
         RecordingVersionType.KARAOKE,
         RecordingVersionType.DEMO,
+        RecordingVersionType.RADIO_EDIT,
+        RecordingVersionType.EXTENDED,
+        RecordingVersionType.CLEAN,
+        RecordingVersionType.EXPLICIT,
         RecordingVersionType.SPED_UP,
         RecordingVersionType.SLOWED,
         RecordingVersionType.ALTERNATE_TAKE
@@ -635,6 +754,49 @@ object RecordingVersionClassifier {
         }
     }
 
+    fun extractEvidence(
+        title: String,
+        album: String = "",
+        explicitType: RecordingVersionType? = null
+    ): RecordingVersionEvidence {
+        if (explicitType != null) {
+            return RecordingVersionEvidence(
+                type = explicitType,
+                signature = versionSignature(title, album, explicitType),
+                source = VersionEvidenceSource.PROVIDER,
+                confidence = 1.0
+            )
+        }
+        val titleType = classify(title)
+        if (titleType != RecordingVersionType.ORIGINAL &&
+            titleType != RecordingVersionType.UNKNOWN
+        ) {
+            return RecordingVersionEvidence(
+                type = titleType,
+                signature = versionSignature(title, "", titleType),
+                source = VersionEvidenceSource.TITLE,
+                confidence = 1.0
+            )
+        }
+        val albumType = classify("", album)
+        if (albumType != RecordingVersionType.ORIGINAL &&
+            albumType != RecordingVersionType.UNKNOWN
+        ) {
+            return RecordingVersionEvidence(
+                type = albumType,
+                signature = versionSignature("", album, albumType),
+                source = VersionEvidenceSource.ALBUM,
+                confidence = 0.45
+            )
+        }
+        return RecordingVersionEvidence(
+            type = titleType,
+            signature = "",
+            source = VersionEvidenceSource.NONE,
+            confidence = if (titleType == RecordingVersionType.ORIGINAL) 0.80 else 0.0
+        )
+    }
+
     fun coreTitle(title: String): String {
         var value = bracketed.replace(title) { match ->
             val qualifier = match.groupValues[1]
@@ -648,6 +810,9 @@ object RecordingVersionClassifier {
             if (isVersionQualifier(tail.groupValues[1])) {
                 value = value.substring(0, tail.range.first)
             }
+        }
+        unmarkedVersionSuffix.find(value)?.let { suffix ->
+            value = value.substring(0, suffix.range.first)
         }
         return StreamingTrackMatchPolicy.canonicalTitle(value)
     }
@@ -698,6 +863,11 @@ object RecordingVersionClassifier {
             .filter { classify(it) == type }
             .forEach(::add)
         dashTail.find(title)?.groupValues?.getOrNull(1)?.takeIf { classify(it) == type }?.let(::add)
+        unmarkedVersionSuffix.find(title)
+            ?.value
+            ?.trim()
+            ?.takeIf { classify(it) == type }
+            ?.let(::add)
         if (isEmpty() && classify(album) == type) add(album)
         }.joinToString("|") { StreamingTrackMatchPolicy.canonicalTitle(it) }
     }

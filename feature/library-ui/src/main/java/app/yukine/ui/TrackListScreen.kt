@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CircularProgressIndicator
 import app.yukine.core.designsystem.R
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -74,14 +75,15 @@ data class TrackRowUiState(
     val current: Boolean,
     val favorite: Boolean,
     val showPlaylistAction: Boolean,
-    val key: String = id.toString()
+    val key: String = id.toString(),
+    val favoritePending: Boolean = false
 )
 
 data class TrackRowActions(
     val onPlay: Runnable,
     val onFavorite: Runnable,
     val onAddToPlaylist: Runnable,
-    val onDownload: Runnable,
+    val onDownload: Runnable?,
     val onEdit: Runnable?,
     val onDelete: Runnable?,
     val onLongPress: Runnable?,
@@ -91,7 +93,7 @@ data class TrackRowActions(
         onPlay: Runnable,
         onFavorite: Runnable,
         onAddToPlaylist: Runnable
-    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, null, null, null, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, null, null, null, null, null)
 
     constructor(
         onPlay: Runnable,
@@ -106,7 +108,7 @@ data class TrackRowActions(
         onAddToPlaylist: Runnable,
         onEdit: Runnable?,
         onDelete: Runnable?
-    ) : this(onPlay, onFavorite, onAddToPlaylist, Runnable {}, onEdit, onDelete, onDelete, null)
+    ) : this(onPlay, onFavorite, onAddToPlaylist, null, onEdit, onDelete, onDelete, null)
 
     constructor(
         onPlay: Runnable,
@@ -157,12 +159,9 @@ data class TrackListLabels(
     val playAllLabel: String = "\u64ad\u653e\u5168\u90e8",
     val shuffleLabel: String = "\u968f\u673a\u64ad\u653e",
     val matchManagementLabel: String = "\u7ba1\u7406\u6b4c\u66f2\u5339\u914d",
-    val songsLabel: String = "\u9996\u6b4c\u66f2"
-)
-
-private data class TrackActionSheetState(
-    val track: TrackRowUiState,
-    val actions: TrackRowActions
+    val songsLabel: String = "\u9996\u6b4c\u66f2",
+    val moreActionsLabel: String = "\u66f4\u591a\u64cd\u4f5c",
+    val favoriteUpdatingLabel: String = "\u6b63\u5728\u66f4\u65b0\u6536\u85cf"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -190,25 +189,34 @@ fun TrackListScreen(
 ) {
     val p = EchoTheme.colors()
     val density = libraryCardDensityTokens(compactCards)
-    var actionSheetState by remember { mutableStateOf<TrackActionSheetState?>(null) }
-    val actionSheet = actionSheetState
+    var actionSheetTrackKey by remember { mutableStateOf<String?>(null) }
+    val actionSheetIndex = actionSheetTrackKey
+        ?.let { selectedKey -> tracks.indexOfFirst { it.key == selectedKey } }
+        ?.takeIf { it >= 0 }
+    val actionSheetTrack = actionSheetIndex?.let(tracks::getOrNull)
+    val actionSheetActions = actionSheetIndex?.let(actions::getOrNull)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val listState = rememberLazyListState()
     val titleBackAction = headerActions.firstOrNull { it.isBack }
     val visibleHeaderActions = if (titleBackAction != null) headerActions.drop(1) else headerActions
     var sortSheetVisible by remember { mutableStateOf(false) }
-    if (actionSheet != null) {
+    LaunchedEffect(actionSheetTrackKey, actionSheetTrack, actionSheetActions) {
+        if (actionSheetTrackKey != null && (actionSheetTrack == null || actionSheetActions == null)) {
+            actionSheetTrackKey = null
+        }
+    }
+    if (actionSheetTrack != null && actionSheetActions != null) {
         ModalBottomSheet(
-            onDismissRequest = { actionSheetState = null },
+            onDismissRequest = { actionSheetTrackKey = null },
             sheetState = sheetState,
             containerColor = p.surface,
             contentColor = p.text
         ) {
             TrackActionSheet(
-                track = actionSheet.track,
-                actions = actionSheet.actions,
+                track = actionSheetTrack,
+                actions = actionSheetActions,
                 labels = labels,
-                onDismiss = { actionSheetState = null }
+                onDismiss = { actionSheetTrackKey = null }
             )
         }
     }
@@ -243,6 +251,7 @@ fun TrackListScreen(
             headerMetrics = headerMetrics,
             headerActions = headerActions,
             emptyText = emptyText,
+            modeActions = modeActions,
             labels = labels,
             footerAlbums = footerAlbums,
             libraryUi = libraryUi,
@@ -251,7 +260,7 @@ fun TrackListScreen(
             listState = listState,
             onNavigateUp = titleBackAction?.onClick ?: onNavigateUp,
             onSortClick = { sortSheetVisible = true },
-            onMore = { track, action -> actionSheetState = TrackActionSheetState(track, action) },
+            onMore = { track, _ -> actionSheetTrackKey = track.key },
             density = density
         )
         return
@@ -277,7 +286,7 @@ fun TrackListScreen(
             }
             if (modeActions.isNotEmpty()) {
                 item(key = "modes") {
-                    ModeSelectorRow(modeActions)
+                    LibraryModeSelectorRow(modeActions)
                 }
             }
             itemsIndexed(
@@ -306,7 +315,7 @@ fun TrackListScreen(
                         action,
                         labels,
                         Modifier.echoEnter(i.coerceAtMost(8)),
-                        onLongPress = { actionSheetState = TrackActionSheetState(track, action) }
+                        onLongPress = { actionSheetTrackKey = track.key }
                     )
                 }
             }
@@ -338,6 +347,7 @@ private fun LibraryTrackListContent(
     headerMetrics: List<TrackListHeaderMetric>,
     headerActions: List<TrackListHeaderAction>,
     emptyText: String,
+    modeActions: List<TrackListModeAction>,
     labels: TrackListLabels,
     footerAlbums: List<TrackListAlbumCardUiState>,
     libraryUi: LibraryUiState,
@@ -394,6 +404,13 @@ private fun LibraryTrackListContent(
                         onNavigateUp = onNavigateUp ?: Runnable { },
                         overflowActions = overflowActions
                     )
+                }
+            }
+            if (modeActions.isNotEmpty()) {
+                item(key = "modes") {
+                    Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        LibraryModeSelectorRow(modeActions)
+                    }
                 }
             }
             if (libraryUi.selectionActive) {
@@ -975,7 +992,8 @@ private fun SwipeRevealTrackRow(
     val p = EchoTheme.colors()
     val danger = Color(0xFFB3261E)
     val localDensity = LocalDensity.current
-    val revealWidthPx = with(localDensity) { 152.dp.toPx() }
+    val revealWidth = if (actions.onDelete == null) 74.dp else 152.dp
+    val revealWidthPx = with(localDensity) { revealWidth.toPx() }
     val expanded = libraryUi.revealedRowKey == track.key
     var gestureOffset by remember(track.key) { mutableStateOf<Float?>(null) }
     val targetOffset = if (expanded) -revealWidthPx else 0f
@@ -994,7 +1012,7 @@ private fun SwipeRevealTrackRow(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(152.dp)
+                    .width(revealWidth)
                     .fillMaxHeight()
                     .clipToBounds(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -1013,18 +1031,20 @@ private fun SwipeRevealTrackRow(
                         Text(libraryUi.labels.more, style = EchoTypography.small, color = p.text)
                     }
                 }
-                Surface(
-                    onClick = {
-                        actionHandler.onAction(LibraryAction.RevealTrack(null))
-                        actions.onDelete?.run()
-                    },
-                    modifier = Modifier.width(74.dp).fillMaxHeight(),
-                    shape = EchoShapes.small,
-                    color = danger.copy(alpha = 0.18f)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        EchoIcon(EchoIconKind.Delete, Modifier.size(18.dp), danger)
-                        Text(libraryUi.labels.delete, style = EchoTypography.small, color = danger)
+                actions.onDelete?.let { onDelete ->
+                    Surface(
+                        onClick = {
+                            actionHandler.onAction(LibraryAction.RevealTrack(null))
+                            onDelete.run()
+                        },
+                        modifier = Modifier.width(74.dp).fillMaxHeight(),
+                        shape = EchoShapes.small,
+                        color = danger.copy(alpha = 0.18f)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            EchoIcon(EchoIconKind.Delete, Modifier.size(18.dp), danger)
+                            Text(libraryUi.labels.delete, style = EchoTypography.small, color = danger)
+                        }
                     }
                 }
             }
@@ -1097,7 +1117,15 @@ private fun TrackActionSheet(
         Spacer(Modifier.height(4.dp))
         TrackActionSheetRow(
             icon = EchoIconKind.Heart,
-            label = if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel
+            label = if (track.favoritePending) {
+                labels.favoriteUpdatingLabel
+            } else if (track.favorite) {
+                labels.removeFavoriteLabel
+            } else {
+                labels.favoriteLabel
+            },
+            enabled = !track.favoritePending,
+            loading = track.favoritePending
         ) {
             onDismiss()
             actions.onFavorite.run()
@@ -1108,9 +1136,11 @@ private fun TrackActionSheet(
                 actions.onAddToPlaylist.run()
             }
         }
-        TrackActionSheetRow(EchoIconKind.Import, labels.downloadLabel) {
-            onDismiss()
-            actions.onDownload.run()
+        actions.onDownload?.let { onDownload ->
+            TrackActionSheetRow(EchoIconKind.Import, labels.downloadLabel) {
+                onDismiss()
+                onDownload.run()
+            }
         }
         actions.onMatchManagement?.let { onMatchManagement ->
             TrackActionSheetRow(EchoIconKind.Info, labels.matchManagementLabel) {
@@ -1137,11 +1167,14 @@ private fun TrackActionSheet(
 private fun TrackActionSheetRow(
     icon: EchoIconKind,
     label: String,
+    enabled: Boolean = true,
+    loading: Boolean = false,
     onClick: () -> Unit
 ) {
     val p = EchoTheme.colors()
     Surface(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         shape = EchoShapes.medium,
         color = p.surfaceVariant.copy(alpha = 0.64f)
@@ -1150,7 +1183,15 @@ private fun TrackActionSheetRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EchoIcon(icon, Modifier.size(20.dp), p.accent)
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = p.accent,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                EchoIcon(icon, Modifier.size(20.dp), p.accent)
+            }
             Spacer(Modifier.width(12.dp))
             Text(label, style = EchoTypography.bodyMedium, color = p.text)
         }
@@ -1269,25 +1310,30 @@ private fun FooterAlbumCard(album: TrackListAlbumCardUiState, modifier: Modifier
 }
 
 @Composable
-private fun ModeSelectorRow(modes: List<TrackListModeAction>) {
+internal fun LibraryModeSelectorRow(modes: List<TrackListModeAction>) {
     val p = EchoTheme.colors()
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         for (mode in modes) {
             Surface(
                 onClick = { mode.onClick.run() },
                 modifier = Modifier
                     .widthIn(min = 104.dp)
-                    .height(40.dp)
+                    .height(48.dp)
                     .then(if (mode.selected) Modifier else Modifier.echoGlassLayer(p, EchoShapes.medium))
                     .semantics { contentDescription = mode.label },
                 shape = EchoShapes.medium,
                 color = if (mode.selected) p.accentSoft else Color.Transparent
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 10.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1456,7 +1502,16 @@ private fun TrackRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (track.favorite) {
+                    if (track.favoritePending) {
+                        Spacer(Modifier.width(4.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(13.dp)
+                                .semantics { contentDescription = labels.favoriteUpdatingLabel },
+                            color = p.accent,
+                            strokeWidth = 1.5.dp
+                        )
+                    } else if (track.favorite) {
                         Spacer(Modifier.width(4.dp))
                         EchoIcon(EchoIconKind.Heart, Modifier.size(13.dp), p.accent)
                     }
@@ -1512,7 +1567,7 @@ private fun TrackMoreMenuContent(
         if (showButton) {
             MiniIconBtn(
                 icon = EchoIconKind.More,
-                desc = labels.editLabel + " / " + labels.deleteLabel,
+                desc = labels.moreActionsLabel,
                 onClick = { onExpandedChange(true) }
             )
         }
@@ -1521,7 +1576,17 @@ private fun TrackMoreMenuContent(
             onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
-                text = { Text(if (track.favorite) labels.removeFavoriteLabel else labels.favoriteLabel) },
+                text = {
+                    Text(
+                        if (track.favoritePending) {
+                            labels.favoriteUpdatingLabel
+                        } else if (track.favorite) {
+                            labels.removeFavoriteLabel
+                        } else {
+                            labels.favoriteLabel
+                        }
+                    )
+                },
                 leadingIcon = {
                     EchoIcon(
                         EchoIconKind.Heart,
@@ -1532,7 +1597,8 @@ private fun TrackMoreMenuContent(
                 onClick = {
                     onExpandedChange(false)
                     actions.onFavorite.run()
-                }
+                },
+                enabled = !track.favoritePending
             )
             if (track.showPlaylistAction) {
                 DropdownMenuItem(
@@ -1544,14 +1610,16 @@ private fun TrackMoreMenuContent(
                     }
                 )
             }
-            DropdownMenuItem(
-                text = { Text(labels.downloadLabel) },
-                leadingIcon = { EchoIcon(EchoIconKind.Import, Modifier.size(18.dp), EchoTheme.colors().muted) },
-                onClick = {
-                    onExpandedChange(false)
-                    actions.onDownload.run()
-                }
-            )
+            actions.onDownload?.let { onDownload ->
+                DropdownMenuItem(
+                    text = { Text(labels.downloadLabel) },
+                    leadingIcon = { EchoIcon(EchoIconKind.Import, Modifier.size(18.dp), EchoTheme.colors().muted) },
+                    onClick = {
+                        onExpandedChange(false)
+                        onDownload.run()
+                    }
+                )
+            }
             actions.onMatchManagement?.let { onMatchManagement ->
                 DropdownMenuItem(
                     text = { Text(labels.matchManagementLabel) },
@@ -1613,13 +1681,21 @@ private fun MiniIconBtn(
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .size(31.dp)
+            .size(48.dp)
             .semantics { contentDescription = desc },
         shape = EchoShapes.small,
-        color = if (active) p.accentSoft.copy(alpha = 0.62f) else p.surfaceVariant.copy(alpha = 0.28f)
+        color = Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            EchoIcon(icon, Modifier.size(16.dp), if (active) p.accent else p.muted)
+            Surface(
+                modifier = Modifier.size(31.dp),
+                shape = EchoShapes.small,
+                color = if (active) p.accentSoft.copy(alpha = 0.62f) else p.surfaceVariant.copy(alpha = 0.28f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    EchoIcon(icon, Modifier.size(16.dp), if (active) p.accent else p.muted)
+                }
+            }
         }
     }
 }

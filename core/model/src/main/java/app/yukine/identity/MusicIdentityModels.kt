@@ -42,7 +42,12 @@ data class TrackSourceMapping(
     val bitrateKbps: Int = 0,
     val lastFailureAt: Long = 0L,
     val failureReason: String = "",
-    val failureCount: Int = 0
+    val failureCount: Int = 0,
+    val albumArtist: String = "",
+    val composer: String = "",
+    val releaseType: String = "",
+    val year: Int = 0,
+    val albumId: Long? = null
 )
 
 /** A globally meaningful identifier such as a Recording MBID, ISRC, or AcoustID. */
@@ -147,7 +152,57 @@ enum class ArtistCreditRole {
     UNKNOWN
 }
 
-enum class IdentityTargetType { RECORDING, ARTIST }
+data class CanonicalAlbum(
+    val albumKey: Long,
+    val albumId: String,
+    val displayName: String,
+    val sortName: String = "",
+    val albumArtistKey: Long? = null,
+    val albumArtistDisplay: String = "",
+    val musicBrainzReleaseGroupId: String = "",
+    val musicBrainzReleaseId: String = "",
+    val releaseType: String = "",
+    val year: Int = 0,
+    val matchStatus: IdentityMatchStatus = IdentityMatchStatus.UNRESOLVED,
+    val confidence: Double = 0.0,
+    val metadataSource: String = "",
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
+)
+
+data class AlbumAlias(
+    val albumKey: Long,
+    val alias: String,
+    val normalizedAlias: String,
+    val locale: String = "",
+    val aliasType: String = "ALIAS",
+    val source: String = "",
+    val confidence: Double = 0.0,
+    val verifiedAt: Long = 0L
+)
+
+data class AnonymousAlbumCandidate(
+    val provider: String,
+    val providerAlbumId: String,
+    val title: String,
+    val aliases: Set<String> = emptySet(),
+    val artist: String = "",
+    val musicBrainzReleaseGroupId: String = "",
+    val musicBrainzReleaseId: String = "",
+    val releaseType: String = "",
+    val year: Int = 0,
+    val providerScore: Double = 0.0
+)
+
+data class AnonymousAlbumProviderResult(
+    val candidates: List<AnonymousAlbumCandidate>,
+    val endpoint: String = "",
+    val fromCache: Boolean = false,
+    val staleCache: Boolean = false,
+    val allEndpointsFailed: Boolean = false
+)
+
+enum class IdentityTargetType { RECORDING, ARTIST, ALBUM }
 
 enum class IdentityCandidateStatus {
     PENDING,

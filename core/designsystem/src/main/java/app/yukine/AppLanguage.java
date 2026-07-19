@@ -523,6 +523,7 @@ public final class AppLanguage {
         put("library.import.failed", "Audio import failed. Check file access and retry.", "\u97f3\u9891\u5bfc\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u6587\u4ef6\u6743\u9650\u540e\u91cd\u8bd5\u3002");
         put("library.collections.failed", "Library collections failed to load. Please retry.", "\u66f2\u5e93\u96c6\u5408\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("library.favorite.failed", "Some tracks could not be favorited. Please retry.", "\u90e8\u5206\u6b4c\u66f2\u6536\u85cf\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
+        put("library.favorite.updating", "Updating favorite", "\u6b63\u5728\u66f4\u65b0\u6536\u85cf");
         put("library.restore.failed", "Hidden library items could not be restored. Please retry.", "\u9690\u85cf\u7684\u66f2\u5e93\u9879\u6062\u590d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("library.playlist.load.failed", "Playlist failed to load. Please retry.", "\u6b4c\u5355\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
         put("library.history.clear.failed", "Play history could not be cleared. Please retry.", "\u64ad\u653e\u5386\u53f2\u6e05\u7a7a\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");

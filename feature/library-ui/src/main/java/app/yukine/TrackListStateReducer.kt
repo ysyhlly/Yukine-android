@@ -34,8 +34,10 @@ class TrackListStateReducer(
     private var fastPatchSignature: SongRowsSignature? = null
     private var latestCurrentTrackId: Long? = null
     private var latestFavoriteIds: Set<Long> = emptySet()
+    private var latestFavoritePendingIds: Set<Long> = emptySet()
     private var publishedCurrentTrackId: Long? = null
     private var publishedFavoriteIds: Set<Long> = emptySet()
+    private var publishedFavoritePendingIds: Set<Long> = emptySet()
     private var rowIndicesByTrackId: Map<Long, List<Int>> = emptyMap()
 
     interface Listener {
@@ -70,11 +72,13 @@ class TrackListStateReducer(
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>,
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
-        context: LibraryListContext = LibraryListContext.Songs
+        context: LibraryListContext = LibraryListContext.Songs,
+        favoritePendingIds: Set<Long> = emptySet()
     ) {
         val libraryUi = viewModel.libraryUi.value
         latestCurrentTrackId = playbackState?.currentTrack?.id
         latestFavoriteIds = favoriteIds
+        latestFavoritePendingIds = favoritePendingIds
         val fastSignature = songRowsSignature(
             title,
             details,
@@ -119,11 +123,17 @@ class TrackListStateReducer(
                 labels,
                 playbackState,
                 favoriteIds,
+                favoritePendingIds,
                 footerAlbums,
                 libraryUi.mode,
                 context
             )
         }
+    }
+
+    fun updateFavoritePendingIds(favoritePendingIds: Set<Long>) {
+        latestFavoritePendingIds = favoritePendingIds
+        patchPublishedRowFlags()
     }
 
     fun reduceRecommendation(title: String, tracks: List<Track>) {
@@ -154,7 +164,9 @@ class TrackListStateReducer(
             AppLanguage.text(languageMode, "play.all"),
             AppLanguage.text(languageMode, "shuffle"),
             AppLanguage.text(languageMode, "recording.match.manage"),
-            AppLanguage.text(languageMode, "songs")
+            AppLanguage.text(languageMode, "songs"),
+            AppLanguage.text(languageMode, "more"),
+            AppLanguage.text(languageMode, "library.favorite.updating")
         )
         publishTrackList(title, tracks.size, false) {
             buildRecommendationContent(tracks, headerMetrics, headerActions, labels)
@@ -187,6 +199,7 @@ class TrackListStateReducer(
         rowIndicesByTrackId = content.rowIndicesByTrackId
         publishedCurrentTrackId = latestCurrentTrackId
         publishedFavoriteIds = latestFavoriteIds
+        publishedFavoritePendingIds = latestFavoritePendingIds
         viewModel.presentation.updateVisibleTrackTargets(content.tracks, rows.map { it.key })
         viewModel.presentation.updateTrackListContentAndChrome(
             title,
@@ -221,6 +234,14 @@ class TrackListStateReducer(
                 if (id !in content.favoriteIds) affectedTrackIds += id
             }
         }
+        if (content.favoritePendingIds !== latestFavoritePendingIds) {
+            content.favoritePendingIds.forEach { id ->
+                if (id !in latestFavoritePendingIds) affectedTrackIds += id
+            }
+            latestFavoritePendingIds.forEach { id ->
+                if (id !in content.favoritePendingIds) affectedTrackIds += id
+            }
+        }
         if (affectedTrackIds.isEmpty()) return content.rows
 
         val rows = content.rows.toMutableList()
@@ -231,8 +252,15 @@ class TrackListStateReducer(
                 val row = rows[index]
                 val current = row.id == latestCurrentTrackId
                 val favorite = row.id in latestFavoriteIds
-                if (row.current != current || row.favorite != favorite) {
-                    rows[index] = row.copy(current = current, favorite = favorite)
+                val favoritePending = row.id in latestFavoritePendingIds
+                if (row.current != current || row.favorite != favorite ||
+                    row.favoritePending != favoritePending
+                ) {
+                    rows[index] = row.copy(
+                        current = current,
+                        favorite = favorite,
+                        favoritePending = favoritePending
+                    )
                     changed = true
                 }
             }
@@ -251,6 +279,12 @@ class TrackListStateReducer(
         latestFavoriteIds.forEach { id ->
             if (id !in publishedFavoriteIds) affectedTrackIds += id
         }
+        publishedFavoritePendingIds.forEach { id ->
+            if (id !in latestFavoritePendingIds) affectedTrackIds += id
+        }
+        latestFavoritePendingIds.forEach { id ->
+            if (id !in publishedFavoritePendingIds) affectedTrackIds += id
+        }
         if (affectedTrackIds.isEmpty()) return
         val state = viewModel.trackList.value
         val rows = state.rows.toMutableList()
@@ -261,14 +295,22 @@ class TrackListStateReducer(
                 val row = rows[index]
                 val current = row.id == latestCurrentTrackId
                 val favorite = row.id in latestFavoriteIds
-                if (row.current != current || row.favorite != favorite) {
-                    rows[index] = row.copy(current = current, favorite = favorite)
+                val favoritePending = row.id in latestFavoritePendingIds
+                if (row.current != current || row.favorite != favorite ||
+                    row.favoritePending != favoritePending
+                ) {
+                    rows[index] = row.copy(
+                        current = current,
+                        favorite = favorite,
+                        favoritePending = favoritePending
+                    )
                     changed = true
                 }
             }
         }
         publishedCurrentTrackId = latestCurrentTrackId
         publishedFavoriteIds = latestFavoriteIds
+        publishedFavoritePendingIds = latestFavoritePendingIds
         if (changed) {
             viewModel.presentation.updateTrackList(state.title, rows, state.footerAlbums)
         }
@@ -318,6 +360,7 @@ class TrackListStateReducer(
         labels: TrackListLabels,
         playbackState: PlaybackStateSnapshot?,
         favoriteIds: Set<Long>,
+        favoritePendingIds: Set<Long>,
         footerAlbums: List<TrackListAlbumCardUiState>,
         libraryMode: LibraryMode,
         context: LibraryListContext
@@ -371,7 +414,8 @@ class TrackListStateReducer(
                     favoriteIds,
                     if (index < details.size) details[index] else "",
                     showPlaylistAction,
-                    rowKeys[index]
+                    rowKeys[index],
+                    favoritePendingIds
                 )
             )
             actions.add(
@@ -393,6 +437,7 @@ class TrackListStateReducer(
             rowIndices(rows),
             currentTrack?.id,
             favoriteIds,
+            favoritePendingIds,
             footerAlbums,
             actions,
             headerMetrics,
@@ -435,6 +480,7 @@ class TrackListStateReducer(
             rowIndices(rows),
             null,
             emptySet(),
+            emptySet(),
             emptyList(),
             actions,
             headerMetrics,
@@ -452,6 +498,7 @@ class TrackListStateReducer(
         val rowIndicesByTrackId: Map<Long, List<Int>>,
         val currentTrackId: Long?,
         val favoriteIds: Set<Long>,
+        val favoritePendingIds: Set<Long>,
         val footerAlbums: List<TrackListAlbumCardUiState>,
         val actions: List<TrackRowActions>,
         val headerMetrics: List<TrackListHeaderMetric>,

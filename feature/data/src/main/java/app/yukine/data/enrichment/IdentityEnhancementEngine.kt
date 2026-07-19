@@ -4,6 +4,9 @@ import app.yukine.data.IdentityMutationGate
 import app.yukine.identity.AnonymousRecordingCandidate
 import app.yukine.identity.AnonymousRecordingMetadataProvider
 import app.yukine.identity.AnonymousProviderResult
+import app.yukine.identity.AnonymousAlbumCandidate
+import app.yukine.identity.AnonymousAlbumMetadataProvider
+import app.yukine.identity.AnonymousAlbumProviderResult
 import app.yukine.identity.AnonymousArtistCandidate
 import app.yukine.identity.AnonymousArtistMetadataProvider
 import app.yukine.identity.AnonymousArtistProviderResult
@@ -11,6 +14,7 @@ import app.yukine.identity.ArtistAlias
 import app.yukine.identity.ArtistCandidateRanker
 import app.yukine.identity.ArtistMatchEvidence
 import app.yukine.identity.ArtistIdentityRepository
+import app.yukine.identity.AlbumIdentityRepository
 import app.yukine.identity.CanonicalArtist
 import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityCandidate
@@ -37,10 +41,12 @@ fun interface MissingRecordingCoverWriter {
 class IdentityEnhancementEngine(
     private val recordings: RecordingIdentityRepository,
     private val artists: ArtistIdentityRepository,
+    private val albums: AlbumIdentityRepository? = null,
     private val candidates: IdentityCandidateRepository,
     private val jobs: IdentityJobRepository,
     private val providers: List<AnonymousRecordingMetadataProvider>,
     private val artistProviders: List<AnonymousArtistMetadataProvider> = emptyList(),
+    private val albumProviders: List<AnonymousAlbumMetadataProvider> = emptyList(),
     private val recordingRanker: RecordingCandidateRanker = RecordingCandidateRanker(),
     private val artistRanker: ArtistCandidateRanker = ArtistCandidateRanker(),
     private val missingCoverWriter: MissingRecordingCoverWriter = MissingRecordingCoverWriter { _, _, _ -> },
@@ -52,7 +58,7 @@ class IdentityEnhancementEngine(
         var retried = 0
         var failed = 0
         var saved = 0
-        jobs.readyJobs(now(), limit.coerceIn(1, 100)).forEach { pending ->
+        jobs.readyJobs(now(), limit.coerceAtLeast(1)).forEach { pending ->
             IdentityMutationGate.withLock {
                 val claimed = jobs.claim(pending.jobId, now()) ?: return@withLock
                 claimedCount++
@@ -100,6 +106,39 @@ class IdentityEnhancementEngine(
                                     claimed.jobId,
                                     retryAt(claimed.attemptCount, now()),
                                     outcome.error.ifBlank { "All metadata providers unavailable" },
+                                    now()
+                                )
+                                retried++
+                            } else {
+                                jobs.markSucceeded(claimed.jobId, now())
+                                succeeded++
+                            }
+                        },
+                        onFailure = { error ->
+                            if (claimed.attemptCount >= MAX_ATTEMPTS - 1) {
+                                jobs.markFailed(claimed.jobId, error.message.orEmpty(), now())
+                                failed++
+                            } else {
+                                jobs.markRetry(
+                                    claimed.jobId,
+                                    retryAt(claimed.attemptCount, now()),
+                                    error.message.orEmpty(),
+                                    now()
+                                )
+                                retried++
+                            }
+                        }
+                    )
+                    IdentityTargetType.ALBUM -> runCatching {
+                        enhanceAlbum(claimed.targetId)
+                    }.fold(
+                        onSuccess = { outcome ->
+                            saved += outcome.candidatesSaved
+                            if (outcome.shouldRetry) {
+                                jobs.markRetry(
+                                    claimed.jobId,
+                                    retryAt(claimed.attemptCount, now()),
+                                    outcome.error.ifBlank { "All album metadata providers unavailable" },
                                     now()
                                 )
                                 retried++
@@ -306,6 +345,135 @@ class IdentityEnhancementEngine(
         )
     }
 
+    private fun enhanceAlbum(albumKey: Long): RecordingOutcome {
+        val repository = requireNotNull(albums) { "Album identity repository is not configured" }
+        val album = requireNotNull(repository.albumByKey(albumKey)) { "Album $albumKey no longer exists" }
+        val aliases = repository.aliases(albumKey)
+        val responses = albumProviders.map { provider ->
+            provider.providerName to runCatching { provider.search(album, aliases) }
+        }
+        val successful = responses.mapNotNull { it.second.getOrNull() }
+        val allUnavailable = responses.isEmpty() || successful.all { it.allEndpointsFailed }
+        val rawCandidates = successful.flatMap { it.candidates }
+            .distinctBy { it.provider to it.providerAlbumId }
+        val ranked = rawCandidates.map { candidate ->
+            albumRanking(
+                album = album,
+                targetAliases = aliases.map { it.alias }.toSet() + album.displayName,
+                candidate = candidate,
+                hasProviderMapping = repository.albumForProvider(
+                    candidate.provider,
+                    candidate.providerAlbumId
+                )?.albumKey == albumKey
+            )
+        }.sortedByDescending(AlbumRanking::score)
+        val winner = ranked.firstOrNull()
+        val runnerUp = ranked.getOrNull(1)
+        val margin = winner?.score?.minus(runnerUp?.score ?: 0.0) ?: 0.0
+        val eligible = winner != null &&
+            !winner.hardConflict &&
+            winner.score >= ALBUM_AUTO_CONFIRM_THRESHOLD &&
+            margin >= ALBUM_AUTO_CONFIRM_MARGIN
+        val time = now()
+        ranked.forEach { ranking ->
+            val autoConfirmed = eligible && ranking.candidate === winner?.candidate
+            candidates.saveCandidate(
+                IdentityCandidate(
+                    candidateId = stableAlbumCandidateId(albumKey, ranking.candidate),
+                    targetType = IdentityTargetType.ALBUM,
+                    targetId = albumKey,
+                    provider = ranking.candidate.provider,
+                    providerItemId = ranking.candidate.providerAlbumId,
+                    title = ranking.candidate.title,
+                    artist = ranking.candidate.artist,
+                    album = ranking.candidate.title,
+                    score = ranking.score,
+                    status = if (autoConfirmed) {
+                        IdentityCandidateStatus.AUTO_CONFIRMED
+                    } else {
+                        IdentityCandidateStatus.PENDING
+                    },
+                    evidenceJson = JSONObject()
+                        .put("releaseGroupMbid", ranking.candidate.musicBrainzReleaseGroupId)
+                        .put("releaseMbid", ranking.candidate.musicBrainzReleaseId)
+                        .put("year", ranking.candidate.year)
+                        .put("type", ranking.candidate.releaseType)
+                        .put("providerScore", ranking.candidate.providerScore)
+                        .put("hardConflict", ranking.hardConflict)
+                        .put("margin", margin)
+                        .put("reasons", JSONArray(ranking.reasons))
+                        .put("aliases", JSONArray(ranking.candidate.aliases.toList()))
+                        .toString(),
+                    createdAt = time,
+                    updatedAt = time
+                )
+            )
+        }
+        if (eligible && winner != null) {
+            repository.confirmCandidate(albumKey, winner.candidate, time)
+        }
+        val error = responses.mapNotNull { (provider, response) ->
+            response.exceptionOrNull()?.let { "$provider: ${it.message.orEmpty()}" }
+        }.joinToString("; ")
+        return RecordingOutcome(rawCandidates.size, allUnavailable, error)
+    }
+
+    private fun albumRanking(
+        album: app.yukine.identity.CanonicalAlbum,
+        targetAliases: Set<String>,
+        candidate: AnonymousAlbumCandidate,
+        hasProviderMapping: Boolean
+    ): AlbumRanking {
+        val releaseGroupConflict = conflictingId(
+            album.musicBrainzReleaseGroupId,
+            candidate.musicBrainzReleaseGroupId
+        )
+        val releaseConflict = conflictingId(album.musicBrainzReleaseId, candidate.musicBrainzReleaseId)
+        val hardConflict = releaseGroupConflict || releaseConflict
+        val strongIdentity = hasProviderMapping ||
+            sameNonBlankId(album.musicBrainzReleaseGroupId, candidate.musicBrainzReleaseGroupId) ||
+            sameNonBlankId(album.musicBrainzReleaseId, candidate.musicBrainzReleaseId)
+        val normalizedTargets = targetAliases.map(IdentityTextNormalizer::normalizeForSearch).toSet()
+        val candidateNames = (candidate.aliases + candidate.title)
+            .map(IdentityTextNormalizer::normalizeForSearch)
+            .toSet()
+        val titleMatch = normalizedTargets.any(candidateNames::contains)
+        val artistMatch = album.albumArtistDisplay.isNotBlank() &&
+            candidate.artist.isNotBlank() &&
+            IdentityTextNormalizer.normalizeForSearch(album.albumArtistDisplay) ==
+            IdentityTextNormalizer.normalizeForSearch(candidate.artist)
+        val yearMatch = album.year > 0 && candidate.year > 0 && album.year == candidate.year
+        val typeMatch = album.releaseType.isNotBlank() &&
+            candidate.releaseType.isNotBlank() &&
+            IdentityTextNormalizer.normalizeForSearch(album.releaseType) ==
+            IdentityTextNormalizer.normalizeForSearch(candidate.releaseType)
+        val score = if (hardConflict) {
+            0.0
+        } else if (strongIdentity) {
+            0.92 + (0.08 * candidate.providerScore.coerceIn(0.0, 1.0))
+        } else {
+            (if (titleMatch) 0.65 else 0.0) +
+                (if (artistMatch) 0.15 else 0.0) +
+                (if (yearMatch) 0.08 else 0.0) +
+                (if (typeMatch) 0.04 else 0.0) +
+                (0.08 * candidate.providerScore.coerceIn(0.0, 1.0))
+        }
+        return AlbumRanking(
+            candidate = candidate,
+            score = score.coerceIn(0.0, 1.0),
+            hardConflict = hardConflict,
+            reasons = buildList {
+                if (hasProviderMapping) add("provider_mapping")
+                if (strongIdentity) add("strong_id")
+                if (titleMatch) add("title")
+                if (artistMatch) add("artist")
+                if (yearMatch) add("year")
+                if (typeMatch) add("release_type")
+                if (hardConflict) add("identifier_conflict")
+            }
+        )
+    }
+
     private fun AnonymousRecordingCandidate.toMatchEvidence(): RecordingMatchEvidence {
         val mappedArtistIds = artists.mapNotNull {
             this@IdentityEnhancementEngine.artists.artistForProvider(provider, it.providerArtistId)?.artistKey
@@ -421,6 +589,18 @@ class IdentityEnhancementEngine(
                 .toByteArray(StandardCharsets.UTF_8)
         ).toString()
 
+    private fun stableAlbumCandidateId(albumKey: Long, candidate: AnonymousAlbumCandidate): String =
+        UUID.nameUUIDFromBytes(
+            "ALBUM:$albumKey:${candidate.provider}:${candidate.providerAlbumId}"
+                .toByteArray(StandardCharsets.UTF_8)
+        ).toString()
+
+    private fun sameNonBlankId(left: String, right: String): Boolean =
+        left.isNotBlank() && right.isNotBlank() && left.equals(right, ignoreCase = true)
+
+    private fun conflictingId(left: String, right: String): Boolean =
+        left.isNotBlank() && right.isNotBlank() && !left.equals(right, ignoreCase = true)
+
     private fun retryAt(attemptCount: Int, time: Long): Long {
         val exponent = attemptCount.coerceIn(0, 7)
         val delay = (BASE_RETRY_MS shl exponent).coerceAtMost(MAX_RETRY_MS)
@@ -433,8 +613,17 @@ class IdentityEnhancementEngine(
         val error: String
     )
 
+    private data class AlbumRanking(
+        val candidate: AnonymousAlbumCandidate,
+        val score: Double,
+        val hardConflict: Boolean,
+        val reasons: List<String>
+    )
+
     private companion object {
         const val MAX_ATTEMPTS = 8
+        const val ALBUM_AUTO_CONFIRM_THRESHOLD = 0.92
+        const val ALBUM_AUTO_CONFIRM_MARGIN = 0.08
         const val BASE_RETRY_MS = 15L * 60L * 1_000L
         const val MAX_RETRY_MS = 24L * 60L * 60L * 1_000L
     }

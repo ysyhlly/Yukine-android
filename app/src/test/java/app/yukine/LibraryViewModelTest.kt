@@ -7,6 +7,7 @@ import app.yukine.ui.LibraryAction
 import app.yukine.ui.LibraryFilter
 import app.yukine.ui.LibrarySort
 import app.yukine.ui.TrackRowUiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -84,6 +85,8 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(1L, 2L, 3L), favoriteWrites)
+        assertEquals(listOf(setOf(1L, 3L) to true), libraryGateway.favoriteBatches)
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
         assertTrue(libraryGateway.calls.contains("status:library.favorite.failed"))
         assertTrue(libraryGateway.calls.contains("status:could.not.add.to.playlist"))
         assertEquals(listOf("default:1", "default:2", "default:3"), playlistGateway.calls)
@@ -182,10 +185,12 @@ class LibraryViewModelTest {
 
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(1L)))
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        assertEquals(setOf(1L, 2L), viewModel.favoritePendingTrackIds.value)
         advanceUntilIdle()
 
         assertEquals(listOf("favorite:1:false", "favorite:2:true"), gateway.calls)
         assertEquals(listOf("1:false", "2:true"), writes)
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 
     @Test
@@ -220,10 +225,11 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("status:library.favorite.failed"), gateway.calls)
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 
     @Test
-    fun rapidFavoriteTogglesReadTheLatestPersistedStateSerially() = runTest {
+    fun duplicateFavoriteToggleIsIgnoredWhileTheTrackIsPending() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val gateway = FakeGateway()
         val favorites = mutableSetOf<Long>()
@@ -241,9 +247,40 @@ class LibraryViewModelTest {
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
         advanceUntilIdle()
 
-        assertEquals(listOf(true, false), writes)
-        assertEquals(listOf("favorite:2:true", "favorite:2:false"), gateway.calls)
-        assertTrue(favorites.isEmpty())
+        assertEquals(listOf(true), writes)
+        assertEquals(listOf("favorite:2:true"), gateway.calls)
+        assertEquals(setOf(2L), favorites)
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
+    }
+
+    @Test
+    fun favoriteExceptionClearsPendingAndReportsFailure() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindFavoriteWriter { _, _ -> throw IllegalStateException("database unavailable") }
+
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        advanceUntilIdle()
+
+        assertEquals(listOf("status:library.favorite.failed"), gateway.calls)
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
+    }
+
+    @Test
+    fun favoriteCancellationOnlyClearsPending() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val gateway = FakeGateway()
+        val viewModel = LibraryViewModel(dispatcher)
+        viewModel.bindGateway(gateway)
+        viewModel.bindFavoriteWriter { _, _ -> throw CancellationException("cancelled") }
+
+        viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        advanceUntilIdle()
+
+        assertTrue(gateway.calls.isEmpty())
+        assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 
     @Test
@@ -865,6 +902,7 @@ class LibraryViewModelTest {
 
     private class FakeGateway : LibraryGateway {
         val calls = ArrayList<String>()
+        val favoriteBatches = ArrayList<Pair<Set<Long>, Boolean>>()
 
         override fun playTrackList(tracks: List<Track>, index: Int) {
             calls.add("play:${tracks.size}:$index")
@@ -876,6 +914,11 @@ class LibraryViewModelTest {
 
         override fun applyFavorite(trackId: Long, favorite: Boolean) {
             calls.add("favorite:$trackId:$favorite")
+        }
+
+        override fun applyFavorites(trackIds: Set<Long>, favorite: Boolean) {
+            favoriteBatches += trackIds to favorite
+            calls.add("favorites:${trackIds.sorted().joinToString(",")}:$favorite")
         }
 
         override fun addToPlaylist(track: Track) {

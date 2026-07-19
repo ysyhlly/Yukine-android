@@ -31,7 +31,11 @@ data class TrackEntity(
     @ColumnInfo(name = "channel_count", defaultValue = "0") val channelCount: Int,
     @ColumnInfo(name = "replay_gain_track_db", defaultValue = "0") val replayGainTrackDb: Double,
     @ColumnInfo(name = "replay_gain_album_db", defaultValue = "0") val replayGainAlbumDb: Double,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "album_artist", defaultValue = "''") val albumArtist: String = "",
+    @ColumnInfo(defaultValue = "''") val composer: String = "",
+    @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String = "",
+    @ColumnInfo(defaultValue = "0") val year: Int = 0
 )
 
 @Entity(tableName = "play_history")
@@ -197,7 +201,11 @@ data class PlaybackQueueEntity(
     @ColumnInfo(name = "bits_per_sample", defaultValue = "0") val bitsPerSample: Int,
     @ColumnInfo(name = "channel_count", defaultValue = "0") val channelCount: Int,
     @ColumnInfo(name = "replay_gain_track_db", defaultValue = "0") val replayGainTrackDb: Double,
-    @ColumnInfo(name = "replay_gain_album_db", defaultValue = "0") val replayGainAlbumDb: Double
+    @ColumnInfo(name = "replay_gain_album_db", defaultValue = "0") val replayGainAlbumDb: Double,
+    @ColumnInfo(name = "album_artist", defaultValue = "''") val albumArtist: String = "",
+    @ColumnInfo(defaultValue = "''") val composer: String = "",
+    @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String = "",
+    @ColumnInfo(defaultValue = "0") val year: Int = 0
 )
 
 @Entity(
@@ -408,6 +416,106 @@ data class ArtistSourceMappingEntity(
 )
 
 @Entity(
+    tableName = "canonical_albums",
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalArtistEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["album_artist_id"],
+            onDelete = ForeignKey.SET_NULL
+        )
+    ],
+    indices = [
+        Index(name = "idx_album_uuid", value = ["album_uuid"], unique = true),
+        Index(name = "idx_album_identity_key", value = ["identity_key"], unique = true),
+        Index(name = "idx_album_artist", value = ["album_artist_id"]),
+        Index(name = "idx_album_mbid_release_group", value = ["musicbrainz_release_group_id"]),
+        Index(name = "idx_album_mbid_release", value = ["musicbrainz_release_id"]),
+        Index(name = "idx_album_status", value = ["match_status"])
+    ]
+)
+data class CanonicalAlbumEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long?,
+    @ColumnInfo(name = "album_uuid") val albumUuid: String,
+    @ColumnInfo(name = "identity_key") val identityKey: String,
+    @ColumnInfo(name = "display_name") val displayName: String,
+    @ColumnInfo(name = "sort_name", defaultValue = "''") val sortName: String,
+    @ColumnInfo(name = "album_artist_id") val albumArtistId: Long?,
+    @ColumnInfo(name = "musicbrainz_release_group_id", defaultValue = "''")
+    val musicBrainzReleaseGroupId: String,
+    @ColumnInfo(name = "musicbrainz_release_id", defaultValue = "''")
+    val musicBrainzReleaseId: String,
+    @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String,
+    @ColumnInfo(defaultValue = "0") val year: Int,
+    @ColumnInfo(name = "match_status", defaultValue = "'UNRESOLVED'") val matchStatus: String,
+    @ColumnInfo(defaultValue = "0") val confidence: Double,
+    @ColumnInfo(name = "metadata_source", defaultValue = "''") val metadataSource: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+@Entity(
+    tableName = "album_aliases",
+    primaryKeys = ["album_id", "normalized_alias", "locale"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalAlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["album_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(name = "idx_album_aliases_normalized", value = ["normalized_alias"]),
+        Index(name = "idx_album_aliases_album", value = ["album_id"])
+    ]
+)
+data class AlbumAliasEntity(
+    @ColumnInfo(name = "album_id") val albumId: Long,
+    val alias: String,
+    @ColumnInfo(name = "normalized_alias") val normalizedAlias: String,
+    @ColumnInfo(defaultValue = "''") val locale: String,
+    @ColumnInfo(name = "alias_type", defaultValue = "'ALIAS'") val aliasType: String,
+    @ColumnInfo(defaultValue = "''") val source: String,
+    @ColumnInfo(defaultValue = "0") val confidence: Double,
+    @ColumnInfo(name = "verified_at", defaultValue = "0") val verifiedAt: Long
+)
+
+@Entity(
+    tableName = "album_source_mappings",
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalAlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["album_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(name = "idx_album_source_album", value = ["album_id"]),
+        Index(
+            name = "idx_album_source_provider_album",
+            value = ["provider", "provider_album_id"],
+            unique = true
+        )
+    ]
+)
+data class AlbumSourceMappingEntity(
+    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "mapping_id") val mappingId: Long?,
+    @ColumnInfo(name = "album_id") val albumId: Long,
+    val provider: String,
+    @ColumnInfo(name = "provider_album_id") val providerAlbumId: String,
+    @ColumnInfo(name = "display_name", defaultValue = "''") val displayName: String,
+    @ColumnInfo(name = "musicbrainz_release_group_id", defaultValue = "''")
+    val musicBrainzReleaseGroupId: String,
+    @ColumnInfo(name = "musicbrainz_release_id", defaultValue = "''")
+    val musicBrainzReleaseId: String,
+    @ColumnInfo(defaultValue = "'UNRESOLVED'") val status: String,
+    @ColumnInfo(defaultValue = "0") val confidence: Double,
+    @ColumnInfo(name = "last_verified_at", defaultValue = "0") val lastVerifiedAt: Long
+)
+
+@Entity(
     tableName = "recording_artist_credits",
     primaryKeys = ["recording_id", "artist_id", "role", "position"],
     foreignKeys = [
@@ -447,6 +555,12 @@ data class RecordingArtistCreditEntity(
             parentColumns = ["id"],
             childColumns = ["recording_id"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = CanonicalAlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["album_id"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
@@ -457,6 +571,7 @@ data class RecordingArtistCreditEntity(
             unique = true
         ),
         Index(name = "idx_track_source_local_track", value = ["local_track_id"], unique = true),
+        Index(name = "idx_track_source_album", value = ["album_id"]),
         Index(name = "idx_track_source_verified", value = ["last_verified_at"]),
         Index(
             name = "idx_source_selection",
@@ -487,7 +602,14 @@ data class TrackSourceMappingEntity(
     @ColumnInfo(name = "bitrate_kbps", defaultValue = "0") val bitrateKbps: Int = 0,
     @ColumnInfo(name = "last_failure_at", defaultValue = "0") val lastFailureAt: Long = 0L,
     @ColumnInfo(name = "failure_reason", defaultValue = "''") val failureReason: String = "",
-    @ColumnInfo(name = "failure_count", defaultValue = "0") val failureCount: Int = 0
+    @ColumnInfo(name = "failure_count", defaultValue = "0") val failureCount: Int = 0,
+    @ColumnInfo(name = "content_signature", defaultValue = "''")
+    val contentSignature: String = "",
+    @ColumnInfo(name = "album_artist", defaultValue = "''") val albumArtist: String = "",
+    @ColumnInfo(defaultValue = "''") val composer: String = "",
+    @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String = "",
+    @ColumnInfo(defaultValue = "0") val year: Int = 0,
+    @ColumnInfo(name = "album_id") val albumId: Long? = null
 )
 
 /** Cold, versioned audio evidence. No library or playback hot query joins this table. */
@@ -568,7 +690,11 @@ data class SourceMatchFeatureEntity(
     @ColumnInfo(name = "candidate_snapshot_signature", defaultValue = "''")
     val candidateSnapshotSignature: String = "",
     @ColumnInfo(name = "candidate_generated_at", defaultValue = "0")
-    val candidateGeneratedAt: Long = 0L
+    val candidateGeneratedAt: Long = 0L,
+    @ColumnInfo(name = "metadata_vector") val metadataVector: ByteArray? = null,
+    @ColumnInfo(name = "metadata_vector_version", defaultValue = "0")
+    val metadataVectorVersion: Int = 0,
+    @ColumnInfo(name = "metadata_sim_hash") val metadataSimHash: Long? = null
 )
 
 /** Bounded coarse candidates. Only these rows enter expensive complete-link V2 scoring. */

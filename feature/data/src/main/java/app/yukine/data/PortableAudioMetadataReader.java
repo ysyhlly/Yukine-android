@@ -87,6 +87,10 @@ final class PortableAudioMetadataReader {
                     text(tag.getFirst(FieldKey.TITLE)),
                     text(tag.getFirst(FieldKey.ARTIST)),
                     text(tag.getFirst(FieldKey.ALBUM)),
+                    text(tag.getFirst(FieldKey.ALBUM_ARTIST)),
+                    text(tag.getFirst(FieldKey.COMPOSER)),
+                    text(tag.getFirst(FieldKey.MUSICBRAINZ_RELEASE_TYPE)),
+                    parseYear(tag.getFirst(FieldKey.YEAR)),
                     artworkBytes == null ? null : Arrays.copyOf(artworkBytes, artworkBytes.length),
                     new TrackIdentityTags(
                             text(tag.getFirst(FieldKey.MUSICBRAINZ_TRACK_ID)),
@@ -146,11 +150,28 @@ final class PortableAudioMetadataReader {
         return new ArrayList<>(values);
     }
 
+    private static int parseYear(String value) {
+        String text = text(value);
+        if (text.length() < 4) {
+            return 0;
+        }
+        try {
+            int year = Integer.parseInt(text.substring(0, 4));
+            return year >= 1000 && year <= 9999 ? year : 0;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
     static final class Metadata {
         static final Metadata EMPTY = new Metadata(
                 "",
                 "",
                 "",
+                "",
+                "",
+                "",
+                0,
                 null,
                 TrackIdentityTags.EMPTY
         );
@@ -158,6 +179,10 @@ final class PortableAudioMetadataReader {
         final String title;
         final String artist;
         final String album;
+        final String albumArtist;
+        final String composer;
+        final String releaseType;
+        final int year;
         final byte[] artwork;
         final TrackIdentityTags identityTags;
 
@@ -165,12 +190,20 @@ final class PortableAudioMetadataReader {
                 String title,
                 String artist,
                 String album,
+                String albumArtist,
+                String composer,
+                String releaseType,
+                int year,
                 byte[] artwork,
                 TrackIdentityTags identityTags
         ) {
             this.title = title;
             this.artist = artist;
             this.album = album;
+            this.albumArtist = albumArtist;
+            this.composer = composer;
+            this.releaseType = releaseType;
+            this.year = year;
             this.artwork = artwork;
             this.identityTags = identityTags == null ? TrackIdentityTags.EMPTY : identityTags;
         }

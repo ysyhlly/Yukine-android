@@ -1,6 +1,9 @@
 package app.yukine
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
@@ -8,7 +11,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.launch
 
 sealed interface DownloadsEffect {
     data object OpenDirectoryPicker : DownloadsEffect
@@ -19,6 +25,31 @@ class DownloadsViewModel : ViewModel() {
     val uiState: StateFlow<DownloadsUiState> = mutableUiState.asStateFlow()
     private val mutableEffects = MutableSharedFlow<DownloadsEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<DownloadsEffect> = mutableEffects.asSharedFlow()
+    private var boundController: TrackDownloadController? = null
+    private var changesJob: Job? = null
+    private var legacyPollingJob: Job? = null
+
+    fun bind(downloadManager: TrackDownloadController?) {
+        if (boundController === downloadManager && changesJob?.isActive == true) return
+        changesJob?.cancel()
+        legacyPollingJob?.cancel()
+        changesJob = null
+        legacyPollingJob = null
+        boundController = downloadManager
+        if (downloadManager == null) {
+            refresh(null)
+            return
+        }
+        changesJob = viewModelScope.launch {
+            downloadManager.changes
+                .onStart { emit(Unit) }
+                .conflate()
+                .collect {
+                    refresh(downloadManager)
+                    delay(DOWNLOAD_CHANGE_WINDOW_MS)
+                }
+        }
+    }
 
     @JvmOverloads
     fun refresh(downloadManager: TrackDownloadController?, message: String = mutableUiState.value.message) {
@@ -27,6 +58,7 @@ class DownloadsViewModel : ViewModel() {
             ?.downloadDirectoryLabel()
             .orEmpty()
         publish(items, directoryLabel, message)
+        updateLegacyPolling(downloadManager, items)
     }
 
     @JvmOverloads
@@ -34,11 +66,9 @@ class DownloadsViewModel : ViewModel() {
         downloadManager: TrackDownloadDirectoryController?,
         message: String = mutableUiState.value.message
     ) {
-        publish(
-            downloadManager?.snapshot().orEmpty(),
-            downloadManager?.downloadDirectoryLabel().orEmpty(),
-            message
-        )
+        val items = downloadManager?.snapshot().orEmpty()
+        publish(items, downloadManager?.downloadDirectoryLabel().orEmpty(), message)
+        updateLegacyPolling(downloadManager, items)
     }
 
     private fun publish(items: List<TrackDownloadItem>, directoryLabel: String, message: String) {
@@ -119,5 +149,53 @@ class DownloadsViewModel : ViewModel() {
         }
         val result = action(downloadManager)
         refresh(downloadManager, result.message)
+    }
+
+    private fun updateLegacyPolling(
+        downloadManager: TrackDownloadController?,
+        items: List<TrackDownloadItem>
+    ) {
+        val shouldPoll = downloadManager != null &&
+            boundController === downloadManager &&
+            items.any(::isActiveLegacySystemDownload)
+        if (!shouldPoll) {
+            legacyPollingJob?.cancel()
+            legacyPollingJob = null
+            return
+        }
+        if (legacyPollingJob?.isActive == true) return
+        val controller = downloadManager ?: return
+        val job = viewModelScope.launch {
+            while (boundController === controller) {
+                delay(LEGACY_DOWNLOAD_POLL_MS)
+                val latestItems = controller.snapshot()
+                publish(
+                    latestItems,
+                    (controller as? TrackDownloadDirectoryController)
+                        ?.downloadDirectoryLabel()
+                        .orEmpty(),
+                    mutableUiState.value.message
+                )
+                if (latestItems.none(::isActiveLegacySystemDownload)) break
+            }
+        }
+        legacyPollingJob = job
+        job.invokeOnCompletion {
+            if (legacyPollingJob === job) {
+                legacyPollingJob = null
+            }
+        }
+    }
+
+    private fun isActiveLegacySystemDownload(item: TrackDownloadItem): Boolean =
+        item.downloadId >= 0L && (
+            item.status == TrackDownloadStatus.Pending ||
+                item.status == TrackDownloadStatus.Running ||
+                item.status == TrackDownloadStatus.Unknown
+            )
+
+    private companion object {
+        const val DOWNLOAD_CHANGE_WINDOW_MS = 250L
+        const val LEGACY_DOWNLOAD_POLL_MS = 1_000L
     }
 }

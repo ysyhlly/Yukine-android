@@ -134,7 +134,11 @@ public final class MusicLibraryRepository {
         Context appContext = context.getApplicationContext();
         this.appContext = appContext;
         this.database = database;
-        libraryRepository = new LibraryRepository(database, playbackSourcePolicy);
+        libraryRepository = new LibraryRepository(
+                database,
+                playbackSourcePolicy,
+                track -> AudioContentSignature.create(appContext, track)
+        );
         playbackPersistenceRepository = new PlaybackPersistenceRepository(database, playbackSourcePolicy);
         settingsRepository = new SettingsRepository(database.settingsDao());
         historyRepository = new HistoryRepository(database);

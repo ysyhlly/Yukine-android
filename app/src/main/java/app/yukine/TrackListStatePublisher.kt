@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 internal class TrackListStatePublisher(
     private val controller: TrackListStateReducer,
     private val libraryState: StateFlow<LibraryStoreState>,
+    private val favoritePendingTrackIds: StateFlow<Set<Long>>,
     private val settingsState: StateFlow<SettingsState>,
     private val playbackReadModel: PlaybackReadModel
 ) {
@@ -76,6 +77,7 @@ internal class TrackListStatePublisher(
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
         context: LibraryListContext = LibraryListContext.Songs
     ) {
+        val library = libraryState.value
         controller.reduce(
             title = title,
             tracks = tracks,
@@ -88,9 +90,10 @@ internal class TrackListStatePublisher(
             modeActions = modeActions,
             labels = labels,
             playbackState = playbackState,
-            favoriteIds = libraryState.value.favoriteTrackIds,
+            favoriteIds = library.favoriteTrackIds,
             footerAlbums = footerAlbums,
-            context = context
+            context = context,
+            favoritePendingIds = favoritePendingTrackIds.value
         )
     }
 
@@ -106,6 +109,8 @@ internal class TrackListStatePublisher(
         AppLanguage.text(languageMode, "play.all"),
         AppLanguage.text(languageMode, "shuffle"),
         AppLanguage.text(languageMode, "recording.match.manage"),
-        AppLanguage.text(languageMode, "songs")
+        AppLanguage.text(languageMode, "songs"),
+        AppLanguage.text(languageMode, "more"),
+        AppLanguage.text(languageMode, "library.favorite.updating")
     )
 }

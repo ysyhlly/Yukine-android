@@ -1,9 +1,13 @@
 package app.yukine
 
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 
 class DownloadsDestinationOwnerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun destinationActionsUseOneDownloadControllerPath() {
         val controller = RecordingDownloadController()
@@ -26,6 +30,7 @@ class DownloadsDestinationOwnerTest {
 
         assertEquals(
             listOf(
+                "snapshot",
                 "snapshot",
                 "set:downloads",
                 "snapshot",

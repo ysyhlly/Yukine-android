@@ -307,7 +307,13 @@ final class ProviderSourceIdentityWriter {
                 existing == null ? 0 : existing.getBitrateKbps(),
                 existing == null ? 0L : existing.getLastFailureAt(),
                 existing == null ? "" : existing.getFailureReason(),
-                existing == null ? 0 : existing.getFailureCount()
+                existing == null ? 0 : existing.getFailureCount(),
+                existing == null ? "" : existing.getContentSignature(),
+                existing == null ? "" : existing.getAlbumArtist(),
+                existing == null ? "" : existing.getComposer(),
+                existing == null ? "" : existing.getReleaseType(),
+                existing == null ? 0 : existing.getYear(),
+                existing == null ? null : existing.getAlbumId()
         ));
     }
 

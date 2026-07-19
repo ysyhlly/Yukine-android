@@ -5,6 +5,7 @@
 .gradle-tmp/
 build/
 app/build/
+**/.cxx/
 
 # One-off local build directories created during Codex/compatibility checks
 **/build-codex-*/
@@ -49,9 +50,16 @@ output/
 
 # Metadata gateway dependencies and local Cloudflare state
 node_modules/
+web-prototype/.npm-cache/
 .wrangler/
 metadata-gateway/dist/
 metadata-gateway/data/
 metadata-gateway/*.sqlite
 metadata-gateway/*.sqlite-shm
 metadata-gateway/*.sqlite-wal
+
+# Disposable local audits and release helper state
+.tmp-chromaprint-audit/
+tmp/gh-auth/
+tmp/release-v*/
+*.pid

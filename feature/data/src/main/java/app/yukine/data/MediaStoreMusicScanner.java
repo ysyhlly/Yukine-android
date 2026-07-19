@@ -4,10 +4,12 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +17,7 @@ import java.util.concurrent.CancellationException;
 
 import app.yukine.common.EmbeddedArtwork;
 import app.yukine.model.Track;
+import app.yukine.model.TrackIdentityTags;
 
 public final class MediaStoreMusicScanner {
     private final Context context;
@@ -33,6 +36,7 @@ public final class MediaStoreMusicScanner {
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.ARTIST,
                 MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.YEAR,
                 MediaStore.Audio.Media.DURATION,
                 MediaStore.Audio.Media.DATA,
                 MediaStore.Audio.Media.ALBUM_ID
@@ -50,6 +54,7 @@ public final class MediaStoreMusicScanner {
             int titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
             int artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
             int albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+            int yearColumn = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
             int durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
             int dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
             int albumIdColumn = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID);
@@ -66,6 +71,10 @@ public final class MediaStoreMusicScanner {
                     continue;
                 }
                 Uri uri = ContentUris.withAppendedId(collection, id);
+                ExtendedMetadata extendedMetadata = readExtendedMetadata(
+                        uri,
+                        yearColumn >= 0 ? cursor.getInt(yearColumn) : 0
+                );
                 Track track = new Track(
                         id,
                         title,
@@ -75,14 +84,81 @@ public final class MediaStoreMusicScanner {
                         uri,
                         dataPath,
                         albumId,
-                        EmbeddedArtwork.uriFor(uri)
+                        EmbeddedArtwork.uriFor(uri),
+                        "",
+                        0,
+                        0,
+                        0,
+                        0,
+                        0.0f,
+                        0.0f,
+                        TrackIdentityTags.EMPTY,
+                        extendedMetadata.albumArtist,
+                        extendedMetadata.composer,
+                        "",
+                        extendedMetadata.year
                 );
-                // 扫描只入库基础信息。音频规格和内嵌封面都要懒加载；同步打开每个媒体文件会让
-                // 大曲库、坏文件或部分模拟器 MediaStore 卡在扫描循环里。
+                // 音频规格和内嵌封面仍然懒加载。这里只对 MediaStore 未稳定暴露的身份字段做
+                // 一次尽力读取；坏文件或无权限媒体会立即回退到 MediaStore 基础信息。
                 tracks.add(track);
             }
         }
         return tracks;
+    }
+
+    private ExtendedMetadata readExtendedMetadata(Uri uri, int mediaStoreYear) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(context, uri);
+            return new ExtendedMetadata(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST),
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER),
+                    parseYear(
+                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR),
+                            mediaStoreYear
+                    )
+            );
+        } catch (RuntimeException ignored) {
+            return new ExtendedMetadata("", "", sanitizeYear(mediaStoreYear));
+        } finally {
+            try {
+                retriever.release();
+            } catch (IOException | RuntimeException ignored) {
+                // Best-effort metadata must never abort the library scan.
+            }
+        }
+    }
+
+    private static int parseYear(String value, int fallback) {
+        if (value != null) {
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("(\\d{4})")
+                    .matcher(value);
+            if (matcher.find()) {
+                try {
+                    return sanitizeYear(Integer.parseInt(matcher.group(1)));
+                } catch (NumberFormatException ignored) {
+                    // Fall through to the MediaStore year.
+                }
+            }
+        }
+        return sanitizeYear(fallback);
+    }
+
+    private static int sanitizeYear(int value) {
+        return value >= 1000 && value <= 9999 ? value : 0;
+    }
+
+    private static final class ExtendedMetadata {
+        final String albumArtist;
+        final String composer;
+        final int year;
+
+        ExtendedMetadata(String albumArtist, String composer, int year) {
+            this.albumArtist = albumArtist == null ? "" : albumArtist.trim();
+            this.composer = composer == null ? "" : composer.trim();
+            this.year = year;
+        }
     }
 
     private static void throwIfInterrupted() {

@@ -6,9 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import app.yukine.LibraryGroupsDestinationState
 import app.yukine.ui.LibraryActionHandler
-import app.yukine.TrackDownloadItem
 import app.yukine.ui.LibraryGroupsScreen
-import app.yukine.ui.YukineOrbAudioMotion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -21,12 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 @Composable
 fun LibraryGroupsDestination(
     state: StateFlow<LibraryGroupsDestinationState>,
-    onSearch: Runnable = Runnable { },
-    activeDownload: TrackDownloadItem? = null,
-    playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     actionHandler: LibraryActionHandler = LibraryActionHandler { },
-    libraryControlsEnabled: Boolean = false,
     compactCards: Boolean = true,
     onNavigateUp: Runnable? = null
 ) {
@@ -40,13 +33,8 @@ fun LibraryGroupsDestination(
         uiState.actions,
         uiState.emptyText,
         uiState.modeActions,
-        onSearch,
-        activeDownload,
-        playbackQuality,
-        audioMotion,
         uiState.libraryUi,
         actionHandler,
-        libraryControlsEnabled,
         uiState.playlistFolders,
         onNavigateUp,
         compactCards

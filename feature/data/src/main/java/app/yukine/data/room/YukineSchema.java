@@ -220,6 +220,10 @@ public final class YukineSchema {
                 + "ON recording_play_events (legacy_event_id)");
     }
 
+    public static void normalizeV29(SupportSQLiteDatabase db) {
+        ensureColumn(db, "track_sources", "content_signature", "TEXT NOT NULL DEFAULT ''");
+    }
+
     private static void seedMissingTrackIdentities(SupportSQLiteDatabase db) {
         ArrayList<MissingTrackIdentity> missing = new ArrayList<>();
         try (Cursor cursor = db.query(
@@ -279,24 +283,37 @@ public final class YukineSchema {
     }
 
     private static void repairCanonicalBusinessReferences(SupportSQLiteDatabase db) {
-        db.execSQL("DROP TABLE IF EXISTS canonical_track_reference_v21");
-        db.execSQL("CREATE TEMP TABLE canonical_track_reference_v21 ("
-                + "track_id INTEGER NOT NULL PRIMARY KEY,"
-                + "recording_id INTEGER NOT NULL,"
-                + "source_id INTEGER NOT NULL"
-                + ")");
+        boolean ownsTransaction = !db.inTransaction();
+        if (ownsTransaction) {
+            db.beginTransaction();
+        }
         try {
-            db.execSQL("INSERT OR REPLACE INTO canonical_track_reference_v21("
-                    + "track_id,recording_id,source_id) "
-                    + "SELECT t.id,s.recording_id,s.source_id FROM tracks t "
-                    + "INNER JOIN track_sources s ON s.local_track_id=t.id");
-            fillProviderIdentityReferences(db);
-            requireMappedLegacyReferences(db);
-            repairQueueIdentities(db);
-            repairRecordingHistory(db);
-            repairRecordingEvents(db);
-        } finally {
             db.execSQL("DROP TABLE IF EXISTS canonical_track_reference_v21");
+            db.execSQL("CREATE TABLE canonical_track_reference_v21 ("
+                    + "track_id INTEGER NOT NULL PRIMARY KEY,"
+                    + "recording_id INTEGER NOT NULL,"
+                    + "source_id INTEGER NOT NULL"
+                    + ")");
+            try {
+                db.execSQL("INSERT OR REPLACE INTO canonical_track_reference_v21("
+                        + "track_id,recording_id,source_id) "
+                        + "SELECT t.id,s.recording_id,s.source_id FROM tracks t "
+                        + "INNER JOIN track_sources s ON s.local_track_id=t.id");
+                fillProviderIdentityReferences(db);
+                requireMappedLegacyReferences(db);
+                repairQueueIdentities(db);
+                repairRecordingHistory(db);
+                repairRecordingEvents(db);
+            } finally {
+                db.execSQL("DROP TABLE IF EXISTS canonical_track_reference_v21");
+            }
+            if (ownsTransaction) {
+                db.setTransactionSuccessful();
+            }
+        } finally {
+            if (ownsTransaction) {
+                db.endTransaction();
+            }
         }
     }
 
@@ -732,6 +749,7 @@ public final class YukineSchema {
                 + "last_successful_at INTEGER NOT NULL DEFAULT 0,"
                 + "last_verified_at INTEGER NOT NULL DEFAULT 0,"
                 + "legacy_local_key TEXT NOT NULL DEFAULT '',"
+                + "content_signature TEXT NOT NULL DEFAULT '',"
                 + "FOREIGN KEY(recording_id) REFERENCES recordings(id) "
                 + "ON UPDATE NO ACTION ON DELETE CASCADE"
                 + ")");

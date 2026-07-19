@@ -2,7 +2,9 @@ package app.yukine.library
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -10,15 +12,18 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.dp
 import app.yukine.LibraryTrackListDestinationState
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoIconKind
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderActionKind
+import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackRowActions
 import app.yukine.ui.TrackRowUiState
 import app.yukine.ui.YukineOrbAudioMotion
@@ -56,7 +61,15 @@ class LibraryTrackListDestinationTest {
     )
 
     private fun actions(count: Int) = List(count) {
-        TrackRowActions(Runnable {}, Runnable {}, Runnable {}, Runnable {}, null, null)
+        TrackRowActions(
+            onPlay = Runnable {},
+            onFavorite = Runnable {},
+            onAddToPlaylist = Runnable {},
+            onDownload = Runnable {},
+            onEdit = null,
+            onDelete = Runnable {},
+            onLongPress = Runnable {}
+        )
     }
 
     @Test
@@ -98,6 +111,130 @@ class LibraryTrackListDestinationTest {
 
         composeRule.onNodeWithText("Songs").assertIsDisplayed()
         composeRule.onAllNodesWithText("Echo").assertCountEquals(2)
+    }
+
+    @Test
+    fun modeSelectorDispatchesOnceFromA48DpSemanticTarget() {
+        var modeClicks = 0
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Songs",
+                modeActions = listOf(
+                    TrackListModeAction("Albums", "albums", false, Runnable { modeClicks++ })
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Albums")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        assertEquals(1, modeClicks)
+    }
+
+    @Test
+    fun modeSelectorScrollsTheLastModeFullyIntoView() {
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Songs",
+                modeActions = listOf(
+                    TrackListModeAction("Songs", "songs", true, Runnable {}),
+                    TrackListModeAction("Albums", "albums", false, Runnable {}),
+                    TrackListModeAction("Artists", "artists", false, Runnable {}),
+                    TrackListModeAction("Folders", "folders", false, Runnable {}),
+                    TrackListModeAction("Playlists", "playlists", false, Runnable {})
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Playlists")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(104.dp)
+            .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun unavailableDeleteAndDownloadActionsAreNotRendered() {
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Songs",
+                rows = listOf(row(1L, "No capabilities")),
+                actions = listOf(
+                    TrackRowActions(
+                        onPlay = Runnable {},
+                        onFavorite = Runnable {},
+                        onAddToPlaylist = Runnable {},
+                        onDownload = null,
+                        onEdit = null,
+                        onDelete = null,
+                        onLongPress = null
+                    )
+                )
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("更多操作")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        composeRule.onNodeWithText("下载").assertDoesNotExist()
+        composeRule.onNodeWithText("删除").assertDoesNotExist()
+    }
+
+    @Test
+    fun openActionSheetTracksLatestFavoriteStateAndClosesWhenRowDisappears() {
+        val initialRow = row(1L, "Live favorite")
+        val state = MutableStateFlow(
+            LibraryTrackListDestinationState(
+                title = "Songs",
+                rows = listOf(initialRow),
+                actions = actions(1)
+            )
+        )
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                LibraryTrackListDestination(state, audioMotion = staticMotion)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("更多操作").performClick()
+        composeRule.onNodeWithText("收藏").assertIsDisplayed()
+
+        state.value = state.value.copy(
+            rows = listOf(initialRow.copy(favoritePending = true))
+        )
+        composeRule.onNodeWithText("正在更新收藏").assertIsDisplayed()
+        composeRule.onNodeWithText("收藏").assertDoesNotExist()
+
+        state.value = state.value.copy(
+            rows = listOf(initialRow.copy(favorite = true, favoritePending = false))
+        )
+        composeRule.onNodeWithText("取消收藏").assertIsDisplayed()
+        composeRule.onNodeWithText("正在更新收藏").assertDoesNotExist()
+
+        state.value = state.value.copy(rows = emptyList(), actions = emptyList())
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("取消收藏").assertDoesNotExist()
     }
 
     @Test

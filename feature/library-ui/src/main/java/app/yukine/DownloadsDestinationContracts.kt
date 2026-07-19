@@ -1,6 +1,8 @@
 package app.yukine
 
 import android.net.Uri
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 const val DOWNLOAD_DIRECTORY_MUSIC = "music"
 const val DOWNLOAD_DIRECTORY_DOWNLOADS = "downloads"
@@ -11,6 +13,9 @@ data class TrackDownloadActionResult(
 )
 
 interface TrackDownloadController {
+    val changes: Flow<Unit>
+        get() = emptyFlow()
+
     fun snapshot(): List<TrackDownloadItem>
     fun pause(downloadId: Long): TrackDownloadActionResult
     fun resume(downloadId: Long): TrackDownloadActionResult

@@ -1,14 +1,23 @@
 package app.yukine
 
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.yield
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DownloadsViewModelTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     @Test
     fun refreshSplitsActiveAndFinishedDownloads() {
         val controller = FakeDownloadController(
@@ -143,13 +152,99 @@ class DownloadsViewModelTest {
         assertEquals("下载服务暂不可用", viewModel.uiState.value.message)
     }
 
+    @Test
+    fun bindCoalescesCustomDownloadChangesAndKeepsTheFinishedSnapshot() {
+        val controller = FakeDownloadController(
+            listOf(item(-1L, TrackDownloadStatus.Running))
+        )
+        val viewModel = DownloadsViewModel()
+        viewModel.bind(controller)
+
+        assertEquals(TrackDownloadStatus.Running, viewModel.uiState.value.active.single().status)
+        controller.replaceItems(listOf(item(-1L, TrackDownloadStatus.Paused)))
+        controller.emitChange()
+        controller.replaceItems(listOf(item(-1L, TrackDownloadStatus.Finished)))
+        controller.emitChange()
+
+        mainDispatcherRule.testScheduler.advanceTimeBy(249L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(TrackDownloadStatus.Running, viewModel.uiState.value.active.single().status)
+
+        mainDispatcherRule.testScheduler.advanceTimeBy(1L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(emptyList<TrackDownloadItem>(), viewModel.uiState.value.active)
+        assertEquals(TrackDownloadStatus.Finished, viewModel.uiState.value.finished.single().status)
+    }
+
+    @Test
+    fun rebindingCancelsThePreviousControllerChangeCollector() {
+        val first = FakeDownloadController(listOf(item(-1L, TrackDownloadStatus.Running)))
+        val second = FakeDownloadController(listOf(item(-2L, TrackDownloadStatus.Paused)))
+        val viewModel = DownloadsViewModel()
+
+        viewModel.bind(first)
+        viewModel.bind(second)
+        first.replaceItems(listOf(item(-1L, TrackDownloadStatus.Finished)))
+        first.emitChange()
+        mainDispatcherRule.testScheduler.advanceTimeBy(250L)
+        mainDispatcherRule.testScheduler.runCurrent()
+
+        assertEquals(listOf(-2L), viewModel.uiState.value.active.map { it.downloadId })
+        assertEquals(emptyList<TrackDownloadItem>(), viewModel.uiState.value.finished)
+    }
+
+    @Test
+    fun onlyActiveLegacySystemDownloadsUseOneSecondPolling() {
+        val customController = FakeDownloadController(
+            listOf(item(-1L, TrackDownloadStatus.Running))
+        )
+        val legacyController = FakeDownloadController(
+            listOf(item(8L, TrackDownloadStatus.Running))
+        )
+        val viewModel = DownloadsViewModel()
+
+        viewModel.bind(customController)
+        mainDispatcherRule.testScheduler.advanceTimeBy(2_000L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(1, customController.snapshotCalls)
+
+        viewModel.bind(legacyController)
+        assertEquals(1, legacyController.snapshotCalls)
+        mainDispatcherRule.testScheduler.advanceTimeBy(1_000L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(2, legacyController.snapshotCalls)
+
+        legacyController.replaceItems(listOf(item(8L, TrackDownloadStatus.Finished)))
+        mainDispatcherRule.testScheduler.advanceTimeBy(1_000L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(3, legacyController.snapshotCalls)
+        mainDispatcherRule.testScheduler.advanceTimeBy(1_000L)
+        mainDispatcherRule.testScheduler.runCurrent()
+        assertEquals(3, legacyController.snapshotCalls)
+    }
+
     private class FakeDownloadController(
         initialItems: List<TrackDownloadItem>
     ) : TrackDownloadController {
         val calls = mutableListOf<String>()
+        private val mutableChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+        override val changes = mutableChanges
         private var items = initialItems
+        var snapshotCalls = 0
+            private set
 
-        override fun snapshot(): List<TrackDownloadItem> = items
+        override fun snapshot(): List<TrackDownloadItem> {
+            snapshotCalls++
+            return items
+        }
+
+        fun replaceItems(items: List<TrackDownloadItem>) {
+            this.items = items
+        }
+
+        fun emitChange() {
+            mutableChanges.tryEmit(Unit)
+        }
 
         override fun pause(downloadId: Long): TrackDownloadActionResult {
             calls += "pause:$downloadId"

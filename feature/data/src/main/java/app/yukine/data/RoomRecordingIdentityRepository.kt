@@ -107,28 +107,33 @@ class RoomRecordingIdentityRepository(
         sourceRecordingId: Long,
         targetRecordingId: Long
     ): CanonicalRecording {
-        val preflightSource = requireRecording(sourceRecordingId)
-        val preflightTarget = requireRecording(targetRecordingId)
-        if (differentStrongWork(preflightSource, preflightTarget)) {
-            database.runInTransaction {
-                RecordingRelationStore(database).upsert(
-                    listOf(
-                        RecordingRelationDraft(
-                            leftRecordingId = sourceRecordingId,
-                            rightRecordingId = targetRecordingId,
-                            relationship = app.yukine.streaming.RecordingRelationship.CANNOT_LINK,
-                            sameRecordingProbability = 0.0,
-                            sameWorkProbability = 0.0,
-                            confidence = 1.0,
-                            origin = "WORK_ID_CONFLICT",
-                            evidenceJson = "{\"hardConflict\":\"WORK_MBID\"}"
-                        )
-                    )
-                )
-            }
-            throw IllegalArgumentException("Work MBID conflict")
-        }
+        rejectStrongWorkConflict(sourceRecordingId, targetRecordingId)
         return database.runInTransaction(Callable {
+            mergeRecordingsInTransaction(sourceRecordingId, targetRecordingId)
+        })
+    }
+
+    fun mergeRecordingsWithManualDecision(
+        sourceRecordingId: Long,
+        targetRecordingId: Long
+    ): CanonicalRecording {
+        rejectStrongWorkConflict(sourceRecordingId, targetRecordingId)
+        return database.runInTransaction(Callable {
+            val decisions = ManualMatchDecisionStore(database)
+            val left = requireNotNull(decisions.representative(sourceRecordingId)) {
+                "Unknown recording $sourceRecordingId"
+            }
+            val right = requireNotNull(decisions.representative(targetRecordingId)) {
+                "Unknown recording $targetRecordingId"
+            }
+            decisions.record(
+                label = ManualMatchLabel.SAME,
+                left = left,
+                right = right,
+                note = "DIRECT_MERGE",
+                sourceRecordingId = sourceRecordingId,
+                targetRecordingId = targetRecordingId
+            )
             mergeRecordingsInTransaction(sourceRecordingId, targetRecordingId)
         })
     }
@@ -221,7 +226,8 @@ class RoomRecordingIdentityRepository(
 
     fun splitSources(
         sourceIds: Set<Long>,
-        options: RecordingSplitOptions
+        options: RecordingSplitOptions,
+        recordManualDecision: Boolean = false
     ): CanonicalRecording = database.runInTransaction(Callable {
         val selectedIds = sourceIds.filter { it > 0L }.distinct().sorted()
         require(selectedIds.isNotEmpty()) { "At least one source must be selected" }
@@ -296,6 +302,16 @@ class RoomRecordingIdentityRepository(
             evidenceJson = "{\"reason\":\"SOURCE_SPLIT\"}",
             now = now
         )
+        if (recordManualDecision) {
+            ManualMatchDecisionStore(database).record(
+                label = ManualMatchLabel.DIFFERENT,
+                left = ManualMatchSide.from(preferredSelected),
+                right = ManualMatchSide.from(bestSource(remaining)),
+                note = "SOURCE_SPLIT",
+                sourceRecordingId = originalId,
+                targetRecordingId = newId
+            )
+        }
         operationStore.recordReversible(
             IdentityOperationType.SPLIT_RECORDING,
             originalId,
@@ -311,6 +327,29 @@ class RoomRecordingIdentityRepository(
 
     private fun requireRecording(recordingId: Long): CanonicalRecordingEntity =
         requireNotNull(dao.recording(recordingId)) { "Unknown recording $recordingId" }
+
+    private fun rejectStrongWorkConflict(sourceRecordingId: Long, targetRecordingId: Long) {
+        val preflightSource = requireRecording(sourceRecordingId)
+        val preflightTarget = requireRecording(targetRecordingId)
+        if (!differentStrongWork(preflightSource, preflightTarget)) return
+        database.runInTransaction {
+            RecordingRelationStore(database).upsert(
+                listOf(
+                    RecordingRelationDraft(
+                        leftRecordingId = sourceRecordingId,
+                        rightRecordingId = targetRecordingId,
+                        relationship = app.yukine.streaming.RecordingRelationship.CANNOT_LINK,
+                        sameRecordingProbability = 0.0,
+                        sameWorkProbability = 0.0,
+                        confidence = 1.0,
+                        origin = "WORK_ID_CONFLICT",
+                        evidenceJson = "{\"hardConflict\":\"WORK_MBID\"}"
+                    )
+                )
+            )
+        }
+        throw IllegalArgumentException("Work MBID conflict")
+    }
 
     private fun requireMergeCompatible(
         source: CanonicalRecordingEntity,

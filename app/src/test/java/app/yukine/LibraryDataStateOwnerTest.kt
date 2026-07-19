@@ -5,11 +5,15 @@ import app.yukine.model.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -32,6 +36,64 @@ class LibraryDataStateOwnerTest {
         assertEquals(false, owner.toggleFavorite(second.id))
         assertEquals(emptySet<Long>(), owner.state.value.favoriteTrackIds)
         assertEquals(emptyList<Track>(), owner.state.value.favoriteTracks)
+    }
+
+    @Test
+    fun replacementPublishesFavoriteIdsAndTracksTogether() {
+        val first = track(1L)
+        val second = track(2L)
+
+        owner.replaceLibrary(listOf(first, second), setOf(second.id), null)
+
+        assertEquals(setOf(second.id), owner.state.value.favoriteTrackIds)
+        assertEquals(listOf(second), owner.state.value.favoriteTracks)
+        assertEquals(setOf(second.id), owner.favoriteTrackIds.value)
+    }
+
+    @Test
+    fun favoritePendingSurvivesReplacementAndCollectionsPublication() {
+        val first = track(1L)
+        val second = track(2L)
+        owner.replaceLibrary(listOf(first), emptySet(), null)
+        assertTrue(owner.beginFavoriteMutation(first.id))
+
+        owner.replaceLibrary(listOf(first, second), setOf(second.id), null)
+        assertEquals(setOf(first.id), owner.favoritePendingTrackIds.value)
+
+        owner.applyCollections(
+            LibraryCollectionsResult(
+                favoriteIds = setOf(second.id),
+                favoriteTracks = listOf(second)
+            )
+        )
+
+        assertEquals(setOf(first.id), owner.favoritePendingTrackIds.value)
+    }
+
+    @Test
+    fun batchFavoritesPublishOneLibrarySnapshotAndPendingDoesNotPublishLibraryState() = runTest {
+        val batchOwner = LibraryDataStateOwner(this, Dispatchers.Unconfined)
+        val tracks = (1L..120L).map(::track)
+        batchOwner.replaceLibrary(tracks, emptySet(), null)
+        var publications = 0
+        batchOwner.state
+            .drop(1)
+            .onEach { publications++ }
+            .launchIn(backgroundScope)
+        runCurrent()
+
+        val ids = tracks.mapTo(linkedSetOf()) { it.id }
+        assertEquals(ids, batchOwner.beginFavoriteMutations(ids))
+        batchOwner.endFavoriteMutations(ids)
+        runCurrent()
+        assertEquals(0, publications)
+
+        batchOwner.setFavorites(ids, true)
+        runCurrent()
+
+        assertEquals(1, publications)
+        assertEquals(120, batchOwner.state.value.favoriteTrackIds.size)
+        assertEquals(120, batchOwner.state.value.favoriteTracks.size)
     }
 
     @Test
@@ -149,6 +211,27 @@ class LibraryDataStateOwnerTest {
 
         assertEquals(1, appliedCount)
         assertEquals(listOf(32L), asyncOwner.visibleTracks().map { it.id })
+    }
+
+    @Test
+    fun staleAsyncSearchDoesNotPublishAfterLibraryReplacement() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val asyncOwner = LibraryDataStateOwner(this, dispatcher)
+        asyncOwner.replaceLibrary(
+            listOf(track(31L, "Alpha"), track(32L, "Echo")),
+            emptySet(),
+            null
+        )
+        var appliedCount = 0
+
+        asyncOwner.applySearchAsync("alpha", Runnable { appliedCount++ })
+        runCurrent()
+        advanceTimeBy(200L)
+        asyncOwner.replaceLibrary(listOf(track(33L, "Beta")), emptySet(), null)
+        runCurrent()
+
+        assertEquals(0, appliedCount)
+        assertEquals(listOf(33L), asyncOwner.visibleTracks().map { it.id })
     }
 
     private fun track(id: Long, title: String = "Track $id"): Track =

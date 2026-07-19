@@ -253,7 +253,8 @@ class RecordingMatchRepository internal constructor(
     override fun mergeRecordings(
         sourceRecordingId: Long,
         targetRecordingId: Long
-    ): CanonicalRecording = recordings.mergeRecordings(sourceRecordingId, targetRecordingId)
+    ): CanonicalRecording =
+        recordings.mergeRecordingsWithManualDecision(sourceRecordingId, targetRecordingId)
 
     override fun previewSplit(
         recordingId: Long,
@@ -287,7 +288,7 @@ class RecordingMatchRepository internal constructor(
     override fun splitSources(
         sourceIds: Set<Long>,
         options: RecordingSplitOptions
-    ): CanonicalRecording = recordings.splitSources(sourceIds, options)
+    ): CanonicalRecording = recordings.splitSources(sourceIds, options, recordManualDecision = true)
 
     override fun sourcesForSplit(recordingId: Long): List<TrackSourceMapping> {
         val entity = requireNotNull(identityDao.recording(recordingId)) { "Unknown recording $recordingId" }

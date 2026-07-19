@@ -94,6 +94,10 @@ public final class DocumentMusicImporter {
         String title = stripExtension(displayName);
         String artist = "未知艺人";
         String album = "导入音频";
+        String albumArtist = "";
+        String composer = "";
+        String releaseType = "";
+        int year = 0;
         long durationMs = 0L;
         byte[] embeddedArtwork = null;
         TrackIdentityTags identityTags = TrackIdentityTags.EMPTY;
@@ -104,11 +108,22 @@ public final class DocumentMusicImporter {
             String platformTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
             String platformArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
             String platformAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            String platformAlbumArtist =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST);
+            String platformComposer =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER);
+            int platformYear = parseYear(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+            );
             PortableAudioMetadataReader.Metadata portable = portableMetadataReader.read(uri, displayName);
             identityTags = portable.identityTags;
             title = firstText(platformTitle, firstText(portable.title, title));
             artist = firstText(platformArtist, firstText(portable.artist, artist));
             album = firstText(platformAlbum, firstText(portable.album, album));
+            albumArtist = firstText(platformAlbumArtist, portable.albumArtist);
+            composer = firstText(platformComposer, portable.composer);
+            releaseType = portable.releaseType;
+            year = platformYear > 0 ? platformYear : portable.year;
             embeddedArtwork = retriever.getEmbeddedPicture();
             if ((embeddedArtwork == null || embeddedArtwork.length == 0) && portable.artwork != null) {
                 embeddedArtwork = portable.artwork;
@@ -141,7 +156,11 @@ public final class DocumentMusicImporter {
                 0,
                 0.0f,
                 0.0f,
-                identityTags
+                identityTags,
+                albumArtist,
+                composer,
+                releaseType,
+                year
         );
         return audioSpecParser.enrich(track);
     }
@@ -222,6 +241,11 @@ public final class DocumentMusicImporter {
         } catch (NumberFormatException ignored) {
             return 0L;
         }
+    }
+
+    private int parseYear(String value) {
+        long year = parseLong(value);
+        return year >= 1000L && year <= 9999L ? (int) year : 0;
     }
 
     private long stableDocumentId(Uri uri) {

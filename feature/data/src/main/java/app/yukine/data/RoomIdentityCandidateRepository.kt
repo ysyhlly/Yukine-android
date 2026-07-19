@@ -9,11 +9,13 @@ import app.yukine.identity.IdentityCandidate
 import app.yukine.identity.IdentityCandidateRepository
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityTargetType
+import app.yukine.identity.AnonymousAlbumCandidate
 import app.yukine.identity.RecordingVariantType
 import app.yukine.identity.RecordingIdentifier
 import app.yukine.streaming.ProviderRolePolicy
 import java.util.Locale
 import java.util.concurrent.Callable
+import org.json.JSONArray
 import org.json.JSONObject
 
 class RoomIdentityCandidateRepository(
@@ -106,6 +108,7 @@ class RoomIdentityCandidateRepository(
             when (candidate.targetType) {
                 IdentityTargetType.RECORDING.name -> confirmRecordingCandidate(candidate)
                 IdentityTargetType.ARTIST.name -> confirmArtistCandidate(candidate)
+                IdentityTargetType.ALBUM.name -> confirmAlbumCandidate(candidate)
                 else -> error("Unknown candidate target ${candidate.targetType}")
             }
             val now = System.currentTimeMillis()
@@ -117,6 +120,11 @@ class RoomIdentityCandidateRepository(
                 ) == 1
             ) { "Candidate disappeared during confirmation" }
             val confirmed = requireCandidate(candidate.candidateId)
+            recordManualCandidateDecision(
+                label = ManualMatchLabel.SAME,
+                candidate = candidate,
+                note = "CONFIRM_CANDIDATE"
+            )
             recordCandidateOperation(IdentityOperationType.CONFIRM_CANDIDATE, candidate, confirmed)
             confirmed.toModel()
         })
@@ -141,6 +149,11 @@ class RoomIdentityCandidateRepository(
             ) { "Candidate disappeared during rejection" }
             rejectCandidateSource(candidate)
             val rejected = requireCandidate(candidateId)
+            recordManualCandidateDecision(
+                label = ManualMatchLabel.DIFFERENT,
+                candidate = candidate,
+                note = "REJECT_CANDIDATE"
+            )
             recordCandidateOperation(IdentityOperationType.REJECT_CANDIDATE, candidate, rejected)
             rejected.toModel()
         })
@@ -197,6 +210,11 @@ class RoomIdentityCandidateRepository(
             )
         )
         rejectCandidateSource(candidate)
+        recordManualCandidateDecision(
+            label = ManualMatchLabel.ALTERNATE,
+            candidate = candidate,
+            note = "ALTERNATE_VERSION:${variant.name}"
+        )
         requireCandidate(candidateId).toModel()
     })
 
@@ -320,6 +338,31 @@ class RoomIdentityCandidateRepository(
         )
     }
 
+    private fun confirmAlbumCandidate(candidate: IdentityCandidateEntity) {
+        val evidence = runCatching { JSONObject(candidate.evidenceJson) }.getOrDefault(JSONObject())
+        val aliases = evidence.optJSONArray("aliases") ?: JSONArray()
+        RoomAlbumIdentityRepository(database).confirmCandidate(
+            albumKey = candidate.targetId,
+            candidate = AnonymousAlbumCandidate(
+                provider = candidate.provider,
+                providerAlbumId = candidate.providerItemId,
+                title = candidate.title.ifBlank { candidate.album },
+                aliases = buildSet {
+                    for (index in 0 until aliases.length()) {
+                        aliases.optString(index).trim().takeIf(String::isNotBlank)?.let(::add)
+                    }
+                },
+                artist = candidate.artist,
+                musicBrainzReleaseGroupId = evidence.optString("releaseGroupMbid"),
+                musicBrainzReleaseId = evidence.optString("releaseMbid"),
+                releaseType = evidence.optString("type"),
+                year = evidence.optInt("year", 0),
+                providerScore = candidate.score
+            ),
+            verifiedAt = System.currentTimeMillis()
+        )
+    }
+
     private fun rejectCandidateSource(candidate: IdentityCandidateEntity) {
         if (candidate.targetType != IdentityTargetType.RECORDING.name ||
             candidate.providerItemId == INTERNAL_STORED_MATCH_ITEM_ID
@@ -337,6 +380,7 @@ class RoomIdentityCandidateRepository(
         val exists = when (targetType) {
             IdentityTargetType.RECORDING -> dao.recording(targetId) != null
             IdentityTargetType.ARTIST -> dao.artist(targetId) != null
+            IdentityTargetType.ALBUM -> dao.album(targetId) != null
         }
         require(exists) { "Unknown ${targetType.name.lowercase()} target $targetId" }
     }
@@ -360,6 +404,24 @@ class RoomIdentityCandidateRepository(
             afterPayload = JSONObject()
                 .put("candidateId", after.candidateId)
                 .put("status", after.status)
+        )
+    }
+
+    private fun recordManualCandidateDecision(
+        label: ManualMatchLabel,
+        candidate: IdentityCandidateEntity,
+        note: String
+    ) {
+        if (candidate.targetType != IdentityTargetType.RECORDING.name) return
+        val decisions = ManualMatchDecisionStore(database)
+        val left = decisions.representative(candidate.targetId) ?: return
+        decisions.record(
+            label = label,
+            left = left,
+            right = ManualMatchSide.from(candidate),
+            note = note,
+            sourceRecordingId = candidate.targetId,
+            targetRecordingId = candidate.targetId
         )
     }
 

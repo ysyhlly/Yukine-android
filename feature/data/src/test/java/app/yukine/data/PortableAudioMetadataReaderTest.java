@@ -38,6 +38,10 @@ public class PortableAudioMetadataReaderTest {
         tag.setField(FieldKey.TITLE, "歌曲标题");
         tag.setField(FieldKey.ARTIST, "歌曲作者");
         tag.setField(FieldKey.ALBUM, "歌曲专辑");
+        tag.setField(FieldKey.ALBUM_ARTIST, "专辑艺术家");
+        tag.setField(FieldKey.COMPOSER, "作曲者");
+        tag.setField(FieldKey.YEAR, "2023-09-10");
+        tag.setField(FieldKey.MUSICBRAINZ_RELEASE_TYPE, "single");
         tag.setField(FieldKey.MUSICBRAINZ_TRACK_ID, "123e4567-e89b-12d3-a456-426614174000");
         tag.setField(FieldKey.MUSICBRAINZ_RECORDING_WORK_ID, "123e4567-e89b-12d3-a456-426614174001");
         tag.setField(FieldKey.ISRC, "JP-ABC-12-34567");
@@ -56,6 +60,10 @@ public class PortableAudioMetadataReaderTest {
         assertEquals("歌曲标题", metadata.title);
         assertEquals("歌曲作者", metadata.artist);
         assertEquals("歌曲专辑", metadata.album);
+        assertEquals("专辑艺术家", metadata.albumArtist);
+        assertEquals("作曲者", metadata.composer);
+        assertEquals("single", metadata.releaseType);
+        assertEquals(2023, metadata.year);
         assertEquals("123e4567-e89b-12d3-a456-426614174000", metadata.identityTags.recordingMusicBrainzId);
         assertEquals("123e4567-e89b-12d3-a456-426614174001", metadata.identityTags.workMusicBrainzId);
         assertEquals("JPABC1234567", metadata.identityTags.isrc);

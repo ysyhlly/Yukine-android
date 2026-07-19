@@ -51,7 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.yukine.TrackDownloadItem
 import app.yukine.core.designsystem.R
 
 data class LibraryGroupUiState @JvmOverloads constructor(
@@ -82,7 +81,6 @@ data class LibraryPlaylistFolderUiState(
     val entries: List<LibraryPlaylistFolderEntryUiState>
 )
 
-@Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryGroupsScreen(
@@ -91,13 +89,8 @@ fun LibraryGroupsScreen(
     actions: List<LibraryGroupActions>,
     emptyText: String,
     modeActions: List<TrackListModeAction>,
-    onSearch: Runnable = Runnable { },
-    activeDownload: TrackDownloadItem? = null,
-    playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
     libraryUi: LibraryUiState = LibraryUiState(),
     libraryActionHandler: LibraryActionHandler = LibraryActionHandler { },
-    libraryControlsEnabled: Boolean = false,
     playlistFolders: List<LibraryPlaylistFolderUiState> = emptyList(),
     onNavigateUp: Runnable? = null,
     compactCards: Boolean = true
@@ -148,6 +141,24 @@ fun LibraryGroupsScreen(
             horizontalArrangement = Arrangement.spacedBy(density.gridHorizontalSpacing),
             verticalArrangement = Arrangement.spacedBy(density.gridVerticalSpacing)
         ) {
+            item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    LibraryGroupsHeader(
+                        title = title,
+                        resultCount = resultCount,
+                        state = libraryUi,
+                        onNavigateUp = onNavigateUp ?: Runnable { },
+                        actionHandler = libraryActionHandler
+                    )
+                }
+            }
+            if (modeActions.isNotEmpty()) {
+                item(key = "modes", span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        LibraryModeSelectorRow(modeActions)
+                    }
+                }
+            }
             if (selectable && libraryUi.selectionActive) {
                 item(key = "selection", span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -155,17 +166,6 @@ fun LibraryGroupsScreen(
                     }
                 }
             } else {
-                item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-                    Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        LibraryGroupsHeader(
-                            title = title,
-                            resultCount = resultCount,
-                            state = libraryUi,
-                            onNavigateUp = onNavigateUp ?: Runnable { },
-                            actionHandler = libraryActionHandler
-                        )
-                    }
-                }
                 item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                         LibraryGroupSearchField(libraryUi, libraryActionHandler)
@@ -543,13 +543,21 @@ private fun AlbumGroupCard(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(8.dp)
-                            .size(38.dp)
+                            .size(48.dp)
                             .semantics { contentDescription = playDescription },
                         shape = CircleShape,
-                        color = p.accent
+                        color = Color.Transparent
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            EchoIcon(EchoIconKind.Play, Modifier.size(18.dp), p.onAccent)
+                            Surface(
+                                modifier = Modifier.size(38.dp),
+                                shape = CircleShape,
+                                color = p.accent
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    EchoIcon(EchoIconKind.Play, Modifier.size(18.dp), p.onAccent)
+                                }
+                            }
                         }
                     }
                 }
@@ -893,7 +901,7 @@ private fun LibraryGroupEmptyState(
             state.filter != LibraryFilter.All -> GroupControlChip(state.labels.resetFilter) {
                 actionHandler.onAction(LibraryAction.FilterChanged(LibraryFilter.All))
             }
-            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.mode != LibraryMode.Playlists -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GroupControlChip(state.labels.scanLibrary) {
                     actionHandler.onAction(LibraryAction.ScanLibrary)
                 }
@@ -993,14 +1001,22 @@ private fun GroupIconButton(
         onClick = onClick,
         interactionSource = interaction,
         modifier = Modifier
-            .size(40.dp)
+            .size(48.dp)
             .echoPressScale(interaction)
             .semantics { contentDescription = description },
         shape = EchoShapes.small,
         color = Color.Transparent
     ) {
         Box(contentAlignment = Alignment.Center) {
-            EchoIcon(icon, Modifier.size(19.dp), p.accent)
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = EchoShapes.small,
+                color = Color.Transparent
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    EchoIcon(icon, Modifier.size(19.dp), p.accent)
+                }
+            }
         }
     }
 }

@@ -243,6 +243,114 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun trackDeltaImmediatelyClustersMatchingPhysicalSources() {
+        val local = track(305L, "Delta duplicate", "/music/delta-duplicate.flac")
+        val webDav = track(306L, "Delta duplicate", "webdav:7:/delta-duplicate.flac")
+
+        repository.applyTrackDelta(emptyList(), listOf(local, webDav))
+
+        val localRecording = repository.loadRecordingId(local.id)
+        assertTrue(localRecording > 0L)
+        assertEquals(localRecording, repository.loadRecordingId(webDav.id))
+    }
+
+    @Test
+    fun duplicatePhysicalSourceRowsKeepOneDeterministicTrackOwner() {
+        val first = track(307L, "Shared source", "/music/shared-source.flac")
+        val duplicate = track(308L, "Shared source", first.dataPath)
+
+        repository.upsertTracks(listOf(first, duplicate))
+
+        assertEquals(listOf(first.id), repository.loadTracks().map { it.id })
+        assertEquals(
+            first.id,
+            database.musicIdentityDao().source("local", first.dataPath)?.localTrackId
+        )
+    }
+
+    @Test
+    fun hardIdentifierConflictAtSamePathCreatesANewRecording() {
+        val path = "/music/replaced-in-place.flac"
+        val originalMbid = "123e4567-e89b-12d3-a456-426614174030"
+        val replacementMbid = "123e4567-e89b-12d3-a456-426614174031"
+        val original = withIdentity(
+            track(309L, "Original song", path, artist = "Original artist"),
+            TrackIdentityTags(originalMbid, "", "", "", emptyList())
+        )
+        repository.upsertTracks(listOf(original))
+        val originalRecording = repository.loadRecordingId(original.id)
+        repository.setFavorite(original.id, true)
+        val replacement = withIdentity(
+            track(original.id, "Replacement song", path, artist = "Replacement artist"),
+            TrackIdentityTags(replacementMbid, "", "", "", emptyList())
+        )
+
+        repository.upsertTracks(listOf(replacement))
+
+        val replacementRecording = repository.loadRecordingId(replacement.id)
+        assertTrue(replacementRecording > 0L)
+        assertTrue(originalRecording != replacementRecording)
+        assertFalse(repository.isFavorite(replacement.id))
+        assertEquals(
+            replacementMbid,
+            database.musicIdentityDao().recording(replacementRecording)?.musicBrainzRecordingId
+        )
+    }
+
+    @Test
+    fun changedContentSignatureAtSameSourceCreatesANewRecording() {
+        val trackId = 310L
+        val signatures = mutableMapOf(trackId to "generation-one")
+        val signatureRepository = LibraryRepository(database) { track ->
+            signatures[track.id].orEmpty()
+        }
+        val original = track(trackId, "Stable metadata", "/music/revisioned.flac")
+        signatureRepository.upsertTracks(listOf(original))
+        val originalRecording = signatureRepository.loadRecordingId(trackId)
+        signatureRepository.setFavorite(trackId, true)
+
+        signatures[trackId] = "generation-two"
+        signatureRepository.upsertTracks(listOf(original))
+
+        val replacementRecording = signatureRepository.loadRecordingId(trackId)
+        assertTrue(replacementRecording > 0L)
+        assertTrue(originalRecording != replacementRecording)
+        assertFalse(signatureRepository.isFavorite(trackId))
+        assertEquals(
+            "generation-two",
+            database.musicIdentityDao().sourceForLocalTrack(trackId)?.contentSignature
+        )
+    }
+
+    @Test
+    fun unchangedContentSignatureKeepsRecordingAcrossMetadataCorrections() {
+        val trackId = 311L
+        val signatureRepository = LibraryRepository(database) { "stable-generation" }
+        val original = track(
+            trackId,
+            "Temporary title",
+            "/music/metadata-correction.flac",
+            artist = "Temporary artist"
+        )
+        signatureRepository.upsertTracks(listOf(original))
+        val recordingId = signatureRepository.loadRecordingId(trackId)
+        val corrected = track(
+            trackId,
+            "Correct title",
+            original.dataPath,
+            artist = "Correct artist"
+        )
+
+        signatureRepository.upsertTracks(listOf(corrected))
+
+        assertEquals(recordingId, signatureRepository.loadRecordingId(trackId))
+        assertEquals(
+            "stable-generation",
+            database.musicIdentityDao().sourceForLocalTrack(trackId)?.contentSignature
+        )
+    }
+
+    @Test
     fun luoxueStructuredStreamingMatchNeverEntersCanonicalIdentityTables() {
         val selected = track(401L, "Catalog song", "webdav:1:catalog.flac")
         repository.upsertTracks(listOf(selected))

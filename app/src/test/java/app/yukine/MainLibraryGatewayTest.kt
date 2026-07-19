@@ -15,7 +15,23 @@ class MainLibraryGatewayTest {
 
         assertEquals(
             listOf(
-                "favorite:7:true",
+                "favorites:7:true",
+                "loadCollections"
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun favoriteBatchRefreshesCollectionsOnlyOnce() {
+        val events = mutableListOf<String>()
+        val gateway = gateway(events)
+
+        gateway.applyFavorites(linkedSetOf(1L, 2L, 3L), true)
+
+        assertEquals(
+            listOf(
+                "favorites:1,2,3:true",
                 "loadCollections"
             ),
             events
@@ -82,7 +98,9 @@ class MainLibraryGatewayTest {
             trackListPlayer = { tracks, index -> events += "play:${tracks[index].id}:$index" },
             languageModeProvider = { "zh" },
             statusSink = { status -> events += "status:$status" },
-            favoriteApplier = { trackId, favorite -> events += "favorite:$trackId:$favorite" },
+            favoriteApplier = { trackIds, favorite ->
+                events += "favorites:${trackIds.sorted().joinToString(",")}:$favorite"
+            },
             collectionsLoader = { events += "loadCollections" },
             playlistAdder = { track -> events += "playlistAdd:${track.id}" },
             routeActions = FakeRouteActions(events),
