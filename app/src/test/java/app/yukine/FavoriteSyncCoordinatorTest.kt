@@ -308,16 +308,17 @@ class FavoriteSyncCoordinatorTest {
 
     @Test
     fun providerFailurePreservesFavoritesAndUnsupportedTargetIsSkipped() = runTest {
+        val unsupportedProvider = StreamingProviderName.BILIBILI
         val fixture = fixture(
-            capabilities = listOf(source(NETEASE), target(QQ), target(KUGOU)),
+            capabilities = listOf(source(NETEASE), target(QQ), target(unsupportedProvider)),
             remote = mutableMapOf(NETEASE to mutableListOf(remoteTrack(NETEASE, "netease-1"))),
             search = mutableMapOf(
                 QQ to listOf(remoteTrack(QQ, "qq-1")),
-                KUGOU to listOf(remoteTrack(KUGOU, "kugou-1"))
+                unsupportedProvider to listOf(remoteTrack(unsupportedProvider, "unsupported-1"))
             ),
             confirmedProviderMatches = mapOf(
                 QQ to "qq-1",
-                KUGOU to "kugou-1"
+                unsupportedProvider to "unsupported-1"
             ),
             failingAdds = setOf(QQ)
         )
@@ -326,7 +327,7 @@ class FavoriteSyncCoordinatorTest {
         fixture.coordinator.syncIncremental()
 
         assertEquals(FavoriteSyncStatus.RETRYABLE_ERROR, fixture.mapping(QQ)?.status)
-        assertNull(fixture.mapping(KUGOU))
+        assertNull(fixture.mapping(unsupportedProvider))
         assertTrue(fixture.library.isFavorite(99L))
         assertTrue(fixture.library.isFavorite(1L))
         assertNotNull(fixture.repository.state.value.favorites.singleOrNull { it.localTrackId == 1L })

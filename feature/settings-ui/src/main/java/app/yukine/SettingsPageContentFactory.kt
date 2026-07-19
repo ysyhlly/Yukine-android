@@ -133,7 +133,15 @@ internal object SettingsPageContentFactory {
                     onNavigate = ::navigateSettingsPage,
                     onOpenNetworkPage = { page -> network.openPage(page) },
                     onManageLuoxueSources = { network.openLuoxueSourceManager() },
-                    onImportLuoxueSource = { network.importLuoxueSource() }
+                    onImportLuoxueSource = { network.importLuoxueSource() },
+                    kugouExperimentalSyncEnabled = runtime.kugouExperimentalSyncEnabled,
+                    kugouAccountConnected = runtime.kugouAccountConnected,
+                    kugouAccountDisplayName = runtime.kugouAccountDisplayName,
+                    kugouSyncLastResult = runtime.kugouSyncLastResult,
+                    kugouSyncDegradationReason = runtime.kugouSyncDegradationReason,
+                    onKugouExperimentalSyncEnabledChange = { enabled ->
+                        network.setKugouExperimentalSyncEnabled(enabled)
+                    }
                 )
             SettingsPage.AboutGroup ->
                 SettingsPageStateBuilder.aboutGroup(

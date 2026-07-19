@@ -29,7 +29,12 @@ object StreamingProviderCatalog {
                 StreamingProviderName.KUGOU,
                 "酷狗音乐",
                 authKind = StreamingAuthKind.ISOLATED_WEB_VIEW_COOKIE,
-                localFirst = localFirst
+                localFirst = localFirst,
+                statusMessage = if (localFirst) {
+                    "无需登录即可搜索、播放和导入；账号写入等待实验契约验证"
+                } else {
+                    ""
+                }
             ),
             descriptor(
                 StreamingProviderName.BILIBILI,
@@ -121,8 +126,8 @@ object StreamingProviderCatalog {
             supportsAudioDownload = !localPending && name != StreamingProviderName.QQ_MUSIC,
             supportsAudioCache = !localPending && name != StreamingProviderName.QQ_MUSIC
         )
-        val capabilities = if (name == StreamingProviderName.BILIBILI && !localPending) {
-            baseCapabilities.copy(
+        val capabilities = when {
+            name == StreamingProviderName.BILIBILI && !localPending -> baseCapabilities.copy(
                 supportsSearch = false,
                 supportsLyrics = false,
                 supportsMv = false,
@@ -139,8 +144,17 @@ object StreamingProviderCatalog {
                 supportsAudioDownload = false,
                 supportsAudioCache = false
             )
-        } else {
-            baseCapabilities
+            name == StreamingProviderName.KUGOU && !localPending -> baseCapabilities.copy(
+                supportsFavorites = false,
+                supportsPlaylistCreate = false,
+                supportsPlaylistWrite = false,
+                supportsPlaylistDelete = false,
+                supportsPlaylistRename = false,
+                supportsPlaylistReorder = false,
+                supportsFavoritesRead = false,
+                supportsFavoritesWrite = false
+            )
+            else -> baseCapabilities
         }
         return StreamingProviderDescriptor(
             name = name,
@@ -162,6 +176,7 @@ object StreamingProviderCatalog {
     private fun localCapableProvider(name: StreamingProviderName): Boolean {
         return name == StreamingProviderName.NETEASE ||
             name == StreamingProviderName.QQ_MUSIC ||
+            name == StreamingProviderName.KUGOU ||
             name == StreamingProviderName.BILIBILI ||
             name == StreamingProviderName.LUOXUE
     }

@@ -26,6 +26,8 @@ import app.yukine.data.room.RecordingIdentifierEntity;
 import app.yukine.data.room.TrackEntity;
 import app.yukine.data.room.TrackSourceIdentity;
 import app.yukine.data.room.TrackSourceMappingEntity;
+import app.yukine.data.room.WorkArtistCreditEntity;
+import app.yukine.data.room.WorkIdentifierEntity;
 import app.yukine.data.room.YukineDatabase;
 import app.yukine.identity.CanonicalRecording;
 import app.yukine.identity.RecordingVariantRecognizer;
@@ -192,6 +194,7 @@ final class OfflineMusicIdentityStore {
         ensureArtistCredits(recordingId, track.getArtist(), now);
         dao.refreshWorkPrimaryCreator(recordingId, now);
         canonicalizeWork(recordingId, track.getTitle(), now);
+        ensureWorkComposerCredits(recordingId, track.getComposer(), now);
         Long albumId = ensureAlbum(recordingId, identity, track, now);
         dao.upsert(sourceEntity(
                 persistedSource,
@@ -348,16 +351,100 @@ final class OfflineMusicIdentityStore {
         );
         recordingId = attachRecordingIdentifier(recordingId, "ISRC", tags.isrc, now);
         recordingId = attachRecordingIdentifier(recordingId, "ACOUSTID", tags.acoustId, now);
-        recordingId = attachRecordingIdentifier(
-                recordingId,
-                "MUSICBRAINZ_WORK_ID",
-                tags.workMusicBrainzId,
-                now
-        );
+        attachWorkIdentifier(recordingId, "MUSICBRAINZ_WORK_ID", "", tags.workMusicBrainzId, now);
         attachArtistIdentifiers(recordingId, tags.artistMusicBrainzIds, now);
         dao.deleteOrphanArtists();
         dao.deleteDanglingCandidates();
         dao.deleteDanglingJobs();
+    }
+
+    private void attachWorkIdentifier(
+            long recordingId,
+            String type,
+            String namespace,
+            String value,
+            long now
+    ) {
+        String cleanValue = clean(value);
+        CanonicalRecordingEntity recording = dao.recording(recordingId);
+        if (cleanValue.isEmpty() || recording == null || recording.getWorkId() == null) {
+            return;
+        }
+        long currentWorkId = recording.getWorkId();
+        WorkIdentifierEntity existing = dao.workIdentifier(type, namespace, cleanValue);
+        if (existing != null && existing.getWorkId() != currentWorkId) {
+            mergeWorks(currentWorkId, existing.getWorkId(), now);
+            currentWorkId = existing.getWorkId();
+        } else {
+            for (WorkIdentifierEntity identifier : dao.workIdentifiers(currentWorkId)) {
+                if (type.equals(identifier.getIdentifierType())
+                        && namespace.equals(identifier.getNamespace())
+                        && !cleanValue.equalsIgnoreCase(identifier.getIdentifierValue())
+                        && identifier.getConfidence() >= 0.85d) {
+                    saveTagConflict(
+                            "WORK",
+                            currentWorkId,
+                            type,
+                            cleanValue,
+                            "IDENTIFIER_VALUE_CONFLICT",
+                            now
+                    );
+                    return;
+                }
+            }
+            dao.upsert(new WorkIdentifierEntity(
+                    currentWorkId,
+                    type,
+                    namespace,
+                    cleanValue,
+                    "EMBEDDED_TAG",
+                    1.0d,
+                    now
+            ));
+        }
+        CanonicalRecordingEntity updated = dao.recording(recordingId);
+        if (updated != null) {
+            dao.update(recordingWithWorkIdentifierCache(updated, cleanValue, now));
+        }
+        dao.deleteOrphanWorks();
+    }
+
+    private void mergeWorks(long sourceWorkId, long targetWorkId, long now) {
+        if (sourceWorkId == targetWorkId) {
+            return;
+        }
+        for (WorkArtistCreditEntity credit : dao.workCredits(sourceWorkId)) {
+            dao.upsert(new WorkArtistCreditEntity(
+                    targetWorkId,
+                    credit.getArtistId(),
+                    credit.getRole(),
+                    credit.getPosition(),
+                    credit.getCreditedName(),
+                    credit.getSource(),
+                    credit.getConfidence(),
+                    credit.getVerifiedAt()
+            ));
+        }
+        for (WorkIdentifierEntity identifier : dao.workIdentifiers(sourceWorkId)) {
+            WorkIdentifierEntity owner = dao.workIdentifier(
+                    identifier.getIdentifierType(),
+                    identifier.getNamespace(),
+                    identifier.getIdentifierValue()
+            );
+            if (owner == null || owner.getWorkId() == sourceWorkId) {
+                dao.upsert(new WorkIdentifierEntity(
+                        targetWorkId,
+                        identifier.getIdentifierType(),
+                        identifier.getNamespace(),
+                        identifier.getIdentifierValue(),
+                        identifier.getSource(),
+                        identifier.getConfidence(),
+                        identifier.getVerifiedAt()
+                ));
+            }
+        }
+        dao.moveRecordingsToWork(sourceWorkId, targetWorkId, now);
+        dao.deleteOrphanWorks();
     }
 
     private long attachRecordingIdentifier(
@@ -457,6 +544,31 @@ final class OfflineMusicIdentityStore {
                 recording.getDurationMs(),
                 "ISRC".equals(type) ? value : recording.getIsrc(),
                 "ACOUSTID".equals(type) ? value : recording.getAcoustId(),
+                recording.getMatchStatus(),
+                recording.getConfidence(),
+                recording.getMetadataSource(),
+                recording.getCreatedAt(),
+                Math.max(now, recording.getUpdatedAt())
+        );
+    }
+
+    private static CanonicalRecordingEntity recordingWithWorkIdentifierCache(
+            CanonicalRecordingEntity recording,
+            String workMbid,
+            long now
+    ) {
+        return new CanonicalRecordingEntity(
+                recording.getId(),
+                recording.getCanonicalUuid(),
+                recording.getWorkId(),
+                recording.getActiveSourceId(),
+                recording.getMusicBrainzRecordingId(),
+                workMbid,
+                recording.getTitle(),
+                recording.getPrimaryArtistDisplay(),
+                recording.getDurationMs(),
+                recording.getIsrc(),
+                recording.getAcoustId(),
                 recording.getMatchStatus(),
                 recording.getConfidence(),
                 recording.getMetadataSource(),
@@ -839,6 +951,66 @@ final class OfflineMusicIdentityStore {
                     parsed.name,
                     parsed.joinPhrase,
                     0.0d
+            ));
+            enqueueJob("ARTIST", artistId, now);
+        }
+    }
+
+    private void ensureWorkComposerCredits(long recordingId, String rawComposer, long now) {
+        String composer = clean(rawComposer);
+        CanonicalRecordingEntity recording = dao.recording(recordingId);
+        if (composer.isEmpty() || recording == null || recording.getWorkId() == null) {
+            return;
+        }
+        List<WorkArtistCreditEntity> existingCredits = dao.workCredits(recording.getWorkId());
+        int position = existingCredits.stream()
+                .filter(credit -> "COMPOSER".equals(credit.getRole()))
+                .mapToInt(WorkArtistCreditEntity::getPosition)
+                .max()
+                .orElse(-1) + 1;
+        for (ArtistCreditParser.Credit parsed : ArtistCreditParser.parse(composer)) {
+            List<String> normalizedAliases = ArtistCreditParser.normalizedAliases(parsed.name);
+            Set<CanonicalArtistEntity> uniqueMatches = new HashSet<>();
+            for (String alias : normalizedAliases) {
+                uniqueMatches.addAll(dao.artistsForNormalizedAlias(alias));
+            }
+            long artistId;
+            if (uniqueMatches.size() == 1 && uniqueMatches.iterator().next().getId() != null) {
+                artistId = uniqueMatches.iterator().next().getId();
+            } else {
+                String primaryAlias = normalizedAliases.isEmpty()
+                        ? ArtistCreditParser.normalizeAlias(parsed.name)
+                        : normalizedAliases.get(0);
+                artistId = insertArtist(parsed.name, primaryAlias, now);
+            }
+            final long resolvedArtistId = artistId;
+            if (existingCredits.stream().anyMatch(credit ->
+                    "COMPOSER".equals(credit.getRole())
+                            && credit.getArtistId() == resolvedArtistId)) {
+                continue;
+            }
+            for (String normalizedAlias : normalizedAliases) {
+                dao.upsert(new ArtistAliasEntity(
+                        artistId,
+                        parsed.name,
+                        normalizedAlias,
+                        "",
+                        "",
+                        "ALIAS",
+                        METADATA_SOURCE,
+                        0.7d,
+                        0L
+                ));
+            }
+            dao.upsert(new WorkArtistCreditEntity(
+                    recording.getWorkId(),
+                    artistId,
+                    "COMPOSER",
+                    position++,
+                    parsed.name,
+                    "EMBEDDED_TAG",
+                    0.7d,
+                    0L
             ));
             enqueueJob("ARTIST", artistId, now);
         }

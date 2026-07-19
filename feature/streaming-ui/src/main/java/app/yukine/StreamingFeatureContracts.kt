@@ -18,6 +18,7 @@ import app.yukine.streaming.StreamingProviderHealth
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingSearchResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
+import app.yukine.streaming.StreamingPlaylistSyncSnapshot
 import app.yukine.streaming.StreamingTrack
 import kotlinx.coroutines.Job
 
@@ -240,6 +241,14 @@ interface StreamingLocalPlaylistOperations {
     fun localPlaylistSnapshot(localPlaylistId: Long): StreamingLocalPlaylistSnapshot? = null
 
     fun markPlaylistSynced(localPlaylistId: Long) = Unit
+
+    fun updatePlaylistSyncBaseline(
+        localPlaylistId: Long,
+        snapshot: StreamingPlaylistSyncSnapshot,
+        localUpdatedAtMs: Long?,
+        remoteUpdatedAtMs: Long?,
+        remoteObservedChangeAtMs: Long?
+    ) = Unit
 }
 
 data class StreamingLocalPlaylistSnapshot(

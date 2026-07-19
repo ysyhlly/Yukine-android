@@ -419,6 +419,17 @@ class SettingsViewModelTest {
                     is SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled -> "systemMediaTitle:${effect.enabled}"
                     is SettingsRuntimeEffect.ApplyFloatingLyrics -> "floatingLyrics:${effect.enabled}"
                     SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings -> "floatingPermission"
+                    is SettingsRuntimeEffect.UpdateFloatingLyricsTextSize ->
+                        "floatingTextSize:${effect.textSizeSp}"
+                    is SettingsRuntimeEffect.UpdateFloatingLyricsWidth ->
+                        "floatingWidth:${effect.widthPercent}"
+                    is SettingsRuntimeEffect.UpdateFloatingLyricsBackgroundOpacity ->
+                        "floatingOpacity:${effect.opacityPercent}"
+                    is SettingsRuntimeEffect.UpdateFloatingLyricsTransparentBackground ->
+                        "floatingTransparent:${effect.enabled}"
+                    SettingsRuntimeEffect.ShowFloatingLyrics -> "floatingShow"
+                    SettingsRuntimeEffect.UnlockFloatingLyrics -> "floatingUnlock"
+                    SettingsRuntimeEffect.ResetFloatingLyricsLayout -> "floatingReset"
                     is SettingsRuntimeEffect.SetPlaybackRestoreEnabled -> "restore:${effect.enabled}"
                     is SettingsRuntimeEffect.SetReplayGainEnabled -> "replayGain:${effect.enabled}"
                 }

@@ -1,11 +1,29 @@
 package app.yukine.identity
 
+import app.yukine.streaming.IdentityScoringMode
+import app.yukine.streaming.RecordingMatchEvaluatorV2
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IdentityCandidateRankingTest {
+    @Test
+    fun recordingRankerUsesSharedV5ShadowPolicyByDefault() {
+        val target = recording("local", "1", artistIds = setOf(7L))
+        val candidate = recording("webdav", "2", artistIds = setOf(7L))
+
+        val shadow = RecordingCandidateRanker().rank(target, listOf(candidate)).single()
+        val on = RecordingCandidateRanker(scoringMode = IdentityScoringMode.V5_ON)
+            .rank(target, listOf(candidate))
+            .single()
+
+        assertEquals(RecordingMatchEvaluatorV2.SCORE_VERSION, shadow.scoreVersion)
+        assertTrue(shadow.shadowScore != null)
+        assertEquals(RecordingMatchEvaluatorV2.V5_SCORE_VERSION, on.scoreVersion)
+        assertTrue(on.shadowScore != null)
+    }
+
     @Test
     fun recognizesRecordingVariantsWithoutChangingDisplayText() {
         assertEquals(RecordingVariantType.ORIGINAL, RecordingVariantRecognizer.recognize("星空"))

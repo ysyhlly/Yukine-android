@@ -16,6 +16,10 @@ internal class SettingsContextProvider(
 ) : SettingsContextLoader {
     private val identityBackfillStore = IdentityBackfillCheckpointStore(context)
     private val floatingLyricsSettingsStore = FloatingLyricsOverlaySettingsStore(context)
+    private val kugouExperimentalSyncStore =
+        app.yukine.streaming.KugouExperimentalSyncStore(context)
+    private val localStreamingAuthStore =
+        app.yukine.streaming.LocalStreamingAuthStore(context)
     override fun load(): SettingsContextSnapshot = SettingsContextSnapshot(
         preferences = preferencesSnapshot(),
         runtime = runtimeStatus()
@@ -28,6 +32,10 @@ internal class SettingsContextProvider(
         val luoxueSources = luoxueSourceStore.load()
         val identityBackfill = identityBackfillStore.load().progress
         val floatingLyricsSettings = floatingLyricsSettingsStore.load()
+        val kugouAuth = localStreamingAuthStore.authState(
+            app.yukine.streaming.StreamingProviderName.KUGOU
+        )
+        val kugouSync = kugouExperimentalSyncStore.status(kugouAuth.connected)
         return RuntimeSettingsStatus(
             appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
@@ -51,6 +59,11 @@ internal class SettingsContextProvider(
             streamingGatewayConfigured = streamingGatewaySettingsStore.configured(),
             luoxueImportedSourceCount = luoxueSources.size,
             luoxueEnabledSourceCount = luoxueSources.count { it.enabled && it.script.isNotBlank() },
+            kugouExperimentalSyncEnabled = kugouSync.userEnabled,
+            kugouAccountConnected = kugouAuth.connected,
+            kugouAccountDisplayName = kugouAuth.accountDisplayName.orEmpty(),
+            kugouSyncLastResult = kugouSync.lastResult.orEmpty(),
+            kugouSyncDegradationReason = kugouSync.degradationReason.orEmpty(),
             identityBackfill = IdentityBackfillStatusUi(
                 total = identityBackfill.total,
                 processed = identityBackfill.processed,

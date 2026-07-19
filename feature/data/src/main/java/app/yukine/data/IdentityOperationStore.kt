@@ -17,6 +17,8 @@ import app.yukine.data.room.RecordingPlayHistoryEntity
 import app.yukine.data.room.RecordingRelationEntity
 import app.yukine.data.room.RecordingVariantEntity
 import app.yukine.data.room.TrackSourceMappingEntity
+import app.yukine.data.room.WorkArtistCreditEntity
+import app.yukine.data.room.WorkIdentifierEntity
 import app.yukine.data.room.YukineDatabase
 import java.util.concurrent.Callable
 import org.json.JSONArray
@@ -57,6 +59,10 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
             .distinct()
             .mapNotNull(dao::work)
             .sortedBy { it.id }
+        val workCredits = works.mapNotNull { it.id }.flatMap(dao::workCredits)
+            .sortedWith(compareBy({ it.workId }, { it.position }, { it.role }, { it.artistId }))
+        val workIdentifiers = works.mapNotNull { it.id }.flatMap(dao::workIdentifiers)
+            .sortedWith(compareBy({ it.workId }, { it.identifierType }, { it.namespace }, { it.identifierValue }))
         val sources = ids.flatMap(dao::sources).map(SourceState::from).sortedBy { it.sourceId }
         val identifiers = ids.flatMap(dao::identifiers)
             .sortedWith(compareBy({ it.identifierType }, { it.namespace }, { it.identifierValue }))
@@ -91,6 +97,8 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
         return IdentityStateSnapshot(
             recordingIds = ids,
             works = works,
+            workCredits = workCredits,
+            workIdentifiers = workIdentifiers,
             recordings = recordings,
             sources = sources,
             identifiers = identifiers,
@@ -203,6 +211,14 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
             dao.invalidateSourceCandidateGeneration(affectedSourceIds)
         }
         before.works.forEach(dao::upsert)
+        val affectedWorkIds = (
+            before.works.mapNotNull { it.id } +
+                affectedIds.mapNotNull(dao::recording).mapNotNull { it.workId }
+            ).distinct()
+        affectedWorkIds.forEach { workId ->
+            dao.deleteWorkCredits(workId)
+            dao.deleteWorkIdentifiers(workId)
+        }
         val beforeIds = before.recordings.mapNotNullTo(linkedSetOf()) { it.id }
         before.recordings.filter { dao.recording(requireNotNull(it.id)) == null }.forEach { recording ->
             check(dao.insert(recording) == recording.id) { "Unable to restore recording ${recording.id}" }
@@ -237,6 +253,8 @@ internal class IdentityOperationStore(private val database: YukineDatabase) {
 
         before.identifiers.forEach(dao::upsert)
         before.credits.forEach(dao::upsert)
+        before.workCredits.forEach(dao::upsert)
+        before.workIdentifiers.forEach(dao::upsert)
         before.variants.forEach(dao::upsert)
         if (before.relations.isNotEmpty()) dao.upsertRecordingRelations(before.relations)
         before.lyrics.forEach(dao::upsert)
@@ -374,6 +392,8 @@ private val SENSITIVE_SNAPSHOT_KEYS = setOf(
 internal data class IdentityStateSnapshot(
     val recordingIds: List<Long>,
     val works: List<CanonicalWorkEntity>,
+    val workCredits: List<WorkArtistCreditEntity>,
+    val workIdentifiers: List<WorkIdentifierEntity>,
     val recordings: List<CanonicalRecordingEntity>,
     val sources: List<SourceState>,
     val identifiers: List<RecordingIdentifierEntity>,
@@ -396,6 +416,8 @@ private object IdentityStateSnapshotCodec {
         .put("version", 1)
         .put("recordingIds", array(value.recordingIds) { JSONObject().put("id", it) })
         .put("works", array(value.works, ::workJson))
+        .put("workCredits", array(value.workCredits, ::workCreditJson))
+        .put("workIdentifiers", array(value.workIdentifiers, ::workIdentifierJson))
         .put("recordings", array(value.recordings, ::recordingJson))
         .put("sources", array(value.sources, ::sourceJson))
         .put("identifiers", array(value.identifiers, ::identifierJson))
@@ -419,6 +441,8 @@ private object IdentityStateSnapshotCodec {
         return IdentityStateSnapshot(
             recordingIds = list(json, "recordingIds") { it.getLong("id") },
             works = optionalList(json, "works", ::work),
+            workCredits = optionalList(json, "workCredits", ::workCredit),
+            workIdentifiers = optionalList(json, "workIdentifiers", ::workIdentifier),
             recordings = list(json, "recordings", ::recording),
             sources = list(json, "sources", ::source),
             identifiers = list(json, "identifiers", ::identifier),
@@ -452,6 +476,26 @@ private object IdentityStateSnapshotCodec {
         j.nullableLong("creator"),
         j.getLong("created"),
         j.getLong("updated")
+    )
+
+    private fun workCreditJson(v: WorkArtistCreditEntity) = JSONObject()
+        .put("work", v.workId).put("artist", v.artistId).put("role", v.role)
+        .put("position", v.position).put("name", v.creditedName).put("source", v.source)
+        .put("confidence", v.confidence).put("verified", v.verifiedAt)
+
+    private fun workCredit(j: JSONObject) = WorkArtistCreditEntity(
+        j.getLong("work"), j.getLong("artist"), j.getString("role"), j.getInt("position"),
+        j.getString("name"), j.getString("source"), j.getDouble("confidence"), j.getLong("verified")
+    )
+
+    private fun workIdentifierJson(v: WorkIdentifierEntity) = JSONObject()
+        .put("work", v.workId).put("type", v.identifierType).put("namespace", v.namespace)
+        .put("value", v.identifierValue).put("source", v.source)
+        .put("confidence", v.confidence).put("verified", v.verifiedAt)
+
+    private fun workIdentifier(j: JSONObject) = WorkIdentifierEntity(
+        j.getLong("work"), j.getString("type"), j.getString("namespace"), j.getString("value"),
+        j.getString("source"), j.getDouble("confidence"), j.getLong("verified")
     )
 
     private fun recordingJson(v: CanonicalRecordingEntity) = JSONObject()

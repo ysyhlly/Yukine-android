@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.model.PlaylistImportResult
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingPlaylistSyncDirection
+import app.yukine.streaming.StreamingPlaylistSyncSnapshot
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingTrack
 
@@ -87,5 +88,21 @@ internal class MainStreamingLocalPlaylistOperations(
 
     override fun markPlaylistSynced(localPlaylistId: Long) {
         syncStreamingPlaylistUseCase.markSynced(localPlaylistId)
+    }
+
+    override fun updatePlaylistSyncBaseline(
+        localPlaylistId: Long,
+        snapshot: StreamingPlaylistSyncSnapshot,
+        localUpdatedAtMs: Long?,
+        remoteUpdatedAtMs: Long?,
+        remoteObservedChangeAtMs: Long?
+    ) {
+        syncStreamingPlaylistUseCase.updateBaseline(
+            localPlaylistId,
+            snapshot,
+            localUpdatedAtMs,
+            remoteUpdatedAtMs,
+            remoteObservedChangeAtMs
+        )
     }
 }

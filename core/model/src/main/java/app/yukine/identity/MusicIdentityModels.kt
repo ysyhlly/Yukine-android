@@ -66,6 +66,15 @@ data class RecordingIdentifier(
     val verifiedAt: Long = 0L
 )
 
+data class WorkIdentifier(
+    val identifierType: String,
+    val namespace: String = "",
+    val identifierValue: String,
+    val source: String = "",
+    val confidence: Double = 0.0,
+    val verifiedAt: Long = 0L
+)
+
 enum class IdentityMatchStatus {
     CONFIRMED,
     CANDIDATE,
@@ -280,6 +289,24 @@ data class ProviderArtistCandidate(
     val sortName: String = ""
 )
 
+data class WorkIdentifierEvidence(
+    val identifierType: String,
+    val namespace: String = "",
+    val identifierValue: String,
+    val source: String = "",
+    val confidence: Double = 0.0,
+    val verifiedAt: Long = 0L
+)
+
+data class WorkCreditEvidence(
+    val providerArtistId: String = "",
+    val creditedName: String,
+    val role: String,
+    val source: String = "",
+    val confidence: Double = 0.0,
+    val verifiedAt: Long = 0L
+)
+
 data class AnonymousRecordingCandidate(
     val provider: String,
     val providerItemId: String,
@@ -288,8 +315,11 @@ data class AnonymousRecordingCandidate(
     val album: String = "",
     val durationMs: Long = 0L,
     val isrc: String = "",
+    val isrcs: Set<String> = emptySet(),
     val recordingMbid: String = "",
     val workMbid: String = "",
+    val workIdentifiers: List<WorkIdentifierEvidence> = emptyList(),
+    val workCredits: List<WorkCreditEvidence> = emptyList(),
     val acoustId: String = "",
     val coverUrl: String = "",
     /** True only when the gateway returned this candidate for the uploaded Chromaprint. */

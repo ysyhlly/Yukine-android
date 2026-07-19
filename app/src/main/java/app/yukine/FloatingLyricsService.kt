@@ -13,7 +13,6 @@ import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
-import app.yukine.playback.service.PlaybackServiceActions
 import app.yukine.streaming.StreamingPlaybackAdapter
 import app.yukine.ui.LyricUiLine
 import kotlinx.coroutines.CoroutineScope
@@ -252,6 +251,7 @@ class FloatingLyricsService : Service() {
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
         @JvmStatic
+        @JvmOverloads
         fun start(context: Context, action: String? = null): Boolean {
             if (!canShow(context)) {
                 lastRuntimeStatus = FloatingLyricsRuntimeStatus.PermissionRequired
@@ -464,11 +464,11 @@ class FloatingLyricsService : Service() {
     ) {
         val view = overlayView ?: return
         view.renderPresentation(visible)
-        view.render(state, artwork = null)
+        view.bindState(state, artwork = null)
         scope.launch {
             val artwork = artworkLoader.load(state.albumArtUri, dp(96))
             if (latestState.trackId == state.trackId && presentation is FloatingLyricsPresentation.Visible) {
-                overlayView?.render(latestState, artwork)
+                overlayView?.bindState(latestState, artwork)
             }
         }
     }
@@ -485,17 +485,21 @@ class FloatingLyricsService : Service() {
                 return
             }
             FloatingLyricsOverlayAction.PlayPause -> {
-                dispatchPlaybackAction(
-                    if (latestState.playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.PLAY
-                )
+                dispatchPlaybackAction(requireNotNull(
+                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+                ))
                 return
             }
             FloatingLyricsOverlayAction.Previous -> {
-                dispatchPlaybackAction(PlaybackServiceActions.PREVIOUS)
+                dispatchPlaybackAction(requireNotNull(
+                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+                ))
                 return
             }
             FloatingLyricsOverlayAction.Next -> {
-                dispatchPlaybackAction(PlaybackServiceActions.NEXT)
+                dispatchPlaybackAction(requireNotNull(
+                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+                ))
                 return
             }
             is FloatingLyricsOverlayAction.UpdateBackgroundOpacity -> {
@@ -567,7 +571,7 @@ class FloatingLyricsService : Service() {
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_OPEN_SETTINGS, true)
-        runCatching(::startActivity)
+        runCatching { startActivity(intent) }
             .onFailure { Log.w(TAG, "Unable to open floating lyrics settings", it) }
     }
 

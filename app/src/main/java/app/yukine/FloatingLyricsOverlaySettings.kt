@@ -1,8 +1,8 @@
 package app.yukine
 
 import android.content.Context
+import android.hardware.input.InputManager
 import android.os.Build
-import android.view.InputManager
 import android.view.WindowManager
 
 internal data class FloatingLyricsOverlaySettings(

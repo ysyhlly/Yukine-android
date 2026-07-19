@@ -27,9 +27,12 @@ import app.yukine.identity.IdentityTextNormalizer
 import app.yukine.identity.RecordingCandidateRanker
 import app.yukine.identity.RecordingIdentityRepository
 import app.yukine.identity.RecordingIdentifier
+import app.yukine.identity.WorkIdentifier
 import app.yukine.identity.RecordingMatchEvidence
 import app.yukine.identity.RecordingVariantRecognizer
 import app.yukine.streaming.RecordingVersionClassifier
+import app.yukine.streaming.WorkCreditFeature
+import app.yukine.streaming.WorkCreditRole
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import org.json.JSONArray
@@ -512,8 +515,24 @@ class IdentityEnhancementEngine(
             album = album,
             durationMs = durationMs,
             isrc = isrc,
+            isrcs = isrcs,
             recordingMbid = recordingMbid,
             workMbid = workMbid,
+            workIdentifiers = workIdentifiers.mapTo(linkedSetOf()) {
+                "${it.identifierType}\u001F${it.namespace}\u001F${it.identifierValue}"
+            },
+            workCredits = workCredits.mapNotNull { credit ->
+                val role = runCatching { WorkCreditRole.valueOf(credit.role) }.getOrNull()
+                    ?: return@mapNotNull null
+                val artist = credit.providerArtistId.takeIf(String::isNotBlank)?.let {
+                    this@IdentityEnhancementEngine.artists.artistForProvider(provider, it)
+                }
+                WorkCreditFeature(
+                    canonicalId = artist?.artistKey?.toString(),
+                    canonicalName = credit.creditedName,
+                    role = role
+                )
+            },
             acoustId = acoustId,
             fingerprintVerified = fingerprintVerified,
             providerScore = providerScore,
@@ -566,8 +585,33 @@ class IdentityEnhancementEngine(
         .put("margin", margin)
         .put("reasons", JSONArray(reasons))
         .put("artistIds", JSONArray(candidate.artists.map { it.providerArtistId }))
+        .put("isrcs", JSONArray(candidate.isrcs.toList().sorted()))
         .put("recordingMbid", candidate.recordingMbid)
         .put("workMbid", candidate.workMbid)
+        .put(
+            "workIdentifiers",
+            JSONArray(candidate.workIdentifiers.map {
+                JSONObject()
+                    .put("type", it.identifierType)
+                    .put("namespace", it.namespace)
+                    .put("value", it.identifierValue)
+                    .put("source", it.source)
+                    .put("confidence", it.confidence)
+                    .put("verifiedAt", it.verifiedAt)
+            })
+        )
+        .put(
+            "workCredits",
+            JSONArray(candidate.workCredits.map {
+                JSONObject()
+                    .put("artistId", it.providerArtistId)
+                    .put("name", it.creditedName)
+                    .put("role", it.role)
+                    .put("source", it.source)
+                    .put("confidence", it.confidence)
+                    .put("verifiedAt", it.verifiedAt)
+            })
+        )
         .put("acoustId", candidate.acoustId)
         .put("coverUrl", candidate.coverUrl)
         .put("fingerprintVerified", candidate.fingerprintVerified)
@@ -578,13 +622,14 @@ class IdentityEnhancementEngine(
         candidate: AnonymousRecordingCandidate,
         verifiedAt: Long
     ) {
-        val values = listOf(
-            "MUSICBRAINZ_RECORDING_ID" to candidate.recordingMbid,
-            "MUSICBRAINZ_WORK_ID" to candidate.workMbid,
-            "ISRC" to candidate.isrc,
-            "ACOUSTID" to candidate.acoustId
-        )
-        values.filter { it.second.isNotBlank() }.forEach { (type, value) ->
+        val recordingValues = buildList {
+            add("MUSICBRAINZ_RECORDING_ID" to candidate.recordingMbid)
+            add("ACOUSTID" to candidate.acoustId)
+            (candidate.isrcs + candidate.isrc).filter(String::isNotBlank).forEach {
+                add("ISRC" to it)
+            }
+        }
+        recordingValues.filter { it.second.isNotBlank() }.forEach { (type, value) ->
             recordings.attachIdentifier(
                 recording.recordingId,
                 RecordingIdentifier(
@@ -597,6 +642,37 @@ class IdentityEnhancementEngine(
                         candidate.providerScore.coerceIn(0.0, 1.0)
                     } else 1.0,
                     verifiedAt = verifiedAt
+                )
+            )
+        }
+        val workValues = buildList {
+            addAll(candidate.workIdentifiers)
+            if (candidate.workMbid.isNotBlank() && none {
+                    it.identifierType == "MUSICBRAINZ_WORK_ID" &&
+                        it.identifierValue.equals(candidate.workMbid, ignoreCase = true)
+                }
+            ) {
+                add(
+                    app.yukine.identity.WorkIdentifierEvidence(
+                        identifierType = "MUSICBRAINZ_WORK_ID",
+                        identifierValue = candidate.workMbid,
+                        source = candidate.provider,
+                        confidence = candidate.providerScore.coerceIn(0.0, 1.0),
+                        verifiedAt = verifiedAt
+                    )
+                )
+            }
+        }
+        workValues.forEach { value ->
+            recordings.attachWorkIdentifier(
+                recording.recordingId,
+                WorkIdentifier(
+                    identifierType = value.identifierType,
+                    namespace = value.namespace,
+                    identifierValue = value.identifierValue,
+                    source = value.source.ifBlank { candidate.provider },
+                    confidence = value.confidence,
+                    verifiedAt = value.verifiedAt.takeIf { it > 0L } ?: verifiedAt
                 )
             )
         }

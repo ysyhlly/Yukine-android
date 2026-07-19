@@ -10,6 +10,7 @@ interface RecordingIdentityRepository {
     fun canonicalForProviderTrack(provider: String, providerTrackId: String): CanonicalRecording?
     fun confirmedSources(recordingId: Long): List<TrackSourceMapping>
     fun attachIdentifier(recordingId: Long, identifier: RecordingIdentifier)
+    fun attachWorkIdentifier(recordingId: Long, identifier: WorkIdentifier) = Unit
     fun mergeRecordings(sourceRecordingId: Long, targetRecordingId: Long): CanonicalRecording
     fun splitSource(sourceId: Long): CanonicalRecording
     fun pruneOrphans()

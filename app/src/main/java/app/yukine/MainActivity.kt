@@ -13,9 +13,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject
     internal lateinit var composition: MainActivityComposition
-
     private lateinit var features: MainActivityFeatureBindings
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         IdentityEnhancementPlaybackGate.setAppVisible(true)
@@ -93,10 +91,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleFloatingLyricsIntent(intent: Intent?) {
-        if (intent?.getBooleanExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS, false) != true) {
-            return
+        if (intent?.getBooleanExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS, false) == true) {
+            intent.removeExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS)
+            features.navigation.openFloatingLyricsSettings()
         }
-        intent.removeExtra(FloatingLyricsService.EXTRA_OPEN_SETTINGS)
-        features.navigation.openFloatingLyricsSettings()
     }
 }

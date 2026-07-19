@@ -13,6 +13,8 @@ import app.yukine.data.room.RecordingPlayHistoryEntity
 import app.yukine.data.room.RecordingVariantEntity
 import app.yukine.data.room.YukineDatabase
 import app.yukine.data.room.TrackSourceMappingEntity
+import app.yukine.data.room.WorkArtistCreditEntity
+import app.yukine.data.room.WorkIdentifierEntity
 import app.yukine.identity.IdentityCandidate
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityTargetType
@@ -426,6 +428,30 @@ class RecordingMatchRepositoryTest {
                 musicBrainzWorkId = "mb-work-801"
             )
         )
+        val composerId = requireNotNull(dao.primaryArtistId(source.recordingId))
+        dao.upsert(
+            WorkIdentifierEntity(
+                workId,
+                "MUSICBRAINZ_WORK_ID",
+                "",
+                "mb-work-801",
+                "TEST",
+                1.0,
+                2L
+            )
+        )
+        dao.upsert(
+            WorkArtistCreditEntity(
+                workId,
+                composerId,
+                "COMPOSER",
+                0,
+                "Artist",
+                "TEST",
+                0.9,
+                2L
+            )
+        )
 
         repository.mergeRecordings(source.recordingId, target.recordingId)
 
@@ -436,6 +462,8 @@ class RecordingMatchRepositoryTest {
         repository.undoIdentityOperation(requireNotNull(operation.id))
         assertEquals(workId, dao.recording(source.recordingId)?.workId)
         assertEquals("work-uuid-801", dao.work(workId)?.canonicalUuid)
+        assertEquals("mb-work-801", dao.workIdentifiers(workId).single().identifierValue)
+        assertEquals("COMPOSER", dao.workCredits(workId).single().role)
     }
 
     @Test

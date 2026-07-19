@@ -47,17 +47,21 @@ object StreamingTrackMatchPolicy {
         val album: String? = null,
         val durationMs: Long? = null,
         val isrc: String? = null,
+        val isrcs: Set<String> = emptySet(),
         val provider: String = "",
         val providerTrackId: String = "",
         val providerTrackIdConfirmed: Boolean = false,
         val recordingMbid: String = "",
         val workMbid: String = "",
+        val workIdentifiers: Set<String> = emptySet(),
+        val workCredits: List<WorkCreditFeature> = emptyList(),
         val canonicalWorkId: String = "",
         val canonicalWorkConfirmed: Boolean = false,
         val canonicalAlbumId: String = "",
         val canonicalAlbumConfirmed: Boolean = false,
         val fingerprint: String = "",
-        val versionType: RecordingVersionType? = null
+        val versionType: RecordingVersionType? = null,
+        val trustProfile: EvidenceTrustProfile = EvidenceTrustProfile()
     )
 
     data class CandidateMatch(

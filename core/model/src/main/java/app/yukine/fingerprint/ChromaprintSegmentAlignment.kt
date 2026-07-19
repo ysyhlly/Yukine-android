@@ -189,7 +189,7 @@ object AudioMatchRefiner {
                 sameRecordingProbability = maxOf(metadata.sameRecordingProbability, partial),
                 recordingConfidenceCeiling = maxOf(metadata.recordingConfidenceCeiling, partial),
                 explanation = metadata.explanation + alignment.explanation("partial"),
-                scoreVersion = SCORE_VERSION
+                scoreVersion = maxOf(metadata.scoreVersion, SCORE_VERSION)
             )
         }
         val refinedProbability = if (alignment.exactPcm) 1.0 else {
@@ -220,7 +220,7 @@ object AudioMatchRefiner {
             explanation = metadata.explanation + alignment.explanation(
                 if (alignment.exactPcm) "exact_pcm" else "strong"
             ),
-            scoreVersion = SCORE_VERSION
+            scoreVersion = maxOf(metadata.scoreVersion, SCORE_VERSION)
         )
     }
 

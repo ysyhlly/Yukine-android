@@ -200,16 +200,18 @@ internal class FloatingLyricsWindowController(
 
     private fun displayBounds(): Rect {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val metrics = windowManager?.currentWindowMetrics ?: return legacyBounds()
-            val bounds = Rect(metrics.bounds)
-            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
-                WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
-            )
-            bounds.left += insets.left
-            bounds.top += insets.top
-            bounds.right -= insets.right
-            bounds.bottom -= insets.bottom
-            return bounds.takeIf { it.width() > 0 && it.height() > 0 } ?: legacyBounds()
+            return runCatching {
+                val metrics = windowManager?.currentWindowMetrics ?: return@runCatching null
+                val bounds = Rect(metrics.bounds)
+                val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                    WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+                )
+                bounds.left += insets.left
+                bounds.top += insets.top
+                bounds.right -= insets.right
+                bounds.bottom -= insets.bottom
+                bounds.takeIf { it.width() > 0 && it.height() > 0 }
+            }.getOrNull() ?: legacyBounds()
         }
         return legacyBounds()
     }

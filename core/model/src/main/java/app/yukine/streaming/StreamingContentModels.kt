@@ -108,7 +108,11 @@ data class StreamingPlaylist(
     val description: String? = null,
     val creator: String? = null,
     val coverUrl: String? = null,
-    val trackCount: Int? = null
+    val trackCount: Int? = null,
+    val ownerId: String? = null,
+    val editable: Boolean = false,
+    val updatedAtMs: Long? = null,
+    val kind: StreamingPlaylistKind = StreamingPlaylistKind.UNKNOWN
 )
 
 data class StreamingMvItem(

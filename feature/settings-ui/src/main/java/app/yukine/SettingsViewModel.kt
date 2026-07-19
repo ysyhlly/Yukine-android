@@ -91,6 +91,11 @@ data class RuntimeSettingsStatus(
     val streamingGatewayConfigured: Boolean = false,
     val luoxueImportedSourceCount: Int = 0,
     val luoxueEnabledSourceCount: Int = 0,
+    val kugouExperimentalSyncEnabled: Boolean = false,
+    val kugouAccountConnected: Boolean = false,
+    val kugouAccountDisplayName: String = "",
+    val kugouSyncLastResult: String = "",
+    val kugouSyncDegradationReason: String = "",
     val identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
     val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
 )

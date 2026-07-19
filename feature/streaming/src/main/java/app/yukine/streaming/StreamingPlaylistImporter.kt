@@ -101,11 +101,37 @@ class StreamingPlaylistImporter(
         if (existing.playlist?.title != title) repository.renameUserPlaylist(provider, providerPlaylistId, title)
         val add = desiredIds.filterNot(existingIds::contains)
         val remove = existingIds.filterNot(desiredIds::contains)
-        if (add.isNotEmpty()) repository.mutateUserPlaylistTracks(provider, providerPlaylistId, add, true)
-        if (remove.isNotEmpty()) repository.mutateUserPlaylistTracks(provider, providerPlaylistId, remove, false)
+        add.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
+            repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, true)
+            val confirmed = repository.playlist(
+                provider,
+                providerPlaylistId,
+                pageSize = 2_000,
+                useCache = false
+            ).tracks.map { it.providerTrackId }.toSet()
+            check(batch.all(confirmed::contains)) {
+                "Remote playlist did not confirm an added track batch"
+            }
+        }
+        remove.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
+            repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, false)
+            val confirmed = repository.playlist(
+                provider,
+                providerPlaylistId,
+                pageSize = 2_000,
+                useCache = false
+            ).tracks.map { it.providerTrackId }.toSet()
+            check(batch.none(confirmed::contains)) {
+                "Remote playlist did not confirm a removed track batch"
+            }
+        }
         if (desiredIds.isNotEmpty() && desiredIds != existingIds) {
             repository.reorderUserPlaylistTracks(provider, providerPlaylistId, desiredIds)
         }
+    }
+
+    private companion object {
+        const val PLAYLIST_WRITE_BATCH_SIZE = 50
     }
 
     private fun buildSearchQuery(track: Track): String {

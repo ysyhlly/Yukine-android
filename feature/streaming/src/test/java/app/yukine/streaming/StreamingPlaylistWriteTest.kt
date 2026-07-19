@@ -59,8 +59,9 @@ class StreamingPlaylistWriteTest {
 
     private class RecordingPlaylistGateway(
         private val existingTitle: String = "镜像收藏",
-        private val existingTracks: List<StreamingTrack> = emptyList()
+        existingTracks: List<StreamingTrack> = emptyList()
     ) : StreamingGateway by RegistryStreamingGateway(StreamingProviderRegistry()) {
+        private val currentTracks = existingTracks.toMutableList()
         val added = mutableListOf<List<String>>()
         val removed = mutableListOf<List<String>>()
         val renamed = mutableListOf<String>()
@@ -100,7 +101,7 @@ class StreamingPlaylistWriteTest {
             provider = request.provider,
             providerPlaylistId = request.providerPlaylistId,
             playlist = StreamingPlaylist(request.provider, request.providerPlaylistId, existingTitle),
-            tracks = existingTracks
+            tracks = currentTracks.toList()
         )
 
         override suspend fun renameUserPlaylist(
@@ -121,7 +122,17 @@ class StreamingPlaylistWriteTest {
             providerTrackIds: List<String>,
             add: Boolean
         ) {
-            if (add) added += providerTrackIds else removed += providerTrackIds
+            if (add) {
+                added += providerTrackIds
+                providerTrackIds.forEach { id ->
+                    if (currentTracks.none { it.providerTrackId == id }) {
+                        currentTracks += track(id)
+                    }
+                }
+            } else {
+                removed += providerTrackIds
+                currentTracks.removeAll { it.providerTrackId in providerTrackIds }
+            }
         }
 
         override suspend fun reorderUserPlaylistTracks(

@@ -558,7 +558,15 @@ internal object StreamingGatewayJson {
                 description = value.optionalString("description"),
                 creator = value.optionalString("creator"),
                 coverUrl = value.optionalString("coverUrl"),
-                trackCount = value.optionalInt("trackCount")
+                trackCount = value.optionalInt("trackCount"),
+                ownerId = value.optionalString("ownerId"),
+                editable = value.optBoolean("editable", false),
+                updatedAtMs = value.optionalLong("updatedAtMs")
+                    ?: value.optionalLong("updatedAt")
+                    ?: value.optionalLong("updateTime"),
+                kind = StreamingPlaylistKind.fromWireName(
+                    value.optionalString("kind") ?: value.optionalString("playlistType")
+                )
             )
         }
     }
@@ -901,6 +909,10 @@ internal object StreamingGatewayJson {
             .put("creator", playlist.creator)
             .put("coverUrl", playlist.coverUrl)
             .put("trackCount", playlist.trackCount)
+            .put("ownerId", playlist.ownerId)
+            .put("editable", playlist.editable)
+            .put("updatedAtMs", playlist.updatedAtMs)
+            .put("kind", playlist.kind.wireName)
     }
 
     private fun mvJson(mv: StreamingMvItem): JSONObject {

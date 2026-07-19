@@ -19,7 +19,7 @@ internal sealed interface FloatingLyricsPresentation {
     ) : FloatingLyricsPresentation
 }
 
-internal enum class FloatingLyricsRuntimeStatus {
+enum class FloatingLyricsRuntimeStatus {
     Disabled,
     PermissionRequired,
     Waiting,

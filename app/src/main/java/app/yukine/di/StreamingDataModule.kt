@@ -10,6 +10,7 @@ import app.yukine.DefaultRecordingSourceVerificationGateway
 import app.yukine.data.RecordingSourceVerificationGateway
 import app.yukine.streaming.HeaderBackedStreamingPlaybackTrackAdapter
 import app.yukine.streaming.LocalStreamingAuthStore
+import app.yukine.streaming.KugouExperimentalSyncStore
 import app.yukine.streaming.LocalLuoxueTrackMetadataResolver
 import app.yukine.streaming.LuoxueSourceStore
 import app.yukine.streaming.LuoxueTrackMetadataResolver
@@ -50,6 +51,12 @@ object StreamingDataModule {
     ): LocalStreamingAuthStore {
         return LocalStreamingAuthStore(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideKugouExperimentalSyncStore(
+        @ApplicationContext context: Context
+    ): KugouExperimentalSyncStore = KugouExperimentalSyncStore(context)
 
     @Provides
     @Singleton
@@ -97,12 +104,14 @@ object StreamingDataModule {
     fun provideStreamingGatewayFactory(
         localAuthStore: LocalStreamingAuthStore,
         webCookieSessionSource: StreamingWebCookieSessionSource,
-        luoxueSourceStore: LuoxueSourceStore
+        luoxueSourceStore: LuoxueSourceStore,
+        kugouExperimentalSyncStore: KugouExperimentalSyncStore
     ): StreamingGatewayFactory {
         return RemoteStreamingGatewayFactory(
             localAuthStore = localAuthStore,
             webCookieSessionSource = webCookieSessionSource,
-            luoxueSourceStore = luoxueSourceStore
+            luoxueSourceStore = luoxueSourceStore,
+            kugouExperimentalSyncStore = kugouExperimentalSyncStore
         )
     }
 

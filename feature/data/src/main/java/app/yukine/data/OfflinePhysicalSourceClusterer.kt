@@ -14,11 +14,17 @@ import app.yukine.fingerprint.ChromaprintSegmentAligner
 import app.yukine.fingerprint.TraditionalAudioEvidence
 import app.yukine.streaming.MatchEvaluation
 import app.yukine.streaming.MetadataRecallEvidence
+import app.yukine.streaming.EvidenceTrustProfile
+import app.yukine.streaming.EvidenceTrustTier
+import app.yukine.streaming.IdentityScoringMode
 import app.yukine.streaming.ProviderRolePolicy
 import app.yukine.streaming.RecordingMatchFeatureExtractor
+import app.yukine.streaming.RecordingMatchEvaluationPolicy
 import app.yukine.streaming.RecordingMatchEvaluatorV2
 import app.yukine.streaming.RecordingRelationship
 import app.yukine.streaming.StreamingTrackMatchPolicy
+import app.yukine.streaming.WorkCreditFeature
+import app.yukine.streaming.WorkCreditRole
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import org.json.JSONArray
@@ -85,6 +91,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
     ): Int {
         val totalStartedAt = diagnostics.startNanos()
         val embeddingRecallMode = EmbeddingRecallModeStore(database.settingsDao()).mode()
+        val scoringMode = IdentityScoringModeStore(database.settingsDao()).mode()
         val pendingTrackIds = localTrackIds.asSequence()
             .filter { it != 0L }
             .distinct()
@@ -161,7 +168,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val snapshotSignature = candidateGenerator.snapshotSignature(
             featureSources,
             effectiveFeatures,
-            embeddingRecallMode
+            embeddingRecallMode,
+            audioEvidenceBySourceId
         )
         val reusableCandidateSnapshot = refreshedFeatures.isEmpty() &&
             effectiveFeatures.isNotEmpty() &&
@@ -182,7 +190,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 featureSources,
                 effectiveFeatures,
                 System.currentTimeMillis(),
-                embeddingRecallMode
+                embeddingRecallMode,
+                audioEvidenceBySourceId
             )
             candidateRows = generated.candidates + generated.shadowCandidates
             coarseComparisonCount = generated.coarseComparisonCount
@@ -223,7 +232,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                         candidateIndex,
                         shadowCandidatesBySourceId,
                         audioEvidenceBySourceId,
-                        effectiveFeatures
+                        effectiveFeatures,
+                        scoringMode
                     )
                 }
 
@@ -255,7 +265,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                                 candidateRecording,
                                 candidateSources,
                                 audioEvidenceBySourceId,
-                                effectiveFeatures
+                                effectiveFeatures,
+                                scoringMode
                             )
                             ?: return@mapNotNull null
                         EvaluatedRecording(candidateRecordingId, evaluation, manual != null)
@@ -308,7 +319,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                         ambiguousCandidates,
                         candidateIndex,
                         audioEvidenceBySourceId,
-                        effectiveFeatures
+                        effectiveFeatures,
+                        scoringMode
                     )
                 ) break
 
@@ -342,7 +354,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 refreshedSources,
                 effectiveFeatures,
                 System.currentTimeMillis(),
-                embeddingRecallMode
+                embeddingRecallMode,
+                audioEvidenceBySourceId
             )
             diagnostics.recordElapsed(
                 OPERATION,
@@ -370,7 +383,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         candidates: List<RankedRecording>,
         candidateIndex: SourceIdentityCandidateIndex,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
-        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+        scoringMode: IdentityScoringMode
     ): Boolean {
         candidates.indices.forEach { leftIndex ->
             val leftId = candidates[leftIndex].recordingId
@@ -389,7 +403,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                     rightRecording,
                     rightSources,
                     audioEvidenceBySourceId,
-                    featuresBySourceId
+                    featuresBySourceId,
+                    scoringMode
                 ) ?: return false
                 if (evaluation.relationship != RecordingRelationship.SAME_RECORDING ||
                     evaluation.sameRecordingProbability <
@@ -404,9 +419,16 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
         generatedAt: Long,
-        mode: EmbeddingRecallMode
+        mode: EmbeddingRecallMode,
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>
     ): SourceCandidateGenerationResult {
-        val generated = candidateGenerator.generate(sources, featuresBySourceId, generatedAt, mode)
+        val generated = candidateGenerator.generate(
+            sources,
+            featuresBySourceId,
+            generatedAt,
+            mode,
+            audioEvidenceBySourceId
+        )
         val sourceIds = sources.mapNotNull(TrackSourceMappingEntity::sourceId).distinct()
         var validCandidates = generated.candidates
         var validShadowCandidates = generated.shadowCandidates
@@ -456,7 +478,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         candidateIndex: SourceIdentityCandidateIndex,
         shadowCandidatesBySourceId: Map<Long, List<SourceRecordingCandidateEntity>>,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
-        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+        scoringMode: IdentityScoringMode
     ) {
         val rows = currentSources.asSequence()
             .mapNotNull(TrackSourceMappingEntity::sourceId)
@@ -476,7 +499,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                 candidateRecording,
                 candidateSources,
                 audioEvidenceBySourceId,
-                featuresBySourceId
+                featuresBySourceId,
+                scoringMode
             ) ?: return@forEach
             val evidence = runCatching { JSONObject(row.evidenceJson) }.getOrElse { JSONObject() }
                 .put("shadowEvaluation", JSONObject(evaluation.evidenceJson))
@@ -502,29 +526,36 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         rightRecording: CanonicalRecordingEntity,
         rightSources: List<TrackSourceMappingEntity>,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
-        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+        scoringMode: IdentityScoringMode
     ): GroupEvaluation? {
-        var minimumRecordingProbability = 1.0
-        var minimumWorkProbability = 1.0
-        var relationship = RecordingRelationship.SAME_RECORDING
         val hardConflicts = linkedSetOf<String>()
         val audioAlignments = JSONArray()
-        var scoreVersion = RecordingMatchEvaluatorV2.SCORE_VERSION
-        var comparisonCount = 0
+        val activePairs = ArrayList<ScoredPair>()
+        val shadowPairs = ArrayList<ScoredPair>()
         var embeddingMinimum = 1.0
         var embeddingMaximum = 0.0
         var embeddingTotal = 0.0
         var embeddingCount = 0
         var embeddingVersion = 0
+        val leftReferences = leftSources.associate { source ->
+            source to reference(source, leftRecording, source.sourceId?.let(featuresBySourceId::get))
+        }
+        val rightReferences = rightSources.associate { source ->
+            source to reference(source, rightRecording, source.sourceId?.let(featuresBySourceId::get))
+        }
         leftSources.forEach { left ->
             rightSources.forEach { right ->
+                val leftSourceId = left.sourceId ?: return@forEach
+                val rightSourceId = right.sourceId ?: return@forEach
                 val pair = evaluatePair(
                     left,
                     right,
-                    reference(left, leftRecording),
-                    reference(right, rightRecording),
+                    leftReferences.getValue(left),
+                    rightReferences.getValue(right),
                     audioEvidenceBySourceId,
-                    featuresBySourceId
+                    featuresBySourceId,
+                    scoringMode
                 )
                 val evaluation = pair.evaluation
                 val recallEvidence = evaluation.metadataRecallEvidence
@@ -538,7 +569,6 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                         recallEvidence.embeddingVersion
                     )
                 }
-                scoreVersion = maxOf(scoreVersion, evaluation.scoreVersion)
                 pair.alignment?.let { alignment ->
                     audioAlignments.put(JSONObject()
                         .put("leftSourceId", left.sourceId)
@@ -552,31 +582,57 @@ class SourceIdentityIngestor @JvmOverloads constructor(
                         .put("structuralJump", alignment.structuralJump)
                         .put("exactPcm", alignment.exactPcm))
                 }
-                comparisonCount++
-                minimumRecordingProbability = minOf(
-                    minimumRecordingProbability,
-                    evaluation.sameRecordingProbability
+                val leftTrust = sourceTrust(left.sourceId?.let(featuresBySourceId::get))
+                val rightTrust = sourceTrust(right.sourceId?.let(featuresBySourceId::get))
+                activePairs += ScoredPair(
+                    leftSourceId = leftSourceId,
+                    rightSourceId = rightSourceId,
+                    evaluation = evaluation,
+                    leftTrust = leftTrust,
+                    rightTrust = rightTrust
                 )
-                minimumWorkProbability = minOf(minimumWorkProbability, evaluation.sameWorkProbability)
+                pair.shadowEvaluation?.let { shadow ->
+                    shadowPairs += ScoredPair(
+                        leftSourceId = leftSourceId,
+                        rightSourceId = rightSourceId,
+                        evaluation = shadow,
+                        leftTrust = leftTrust,
+                        rightTrust = rightTrust
+                    )
+                }
                 hardConflicts += evaluation.hardConflicts.map { it.name }
-                relationship = combineRelationship(relationship, evaluation.relationship)
             }
         }
-        if (comparisonCount == 0) return null
-        val confidence = when (relationship) {
-            RecordingRelationship.SAME_RECORDING -> minimumRecordingProbability
-            RecordingRelationship.SAME_WORK_DIFFERENT_VERSION -> minimumWorkProbability
-            RecordingRelationship.CANNOT_LINK -> 1.0 - minimumRecordingProbability
-            RecordingRelationship.UNKNOWN -> maxOf(minimumRecordingProbability, minimumWorkProbability)
-        }.coerceIn(0.0, 1.0)
+        if (activePairs.isEmpty()) return null
+        val activeAggregate = aggregatePairs(
+            activePairs,
+            trustAware = scoringMode == IdentityScoringMode.V5_ON
+        )
         val evidenceJson = JSONObject()
-            .put("scoreVersion", scoreVersion)
-            .put("completeLinkComparisons", comparisonCount)
-            .put("sameRecording", minimumRecordingProbability)
-            .put("sameWork", minimumWorkProbability)
-            .put("relationship", relationship.name)
+            .put("scoreVersion", activeAggregate.scoreVersion)
+            .put("scoringMode", scoringMode.name)
+            .put("completeLinkComparisons", activePairs.size)
+            .put("aggregation", activeAggregate.aggregation)
+            .put("sameRecording", activeAggregate.sameRecording)
+            .put("sameWork", activeAggregate.sameWork)
+            .put("relationship", activeAggregate.relationship.name)
             .put("hardConflicts", JSONArray(hardConflicts.toList()))
             .put("audioAlignments", audioAlignments)
+        if (shadowPairs.isNotEmpty()) {
+            val shadowAggregate = aggregatePairs(
+                shadowPairs,
+                trustAware = scoringMode == IdentityScoringMode.V5_SHADOW
+            )
+            evidenceJson.put(
+                "shadowScoring",
+                JSONObject()
+                    .put("scoreVersion", shadowAggregate.scoreVersion)
+                    .put("aggregation", shadowAggregate.aggregation)
+                    .put("sameRecording", shadowAggregate.sameRecording)
+                    .put("sameWork", shadowAggregate.sameWork)
+                    .put("relationship", shadowAggregate.relationship.name)
+            )
+        }
         if (embeddingCount > 0) {
             evidenceJson.put(
                 "embedding",
@@ -590,11 +646,11 @@ class SourceIdentityIngestor @JvmOverloads constructor(
             )
         }
         return GroupEvaluation(
-            sameRecordingProbability = minimumRecordingProbability,
-            sameWorkProbability = minimumWorkProbability,
-            relationship = relationship,
-            confidence = confidence,
-            scoreVersion = scoreVersion,
+            sameRecordingProbability = activeAggregate.sameRecording,
+            sameWorkProbability = activeAggregate.sameWork,
+            relationship = activeAggregate.relationship,
+            confidence = activeAggregate.confidence,
+            scoreVersion = activeAggregate.scoreVersion,
             evidenceJson = evidenceJson.toString()
         )
     }
@@ -605,7 +661,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         leftReference: StreamingTrackMatchPolicy.Reference,
         rightReference: StreamingTrackMatchPolicy.Reference,
         audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence>,
-        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>
+        featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
+        scoringMode: IdentityScoringMode
     ): PairEvaluation {
         val leftFeature = left.sourceId?.let(featuresBySourceId::get)
         val rightFeature = right.sourceId?.let(featuresBySourceId::get)
@@ -623,29 +680,35 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         } else {
             0.0
         }
-        val metadata = if (embeddingVersion > 0) {
-            RecordingMatchEvaluatorV2.evaluate(
-                leftReference,
-                rightReference,
-                MetadataRecallEvidence(
+        val recallEvidence = if (embeddingVersion > 0) {
+            MetadataRecallEvidence(
                     embeddingSimilarity = embeddingSimilarity,
                     embeddingVersion = embeddingVersion,
                     recallOnly = true
                 )
-            )
         } else {
-            RecordingMatchEvaluatorV2.evaluate(leftReference, rightReference)
+            null
         }
+        val decision = RecordingMatchEvaluationPolicy.evaluate(
+            RecordingMatchFeatureExtractor.extract(leftReference),
+            RecordingMatchFeatureExtractor.extract(rightReference),
+            scoringMode,
+            recallEvidence = recallEvidence
+        )
         val leftEvidence = left.sourceId?.let(audioEvidenceBySourceId::get)
         val rightEvidence = right.sourceId?.let(audioEvidenceBySourceId::get)
         if (leftEvidence == null || rightEvidence == null ||
             leftEvidence.pcmHash.isBlank() && leftEvidence.segments.isEmpty() ||
             rightEvidence.pcmHash.isBlank() && rightEvidence.segments.isEmpty()
         ) {
-            return PairEvaluation(metadata, null)
+            return PairEvaluation(decision.active, decision.shadow, null)
         }
         val alignment = ChromaprintSegmentAligner.align(leftEvidence, rightEvidence)
-        return PairEvaluation(AudioMatchRefiner.refine(metadata, alignment), alignment)
+        return PairEvaluation(
+            AudioMatchRefiner.refine(decision.active, alignment),
+            decision.shadow?.let { AudioMatchRefiner.refine(it, alignment) },
+            alignment
+        )
     }
 
     private fun manualRelationship(
@@ -677,27 +740,161 @@ class SourceIdentityIngestor @JvmOverloads constructor(
 
     private fun reference(
         source: TrackSourceMappingEntity,
-        recording: CanonicalRecordingEntity
+        recording: CanonicalRecordingEntity,
+        feature: SourceMatchFeatureEntity?
     ): StreamingTrackMatchPolicy.Reference {
         val work = recording.workId?.let(dao::work)
         val album = source.albumId?.let(dao::album)
+        val recordingIdentifiers = recording.id?.let(dao::identifiers).orEmpty()
+        val workIdentifiers = work?.id?.let(dao::workIdentifiers).orEmpty()
+        val workCredits = work?.id?.let(dao::workCredits).orEmpty().mapNotNull { credit ->
+            val role = runCatching { WorkCreditRole.valueOf(credit.role) }.getOrNull()
+                ?: return@mapNotNull null
+            WorkCreditFeature(
+                canonicalId = credit.artistId.toString(),
+                canonicalName = credit.creditedName,
+                role = role
+            )
+        }
         return StreamingTrackMatchPolicy.Reference(
             title = source.title,
             artist = source.artist,
             album = source.album,
             durationMs = source.durationMs.takeIf { it > 0L },
             isrc = recording.isrc,
+            isrcs = recordingIdentifiers
+                .filter { it.identifierType.equals("ISRC", ignoreCase = true) }
+                .mapTo(linkedSetOf()) { it.identifierValue },
             recordingMbid = recording.musicBrainzRecordingId,
             workMbid = recording.musicBrainzWorkId,
+            workIdentifiers = workIdentifiers.mapTo(linkedSetOf()) { identifier ->
+                listOf(
+                    identifier.identifierType,
+                    identifier.namespace,
+                    identifier.identifierValue
+                ).joinToString("\u001F")
+            },
+            workCredits = workCredits,
             canonicalWorkId = work?.canonicalUuid.orEmpty(),
             canonicalWorkConfirmed = work != null &&
                 work.primaryCreatorId != null &&
                 source.matchStatus == IdentityMatchStatus.CONFIRMED.name,
             canonicalAlbumId = album?.albumUuid.orEmpty(),
             canonicalAlbumConfirmed = album?.matchStatus == IdentityMatchStatus.CONFIRMED.name,
-            fingerprint = recording.acoustId
+            fingerprint = recording.acoustId,
+            trustProfile = feature?.trustProfile() ?: EvidenceTrustProfile()
         )
     }
+
+    private fun SourceMatchFeatureEntity.trustProfile() = EvidenceTrustProfile(
+        title = EvidenceTrustTier.closest(titleTrust),
+        artist = EvidenceTrustTier.closest(artistTrust),
+        version = EvidenceTrustTier.closest(versionTrust),
+        identifier = EvidenceTrustTier.closest(identifierTrust),
+        workCredit = EvidenceTrustTier.closest(workCreditTrust)
+    )
+
+    private fun sourceTrust(feature: SourceMatchFeatureEntity?): Double =
+        feature?.let {
+            listOf(it.titleTrust, it.artistTrust, it.versionTrust, it.identifierTrust)
+                .average()
+                .coerceIn(0.0, 1.0)
+        } ?: EvidenceTrustTier.UNRESOLVED.weight
+
+    private fun aggregatePairs(
+        pairs: List<ScoredPair>,
+        trustAware: Boolean
+    ): PairAggregate {
+        if (!trustAware) {
+            val recording = pairs.minOf { it.evaluation.sameRecordingProbability }
+            val work = pairs.minOf { it.evaluation.sameWorkProbability }
+            val relationship = pairs.fold(RecordingRelationship.SAME_RECORDING) { current, pair ->
+                combineRelationship(current, pair.evaluation.relationship)
+            }
+            return PairAggregate(
+                sameRecording = recording,
+                sameWork = work,
+                relationship = relationship,
+                confidence = relationshipConfidence(relationship, recording, work),
+                scoreVersion = pairs.maxOf { it.evaluation.scoreVersion },
+                aggregation = "COMPLETE_LINK_MINIMUM"
+            )
+        }
+
+        val robustRecording = sourceBalancedMedian(pairs) { it.sameRecordingProbability }
+        val robustWork = sourceBalancedMedian(pairs) { it.sameWorkProbability }
+        val highTrustPairs = pairs.filter { it.pairTrust >= HIGH_TRUST_THRESHOLD }
+        val highTrustMinimum = highTrustPairs.minOfOrNull { it.evaluation.sameRecordingProbability }
+        val recording = minOf(robustRecording, highTrustMinimum ?: 1.0)
+        val highTrustConflict = highTrustPairs.any { it.evaluation.hasHardConflict }
+        val relationship = when {
+            highTrustConflict -> RecordingRelationship.CANNOT_LINK
+            recording >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE &&
+                pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_RECORDING } ->
+                RecordingRelationship.SAME_RECORDING
+            robustWork >= SAME_WORK_MINIMUM_SCORE &&
+                pairs.any { it.evaluation.relationship == RecordingRelationship.SAME_WORK_DIFFERENT_VERSION } ->
+                RecordingRelationship.SAME_WORK_DIFFERENT_VERSION
+            pairs.all { it.evaluation.relationship == RecordingRelationship.CANNOT_LINK } ->
+                RecordingRelationship.CANNOT_LINK
+            else -> RecordingRelationship.UNKNOWN
+        }
+        return PairAggregate(
+            sameRecording = recording,
+            sameWork = robustWork,
+            relationship = relationship,
+            confidence = relationshipConfidence(relationship, recording, robustWork),
+            scoreVersion = pairs.maxOf { it.evaluation.scoreVersion },
+            aggregation = "TRUST_SOURCE_BALANCED_MEDIAN"
+        )
+    }
+
+    private fun sourceBalancedMedian(
+        pairs: List<ScoredPair>,
+        selector: (MatchEvaluation) -> Double
+    ): Double {
+        val summaries = ArrayList<WeightedScore>()
+        pairs.groupBy(ScoredPair::leftSourceId).values.forEach { sourcePairs ->
+            summaries += WeightedScore(
+                weightedMedian(sourcePairs.map {
+                    WeightedScore(selector(it.evaluation), it.pairTrust)
+                }),
+                sourcePairs.first().leftTrust
+            )
+        }
+        pairs.groupBy(ScoredPair::rightSourceId).values.forEach { sourcePairs ->
+            summaries += WeightedScore(
+                weightedMedian(sourcePairs.map {
+                    WeightedScore(selector(it.evaluation), it.pairTrust)
+                }),
+                sourcePairs.first().rightTrust
+            )
+        }
+        return weightedMedian(summaries)
+    }
+
+    private fun weightedMedian(values: List<WeightedScore>): Double {
+        if (values.isEmpty()) return 0.0
+        val sorted = values.sortedBy(WeightedScore::score)
+        val total = sorted.sumOf { it.weight.coerceAtLeast(0.001) }
+        var cumulative = 0.0
+        sorted.forEach { value ->
+            cumulative += value.weight.coerceAtLeast(0.001)
+            if (cumulative >= total / 2.0) return value.score
+        }
+        return sorted.last().score
+    }
+
+    private fun relationshipConfidence(
+        relationship: RecordingRelationship,
+        recording: Double,
+        work: Double
+    ): Double = when (relationship) {
+        RecordingRelationship.SAME_RECORDING -> recording
+        RecordingRelationship.SAME_WORK_DIFFERENT_VERSION -> work
+        RecordingRelationship.CANNOT_LINK -> 1.0 - recording
+        RecordingRelationship.UNKNOWN -> maxOf(recording, work)
+    }.coerceIn(0.0, 1.0)
 
     private fun combineRelationship(
         current: RecordingRelationship,
@@ -750,7 +947,29 @@ class SourceIdentityIngestor @JvmOverloads constructor(
 
     private data class PairEvaluation(
         val evaluation: MatchEvaluation,
+        val shadowEvaluation: MatchEvaluation?,
         val alignment: ChromaprintAlignment?
+    )
+
+    private data class ScoredPair(
+        val leftSourceId: Long,
+        val rightSourceId: Long,
+        val evaluation: MatchEvaluation,
+        val leftTrust: Double,
+        val rightTrust: Double
+    ) {
+        val pairTrust: Double get() = minOf(leftTrust, rightTrust)
+    }
+
+    private data class WeightedScore(val score: Double, val weight: Double)
+
+    private data class PairAggregate(
+        val sameRecording: Double,
+        val sameWork: Double,
+        val relationship: RecordingRelationship,
+        val confidence: Double,
+        val scoreVersion: Int,
+        val aggregation: String
     )
 
     private data class ManualRelationship(
@@ -774,6 +993,8 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         const val TARGET_RECORDING = "RECORDING"
         const val SQLITE_IN_BATCH_SIZE = 500
         const val CANDIDATE_WRITE_BATCH_SIZE = 1_000
+        const val HIGH_TRUST_THRESHOLD = 0.85
+        const val SAME_WORK_MINIMUM_SCORE = 0.85
         const val TAG = "IdentityDiagnostics"
         val OPERATION = MusicIdentityDiagnostics.Operation.PHYSICAL_CLUSTER
         val blockedCandidateStatuses = setOf("REJECTED", "ALTERNATE_VERSION")
@@ -944,7 +1165,7 @@ internal class SourceIdentityCandidateIndex(
 
 /** Shared feature schema policy. Bump [ALGORITHM_VERSION] whenever normalization semantics change. */
 internal object SourceMatchFeaturePolicy {
-    const val ALGORITHM_VERSION = 3
+    const val ALGORITHM_VERSION = 4
     private const val DURATION_BUCKET_MS = 10_000L
     private const val FEATURE_SEPARATOR = "\u001F"
     private const val SIGNATURE_SEPARATOR = "\u001E"
@@ -986,6 +1207,7 @@ internal object SourceMatchFeaturePolicy {
             releaseType = source.releaseType,
             year = source.year
         )
+        val trust = trustFor(source)
         return SourceMatchFeatureEntity(
             sourceId = sourceId,
             normalizedTitle = StreamingTrackMatchPolicy.canonicalTitle(source.title),
@@ -1005,8 +1227,33 @@ internal object SourceMatchFeaturePolicy {
             updatedAt = updatedAt,
             metadataVector = embedding?.vector,
             metadataVectorVersion = embedding?.version ?: 0,
-            metadataSimHash = embedding?.simHash
+            metadataSimHash = embedding?.simHash,
+            titleTrust = trust.weight,
+            artistTrust = trust.weight,
+            versionTrust = trust.weight,
+            identifierTrust = if (source.matchStatus == IdentityMatchStatus.CONFIRMED.name) {
+                EvidenceTrustTier.DIRECT_CONFIRMED.weight
+            } else {
+                EvidenceTrustTier.UNRESOLVED.weight
+            },
+            workCreditTrust = if (source.composer.isNotBlank()) {
+                trust.weight
+            } else {
+                EvidenceTrustTier.UNRESOLVED.weight
+            },
+            evidenceProvenance = trust.name
         )
+    }
+
+    private fun trustFor(source: TrackSourceMappingEntity): EvidenceTrustTier = when {
+        source.matchStatus != IdentityMatchStatus.CONFIRMED.name && source.localTrackId == null ->
+            EvidenceTrustTier.UNRESOLVED
+        source.provider.lowercase() in setOf("local", "document", "webdav") ->
+            EvidenceTrustTier.PARSED_TAG
+        source.matchStatus == IdentityMatchStatus.CONFIRMED.name ->
+            EvidenceTrustTier.DIRECT_CONFIRMED
+        source.legacyLocalKey.isNotBlank() -> EvidenceTrustTier.LEGACY
+        else -> EvidenceTrustTier.UNRESOLVED
     }
 
     private fun ngrams(value: String, width: Int): Set<String> {

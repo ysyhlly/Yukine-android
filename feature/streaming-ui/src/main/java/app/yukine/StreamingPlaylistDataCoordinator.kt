@@ -2,8 +2,13 @@ package app.yukine
 
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylistImporter
+import app.yukine.streaming.KugouIdentity
+import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.StreamingPlaylistSyncConflictResolver
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingPlaylistSyncDirection
+import app.yukine.streaming.StreamingPlaylistSyncSnapshot
+import app.yukine.streaming.StreamingPlaylistSyncWinner
 import app.yukine.streaming.StreamingProviderName
 import app.yukine.streaming.StreamingRepository
 import app.yukine.streaming.StreamingTrack
@@ -96,25 +101,49 @@ internal class StreamingPlaylistDataCoordinator(
         val operations = localOperationsProvider()
             ?: error("Streaming local playlist operations are not bound")
         val repository = repositoryProvider()
-        val tracks = if (link.providerPlaylistId.isNullOrBlank()) {
-            repository.userLikedTracks(link.provider)
+        val (playlistTitle, tracks) = if (link.providerPlaylistId.isBlank()) {
+            "Favorites" to repository.userLikedTracks(link.provider)
         } else {
-            loadPlaylistTracks(link.provider, link.providerPlaylistId).second
+            loadPlaylistTracks(link.provider, link.providerPlaylistId)
         }
-        return withContext(ioDispatcherProvider()) {
+        val result = withContext(ioDispatcherProvider()) {
             operations.syncStreamingPlaylist(link, tracks)
         }
+        val observedAt = System.currentTimeMillis()
+        val baseline = StreamingPlaylistSyncSnapshot(
+            title = playlistTitle,
+            orderedTrackIds = tracks.map { it.providerTrackId },
+            updatedAtMs = observedAt
+        )
+        withContext(ioDispatcherProvider()) {
+            operations.updatePlaylistSyncBaseline(
+                link.localPlaylistId,
+                baseline,
+                observedAt,
+                null,
+                observedAt
+            )
+        }
+        return result
     }
 
     suspend fun syncLinkedPlaylist(
         link: StreamingPlaylistSyncStore.LinkedPlaylist
     ): StreamingLocalPlaylistSyncResult {
-        if (link.direction == StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL) {
-            return syncPlaylistToLocal(link)
+        return when (link.direction) {
+            StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL -> syncPlaylistToLocal(link)
+            StreamingPlaylistSyncDirection.LOCAL_TO_REMOTE -> syncPlaylistToRemote(link)
+            StreamingPlaylistSyncDirection.BIDIRECTIONAL -> syncPlaylistBidirectionally(link)
         }
+    }
+
+    private suspend fun syncPlaylistToRemote(
+        link: StreamingPlaylistSyncStore.LinkedPlaylist,
+        snapshotOverride: StreamingLocalPlaylistSnapshot? = null
+    ): StreamingLocalPlaylistSyncResult {
         val operations = localOperationsProvider()
             ?: error("Streaming local playlist operations are not bound")
-        val snapshot = withContext(ioDispatcherProvider()) {
+        val snapshot = snapshotOverride ?: withContext(ioDispatcherProvider()) {
             operations.localPlaylistSnapshot(link.localPlaylistId)
         } ?: return StreamingLocalPlaylistSyncResult(
             playlistId = link.localPlaylistId,
@@ -142,13 +171,128 @@ internal class StreamingPlaylistDataCoordinator(
             desiredTracks = summary.matchedTracks
         )
         withContext(ioDispatcherProvider()) {
-            operations.markPlaylistSynced(link.localPlaylistId)
+            val baseline = StreamingPlaylistSyncSnapshot(
+                title = snapshot.playlistName,
+                orderedTrackIds = summary.matchedTracks.map { it.providerTrackId },
+                updatedAtMs = System.currentTimeMillis()
+            )
+            operations.updatePlaylistSyncBaseline(
+                link.localPlaylistId,
+                baseline,
+                baseline.updatedAtMs,
+                baseline.updatedAtMs,
+                baseline.updatedAtMs
+            )
         }
         return StreamingLocalPlaylistSyncResult(
             playlistId = link.localPlaylistId,
             syncedCount = snapshot.tracks.size,
             empty = false
         )
+    }
+
+    private suspend fun syncPlaylistBidirectionally(
+        link: StreamingPlaylistSyncStore.LinkedPlaylist
+    ): StreamingLocalPlaylistSyncResult {
+        val operations = localOperationsProvider()
+            ?: error("Streaming local playlist operations are not bound")
+        val repository = repositoryProvider()
+        val canWrite = repository.providerCapabilities()
+            .firstOrNull { it.provider == link.provider }
+            ?.supportsPlaylistWrite == true
+        if (!canWrite) {
+            // Private account contracts are release-gated. A bidirectional link remains useful and
+            // safe in read-only mode until its provider advertises verified write support.
+            return syncPlaylistToLocal(link)
+        }
+
+        val local = withContext(ioDispatcherProvider()) {
+            operations.localPlaylistSnapshot(link.localPlaylistId)
+        } ?: return StreamingLocalPlaylistSyncResult(
+            playlistId = link.localPlaylistId,
+            empty = true,
+            errorMessage = "Local playlist is unavailable"
+        )
+        val (remoteTitle, remoteTracks) = loadPlaylistTracks(
+            link.provider,
+            link.providerPlaylistId
+        )
+        val now = System.currentTimeMillis()
+        val localTrackIds = canonicalLocalTrackIds(link.provider, local)
+        val baseline = link.baseline
+        val localSnapshot = StreamingPlaylistSyncSnapshot(
+            title = local.playlistName,
+            orderedTrackIds = localTrackIds,
+            updatedAtMs = if (baseline?.let {
+                    it.title != local.playlistName || it.orderedTrackIds != localTrackIds
+                } == true
+            ) now else link.localUpdatedAtMs
+        )
+        val remoteSnapshotWithoutObservation = StreamingPlaylistSyncSnapshot(
+            title = remoteTitle,
+            orderedTrackIds = remoteTracks.map { it.providerTrackId },
+            updatedAtMs = link.remoteUpdatedAtMs
+        )
+        val remoteObservedAt = if (
+            baseline?.fingerprint != null &&
+            baseline.fingerprint != remoteSnapshotWithoutObservation.fingerprint
+        ) {
+            now
+        } else {
+            link.remoteObservedChangeAtMs
+        }
+        val winner = StreamingPlaylistSyncConflictResolver.resolve(
+            baseline = baseline,
+            local = localSnapshot,
+            remote = remoteSnapshotWithoutObservation,
+            remoteObservedChangeAtMs = remoteObservedAt
+        )
+        return when (winner) {
+            StreamingPlaylistSyncWinner.LOCAL -> syncPlaylistToRemote(link, local)
+            StreamingPlaylistSyncWinner.REMOTE -> {
+                val result = withContext(ioDispatcherProvider()) {
+                    operations.syncStreamingPlaylist(link, remoteTracks)
+                }
+                withContext(ioDispatcherProvider()) {
+                    operations.updatePlaylistSyncBaseline(
+                        link.localPlaylistId,
+                        remoteSnapshotWithoutObservation,
+                        remoteSnapshotWithoutObservation.updatedAtMs ?: remoteObservedAt,
+                        remoteSnapshotWithoutObservation.updatedAtMs,
+                        remoteObservedAt
+                    )
+                }
+                result
+            }
+            StreamingPlaylistSyncWinner.NONE -> {
+                withContext(ioDispatcherProvider()) {
+                    operations.markPlaylistSynced(link.localPlaylistId)
+                }
+                StreamingLocalPlaylistSyncResult(
+                    playlistId = link.localPlaylistId,
+                    syncedCount = remoteTracks.size,
+                    empty = remoteTracks.isEmpty()
+                )
+            }
+        }
+    }
+
+    private fun canonicalLocalTrackIds(
+        targetProvider: StreamingProviderName,
+        snapshot: StreamingLocalPlaylistSnapshot
+    ): List<String> = snapshot.tracks.map { track ->
+        val provider = StreamingPlaybackAdapter.streamingProviderName(track.dataPath)
+        val providerTrackId = StreamingPlaybackAdapter.providerTrackId(track.dataPath)
+        when {
+            targetProvider == StreamingProviderName.KUGOU &&
+                (provider == StreamingProviderName.KUGOU ||
+                    provider == StreamingProviderName.LUOXUE) ->
+                KugouIdentity.canonicalTrackId(providerTrackId) ?: "local:${track.id}"
+            provider == targetProvider && providerTrackId.isNotBlank() -> providerTrackId
+            provider != null && providerTrackId.isNotBlank() ->
+                "${provider.wireName}:$providerTrackId"
+            else -> "local:${track.id}"
+        }
     }
 
     suspend fun ensureLoginPlaylist(

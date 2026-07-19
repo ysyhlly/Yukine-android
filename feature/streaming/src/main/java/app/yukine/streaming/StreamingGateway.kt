@@ -258,7 +258,8 @@ class RemoteStreamingGateway(
         qqMusicClient = localQqMusicClient
     ),
     private val luoxueSourceStore: LuoxueSourceStore? = null,
-    private val localBilibiliClient: LocalBilibiliStreamingClient = LocalBilibiliStreamingClient(localAuthStore)
+    private val localBilibiliClient: LocalBilibiliStreamingClient = LocalBilibiliStreamingClient(localAuthStore),
+    private val kugouExperimentalSyncStore: KugouExperimentalSyncStore? = null
 ) : StreamingGateway {
     private var consecutiveGatewayFailures = 0
     private var circuitOpenUntilMs = 0L
@@ -270,7 +271,8 @@ class RemoteStreamingGateway(
         localQqMusicClient,
         localLuoxueClient,
         luoxueSourceStore,
-        localBilibiliClient
+        localBilibiliClient,
+        kugouExperimentalSyncStore = kugouExperimentalSyncStore
     )
 
     override suspend fun providers(): List<StreamingProviderDescriptor> {
@@ -300,7 +302,7 @@ class RemoteStreamingGateway(
             val remoteCapabilities = StreamingGatewayJson.providerCapabilities(get("providers/capabilities"))
             remoteCapabilities.ifEmpty {
                 StreamingCapabilityResolver.providerCapabilities(providers())
-            }
+            }.map(::applyKugouWriteGate)
         } catch (error: StreamingGatewayException) {
             if (error.code == StreamingErrorCode.GATEWAY_UNAVAILABLE) {
                 StreamingCapabilityResolver.providerCapabilities(localProviderDescriptors())
@@ -308,6 +310,26 @@ class RemoteStreamingGateway(
                 StreamingCapabilityResolver.providerCapabilities(providers())
             }
         }
+    }
+
+    private fun applyKugouWriteGate(
+        capability: StreamingProviderCapability
+    ): StreamingProviderCapability {
+        if (capability.provider != StreamingProviderName.KUGOU) return capability
+        val authConnected = localAuthStore?.authState(StreamingProviderName.KUGOU)?.connected == true
+        val writeEnabled = kugouExperimentalSyncStore
+            ?.status(authConnected)
+            ?.writeEnabled(authConnected) == true
+        return capability.copy(
+            supportsFavorites = writeEnabled,
+            supportsPlaylistCreate = writeEnabled,
+            supportsPlaylistWrite = writeEnabled,
+            supportsPlaylistDelete = writeEnabled,
+            supportsPlaylistRename = writeEnabled,
+            supportsPlaylistReorder = writeEnabled,
+            supportsFavoritesRead = writeEnabled,
+            supportsFavoritesWrite = writeEnabled
+        )
     }
 
     override suspend fun providersHealth(): List<StreamingProviderHealth> {
@@ -790,6 +812,7 @@ class RemoteStreamingGateway(
             (
                 provider != StreamingProviderName.NETEASE &&
                     provider != StreamingProviderName.QQ_MUSIC &&
+                    provider != StreamingProviderName.KUGOU &&
                     provider != StreamingProviderName.BILIBILI
                 ) ||
             localAuthStore?.hasStoredCredential(provider) != true

@@ -30,7 +30,12 @@ class ProviderRolePolicyTest {
         assertFalse(ProviderRolePolicy.canSyncPlaylists("luoxue"))
         assertFalse(ProviderRolePolicy.canEverBecomeActive("luoxue"))
 
-        assertFalse(ProviderRolePolicy.canPersistCanonicalSource("kugou"))
+        assertTrue(ProviderRolePolicy.canPersistCanonicalSource("kugou"))
+        assertTrue(ProviderRolePolicy.isPlaybackResolver("kugou"))
+        assertTrue(ProviderRolePolicy.canSyncFavorites("kugou"))
+        assertTrue(ProviderRolePolicy.canSyncPlaylists("kugou"))
+        assertTrue(ProviderRolePolicy.canBecomeActive("kugou", false, false))
+        assertFalse(ProviderRolePolicy.canBecomeActive("kugou", false, true))
         assertFalse(ProviderRolePolicy.canPersistCanonicalSource("unknown"))
     }
 }

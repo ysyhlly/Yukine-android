@@ -108,6 +108,7 @@ public final class YukineSchema {
                 + "FOREIGN KEY(recording_id) REFERENCES recordings(id) "
                 + "ON UPDATE NO ACTION ON DELETE CASCADE"
                 + ")");
+        ensureColumn(db, "recording_play_events", "legacy_event_id", "INTEGER");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_recording_events_time "
                 + "ON recording_play_events (played_at)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_recording_events_recording_time "

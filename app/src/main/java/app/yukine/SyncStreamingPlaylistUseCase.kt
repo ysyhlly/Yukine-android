@@ -3,6 +3,7 @@ package app.yukine
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.streaming.StreamingPlaylistSyncSnapshot
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingTrack
 
@@ -16,6 +17,14 @@ internal interface StreamingPlaylistSyncOperations {
     fun syncStreamingPlaylist(playlistId: Long, tracks: List<Track>): Int
 
     fun markSynced(playlistId: Long)
+
+    fun updateBaseline(
+        playlistId: Long,
+        snapshot: StreamingPlaylistSyncSnapshot,
+        localUpdatedAtMs: Long?,
+        remoteUpdatedAtMs: Long?,
+        remoteObservedChangeAtMs: Long?
+    ) = Unit
 }
 
 internal class MusicLibraryStreamingPlaylistSyncOperations(
@@ -36,6 +45,22 @@ internal class MusicLibraryStreamingPlaylistSyncOperations(
 
     override fun markSynced(playlistId: Long) {
         syncStore.markSynced(playlistId)
+    }
+
+    override fun updateBaseline(
+        playlistId: Long,
+        snapshot: StreamingPlaylistSyncSnapshot,
+        localUpdatedAtMs: Long?,
+        remoteUpdatedAtMs: Long?,
+        remoteObservedChangeAtMs: Long?
+    ) {
+        syncStore.updateBaseline(
+            playlistId,
+            snapshot,
+            localUpdatedAtMs,
+            remoteUpdatedAtMs,
+            remoteObservedChangeAtMs
+        )
     }
 }
 
@@ -79,6 +104,24 @@ internal class SyncStreamingPlaylistUseCase(
     fun markSynced(playlistId: Long) {
         if (playlistId >= 0L) {
             operations.markSynced(playlistId)
+        }
+    }
+
+    fun updateBaseline(
+        playlistId: Long,
+        snapshot: StreamingPlaylistSyncSnapshot,
+        localUpdatedAtMs: Long?,
+        remoteUpdatedAtMs: Long?,
+        remoteObservedChangeAtMs: Long?
+    ) {
+        if (playlistId >= 0L) {
+            operations.updateBaseline(
+                playlistId,
+                snapshot,
+                localUpdatedAtMs,
+                remoteUpdatedAtMs,
+                remoteObservedChangeAtMs
+            )
         }
     }
 

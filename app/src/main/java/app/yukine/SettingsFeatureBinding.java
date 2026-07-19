@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity;
 
 import app.yukine.data.MusicLibraryRepository;
 import app.yukine.streaming.LuoxueSourceStore;
+import app.yukine.streaming.KugouExperimentalSyncStore;
 import app.yukine.ui.EchoTheme;
 
 /** Owns Activity-scoped settings state, typed effects, runtime application and lifecycle. */
@@ -99,6 +100,8 @@ final class SettingsFeatureBinding {
                         this::languageMode,
                         statusMessages::setStatus
                 );
+        KugouExperimentalSyncStore kugouExperimentalSyncStore =
+                new KugouExperimentalSyncStore(activity);
         effectOwner = new SettingsEffectOwner(
                 new SettingsNavigationEffectActions(
                         statusMessages::setStatus,
@@ -148,7 +151,15 @@ final class SettingsFeatureBinding {
                 ),
                 new SettingsStreamingEffectActions(
                         streaming::applyEndpoint,
-                        identityProxyDialogController::show
+                        identityProxyDialogController::show,
+                        enabled -> {
+                            kugouExperimentalSyncStore.setUserEnabled(enabled);
+                            statusMessages.setStatus(enabled
+                                    ? "酷狗实验同步已启用；契约门禁未通过时保持只读"
+                                    : "酷狗实验同步已关闭");
+                            viewModel.refreshSettingsContext();
+                            streaming.refreshProviders();
+                        }
                 )
         );
         viewModel.bindEffectListener(effectOwner);

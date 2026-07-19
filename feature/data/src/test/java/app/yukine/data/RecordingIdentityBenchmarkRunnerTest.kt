@@ -1,5 +1,6 @@
 package app.yukine.data
 
+import app.yukine.streaming.RecordingMatchEvaluatorV2
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,5 +33,12 @@ class RecordingIdentityBenchmarkRunnerTest {
             comparison.enhancedV7.candidateCount,
             comparison.enhancedV7.evaluationCount
         )
+        assertEquals(RecordingMatchEvaluatorV2.SCORE_VERSION, comparison.v4Scoring.scoreVersion)
+        assertEquals(RecordingMatchEvaluatorV2.V5_SCORE_VERSION, comparison.v5Scoring.scoreVersion)
+        assertEquals(3, comparison.v4Scoring.overall.pairCount)
+        assertEquals(3, comparison.v5Scoring.overall.pairCount)
+        assertTrue(comparison.v4Scoring.overall.autoMergePrecision in 0.0..1.0)
+        assertTrue(comparison.v5Scoring.overall.autoMergePrecision in 0.0..1.0)
+        assertEquals(3, comparison.v5Scoring.byCategory.getValue("UNCATEGORIZED").pairCount)
     }
 }

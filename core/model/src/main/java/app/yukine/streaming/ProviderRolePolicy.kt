@@ -10,7 +10,7 @@ import java.util.Locale
  */
 object ProviderRolePolicy {
     private val physicalProviders = setOf("local", "document", "webdav")
-    private val identityProviders = physicalProviders + setOf("netease", "qqmusic")
+    private val identityProviders = physicalProviders + setOf("netease", "qqmusic", "kugou")
 
     @JvmStatic
     fun normalize(provider: String?): String {
@@ -29,18 +29,21 @@ object ProviderRolePolicy {
     fun canPersistCanonicalSource(provider: String?): Boolean = contributesIdentity(provider)
 
     @JvmStatic
-    fun canSyncFavorites(provider: String?): Boolean = normalize(provider) in setOf("netease", "qqmusic")
+    fun canSyncFavorites(provider: String?): Boolean =
+        normalize(provider) in setOf("netease", "qqmusic", "kugou")
 
     @JvmStatic
-    fun canSyncPlaylists(provider: String?): Boolean = normalize(provider) in setOf("netease", "qqmusic")
+    fun canSyncPlaylists(provider: String?): Boolean =
+        normalize(provider) in setOf("netease", "qqmusic", "kugou")
 
     @JvmStatic
-    fun isPlaybackResolver(provider: String?): Boolean = normalize(provider) == "luoxue"
+    fun isPlaybackResolver(provider: String?): Boolean =
+        normalize(provider) in setOf("luoxue", "kugou")
 
     @JvmStatic
     fun canEverBecomeActive(provider: String?): Boolean {
         val normalized = normalize(provider)
-        return normalized in physicalProviders || normalized == "netease"
+        return normalized in physicalProviders || normalized == "netease" || normalized == "kugou"
     }
 
     @JvmStatic
@@ -53,6 +56,7 @@ object ProviderRolePolicy {
         return when {
             normalized in physicalProviders -> true
             normalized == "netease" -> neteasePlaybackEnabled && !hasEligiblePhysicalSource
+            normalized == "kugou" -> !hasEligiblePhysicalSource
             else -> false
         }
     }

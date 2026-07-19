@@ -23,7 +23,24 @@ internal data class RecordingIdentityGoldPair(
     val label: ManualMatchLabel,
     val left: RecordingIdentityGoldSide,
     val right: RecordingIdentityGoldSide,
+    val category: String = "UNCATEGORIZED",
     val note: String = ""
+)
+
+internal data class RecordingIdentityClassificationMetrics(
+    val pairCount: Int,
+    val truePositive: Int,
+    val falsePositive: Int,
+    val trueNegative: Int,
+    val falseNegative: Int,
+    val autoMergePrecision: Double,
+    val autoMergeRecall: Double
+)
+
+internal data class RecordingIdentityScoringMetrics(
+    val scoreVersion: Int,
+    val overall: RecordingIdentityClassificationMetrics,
+    val byCategory: Map<String, RecordingIdentityClassificationMetrics>
 )
 
 internal data class RecordingIdentityBenchmarkMetrics(
@@ -39,7 +56,9 @@ internal data class RecordingIdentityBenchmarkComparison(
     val schemaVersion: Int,
     val pairCount: Int,
     val baselineV6: RecordingIdentityBenchmarkMetrics,
-    val enhancedV7: RecordingIdentityBenchmarkMetrics
+    val enhancedV7: RecordingIdentityBenchmarkMetrics,
+    val v4Scoring: RecordingIdentityScoringMetrics,
+    val v5Scoring: RecordingIdentityScoringMetrics
 )
 
 /** Parses schemaVersion=1 gold JSONL and compares the frozen V6-equivalent OFF path with V7 ON. */
@@ -56,7 +75,75 @@ internal class RecordingIdentityBenchmarkRunner {
             schemaVersion = SCHEMA_VERSION,
             pairCount = pairs.size,
             baselineV6 = measure(fixture, EmbeddingRecallMode.OFF),
-            enhancedV7 = measure(fixture, EmbeddingRecallMode.ON)
+            enhancedV7 = measure(fixture, EmbeddingRecallMode.ON),
+            v4Scoring = measureScoring(pairs, v5 = false),
+            v5Scoring = measureScoring(pairs, v5 = true)
+        )
+    }
+
+    private fun measureScoring(
+        pairs: List<RecordingIdentityGoldPair>,
+        v5: Boolean
+    ): RecordingIdentityScoringMetrics {
+        fun classify(input: List<RecordingIdentityGoldPair>): RecordingIdentityClassificationMetrics {
+            var truePositive = 0
+            var falsePositive = 0
+            var trueNegative = 0
+            var falseNegative = 0
+            input.forEach { pair ->
+                val evaluation = if (v5) {
+                    RecordingMatchEvaluatorV2.evaluateV5(
+                        pair.left.toReference(),
+                        pair.right.toReference()
+                    )
+                } else {
+                    RecordingMatchEvaluatorV2.evaluate(
+                        pair.left.toReference(),
+                        pair.right.toReference()
+                    )
+                }
+                val expectedSame = pair.label == ManualMatchLabel.SAME
+                val autoMerged = !evaluation.hasHardConflict &&
+                    evaluation.sameRecordingProbability >=
+                    RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE
+                when {
+                    expectedSame && autoMerged -> truePositive++
+                    !expectedSame && autoMerged -> falsePositive++
+                    !expectedSame -> trueNegative++
+                    else -> falseNegative++
+                }
+            }
+            val predictedPositive = truePositive + falsePositive
+            val actualPositive = truePositive + falseNegative
+            return RecordingIdentityClassificationMetrics(
+                pairCount = input.size,
+                truePositive = truePositive,
+                falsePositive = falsePositive,
+                trueNegative = trueNegative,
+                falseNegative = falseNegative,
+                autoMergePrecision = if (predictedPositive == 0) {
+                    1.0
+                } else {
+                    truePositive.toDouble() / predictedPositive
+                },
+                autoMergeRecall = if (actualPositive == 0) {
+                    1.0
+                } else {
+                    truePositive.toDouble() / actualPositive
+                }
+            )
+        }
+
+        return RecordingIdentityScoringMetrics(
+            scoreVersion = if (v5) {
+                RecordingMatchEvaluatorV2.V5_SCORE_VERSION
+            } else {
+                RecordingMatchEvaluatorV2.SCORE_VERSION
+            },
+            overall = classify(pairs),
+            byCategory = pairs.groupBy { it.category.ifBlank { "UNCATEGORIZED" } }
+                .toSortedMap()
+                .mapValues { (_, categoryPairs) -> classify(categoryPairs) }
         )
     }
 
@@ -171,6 +258,8 @@ internal class RecordingIdentityBenchmarkRunner {
                     label = label,
                     left = json.getJSONObject("left").toGoldSide(),
                     right = json.getJSONObject("right").toGoldSide(),
+                    category = json.optString("category", "UNCATEGORIZED").trim()
+                        .ifEmpty { "UNCATEGORIZED" },
                     note = json.optString("note").trim()
                 )
             }

@@ -504,7 +504,13 @@ object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOpenNetworkPage: (NetworkPage) -> Unit,
         onManageLuoxueSources: () -> Unit,
-        onImportLuoxueSource: () -> Unit
+        onImportLuoxueSource: () -> Unit,
+        kugouExperimentalSyncEnabled: Boolean = false,
+        kugouAccountConnected: Boolean = false,
+        kugouAccountDisplayName: String = "",
+        kugouSyncLastResult: String = "",
+        kugouSyncDegradationReason: String = "",
+        onKugouExperimentalSyncEnabledChange: (Boolean) -> Unit = {}
     ): SettingsPageStateContent {
         val normalizedQuality = StreamingQualityPreference.normalize(quality)
         val lxSummary = if (languageMode == AppLanguage.MODE_ENGLISH) {
@@ -514,6 +520,15 @@ object SettingsPageStateBuilder {
         }
         val metrics = listOf(
             SettingsMetric(text(languageMode, "streaming.lx.source.manager"), lxSummary),
+            SettingsMetric(
+                if (languageMode == AppLanguage.MODE_ENGLISH) "Kugou account" else "酷狗账号",
+                when {
+                    !kugouAccountConnected ->
+                        if (languageMode == AppLanguage.MODE_ENGLISH) "Not verified" else "未验证"
+                    kugouAccountDisplayName.isNotBlank() -> kugouAccountDisplayName
+                    else -> if (languageMode == AppLanguage.MODE_ENGLISH) "Verified" else "已验证"
+                }
+            ),
             SettingsMetric(text(languageMode, "streaming.audio.quality"), streamingQualityLabel(normalizedQuality, languageMode)),
             SettingsMetric(text(languageMode, "streaming.gateway"), if (gatewayConfigured) text(languageMode, "connected") else text(languageMode, "missing"))
         )
@@ -527,6 +542,34 @@ object SettingsPageStateBuilder {
                 icon = EchoIconKind.Network,
                 section = text(languageMode, "settings.section.accounts"),
                 entryId = SettingsEntryId.StreamingProviders
+            ),
+            SettingsAction(
+                label = if (languageMode == AppLanguage.MODE_ENGLISH) {
+                    "Kugou experimental sync"
+                } else {
+                    "酷狗实验同步"
+                },
+                onClick = Runnable {
+                    onKugouExperimentalSyncEnabledChange(!kugouExperimentalSyncEnabled)
+                },
+                description = buildString {
+                    append(
+                        if (languageMode == AppLanguage.MODE_ENGLISH) {
+                            "Private account writes are experimental and stay read-only until the contract gate passes."
+                        } else {
+                            "私有账号写入属于实验能力；接口契约验证通过前始终保持只读。"
+                        }
+                    )
+                    kugouSyncDegradationReason.takeIf { it.isNotBlank() }?.let {
+                        append(" · ")
+                        append(it)
+                    }
+                },
+                value = kugouSyncLastResult,
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Network,
+                checked = kugouExperimentalSyncEnabled,
+                section = text(languageMode, "settings.section.accounts")
             ),
             SettingsAction(
                 label = text(languageMode, "streaming.lx.source.manager"),
@@ -982,26 +1025,51 @@ object SettingsPageStateBuilder {
         onNavigate: (SettingsPage) -> Unit,
         onOpenPermission: () -> Unit,
         onToggle: (Boolean) -> Unit
-    ): SettingsPageStateContent = floatingLyrics(
-        languageMode = languageMode,
-        enabled = enabled,
-        overlayPermissionGranted = overlayPermissionGranted,
-        runtimeStatus = if (enabled) "Waiting" else "Disabled",
-        textSizeSp = 16,
-        widthPercent = 88,
-        backgroundOpacityPercent = 92,
-        transparentBackground = false,
-        onNavigate = onNavigate,
-        onOpenPermission = onOpenPermission,
-        onToggle = onToggle,
-        onTextSizeChange = {},
-        onWidthChange = {},
-        onBackgroundOpacityChange = {},
-        onTransparentBackgroundChange = {},
-        onShow = {},
-        onUnlock = {},
-        onReset = {}
-    )
+    ): SettingsPageStateContent {
+        val metrics = listOf(
+            SettingsMetric(text(languageMode, "floating.lyrics"), enabledLabel(enabled, languageMode)),
+            SettingsMetric(
+                text(languageMode, "overlay.permission"),
+                permissionLabel(overlayPermissionGranted, languageMode)
+            ),
+            SettingsMetric(
+                text(languageMode, "description"),
+                text(languageMode, "floating.lyrics.description")
+            )
+        )
+        val actions = buildList {
+            add(
+                backNavigationAction(
+                    text(languageMode, "back"),
+                    SettingsBackStack.parent(SettingsPage.FloatingLyrics),
+                    onNavigate
+                )
+            )
+            if (!overlayPermissionGranted) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "grant.overlay.permission"),
+                        onClick = Runnable(onOpenPermission),
+                        description = text(languageMode, "floating.lyrics.description"),
+                        style = SettingsActionStyle.Navigation,
+                        icon = EchoIconKind.Permission
+                    )
+                )
+            }
+            add(
+                SettingsAction(
+                    label = text(languageMode, "floating.lyrics"),
+                    onClick = Runnable { onToggle(!enabled) },
+                    description = text(languageMode, "floating.lyrics.description"),
+                    style = SettingsActionStyle.Toggle,
+                    icon = EchoIconKind.Lyrics,
+                    checked = enabled,
+                    enabled = overlayPermissionGranted || enabled
+                )
+            )
+        }
+        return buildContent(text(languageMode, "floating.lyrics"), metrics, actions)
+    }
 
     fun floatingLyrics(
         languageMode: String,

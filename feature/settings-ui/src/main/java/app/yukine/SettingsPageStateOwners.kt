@@ -379,6 +379,8 @@ class NetworkSettingsStateOwner internal constructor(private val context: Settin
     fun importLuoxueSource() = context.emit(SettingsEffect.ImportLuoxueSource)
     fun applyStreamingGatewayEndpoint(endpoint: String) =
         context.emit(SettingsEffect.ApplyStreamingGatewayEndpoint(endpoint))
+    fun setKugouExperimentalSyncEnabled(enabled: Boolean) =
+        context.emit(SettingsEffect.SetKugouExperimentalSyncEnabled(enabled))
     fun editMusicBrainzProxy() = context.emit(SettingsEffect.EditMusicBrainzProxy)
 }
 

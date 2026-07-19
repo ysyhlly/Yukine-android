@@ -24,6 +24,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StreamingTrackMatchEntity::class,
         LibraryExclusionEntity::class,
         CanonicalWorkEntity::class,
+        WorkArtistCreditEntity::class,
+        WorkIdentifierEntity::class,
         CanonicalRecordingEntity::class,
         CanonicalArtistEntity::class,
         ArtistAliasEntity::class,

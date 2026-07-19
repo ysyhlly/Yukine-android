@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 31
+    const val TARGET_VERSION: Int = 32
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -23,6 +23,7 @@ object YukineMigrations {
                 YukineSchema.normalizeV29(db)
                 normalizeV30(db)
                 normalizeV31(db)
+                normalizeV32(db)
             }
         }
     }.toTypedArray()
@@ -390,6 +391,61 @@ object YukineMigrations {
         backfillCanonicalAlbums(db)
     }
 
+    internal fun normalizeV32(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `work_artist_credits` (" +
+                "`work_id` INTEGER NOT NULL, `artist_id` INTEGER NOT NULL, " +
+                "`role` TEXT NOT NULL DEFAULT 'UNKNOWN', `position` INTEGER NOT NULL DEFAULT 0, " +
+                "`credited_name` TEXT NOT NULL DEFAULT '', `source` TEXT NOT NULL DEFAULT '', " +
+                "`confidence` REAL NOT NULL DEFAULT 0, `verified_at` INTEGER NOT NULL DEFAULT 0, " +
+                "PRIMARY KEY(`work_id`,`artist_id`,`role`,`position`), " +
+                "FOREIGN KEY(`work_id`) REFERENCES `works`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`artist_id`) REFERENCES `canonical_artists`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `work_identifiers` (" +
+                "`work_id` INTEGER NOT NULL, `identifier_type` TEXT NOT NULL, " +
+                "`namespace` TEXT NOT NULL, `identifier_value` TEXT NOT NULL, " +
+                "`source` TEXT NOT NULL DEFAULT '', `confidence` REAL NOT NULL DEFAULT 0, " +
+                "`verified_at` INTEGER NOT NULL DEFAULT 0, " +
+                "PRIMARY KEY(`identifier_type`,`namespace`,`identifier_value`), " +
+                "FOREIGN KEY(`work_id`) REFERENCES `works`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_work_artist_credits_work` " +
+                "ON `work_artist_credits` (`work_id`,`position`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_work_artist_credits_artist` " +
+                "ON `work_artist_credits` (`artist_id`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_work_identifiers_work` " +
+                "ON `work_identifiers` (`work_id`)"
+        )
+        addRealColumn(db, "source_match_features", "title_trust", 0.7)
+        addRealColumn(db, "source_match_features", "artist_trust", 0.7)
+        addRealColumn(db, "source_match_features", "version_trust", 0.7)
+        addRealColumn(db, "source_match_features", "identifier_trust", 0.2)
+        addRealColumn(db, "source_match_features", "work_credit_trust", 0.2)
+        addTextColumn(db, "source_match_features", "evidence_provenance")
+        db.execSQL(
+            "INSERT OR IGNORE INTO recording_identifiers(" +
+                "recording_id,identifier_type,namespace,identifier_value,source,confidence,verified_at) " +
+                "SELECT id,'ISRC','',upper(replace(replace(trim(isrc),'-',''),' ',''))," +
+                "'MIGRATION_V32',confidence,updated_at FROM recordings " +
+                "WHERE trim(isrc) != ''"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO work_identifiers(" +
+                "work_id,identifier_type,namespace,identifier_value,source,confidence,verified_at) " +
+                "SELECT work_id,'MUSICBRAINZ_WORK_ID','',lower(trim(musicbrainz_work_id))," +
+                "'MIGRATION_V32',confidence,updated_at FROM recordings " +
+                "WHERE work_id IS NOT NULL AND trim(musicbrainz_work_id) != ''"
+        )
+    }
+
     private fun backfillCanonicalAlbums(db: SupportSQLiteDatabase) {
         val albumArtistId =
             "COALESCE((SELECT c.artist_id FROM recording_artist_credits c " +
@@ -435,6 +491,19 @@ object YukineMigrations {
     private fun addIntegerColumn(db: SupportSQLiteDatabase, table: String, column: String) {
         if (!columnExists(db, table, column)) {
             db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    private fun addRealColumn(
+        db: SupportSQLiteDatabase,
+        table: String,
+        column: String,
+        defaultValue: Double
+    ) {
+        if (!columnExists(db, table, column)) {
+            db.execSQL(
+                "ALTER TABLE `$table` ADD COLUMN `$column` REAL NOT NULL DEFAULT $defaultValue"
+            )
         }
     }
 

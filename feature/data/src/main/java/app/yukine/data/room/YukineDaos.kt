@@ -670,6 +670,24 @@ interface MusicIdentityDao {
     fun workForIdentity(normalizedTitle: String, primaryCreatorId: Long): CanonicalWorkEntity?
 
     @Query(
+        "SELECT * FROM work_artist_credits WHERE work_id = :workId " +
+            "ORDER BY position, role, artist_id"
+    )
+    fun workCredits(workId: Long): List<WorkArtistCreditEntity>
+
+    @Query(
+        "SELECT * FROM work_identifiers WHERE work_id = :workId " +
+            "ORDER BY identifier_type, namespace, identifier_value"
+    )
+    fun workIdentifiers(workId: Long): List<WorkIdentifierEntity>
+
+    @Query(
+        "SELECT * FROM work_identifiers WHERE identifier_type = :type " +
+            "AND namespace = :namespace AND identifier_value = :value LIMIT 1"
+    )
+    fun workIdentifier(type: String, namespace: String, value: String): WorkIdentifierEntity?
+
+    @Query(
         "SELECT artist_id FROM recording_artist_credits WHERE recording_id = :recordingId " +
             "AND role = 'PRIMARY' ORDER BY position, artist_id LIMIT 1"
     )
@@ -677,6 +695,12 @@ interface MusicIdentityDao {
 
     @Query("UPDATE recordings SET work_id = :workId, updated_at = :updatedAt WHERE id = :recordingId")
     fun updateRecordingWork(recordingId: Long, workId: Long, updatedAt: Long): Int
+
+    @Query(
+        "UPDATE recordings SET work_id = :targetWorkId, updated_at = :updatedAt " +
+            "WHERE work_id = :sourceWorkId"
+    )
+    fun moveRecordingsToWork(sourceWorkId: Long, targetWorkId: Long, updatedAt: Long): Int
 
     @Query(
         "UPDATE works SET normalized_title = :normalizedTitle, updated_at = :updatedAt " +
@@ -1343,6 +1367,12 @@ interface MusicIdentityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(credit: RecordingArtistCreditEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(credit: WorkArtistCreditEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(identifier: WorkIdentifierEntity)
+
     @Upsert
     fun upsert(source: TrackSourceMappingEntity)
 
@@ -1448,6 +1478,12 @@ interface MusicIdentityDao {
 
     @Query("DELETE FROM recording_artist_credits WHERE recording_id = :recordingId")
     fun deleteCredits(recordingId: Long): Int
+
+    @Query("DELETE FROM work_artist_credits WHERE work_id = :workId")
+    fun deleteWorkCredits(workId: Long): Int
+
+    @Query("DELETE FROM work_identifiers WHERE work_id = :workId")
+    fun deleteWorkIdentifiers(workId: Long): Int
 
     @Query("DELETE FROM recording_identifiers WHERE recording_id = :recordingId")
     fun deleteIdentifiers(recordingId: Long): Int

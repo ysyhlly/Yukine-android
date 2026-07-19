@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -399,6 +400,72 @@ class YukineDatabaseMigrationTest {
             assertEquals("startVersion=$startVersion", "ok", stringValue(sqlite, "PRAGMA integrity_check"))
             database.close()
         }
+    }
+
+    @Test
+    fun everyExportedV15ThroughV31SchemaMigratesAtomicallyToV32() {
+        (15..31).forEach { startVersion ->
+            val name = databaseName("exported-route-v$startVersion")
+            createExportedSchemaFixture(name, startVersion)
+
+            val database = YukineDatabase.open(context, name)
+            val sqlite = database.openHelper.writableDatabase
+
+            assertEquals(
+                "startVersion=$startVersion",
+                YukineMigrations.TARGET_VERSION,
+                sqlite.version
+            )
+            assertTrue(columnExists(sqlite, "work_artist_credits", "work_id"))
+            assertTrue(columnExists(sqlite, "work_identifiers", "identifier_value"))
+            assertEquals("startVersion=$startVersion", 0L, rowCount(sqlite, "PRAGMA foreign_key_check"))
+            assertEquals("startVersion=$startVersion", "ok", stringValue(sqlite, "PRAGMA integrity_check"))
+            database.close()
+        }
+    }
+
+    @Test
+    fun version31BackfillsLegacyIdentifiersAndAddsTrustProvenance() {
+        val name = databaseName("v31-v32-identity")
+        createExportedSchemaFixture(name, 31)
+        val raw = SQLiteDatabase.openDatabase(
+            context.getDatabasePath(name).path,
+            null,
+            SQLiteDatabase.OPEN_READWRITE
+        )
+        raw.execSQL(
+            "INSERT INTO works(id,canonical_uuid,normalized_title,created_at,updated_at) " +
+                "VALUES(501,'00000000-0000-0000-0000-000000000501','test work',10,20)"
+        )
+        raw.execSQL(
+            "INSERT INTO recordings(" +
+                "id,canonical_uuid,work_id,musicbrainz_work_id,title,isrc,confidence,created_at,updated_at" +
+                ") VALUES(" +
+                "601,'00000000-0000-0000-0000-000000000601',501," +
+                "'51cf9f61-7ce9-4a83-bb59-252d76f18b1b','Test Recording','US-AAA-26-00001'," +
+                "0.9,10,20)"
+        )
+        raw.close()
+
+        val database = YukineDatabase.open(context, name)
+        val sqlite = database.openHelper.writableDatabase
+
+        assertEquals("USAAA2600001", stringValue(
+            sqlite,
+            "SELECT identifier_value FROM recording_identifiers " +
+                "WHERE recording_id=601 AND identifier_type='ISRC'"
+        ))
+        assertEquals("51cf9f61-7ce9-4a83-bb59-252d76f18b1b", stringValue(
+            sqlite,
+            "SELECT identifier_value FROM work_identifiers " +
+                "WHERE work_id=501 AND identifier_type='MUSICBRAINZ_WORK_ID'"
+        ))
+        assertTrue(columnExists(sqlite, "source_match_features", "title_trust"))
+        assertTrue(columnExists(sqlite, "source_match_features", "work_credit_trust"))
+        assertTrue(columnExists(sqlite, "source_match_features", "evidence_provenance"))
+        assertEquals(0L, rowCount(sqlite, "PRAGMA foreign_key_check"))
+        assertEquals("ok", stringValue(sqlite, "PRAGMA integrity_check"))
+        database.close()
     }
 
     @Test
@@ -1127,6 +1194,53 @@ class YukineDatabaseMigrationTest {
         )
         database.execSQL("INSERT INTO favorites(track_id) VALUES (901)")
         database.execSQL("INSERT INTO play_history(track_id, played_at) VALUES (901, 1700000000000)")
+        database.version = version
+        database.close()
+    }
+
+    private fun createExportedSchemaFixture(name: String, version: Int) {
+        val relative = "schemas/app.yukine.data.room.YukineDatabase/$version.json"
+        val schemaFile = sequenceOf(
+            File(relative),
+            File("feature/data/$relative")
+        ).firstOrNull(File::isFile)
+            ?: error("Missing exported Room schema $relative")
+        val schema = JSONObject(schemaFile.readText(StandardCharsets.UTF_8)).getJSONObject("database")
+        val file = context.getDatabasePath(name)
+        file.parentFile?.mkdirs()
+        val database = SQLiteDatabase.openOrCreateDatabase(file, null)
+        database.execSQL("PRAGMA foreign_keys=OFF")
+        val entities = schema.getJSONArray("entities")
+        repeat(entities.length()) { index ->
+            val entity = entities.getJSONObject(index)
+            val tableName = entity.getString("tableName")
+            database.execSQL(
+                entity.getString("createSql").replace("\${TABLE_NAME}", tableName)
+            )
+        }
+        repeat(entities.length()) { index ->
+            val entity = entities.getJSONObject(index)
+            val tableName = entity.getString("tableName")
+            entity.optJSONArray("indices")?.let { indices ->
+                repeat(indices.length()) { indexPosition ->
+                    database.execSQL(
+                        indices.getJSONObject(indexPosition)
+                            .getString("createSql")
+                            .replace("\${TABLE_NAME}", tableName)
+                    )
+                }
+            }
+        }
+        schema.optJSONArray("views")?.let { views ->
+            repeat(views.length()) { index ->
+                database.execSQL(views.getJSONObject(index).getString("createSql"))
+            }
+        }
+        schema.optJSONArray("setupQueries")?.let { queries ->
+            repeat(queries.length()) { index ->
+                database.execSQL(queries.getString(index))
+            }
+        }
         database.version = version
         database.close()
     }

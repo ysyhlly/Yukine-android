@@ -54,6 +54,11 @@ class MetadataGatewayClientTest {
         assertEquals("recording-mbid", candidate.recordingMbid)
         assertEquals("work-mbid", candidate.workMbid)
         assertEquals("USRC17607839", candidate.isrc)
+        assertEquals(setOf("USRC17607839", "JPABC1234567"), candidate.isrcs)
+        assertEquals("ISWC", candidate.workIdentifiers.single { it.identifierType == "ISWC" }.identifierType)
+        assertEquals("T-123.456.789-0", candidate.workIdentifiers.single { it.identifierType == "ISWC" }.identifierValue)
+        assertEquals("COMPOSER", candidate.workCredits.single().role)
+        assertEquals("Composer Name", candidate.workCredits.single().creditedName)
         assertEquals("acoust-id", candidate.acoustId)
         assertEquals("https://coverartarchive.org/release/release-id/front-500", candidate.coverUrl)
         assertTrue(candidate.fingerprintVerified)
@@ -546,8 +551,21 @@ class MetadataGatewayClientTest {
               "durationMs":180000,
               "identifiers":{
                 "recordingMbid":"recording-mbid","workMbid":"work-mbid",
-                "isrc":"USRC17607839","acoustId":"acoust-id"
+                "isrc":"USRC17607839","isrcs":["USRC17607839","JPABC1234567"],
+                "acoustId":"acoust-id"
               },
+              "workIdentifiers":[
+                {
+                  "type":"ISWC","namespace":"iswc","value":"T-123.456.789-0",
+                  "source":"musicbrainz","confidence":1.0,"verifiedAt":123
+                }
+              ],
+              "workCredits":[
+                {
+                  "artistId":"composer-mbid","name":"Composer Name","role":"COMPOSER",
+                  "source":"musicbrainz","confidence":0.9,"verifiedAt":123
+                }
+              ],
               "fingerprintVerified":true,"confidence":0.99,
               "sources":[
                 {

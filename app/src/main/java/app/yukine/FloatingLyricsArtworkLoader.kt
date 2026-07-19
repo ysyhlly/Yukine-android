@@ -15,7 +15,7 @@ internal class FloatingLyricsArtworkLoader(context: Context) {
     suspend fun load(uriValue: String?, targetSizePx: Int): Bitmap? {
         val value = uriValue?.takeIf(String::isNotBlank) ?: return null
         cache.get(value)?.let { return it }
-        val uri = runCatching(Uri::parse).getOrNull() ?: return null
+        val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return null
         if (uri.scheme == "http" || uri.scheme == "https") return null
         return withContext(Dispatchers.IO) {
             decode(uri, targetSizePx)?.also { cache.put(value, it) }

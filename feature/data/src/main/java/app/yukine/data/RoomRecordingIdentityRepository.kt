@@ -3,6 +3,7 @@ package app.yukine.data
 import app.yukine.data.room.CanonicalRecordingEntity
 import app.yukine.data.room.IdentityCandidateEntity
 import app.yukine.data.room.IdentityResolutionJobEntity
+import app.yukine.data.room.WorkIdentifierEntity
 import app.yukine.data.room.MusicIdentityDao
 import app.yukine.data.room.RecordingIdentifierEntity
 import app.yukine.data.room.TrackEntityMapper
@@ -11,6 +12,7 @@ import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.IdentityCandidateStatus
 import app.yukine.identity.IdentityMatchStatus
 import app.yukine.identity.RecordingIdentifier
+import app.yukine.identity.WorkIdentifier
 import app.yukine.identity.RecordingIdentityRepository
 import app.yukine.identity.RecordingVariantRecognizer
 import app.yukine.identity.TrackSourceMapping
@@ -97,6 +99,48 @@ class RoomRecordingIdentityRepository(
             dao.upsert(
                 RecordingIdentifierEntity(
                     recordingId = recordingId,
+                    identifierType = type,
+                    namespace = namespace,
+                    identifierValue = value,
+                    source = identifier.source.trim(),
+                    confidence = identifier.confidence.coerceIn(0.0, 1.0),
+                    verifiedAt = identifier.verifiedAt
+                )
+            )
+        }
+    }
+
+    override fun attachWorkIdentifier(recordingId: Long, identifier: WorkIdentifier) {
+        database.runInTransaction {
+            val recording = requireRecording(recordingId)
+            var targetWorkId = requireNotNull(recording.workId) {
+                "Recording must belong to a canonical Work"
+            }
+            val type = identifier.identifierType.trim().uppercase(Locale.ROOT)
+            val namespace = identifier.namespace.trim()
+            val value = normalizeIdentifier(type, identifier.identifierValue)
+            require(type.isNotBlank() && value.isNotBlank()) {
+                "Work identifier type and value are required"
+            }
+            val existing = dao.workIdentifier(type, namespace, value)
+            if (existing != null && existing.workId != targetWorkId) {
+                if (identifier.confidence < 0.85) {
+                    return@runInTransaction
+                }
+                val sourceWorkId = targetWorkId
+                targetWorkId = existing.workId
+                dao.workCredits(sourceWorkId).forEach { dao.upsert(it.copy(workId = targetWorkId)) }
+                dao.workIdentifiers(sourceWorkId).forEach { dao.upsert(it.copy(workId = targetWorkId)) }
+                dao.moveRecordingsToWork(
+                    sourceWorkId = sourceWorkId,
+                    targetWorkId = targetWorkId,
+                    updatedAt = identifier.verifiedAt
+                )
+                dao.deleteOrphanWorks()
+            }
+            dao.upsert(
+                WorkIdentifierEntity(
+                    workId = targetWorkId,
                     identifierType = type,
                     namespace = namespace,
                     identifierValue = value,
@@ -644,7 +688,7 @@ class RoomRecordingIdentityRepository(
         "MUSICBRAINZ_WORK_ID", "WORK_MBID" -> recording.copy(
             musicBrainzWorkId = compatibleValue("Work MBID", recording.musicBrainzWorkId, value)
         )
-        "ISRC" -> recording.copy(isrc = compatibleValue("ISRC", recording.isrc, value))
+        "ISRC" -> if (recording.isrc.isBlank()) recording.copy(isrc = value) else recording
         "ACOUSTID", "ACOUST_ID" -> recording.copy(
             acoustId = compatibleValue("AcoustID", recording.acoustId, value)
         )

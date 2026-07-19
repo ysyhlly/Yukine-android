@@ -1,10 +1,13 @@
 package app.yukine.identity
 
 import app.yukine.streaming.RecordingMatchEvaluatorV2
+import app.yukine.streaming.RecordingMatchEvaluationPolicy
+import app.yukine.streaming.IdentityScoringMode
 import app.yukine.streaming.RecordingVersionClassifier
 import app.yukine.streaming.RecordingVersionType
 import app.yukine.streaming.VersionEvidenceSource
 import app.yukine.streaming.StreamingTrackMatchPolicy
+import app.yukine.streaming.WorkCreditFeature
 import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
@@ -43,8 +46,11 @@ data class RecordingMatchEvidence(
     val canonicalAlbumConfirmed: Boolean = false,
     val durationMs: Long = 0L,
     val isrc: String = "",
+    val isrcs: Set<String> = emptySet(),
     val recordingMbid: String = "",
     val workMbid: String = "",
+    val workIdentifiers: Set<String> = emptySet(),
+    val workCredits: List<WorkCreditFeature> = emptyList(),
     val acoustId: String = "",
     val fingerprintVerified: Boolean = false,
     val providerScore: Double = 0.0,
@@ -74,7 +80,10 @@ data class RankedIdentityCandidate<T>(
     val candidate: T,
     val score: Double,
     val hardConflict: Boolean,
-    val reasons: List<String>
+    val reasons: List<String>,
+    val shadowScore: Double? = null,
+    val shadowHardConflict: Boolean? = null,
+    val scoreVersion: Int = 0
 )
 
 data class AutoConfirmation<T>(
@@ -126,7 +135,8 @@ object IdentityTextNormalizer {
 
 class RecordingCandidateRanker(
     private val minimumScore: Double = 0.92,
-    private val minimumMargin: Double = 0.08
+    private val minimumMargin: Double = 0.08,
+    private val scoringMode: IdentityScoringMode = IdentityScoringMode.V5_SHADOW
 ) {
     fun rank(
         target: RecordingMatchEvidence,
@@ -148,8 +158,20 @@ class RecordingCandidateRanker(
     ): RankedIdentityCandidate<RecordingMatchEvidence> {
         val reasons = mutableListOf<String>()
         val supplementalConflict = recordingHardConflict(target, candidate, reasons)
-        val evaluation = RecordingMatchEvaluatorV2.evaluate(target.toReference(), candidate.toReference())
+        val decision = RecordingMatchEvaluationPolicy.evaluate(
+            target.toReference(),
+            candidate.toReference(),
+            scoringMode
+        )
+        val evaluation = decision.active
+        val shadowEvaluation = decision.shadow
         reasons += evaluation.explanation
+        shadowEvaluation?.let { shadow ->
+            reasons += "shadow_score_v${shadow.scoreVersion}=${"%.4f".format(Locale.ROOT, shadow.sameRecordingProbability)}"
+            if (shadow.hardConflicts.isNotEmpty()) {
+                reasons += "shadow_conflicts=${shadow.hardConflicts.joinToString(",") { it.name }}"
+            }
+        }
         evaluation.hardConflicts.forEach { conflict ->
             reasons += when (conflict) {
                 app.yukine.streaming.RecordingMatchHardConflict.PRIMARY_ARTIST -> "different_primary_artist"
@@ -168,7 +190,10 @@ class RecordingCandidateRanker(
             candidate = candidate,
             score = if (hardConflict) 0.0 else maxOf(evaluation.sameRecordingProbability, fingerprintScore),
             hardConflict = hardConflict,
-            reasons = reasons
+            reasons = reasons,
+            shadowScore = shadowEvaluation?.sameRecordingProbability,
+            shadowHardConflict = shadowEvaluation?.hasHardConflict,
+            scoreVersion = evaluation.scoreVersion
         )
     }
 
@@ -210,10 +235,13 @@ private fun RecordingMatchEvidence.toReference(): StreamingTrackMatchPolicy.Refe
         album = album,
         durationMs = durationMs.takeIf { it > 0L },
         isrc = isrc,
+        isrcs = isrcs,
         provider = provider,
         providerTrackId = providerItemId,
         recordingMbid = recordingMbid,
         workMbid = workMbid,
+        workIdentifiers = workIdentifiers,
+        workCredits = workCredits,
         canonicalWorkId = canonicalWorkId,
         canonicalWorkConfirmed = canonicalWorkConfirmed,
         canonicalAlbumId = canonicalAlbumId,

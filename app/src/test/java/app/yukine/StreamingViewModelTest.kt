@@ -1220,7 +1220,7 @@ class StreamingViewModelTest {
         assertEquals(listOf(listOf("new")), gateway.addedTrackIds)
         assertEquals(listOf(listOf("old")), gateway.removedTrackIds)
         assertEquals(listOf(listOf("new")), gateway.reorderedTrackIds)
-        assertEquals(listOf(15L), operations.markedPlaylistIds)
+        assertEquals(listOf(15L), operations.baselinePlaylistIds)
         assertEquals(1, synced.single().syncedCount)
         assertFalse(synced.single().empty)
     }
@@ -1775,8 +1775,10 @@ class StreamingViewModelTest {
         ) {
             if (add) {
                 addedTrackIds += providerTrackIds
+                playlistTrackIds = (playlistTrackIds + providerTrackIds).distinct()
             } else {
                 removedTrackIds += providerTrackIds
+                playlistTrackIds = playlistTrackIds.filterNot(providerTrackIds.toSet()::contains)
             }
         }
 
@@ -1786,6 +1788,7 @@ class StreamingViewModelTest {
             orderedProviderTrackIds: List<String>
         ) {
             reorderedTrackIds += orderedProviderTrackIds
+            playlistTrackIds = orderedProviderTrackIds
         }
     }
 
@@ -1825,6 +1828,7 @@ class StreamingViewModelTest {
         val linkedRemotePlaylists = mutableMapOf<String, StreamingPlaylistSyncStore.LinkedPlaylist>()
         var localSnapshot: StreamingLocalPlaylistSnapshot? = null
         val markedPlaylistIds = mutableListOf<Long>()
+        val baselinePlaylistIds = mutableListOf<Long>()
 
         override fun playlistExists(localPlaylistId: Long): Boolean = playlistExistsResult
 
@@ -1886,6 +1890,16 @@ class StreamingViewModelTest {
 
         override fun markPlaylistSynced(localPlaylistId: Long) {
             markedPlaylistIds += localPlaylistId
+        }
+
+        override fun updatePlaylistSyncBaseline(
+            localPlaylistId: Long,
+            snapshot: app.yukine.streaming.StreamingPlaylistSyncSnapshot,
+            localUpdatedAtMs: Long?,
+            remoteUpdatedAtMs: Long?,
+            remoteObservedChangeAtMs: Long?
+        ) {
+            baselinePlaylistIds += localPlaylistId
         }
     }
 

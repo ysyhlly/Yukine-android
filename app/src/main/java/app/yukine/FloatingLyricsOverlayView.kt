@@ -91,7 +91,6 @@ internal class FloatingLyricsOverlayView(
 
     private val opacitySlider = SeekBar(context).apply {
         max = 100
-        min = 0
         contentDescription = context.getString(R.string.floating_lyrics_background_opacity_description)
         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -135,7 +134,7 @@ internal class FloatingLyricsOverlayView(
         renderPresentation(presentation, animate = false)
     }
 
-    fun render(
+    fun bindState(
         state: FloatingLyricsState,
         artwork: Bitmap?
     ) {
@@ -330,6 +329,9 @@ internal class FloatingLyricsOverlayView(
         var dragging = false
         target.setOnTouchListener { view, event ->
             if (event.pointerCount != 1) {
+                if (dragging) {
+                    onAction(FloatingLyricsOverlayAction.DragFinished)
+                }
                 dragging = false
                 return@setOnTouchListener true
             }
@@ -373,6 +375,9 @@ internal class FloatingLyricsOverlayView(
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    if (dragging) {
+                        onAction(FloatingLyricsOverlayAction.DragFinished)
+                    }
                     dragging = false
                     true
                 }

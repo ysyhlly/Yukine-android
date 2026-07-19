@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaylistSyncStore
 import app.yukine.streaming.StreamingPlaylistSyncDirection
+import app.yukine.streaming.StreamingPlaylistSyncSnapshot
+import app.yukine.streaming.StreamingPlaylistPendingOperation
 import app.yukine.streaming.StreamingProviderName
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,6 +82,56 @@ class PlaylistSourceResolverTest {
         val restored = StreamingPlaylistSyncStore(context).getLink(44L)
 
         assertEquals(StreamingPlaylistSyncDirection.REMOTE_TO_LOCAL, restored?.direction)
+    }
+
+    @Test
+    fun newKugouLinksDefaultToBidirectionalAndPersistRecoveryState() {
+        val store = StreamingPlaylistSyncStore(context)
+        store.linkPlaylist(
+            localPlaylistId = 45L,
+            provider = StreamingProviderName.KUGOU,
+            providerPlaylistId = "kugou-list-45"
+        )
+        val baseline = StreamingPlaylistSyncSnapshot(
+            title = "酷狗歌单",
+            orderedTrackIds = listOf("abc.1.2", "def.3.4"),
+            updatedAtMs = 100L
+        )
+        store.updateBaseline(45L, baseline, 110L, 120L, 125L)
+        store.replacePendingOperations(
+            45L,
+            listOf(
+                StreamingPlaylistPendingOperation(
+                    operationType = "add",
+                    targetFingerprint = baseline.fingerprint,
+                    confirmedItemCount = 50,
+                    retryCount = 1,
+                    nextAttemptAtMs = 500L
+                )
+            )
+        )
+
+        val restored = StreamingPlaylistSyncStore(context).getLink(45L)
+
+        assertEquals(StreamingPlaylistSyncDirection.BIDIRECTIONAL, restored?.direction)
+        assertEquals(baseline, restored?.baseline)
+        assertEquals(50, restored?.pendingOperations?.single()?.confirmedItemCount)
+        assertEquals(125L, restored?.remoteObservedChangeAtMs)
+    }
+
+    @Test
+    fun remoteDeletionRequiresTwoConfirmedMissingReads() {
+        val store = StreamingPlaylistSyncStore(context)
+        store.linkPlaylist(
+            localPlaylistId = 46L,
+            provider = StreamingProviderName.KUGOU,
+            providerPlaylistId = "kugou-list-46"
+        )
+
+        assertEquals(1, store.markRemoteMissing(46L, 100L))
+        assertNull(store.getLink(46L)?.remoteDeletedAtMs)
+        assertEquals(2, store.markRemoteMissing(46L, 200L))
+        assertEquals(200L, store.getLink(46L)?.remoteDeletedAtMs)
     }
 
     @Test

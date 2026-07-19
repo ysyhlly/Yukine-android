@@ -67,6 +67,20 @@ enum class StreamingMediaType(val wireName: String) {
     }
 }
 
+enum class StreamingPlaylistKind(val wireName: String) {
+    UNKNOWN("unknown"),
+    OWNED("owned"),
+    COLLECTED("collected"),
+    FAVORITES("favorites");
+
+    companion object {
+        fun fromWireName(value: String?): StreamingPlaylistKind {
+            val normalized = value.orEmpty().trim().lowercase()
+            return entries.firstOrNull { it.wireName == normalized } ?: UNKNOWN
+        }
+    }
+}
+
 enum class StreamingAudioQuality(val wireName: String) {
     STANDARD("standard"),
     HIGH("high"),

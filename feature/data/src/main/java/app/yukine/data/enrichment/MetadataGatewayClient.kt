@@ -14,6 +14,8 @@ import app.yukine.identity.ProviderArtistCandidate
 import app.yukine.identity.ProviderCacheFreshness
 import app.yukine.identity.ProviderResponseCacheRepository
 import app.yukine.identity.RecordingVariantRecognizer
+import app.yukine.identity.WorkCreditEvidence
+import app.yukine.identity.WorkIdentifierEvidence
 import java.net.URLEncoder
 import java.security.MessageDigest
 import org.json.JSONObject
@@ -187,6 +189,77 @@ class MetadataGatewayClient(
                     }
                 }
                 val identifiers = item.optJSONObject("identifiers") ?: JSONObject()
+                val legacyIsrc = identifiers.optString("isrc")
+                val isrcs = buildSet {
+                    legacyIsrc.takeIf(String::isNotBlank)?.let(::add)
+                    sequenceOf(
+                        item.optJSONArray("isrcs"),
+                        identifiers.optJSONArray("isrcs")
+                    ).filterNotNull().forEach { array ->
+                        for (isrcIndex in 0 until array.length()) {
+                            array.optString(isrcIndex).trim()
+                                .takeIf(String::isNotBlank)
+                                ?.let(::add)
+                        }
+                    }
+                }
+                val legacyWorkMbid = identifiers.optString("workMbid")
+                val workIdentifiers = buildList {
+                    sequenceOf(
+                        item.optJSONArray("workIdentifiers"),
+                        identifiers.optJSONArray("workIdentifiers")
+                    ).filterNotNull().forEach { array ->
+                        for (identifierIndex in 0 until array.length()) {
+                            val value = array.optJSONObject(identifierIndex) ?: continue
+                            val type = value.optString("type").trim().uppercase()
+                            val identifierValue = value.optString("value").trim()
+                            if (type.isBlank() || identifierValue.isBlank()) continue
+                            add(
+                                WorkIdentifierEvidence(
+                                    identifierType = type,
+                                    namespace = value.optString("namespace").trim(),
+                                    identifierValue = identifierValue,
+                                    source = value.optString("source", source.provider).trim(),
+                                    confidence = value.optDouble("confidence", 0.0).coerceIn(0.0, 1.0),
+                                    verifiedAt = value.optLong("verifiedAt", 0L).coerceAtLeast(0L)
+                                )
+                            )
+                        }
+                    }
+                    if (legacyWorkMbid.isNotBlank() && none {
+                            it.identifierType == "MUSICBRAINZ_WORK_ID" &&
+                                it.identifierValue.equals(legacyWorkMbid, ignoreCase = true)
+                        }
+                    ) {
+                        add(
+                            WorkIdentifierEvidence(
+                                identifierType = "MUSICBRAINZ_WORK_ID",
+                                identifierValue = legacyWorkMbid,
+                                source = source.provider,
+                                confidence = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
+                            )
+                        )
+                    }
+                }
+                val workCredits = buildList {
+                    val array = item.optJSONArray("workCredits")
+                    if (array != null) for (creditIndex in 0 until array.length()) {
+                        val value = array.optJSONObject(creditIndex) ?: continue
+                        val name = value.optString("name").trim()
+                        val role = value.optString("role").trim().uppercase()
+                        if (name.isBlank() || role.isBlank()) continue
+                        add(
+                            WorkCreditEvidence(
+                                providerArtistId = value.optString("artistId").trim(),
+                                creditedName = name,
+                                role = role,
+                                source = value.optString("source", source.provider).trim(),
+                                confidence = value.optDouble("confidence", 0.0).coerceIn(0.0, 1.0),
+                                verifiedAt = value.optLong("verifiedAt", 0L).coerceAtLeast(0L)
+                            )
+                        )
+                    }
+                }
                 add(AnonymousRecordingCandidate(
                     provider = source.provider,
                     providerItemId = source.itemId,
@@ -194,9 +267,12 @@ class MetadataGatewayClient(
                     artists = artists,
                     album = item.optString("album"),
                     durationMs = item.optLong("durationMs", 0L),
-                    isrc = identifiers.optString("isrc"),
+                    isrc = legacyIsrc.ifBlank { isrcs.firstOrNull().orEmpty() },
+                    isrcs = isrcs,
                     recordingMbid = identifiers.optString("recordingMbid"),
-                    workMbid = identifiers.optString("workMbid"),
+                    workMbid = legacyWorkMbid,
+                    workIdentifiers = workIdentifiers,
+                    workCredits = workCredits,
                     acoustId = identifiers.optString("acoustId"),
                     coverUrl = trustedCoverUrl(item.optString("coverUrl")),
                     fingerprintVerified = item.optBoolean("fingerprintVerified", false),

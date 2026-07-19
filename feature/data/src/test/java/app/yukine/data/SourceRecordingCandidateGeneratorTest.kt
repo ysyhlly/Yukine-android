@@ -2,6 +2,8 @@ package app.yukine.data
 
 import app.yukine.data.room.SourceMatchFeatureEntity
 import app.yukine.data.room.TrackSourceMappingEntity
+import app.yukine.fingerprint.ChromaprintSegment
+import app.yukine.fingerprint.TraditionalAudioEvidence
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -161,6 +163,82 @@ class SourceRecordingCandidateGeneratorTest {
         assertNotEquals(
             generator.snapshotSignature(listOf(first, second), features, EmbeddingRecallMode.OFF),
             generator.snapshotSignature(listOf(first, second), features, EmbeddingRecallMode.ON)
+        )
+    }
+
+    @Test
+    fun chromaprintBucketRecallStaysInShadowUntilEnabled() {
+        val first = source(61L, 10L, "甲", "One", 180_000L)
+        val second = source(62L, 11L, "乙", "Two", 180_050L, "webdav")
+        val sources = listOf(first, second)
+        val audioEvidence = sources.associate { source ->
+            checkNotNull(source.sourceId) to TraditionalAudioEvidence(
+                segments = listOf(
+                    ChromaprintSegment(
+                        startMs = 30_000L,
+                        durationMs = 12_000L,
+                        words = intArrayOf(0x11335577, 0x557799BB.toInt(), 0x22446688)
+                    )
+                )
+            )
+        }
+        val generator = SourceRecordingCandidateGenerator()
+
+        val shadow = generator.generate(
+            sources,
+            features(sources),
+            600L,
+            EmbeddingRecallMode.SHADOW,
+            audioEvidence
+        )
+        val on = generator.generate(
+            sources,
+            features(sources),
+            600L,
+            EmbeddingRecallMode.ON,
+            audioEvidence
+        )
+
+        assertTrue(shadow.candidates.isEmpty())
+        assertTrue(shadow.shadowCandidates.any { row ->
+            row.sourceId == first.sourceId &&
+                row.candidateRecordingId == second.recordingId &&
+                row.evidenceJson.contains("\"CHROMAPRINT_BUCKET\"")
+        })
+        assertTrue(on.candidates.any { row ->
+            row.sourceId == first.sourceId && row.candidateRecordingId == second.recordingId
+        })
+    }
+
+    @Test
+    fun audioEvidenceParticipatesInCandidateSnapshotSignature() {
+        val source = source(71L, 12L, "Stable Audio", "Artist", 180_000L)
+        val features = features(listOf(source))
+        val generator = SourceRecordingCandidateGenerator()
+        val first = mapOf(
+            71L to TraditionalAudioEvidence(
+                segments = listOf(ChromaprintSegment(0L, 10_000L, intArrayOf(1, 2, 3)))
+            )
+        )
+        val second = mapOf(
+            71L to TraditionalAudioEvidence(
+                segments = listOf(ChromaprintSegment(0L, 10_000L, intArrayOf(1, 2, 4)))
+            )
+        )
+
+        assertNotEquals(
+            generator.snapshotSignature(
+                listOf(source),
+                features,
+                EmbeddingRecallMode.SHADOW,
+                first
+            ),
+            generator.snapshotSignature(
+                listOf(source),
+                features,
+                EmbeddingRecallMode.SHADOW,
+                second
+            )
         )
     }
 

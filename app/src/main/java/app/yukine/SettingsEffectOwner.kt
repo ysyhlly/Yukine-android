@@ -41,7 +41,8 @@ internal data class SettingsFileEffectActions(
 
 internal data class SettingsStreamingEffectActions(
     val applyGatewayEndpoint: Consumer<String>,
-    val editMusicBrainzProxy: Runnable
+    val editMusicBrainzProxy: Runnable,
+    val setKugouExperimentalSyncEnabled: Consumer<Boolean> = Consumer {}
 )
 
 /** Exhaustively consumes one-time settings effects at focused platform boundaries. */
@@ -81,6 +82,8 @@ internal class SettingsEffectOwner(
             SettingsEffect.ImportBackup -> files.importBackup.run()
             is SettingsEffect.ApplyStreamingGatewayEndpoint ->
                 streaming.applyGatewayEndpoint.accept(effect.endpoint)
+            is SettingsEffect.SetKugouExperimentalSyncEnabled ->
+                streaming.setKugouExperimentalSyncEnabled.accept(effect.enabled)
             SettingsEffect.EditMusicBrainzProxy -> streaming.editMusicBrainzProxy.run()
         }
     }

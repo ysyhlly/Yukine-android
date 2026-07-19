@@ -3,6 +3,7 @@ package app.yukine.data
 import app.yukine.data.room.SourceMatchFeatureEntity
 import app.yukine.data.room.SourceRecordingCandidateEntity
 import app.yukine.data.room.TrackSourceMappingEntity
+import app.yukine.fingerprint.TraditionalAudioEvidence
 import app.yukine.streaming.RecordingVersionClassifier
 import app.yukine.streaming.RecordingVersionType
 import java.nio.charset.StandardCharsets
@@ -15,7 +16,8 @@ internal enum class CandidateRecallSource {
     EXACT_TITLE,
     TRIGRAM,
     BIGRAM,
-    EMBEDDING_LSH
+    EMBEDDING_LSH,
+    CHROMAPRINT_BUCKET
 }
 
 internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
@@ -29,12 +31,18 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
         generatedAt: Long,
-        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF
+        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF,
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence> = emptyMap()
     ): SourceCandidateGenerationResult {
         val descriptors = sources.mapNotNull { source ->
             descriptor(source, featuresBySourceId[source.sourceId])
         }
-        val snapshotSignature = snapshotSignature(sources, featuresBySourceId, mode)
+        val snapshotSignature = snapshotSignature(
+            sources,
+            featuresBySourceId,
+            mode,
+            audioEvidenceBySourceId
+        )
         if (descriptors.isEmpty()) {
             return SourceCandidateGenerationResult(
                 candidates = emptyList(),
@@ -67,6 +75,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 descriptor.simHash?.let { simHash -> EmbeddingIndexItem(descriptor.sourceId, simHash) }
             }
         )
+        val chromaprintIndex = ChromaprintBucketIndex(audioEvidenceBySourceId)
 
         var coarseComparisons = 0
         val activeRows = ArrayList<SourceRecordingCandidateEntity>(descriptors.size * topK)
@@ -117,14 +126,20 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
             }
             val baselineTop = baselineBest.values.sortedCandidates().take(topK)
 
-            if (mode == EmbeddingRecallMode.OFF || query.simHash == null) {
+            val hasMetadataRecall = query.simHash != null
+            val hasAudioRecall = audioEvidenceBySourceId[query.sourceId]
+                ?.segments
+                ?.isNotEmpty() == true
+            if (mode == EmbeddingRecallMode.OFF || !hasMetadataRecall && !hasAudioRecall) {
                 baselineTop.forEach { ranked ->
                     activeRows += ranked.toEntity(query.sourceId, generatedAt, STATE_GENERATED)
                 }
                 return@forEach
             }
 
-            val embeddingHits = embeddingIndex.recall(query.simHash, query.sourceId)
+            val embeddingHits = query.simHash?.let { simHash ->
+                embeddingIndex.recall(simHash, query.sourceId)
+            }.orEmpty()
                 .asSequence()
                 .mapNotNull { hit ->
                     descriptorsBySourceId[hit.sourceId]?.let { descriptor -> descriptor to hit.bandMatches }
@@ -151,6 +166,22 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
             embeddingHits.forEach { (candidate, _) ->
                 fusedPool.add(candidate, CandidateRecallSource.EMBEDDING_LSH)
             }
+            val audioHits = chromaprintIndex.recall(query.sourceId)
+                .asSequence()
+                .mapNotNull { hit ->
+                    descriptorsBySourceId[hit.sourceId]?.let { descriptor ->
+                        descriptor to hit.bucketMatches
+                    }
+                }
+                .filter { (candidate, _) -> candidate.recordingId != query.recordingId }
+                .take(MAX_INTERNAL_AUDIO_CANDIDATES)
+                .toList()
+            val audioMatchesBySourceId = audioHits.associate { (candidate, count) ->
+                candidate.sourceId to count
+            }
+            audioHits.forEach { (candidate, _) ->
+                fusedPool.add(candidate, CandidateRecallSource.CHROMAPRINT_BUCKET)
+            }
 
             val fusedBest = HashMap<Long, RankedCandidate>()
             fusedPool.forEach { (candidate, recallSources) ->
@@ -158,8 +189,19 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 val bandMatches = bandMatchesBySourceId[candidate.sourceId] ?: 0
                 val effectiveSources = recallSources.toMutableSet()
                 if (bandMatches > 0) effectiveSources += CandidateRecallSource.EMBEDDING_LSH
+                val audioBucketMatches = audioMatchesBySourceId[candidate.sourceId] ?: 0
+                if (audioBucketMatches > 0) {
+                    effectiveSources += CandidateRecallSource.CHROMAPRINT_BUCKET
+                }
                 fusedBest.keepBest(
-                    rank(query, candidate, effectiveSources, bandMatches, fused = true)
+                    rank(
+                        query,
+                        candidate,
+                        effectiveSources,
+                        bandMatches,
+                        audioBucketMatches,
+                        fused = true
+                    )
                 )
             }
             val enhancedTop = selectEnhanced(baselineTop, fusedBest.values)
@@ -196,7 +238,8 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
     fun snapshotSignature(
         sources: List<TrackSourceMappingEntity>,
         featuresBySourceId: Map<Long, SourceMatchFeatureEntity>,
-        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF
+        mode: EmbeddingRecallMode = EmbeddingRecallMode.OFF,
+        audioEvidenceBySourceId: Map<Long, TraditionalAudioEvidence> = emptyMap()
     ): String {
         val payload = sources.asSequence()
             .mapNotNull { source ->
@@ -204,7 +247,8 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 val feature = featuresBySourceId[sourceId] ?: return@mapNotNull null
                 "$sourceId|${source.recordingId}|${feature.algorithmVersion}|" +
                     "${feature.metadataSignature}|${feature.metadataVectorVersion}|" +
-                    "${feature.metadataSimHash ?: 0L}|${mode.name}"
+                    "${feature.metadataSimHash ?: 0L}|${mode.name}|" +
+                    audioEvidenceSignature(audioEvidenceBySourceId[sourceId])
             }
             .sorted()
             .joinToString("\u001E")
@@ -262,6 +306,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         candidate: Descriptor,
         recallSources: Set<CandidateRecallSource>,
         bandMatches: Int,
+        audioBucketMatches: Int = 0,
         fused: Boolean
     ): RankedCandidate {
         val titleScore = if (query.coreTitle == candidate.coreTitle) {
@@ -302,12 +347,14 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         }
         val coarseScore = if (fused) {
             (
-                titleScore * 0.50 +
+                titleScore * 0.47 +
                     artistScore * 0.20 +
                     durationScore * 0.10 +
                     versionScore * 0.05 +
                     embeddingSimilarity * 0.10 +
-                    (bandMatches.toDouble() / EmbeddingPostingIndex.BAND_COUNT) * 0.05
+                    (bandMatches.toDouble() / EmbeddingPostingIndex.BAND_COUNT) * 0.04 +
+                    (audioBucketMatches.toDouble() / MAX_AUDIO_BUCKET_MATCHES)
+                        .coerceIn(0.0, 1.0) * 0.04
                 ).coerceIn(0.0, 1.0)
         } else {
             baselineScore
@@ -324,7 +371,8 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
             recallSources = recallSources.toSortedSet(compareBy(CandidateRecallSource::name)),
             embeddingSimilarity = embeddingSimilarity,
             embeddingVersion = minOf(query.embeddingVersion, candidate.embeddingVersion),
-            bandMatches = bandMatches
+            bandMatches = bandMatches,
+            audioBucketMatches = audioBucketMatches
         )
     }
 
@@ -344,7 +392,16 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 candidate.candidateRecordingId !in baselineRecordingIds &&
                     CandidateRecallSource.EMBEDDING_LSH in candidate.recallSources
             }
-            .take(MAX_EMBEDDING_ONLY_TOP_K)
+            .take(MAX_METADATA_RECALL_TOP_K)
+            .forEach { candidate -> selected[candidate.candidateRecordingId] = candidate }
+        fusedCandidates.sortedCandidates()
+            .asSequence()
+            .filter { candidate ->
+                candidate.candidateRecordingId !in baselineRecordingIds &&
+                    candidate.candidateRecordingId !in selected &&
+                    CandidateRecallSource.CHROMAPRINT_BUCKET in candidate.recallSources
+            }
+            .take(MAX_AUDIO_RECALL_TOP_K)
             .forEach { candidate -> selected[candidate.candidateRecordingId] = candidate }
         (fusedCandidates.sortedCandidates() + baselineTop)
             .asSequence()
@@ -408,6 +465,19 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         .digest(value.toByteArray(StandardCharsets.UTF_8))
         .joinToString("") { byte -> "%02x".format(byte) }
 
+    private fun audioEvidenceSignature(evidence: TraditionalAudioEvidence?): String {
+        if (evidence == null) return "NO_AUDIO"
+        val payload = buildString {
+            append(evidence.pcmHash)
+            evidence.segments.forEach { segment ->
+                append('|').append(segment.startMs)
+                    .append(':').append(segment.durationMs)
+                    .append(':').append(segment.words.contentHashCode())
+            }
+        }
+        return sha256(payload)
+    }
+
     private data class Descriptor(
         val sourceId: Long,
         val recordingId: Long,
@@ -440,7 +510,8 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         val recallSources: Set<CandidateRecallSource>,
         val embeddingSimilarity: Double,
         val embeddingVersion: Int,
-        val bandMatches: Int
+        val bandMatches: Int,
+        val audioBucketMatches: Int
     ) {
         fun isBetterThan(other: RankedCandidate): Boolean =
             coarseScore > other.coarseScore ||
@@ -468,7 +539,8 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                     "\"baselineScore\":%.4f,\"hardVersionConflict\":%s," +
                     "\"candidateSourceId\":%d,\"candidateSources\":[%s]," +
                     "\"bandMatches\":%d,\"embeddingSimilarity\":%.4f," +
-                    "\"embeddingVersion\":%d,\"embeddingRecallOnly\":true}",
+                    "\"embeddingVersion\":%d,\"audioBucketMatches\":%d," +
+                    "\"coldRecallOnly\":true}",
                 titleScore,
                 artistScore,
                 durationScore,
@@ -478,17 +550,21 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
                 sources,
                 bandMatches,
                 embeddingSimilarity,
-                embeddingVersion
+                embeddingVersion,
+                audioBucketMatches
             )
         }
     }
 
     internal companion object {
-        const val ALGORITHM_VERSION = 8
+        const val ALGORITHM_VERSION = 9
         const val DEFAULT_TOP_K = 20
         const val MAX_TOP_K = 20
         const val MAX_INTERNAL_EMBEDDING_CANDIDATES = 100
+        const val MAX_INTERNAL_AUDIO_CANDIDATES = 100
         const val BASELINE_RESERVED_TOP_K = 12
+        const val MAX_METADATA_RECALL_TOP_K = 4
+        const val MAX_AUDIO_RECALL_TOP_K = 4
         const val MAX_EMBEDDING_ONLY_TOP_K = 8
         const val STATE_GENERATED = "GENERATED"
         const val STATE_SHADOW = "SHADOW"
@@ -498,6 +574,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         private const val MAX_EXACT_TITLE_POSTING = 128
         private const val EXACT_TITLE_DURATION_BUCKETS = 2L
         private const val MIN_COARSE_POOL = 8
+        private const val MAX_AUDIO_BUCKET_MATCHES = 12.0
     }
 }
 

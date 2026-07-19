@@ -410,6 +410,7 @@ class SettingsPageStateBuilderTest {
         val navigated = mutableListOf<SettingsPage>()
         val openedNetworkPages = mutableListOf<NetworkPage>()
         val lxActions = mutableListOf<String>()
+        val kugouToggles = mutableListOf<Boolean>()
 
         val content = SettingsPageStateBuilder.sourcesGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
@@ -420,15 +421,17 @@ class SettingsPageStateBuilderTest {
             onNavigate = { page -> navigated += page },
             onOpenNetworkPage = { page -> openedNetworkPages += page },
             onManageLuoxueSources = { lxActions += "manage" },
-            onImportLuoxueSource = { lxActions += "import" }
+            onImportLuoxueSource = { lxActions += "import" },
+            onKugouExperimentalSyncEnabledChange = { enabled -> kugouToggles += enabled }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "streaming.settings"), content.uiState.title)
-        assertEquals(3, content.uiState.metrics.size)
+        assertEquals(4, content.uiState.metrics.size)
         assertEquals("3 of 4 enabled", content.uiState.metrics[0].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[1].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[2].value)
-        assertEquals(8, content.actions.size)
+        assertEquals("Not verified", content.uiState.metrics[1].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "quality.lossless"), content.uiState.metrics[2].value)
+        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "missing"), content.uiState.metrics[3].value)
+        assertEquals(9, content.actions.size)
 
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
@@ -437,6 +440,7 @@ class SettingsPageStateBuilderTest {
         content.actions[5].onClick.run()
         content.actions[6].onClick.run()
         content.actions[7].onClick.run()
+        content.actions[8].onClick.run()
 
         assertEquals(
             listOf(
@@ -447,6 +451,7 @@ class SettingsPageStateBuilderTest {
             openedNetworkPages
         )
         assertEquals(listOf("manage", "import"), lxActions)
+        assertEquals(listOf(true), kugouToggles)
         assertEquals(listOf(SettingsPage.StreamingAudioQuality, SettingsPage.StreamingGateway), navigated)
     }
 

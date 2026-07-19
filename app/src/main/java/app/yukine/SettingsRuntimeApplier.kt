@@ -44,8 +44,7 @@ internal class MainSettingsFloatingLyricsControls(
             return false
         }
         enableRequestStore.clear()
-        FloatingLyricsService.start(context)
-        return true
+        return FloatingLyricsService.start(context)
     }
 
     override fun openPermissionSettings(): Boolean {

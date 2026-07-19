@@ -1179,7 +1179,9 @@ object StreamingRepositoryFactory {
         return StreamingRepository(
             RemoteStreamingGateway(
                 endpointBaseUrl = endpointBaseUrl,
-                localAuthStore = LocalStreamingAuthStore(context)
+                localAuthStore = LocalStreamingAuthStore(context),
+                luoxueSourceStore = LuoxueSourceStore(context),
+                kugouExperimentalSyncStore = KugouExperimentalSyncStore(context)
             ),
             StreamingCacheRepository.create(context),
             HeaderBackedStreamingPlaybackTrackAdapter(),

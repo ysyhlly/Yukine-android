@@ -78,7 +78,10 @@ class LocalStreamingAuthStore(context: Context) : StreamingLocalAuthStore {
             else -> StreamingCredentialState.PENDING_VERIFICATION
         }
         val isConnected = preferences.getBoolean(keyConnected(provider), false) &&
-            usableCookie && credentialState != StreamingCredentialState.INVALID
+            usableCookie &&
+            credentialState != StreamingCredentialState.INVALID &&
+            (provider != StreamingProviderName.KUGOU ||
+                credentialState == StreamingCredentialState.VALID)
         val lastVerifiedAt = preferences.getLong(keyLastVerified(provider), NO_TIMESTAMP)
             .takeIf { it != NO_TIMESTAMP }
         return StreamingAuthState(

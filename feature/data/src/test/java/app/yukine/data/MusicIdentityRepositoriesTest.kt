@@ -559,7 +559,15 @@ class MusicIdentityRepositoriesTest {
         assertEquals(tags.workMusicBrainzId, updated.musicBrainzWorkId)
         assertEquals(tags.isrc, updated.isrc)
         assertEquals(tags.acoustId, updated.acoustId)
-        assertEquals(4, database.musicIdentityDao().identifiers(updated.recordingId).size)
+        assertEquals(3, database.musicIdentityDao().identifiers(updated.recordingId).size)
+        assertEquals(
+            tags.workMusicBrainzId,
+            database.musicIdentityDao().workIdentifiers(
+                requireNotNull(database.musicIdentityDao().recording(updated.recordingId)?.workId)
+            )
+                .single()
+                .identifierValue
+        )
         val credit = artists.creditsForRecording(updated.recordingId).single()
         val artist = checkNotNull(artists.artistByKey(credit.artistKey))
         assertEquals(tags.artistMusicBrainzIds.single(), artist.musicBrainzArtistId)
@@ -641,6 +649,47 @@ class MusicIdentityRepositoriesTest {
         assertTrue(
             database.musicIdentityDao().candidates("RECORDING", liveRecording)
                 .any { it.provider == "embedded_tag" && it.status == "REJECTED" }
+        )
+    }
+
+    @Test
+    fun sharedWorkMbidMergesOnlyWorkForDifferentPerformers() {
+        val sharedWorkMbid = "423e4567-e89b-12d3-a456-426614174000"
+        val original = track(
+            76L,
+            "Shared Work",
+            "Original Artist",
+            TrackIdentityTags("", sharedWorkMbid, "", "", emptyList())
+        )
+        val cover = track(
+            77L,
+            "Shared Work (Cover)",
+            "Cover Artist",
+            TrackIdentityTags("", sharedWorkMbid, "", "", emptyList())
+        )
+
+        LibraryRepository(database).upsertTracks(listOf(original, cover))
+
+        val dao = database.musicIdentityDao()
+        val originalRecordingId = requireNotNull(dao.recordingIdForLocalTrack(original.id))
+        val coverRecordingId = requireNotNull(dao.recordingIdForLocalTrack(cover.id))
+        assertNotEquals(originalRecordingId, coverRecordingId)
+        val originalRecording = requireNotNull(dao.recording(originalRecordingId))
+        val coverRecording = requireNotNull(dao.recording(coverRecordingId))
+        assertEquals(originalRecording.workId, coverRecording.workId)
+        assertEquals(
+            sharedWorkMbid,
+            dao.workIdentifiers(requireNotNull(originalRecording.workId)).single().identifierValue
+        )
+        assertTrue(
+            dao.identifiers(originalRecordingId).none {
+                it.identifierType == "MUSICBRAINZ_WORK_ID"
+            }
+        )
+        assertTrue(
+            dao.identifiers(coverRecordingId).none {
+                it.identifierType == "MUSICBRAINZ_WORK_ID"
+            }
         )
     }
 

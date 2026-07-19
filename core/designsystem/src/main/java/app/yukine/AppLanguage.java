@@ -280,7 +280,7 @@ public final class AppLanguage {
         put("floating.lyrics.transparent", "Fully transparent background", "\u5b8c\u5168\u900f\u660e\u80cc\u666f");
         put("floating.lyrics.transparent.description", "Text remains visible while the overlay surface is removed.", "\u4fdd\u7559\u6b4c\u8bcd\u6587\u5b57\uff0c\u4f46\u79fb\u9664\u60ac\u6d6e\u80cc\u666f\u3002");
         put("floating.lyrics.show", "Show again", "\u91cd\u65b0\u663e\u793a");
-        put("floating.lyrics.show.description", "Clears temporary hide; the overlay appears when lyrics are available.", "\u89e3\u9664\u4e34\u65f6\u9690\u85cf\uff1b\u6709\u6709\u6548\u6b4c\u8bcd\u65f6\u518d\u663e\u793a\u3002");
+        put("floating.lyrics.show.description", "Clears temporary hide; the overlay appears when lyrics are available.", "\u89e3\u9664\u4e34\u65f6\u9690\u85cf\uff1b\u6709\u6548\u6b4c\u8bcd\u65f6\u518d\u663e\u793a\u3002");
         put("floating.lyrics.unlock", "Disable click-through", "\u89e3\u9664\u70b9\u51fb\u7a7f\u900f");
         put("floating.lyrics.unlock.description", "Restores touch interaction even when notification permission is off.", "\u5373\u4f7f\u901a\u77e5\u6743\u9650\u5173\u95ed\uff0c\u4e5f\u53ef\u4ece\u6b64\u6062\u590d\u89e6\u6478\u3002");
         put("floating.lyrics.reset", "Reset position and size", "\u91cd\u7f6e\u4f4d\u7f6e\u4e0e\u5927\u5c0f");

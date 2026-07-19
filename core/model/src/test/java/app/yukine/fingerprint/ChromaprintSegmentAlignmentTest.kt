@@ -115,6 +115,35 @@ class ChromaprintSegmentAlignmentTest {
         assertTrue("pcm_hash" in refined.identifierEvidence)
     }
 
+    @Test
+    fun v5DifferentIsrcNeedsStrongMultiSegmentAudioToAutoMerge() {
+        val metadata = RecordingMatchEvaluatorV2.evaluateV5(
+            StreamingTrackMatchPolicy.Reference(
+                title = "Song",
+                artist = "Artist",
+                durationMs = 200_000L,
+                isrcs = setOf("USAAA2600001")
+            ),
+            StreamingTrackMatchPolicy.Reference(
+                title = "Song",
+                artist = "Artist",
+                durationMs = 200_000L,
+                isrcs = setOf("USBBB2600002")
+            )
+        )
+        assertTrue(metadata.sameRecordingProbability < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+        val alignment = ChromaprintSegmentAligner.align(
+            evidence(segment(0L, 20), segment(30_000L, 21)),
+            evidence(segment(500L, 20), segment(30_500L, 21))
+        )
+
+        val refined = AudioMatchRefiner.refine(metadata, alignment)
+
+        assertEquals(app.yukine.streaming.RecordingRelationship.SAME_RECORDING, refined.relationship)
+        assertTrue(refined.sameRecordingProbability >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+        assertEquals(RecordingMatchEvaluatorV2.V5_SCORE_VERSION, refined.scoreVersion)
+    }
+
     private fun evaluate(
         leftTitle: String,
         leftArtist: String,

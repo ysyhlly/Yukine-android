@@ -455,6 +455,62 @@ data class CanonicalAlbumEntity(
 )
 
 @Entity(
+    tableName = "work_artist_credits",
+    primaryKeys = ["work_id", "artist_id", "role", "position"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalWorkEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["work_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = CanonicalArtistEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["artist_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(name = "idx_work_artist_credits_work", value = ["work_id", "position"]),
+        Index(name = "idx_work_artist_credits_artist", value = ["artist_id"])
+    ]
+)
+data class WorkArtistCreditEntity(
+    @ColumnInfo(name = "work_id") val workId: Long,
+    @ColumnInfo(name = "artist_id") val artistId: Long,
+    @ColumnInfo(defaultValue = "'UNKNOWN'") val role: String,
+    @ColumnInfo(defaultValue = "0") val position: Int,
+    @ColumnInfo(name = "credited_name", defaultValue = "''") val creditedName: String,
+    @ColumnInfo(defaultValue = "''") val source: String,
+    @ColumnInfo(defaultValue = "0") val confidence: Double,
+    @ColumnInfo(name = "verified_at", defaultValue = "0") val verifiedAt: Long
+)
+
+@Entity(
+    tableName = "work_identifiers",
+    primaryKeys = ["identifier_type", "namespace", "identifier_value"],
+    foreignKeys = [
+        ForeignKey(
+            entity = CanonicalWorkEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["work_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(name = "idx_work_identifiers_work", value = ["work_id"])]
+)
+data class WorkIdentifierEntity(
+    @ColumnInfo(name = "work_id") val workId: Long,
+    @ColumnInfo(name = "identifier_type") val identifierType: String,
+    val namespace: String,
+    @ColumnInfo(name = "identifier_value") val identifierValue: String,
+    @ColumnInfo(defaultValue = "''") val source: String,
+    @ColumnInfo(defaultValue = "0") val confidence: Double,
+    @ColumnInfo(name = "verified_at", defaultValue = "0") val verifiedAt: Long
+)
+
+@Entity(
     tableName = "album_aliases",
     primaryKeys = ["album_id", "normalized_alias", "locale"],
     foreignKeys = [
@@ -694,7 +750,14 @@ data class SourceMatchFeatureEntity(
     @ColumnInfo(name = "metadata_vector") val metadataVector: ByteArray? = null,
     @ColumnInfo(name = "metadata_vector_version", defaultValue = "0")
     val metadataVectorVersion: Int = 0,
-    @ColumnInfo(name = "metadata_sim_hash") val metadataSimHash: Long? = null
+    @ColumnInfo(name = "metadata_sim_hash") val metadataSimHash: Long? = null,
+    @ColumnInfo(name = "title_trust", defaultValue = "0.7") val titleTrust: Double = 0.7,
+    @ColumnInfo(name = "artist_trust", defaultValue = "0.7") val artistTrust: Double = 0.7,
+    @ColumnInfo(name = "version_trust", defaultValue = "0.7") val versionTrust: Double = 0.7,
+    @ColumnInfo(name = "identifier_trust", defaultValue = "0.2") val identifierTrust: Double = 0.2,
+    @ColumnInfo(name = "work_credit_trust", defaultValue = "0.2") val workCreditTrust: Double = 0.2,
+    @ColumnInfo(name = "evidence_provenance", defaultValue = "''")
+    val evidenceProvenance: String = ""
 )
 
 /** Bounded coarse candidates. Only these rows enter expensive complete-link V2 scoring. */

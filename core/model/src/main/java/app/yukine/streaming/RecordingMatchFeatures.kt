@@ -9,6 +9,46 @@ enum class ArtistRole {
     COMPOSER
 }
 
+enum class WorkCreditRole {
+    COMPOSER,
+    SONGWRITER,
+    LYRICIST,
+    PUBLISHER
+}
+
+data class WorkCreditFeature(
+    val canonicalId: String? = null,
+    val canonicalName: String,
+    val aliases: Set<String> = emptySet(),
+    val role: WorkCreditRole
+)
+
+enum class EvidenceTrustTier(val weight: Double) {
+    VERIFIED_ID(1.0),
+    DIRECT_CONFIRMED(0.9),
+    PARSED_TAG(0.7),
+    LEGACY(0.5),
+    UNRESOLVED(0.2);
+
+    companion object {
+        @JvmStatic
+        fun closest(value: Double): EvidenceTrustTier =
+            entries.minBy { kotlin.math.abs(it.weight - value) }
+    }
+}
+
+data class EvidenceTrustProfile(
+    val title: EvidenceTrustTier = EvidenceTrustTier.PARSED_TAG,
+    val artist: EvidenceTrustTier = EvidenceTrustTier.PARSED_TAG,
+    val version: EvidenceTrustTier = EvidenceTrustTier.PARSED_TAG,
+    val identifier: EvidenceTrustTier = EvidenceTrustTier.UNRESOLVED,
+    val workCredit: EvidenceTrustTier = EvidenceTrustTier.UNRESOLVED
+) {
+    val aggregateWeight: Double
+        get() = listOf(title.weight, artist.weight, version.weight, identifier.weight)
+            .average()
+}
+
 data class ArtistFeature(
     val canonicalId: String? = null,
     val canonicalName: String,
@@ -58,12 +98,16 @@ data class RecordingMatchFeatures(
     val canonicalAlbumId: String?,
     val canonicalAlbumConfirmed: Boolean,
     val isrc: String?,
+    val isrcs: Set<String> = emptySet(),
     val recordingMbid: String?,
     val workMbid: String?,
+    val workIdentifiers: Set<String> = emptySet(),
+    val workCredits: List<WorkCreditFeature> = emptyList(),
     val fingerprint: FingerprintFeature?,
     val provider: String?,
     val providerTrackId: String?,
-    val providerTrackIdConfirmed: Boolean
+    val providerTrackIdConfirmed: Boolean,
+    val trustProfile: EvidenceTrustProfile = EvidenceTrustProfile()
 )
 
 object RecordingMatchFeatureExtractor {
@@ -100,6 +144,23 @@ object RecordingMatchFeatureExtractor {
         val fingerprint = reference.fingerprint.trim().takeIf(String::isNotBlank)?.let { value ->
             FingerprintFeature(algorithm = "acoustid", value = value)
         }
+        val normalizedIsrcs = (reference.isrcs + reference.isrc.orEmpty())
+            .asSequence()
+            .map(StreamingTrackMatchPolicy::normalizeIsrc)
+            .filter(String::isNotBlank)
+            .toSortedSet()
+        val normalizedWorkIdentifiers = (
+            reference.workIdentifiers.asSequence() +
+                sequenceOf(reference.workMbid)
+                    .filter(String::isNotBlank)
+                    .map { value ->
+                        listOf("MUSICBRAINZ_WORK_ID", "", value)
+                            .joinToString(WORK_IDENTIFIER_SEPARATOR.toString())
+                    }
+            )
+            .map(::normalizeWorkIdentifier)
+            .filter(String::isNotBlank)
+            .toSortedSet()
         return RecordingMatchFeatures(
             normalizedTitle = normalizedTitle,
             titleTokens = tokens(normalizedTitle),
@@ -117,19 +178,44 @@ object RecordingMatchFeatureExtractor {
             canonicalWorkConfirmed = reference.canonicalWorkConfirmed,
             canonicalAlbumId = normalizeIdentifier(reference.canonicalAlbumId).takeIf(String::isNotBlank),
             canonicalAlbumConfirmed = reference.canonicalAlbumConfirmed,
-            isrc = StreamingTrackMatchPolicy.normalizeIsrc(reference.isrc).takeIf(String::isNotBlank),
+            isrc = normalizedIsrcs.firstOrNull(),
+            isrcs = normalizedIsrcs,
             recordingMbid = normalizeIdentifier(reference.recordingMbid).takeIf(String::isNotBlank),
             workMbid = normalizeIdentifier(reference.workMbid).takeIf(String::isNotBlank),
+            workIdentifiers = normalizedWorkIdentifiers,
+            workCredits = reference.workCredits,
             fingerprint = fingerprint,
             provider = reference.provider.trim().takeIf(String::isNotBlank),
             providerTrackId = normalizeIdentifier(reference.providerTrackId).takeIf(String::isNotBlank),
-            providerTrackIdConfirmed = reference.providerTrackIdConfirmed
+            providerTrackIdConfirmed = reference.providerTrackIdConfirmed,
+            trustProfile = reference.trustProfile
         )
     }
 
     internal fun tokens(value: String): Set<String> = value.split(' ')
         .filter(String::isNotBlank)
         .toSortedSet()
+
+    private fun normalizeWorkIdentifier(value: String): String {
+        val parts = value.split(WORK_IDENTIFIER_SEPARATOR, limit = 3)
+        val type: String
+        val namespace: String
+        val identifier: String
+        if (parts.size == 3) {
+            type = normalizeIdentifier(parts[0])
+            namespace = normalizeIdentifier(parts[1])
+            identifier = normalizeIdentifier(parts[2])
+        } else {
+            type = "unspecified"
+            namespace = ""
+            identifier = normalizeIdentifier(value)
+        }
+        if (identifier.isBlank()) return ""
+        return listOf(type, namespace, identifier)
+            .joinToString(WORK_IDENTIFIER_SEPARATOR.toString())
+    }
+
+    private const val WORK_IDENTIFIER_SEPARATOR = '\u001F'
 
     internal fun bigrams(value: String): Set<String> {
         val compact = value.filterNot(Char::isWhitespace)
