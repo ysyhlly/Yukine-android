@@ -232,8 +232,16 @@ internal class PlaybackServiceConnectionController(
         service?.setAppVolume(volume)
     }
 
-    override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-        service?.setConcurrentPlaybackEnabled(enabled)
+    override fun setAudioExclusiveEnabled(enabled: Boolean) {
+        service?.setAudioExclusiveEnabled(enabled)
+    }
+
+    override fun setBitPerfectEnabled(enabled: Boolean) {
+        service?.setBitPerfectEnabled(enabled)
+    }
+
+    override fun setUsbExclusiveEnabled(enabled: Boolean) {
+        service?.setUsbExclusiveEnabled(enabled)
     }
 
     override fun applyAudioEffectSettings(settings: AudioEffectSettings) {

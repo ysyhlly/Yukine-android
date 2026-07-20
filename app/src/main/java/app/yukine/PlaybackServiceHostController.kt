@@ -8,8 +8,6 @@ internal class PlaybackServiceHostController(
 
         fun appVolume(): Float
 
-        fun concurrentPlaybackEnabled(): Boolean
-
         fun statusBarLyricsEnabled(): Boolean
 
         fun systemMediaLyricsTitleEnabled(): Boolean
@@ -27,7 +25,6 @@ internal class PlaybackServiceHostController(
         service.setAppVisible(true)
         service.setPlaybackSpeed(host.playbackSpeed())
         service.setAppVolume(host.appVolume())
-        service.setConcurrentPlaybackEnabled(host.concurrentPlaybackEnabled())
         service.setStatusBarLyricsEnabled(host.statusBarLyricsEnabled())
         service.setSystemMediaLyricsTitleEnabled(host.systemMediaLyricsTitleEnabled())
         service.setPlaybackRestoreEnabled(host.playbackRestoreEnabled())

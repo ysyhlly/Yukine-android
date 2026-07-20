@@ -7,11 +7,11 @@ final class PlaybackRuntimeSettingsStore {
     interface RuntimeSettings {
         boolean loadReplayGainEnabled();
 
-        boolean loadConcurrentPlaybackEnabled();
-
         float loadPlaybackSpeed();
 
         float loadAppVolume();
+
+        boolean loadBitPerfectEnabled();
     }
 
     private final RuntimeSettings runtimeSettings;
@@ -29,9 +29,9 @@ final class PlaybackRuntimeSettingsStore {
             return;
         }
         runtimeStateManager.setReplayGainEnabled(runtimeSettings.loadReplayGainEnabled());
-        runtimeStateManager.setConcurrentPlaybackEnabled(runtimeSettings.loadConcurrentPlaybackEnabled());
         runtimeStateManager.setPlaybackSpeed(runtimeSettings.loadPlaybackSpeed());
         runtimeStateManager.setAppVolume(runtimeSettings.loadAppVolume());
+        runtimeStateManager.setBitPerfectActive(runtimeSettings.loadBitPerfectEnabled());
     }
 
     void setPlaybackSpeed(PlaybackRuntimeStateManager runtimeStateManager, float speed) {
@@ -43,12 +43,6 @@ final class PlaybackRuntimeSettingsStore {
     void setAppVolume(PlaybackRuntimeStateManager runtimeStateManager, float volume) {
         if (runtimeStateManager != null) {
             runtimeStateManager.setAppVolume(volume);
-        }
-    }
-
-    void setConcurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
-        if (runtimeStateManager != null) {
-            runtimeStateManager.setConcurrentPlaybackEnabled(enabled);
         }
     }
 
@@ -67,7 +61,7 @@ final class PlaybackRuntimeSettingsStore {
     }
 
     boolean concurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager) {
-        return runtimeStateManager != null && runtimeStateManager.concurrentPlaybackEnabled();
+        return false;
     }
 
     float currentTrackVolume(PlaybackRuntimeStateManager runtimeStateManager) {
@@ -86,9 +80,9 @@ final class PlaybackRuntimeSettingsStore {
         }
     }
 
-    void applyAudioFocusHandling(PlaybackRuntimeStateManager runtimeStateManager) {
+    void applyAudioAttributes(PlaybackRuntimeStateManager runtimeStateManager) {
         if (runtimeStateManager != null) {
-            runtimeStateManager.applyAudioFocusHandling();
+            runtimeStateManager.applyAudioAttributes();
         }
     }
 
@@ -105,11 +99,6 @@ final class PlaybackRuntimeSettingsStore {
         }
 
         @Override
-        public boolean loadConcurrentPlaybackEnabled() {
-            return repository.loadConcurrentPlaybackEnabled();
-        }
-
-        @Override
         public float loadPlaybackSpeed() {
             return repository.loadPlaybackSpeed();
         }
@@ -117,6 +106,11 @@ final class PlaybackRuntimeSettingsStore {
         @Override
         public float loadAppVolume() {
             return repository.loadAppVolume();
+        }
+
+        @Override
+        public boolean loadBitPerfectEnabled() {
+            return repository.loadBitPerfectEnabled();
         }
     }
 }

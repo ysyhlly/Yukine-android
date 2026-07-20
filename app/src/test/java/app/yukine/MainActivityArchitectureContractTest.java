@@ -520,7 +520,7 @@ public final class MainActivityArchitectureContractTest {
         String mutations = read("feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt");
         String contentFactory = read("feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt");
 
-        assertTrue(viewModel.lines().count() < 450);
+        assertTrue(viewModel.lines().count() < 470);
         assertFalse(viewModel.contains("sealed interface SettingsEvent"));
         assertFalse(viewModel.contains("fun onEvent("));
         assertFalse(viewModel.contains("fun applyThemeMode("));

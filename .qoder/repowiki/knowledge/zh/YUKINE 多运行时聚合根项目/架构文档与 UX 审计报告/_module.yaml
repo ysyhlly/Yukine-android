@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: docs_and_audits
-title: 架构文档与 UX 审计归档
+title: 架构文档与 UX 审计报告
 scope:
     - docs/
     - ux-audit/

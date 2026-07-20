@@ -26,6 +26,7 @@ object LibraryGrouping {
         artistIdentity: (Track) -> List<LibraryArtistGroupIdentity>
     ): LinkedHashMap<String, ArrayList<Track>> {
         val grouped = LinkedHashMap<String, ArrayList<Track>>()
+        val seenIdsByGroup = LinkedHashMap<String, HashSet<Long>>()
         for (track in tracks) {
             val keys = if (ARTISTS == mode) {
                 artistIdentity(track).map { it.groupKey }.distinct().ifEmpty { listOf(track.artist) }
@@ -34,7 +35,8 @@ object LibraryGrouping {
             }
             keys.forEach { key ->
                 val groupTracks = grouped.getOrPut(key) { ArrayList() }
-                if (groupTracks.none { it.id == track.id }) groupTracks.add(track)
+                val seenIds = seenIdsByGroup.getOrPut(key) { HashSet() }
+                if (seenIds.add(track.id)) groupTracks.add(track)
             }
         }
         val groups = ArrayList<Group>()

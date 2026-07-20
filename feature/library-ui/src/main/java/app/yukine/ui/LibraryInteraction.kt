@@ -9,7 +9,8 @@ enum class LibraryMode(val routeKey: String) {
 }
 
 enum class LibrarySort {
-    TitleAscending, TitleDescending, Artist, Album, DurationAscending, DurationDescending
+    TitleAscending, TitleDescending, Artist, Album, DurationAscending, DurationDescending,
+    DateAddedDescending, DateAddedAscending, PlayCountDescending
 }
 
 enum class LibraryGroupSort {
@@ -65,6 +66,9 @@ data class LibraryUiLabels(
     val sortAlbum: String = "专辑",
     val sortDurationAscending: String = "时长升序",
     val sortDurationDescending: String = "时长降序",
+    val sortDateAddedDescending: String = "最近入库",
+    val sortDateAddedAscending: String = "最早入库",
+    val sortPlayCount: String = "播放次数",
     val syncLibrary: String = "同步曲库",
     val syncLibraryDescription: String = "更新 WebDAV 歌曲、标签和封面",
     val syncingLibrary: String = "正在同步曲库",

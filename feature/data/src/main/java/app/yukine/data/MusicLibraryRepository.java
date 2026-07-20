@@ -535,6 +535,30 @@ public final class MusicLibraryRepository {
         settingsRepository.saveReplayGainEnabled(enabled);
     }
 
+    public boolean loadAudioExclusiveEnabled() {
+        return settingsRepository.loadAudioExclusiveEnabled();
+    }
+
+    public void saveAudioExclusiveEnabled(boolean enabled) {
+        settingsRepository.saveAudioExclusiveEnabled(enabled);
+    }
+
+    public boolean loadBitPerfectEnabled() {
+        return settingsRepository.loadBitPerfectEnabled();
+    }
+
+    public void saveBitPerfectEnabled(boolean enabled) {
+        settingsRepository.saveBitPerfectEnabled(enabled);
+    }
+
+    public boolean loadUsbExclusiveEnabled() {
+        return settingsRepository.loadUsbExclusiveEnabled();
+    }
+
+    public void saveUsbExclusiveEnabled(boolean enabled) {
+        settingsRepository.saveUsbExclusiveEnabled(enabled);
+    }
+
     public boolean loadDebugPromptsEnabled() {
         return settingsRepository.loadDebugPromptsEnabled();
     }
@@ -1200,14 +1224,6 @@ public final class MusicLibraryRepository {
 
     public void saveOnlineLyricsEnabled(boolean enabled) {
         settingsRepository.saveOnlineLyricsEnabled(enabled);
-    }
-
-    public boolean loadConcurrentPlaybackEnabled() {
-        return settingsRepository.loadConcurrentPlaybackEnabled();
-    }
-
-    public void saveConcurrentPlaybackEnabled(boolean enabled) {
-        settingsRepository.saveConcurrentPlaybackEnabled(enabled);
     }
 
     public long loadLyricsOffsetMs() {

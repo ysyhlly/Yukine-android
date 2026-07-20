@@ -147,7 +147,6 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.StreamingAudioQuality to preferences.streamingAudioQuality,
         SettingsPreferenceKey.RefuseAutomaticQualityDowngrade to preferences.refuseAutomaticQualityDowngrade,
         SettingsPreferenceKey.OnlineLyricsEnabled to runtime.onlineLyricsEnabled,
-        SettingsPreferenceKey.ConcurrentPlaybackEnabled to preferences.concurrentPlaybackEnabled,
         SettingsPreferenceKey.LyricsOffsetMs to runtime.lyricsOffsetMs,
         SettingsPreferenceKey.AudioEffectSettings to preferences.audioEffectSettings,
         SettingsPreferenceKey.StatusBarLyricsEnabled to preferences.statusBarLyricsEnabled,
@@ -156,6 +155,9 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.NowPlayingGesturesEnabled to preferences.nowPlayingGesturesEnabled,
         SettingsPreferenceKey.PlaybackRestoreEnabled to preferences.playbackRestoreEnabled,
         SettingsPreferenceKey.ReplayGainEnabled to preferences.replayGainEnabled,
+        SettingsPreferenceKey.AudioExclusiveEnabled to preferences.audioExclusiveEnabled,
+        SettingsPreferenceKey.BitPerfectEnabled to preferences.bitPerfectEnabled,
+        SettingsPreferenceKey.UsbExclusiveEnabled to preferences.usbExclusiveEnabled,
         SettingsPreferenceKey.DebugPromptsEnabled to preferences.debugPromptsEnabled,
         SettingsPreferenceKey.CustomBackgroundBlurEnabled to preferences.customBackgroundBlurEnabled,
         SettingsPreferenceKey.CustomBackgroundBlurRadiusDp to preferences.customBackgroundBlurRadiusDp,
@@ -179,7 +181,6 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.StreamingAudioQuality -> state.preferences.streamingAudioQuality
             SettingsPreferenceKey.RefuseAutomaticQualityDowngrade -> state.preferences.refuseAutomaticQualityDowngrade
             SettingsPreferenceKey.OnlineLyricsEnabled -> state.runtime.onlineLyricsEnabled
-            SettingsPreferenceKey.ConcurrentPlaybackEnabled -> state.preferences.concurrentPlaybackEnabled
             SettingsPreferenceKey.LyricsOffsetMs -> state.runtime.lyricsOffsetMs
             SettingsPreferenceKey.AudioEffectSettings -> state.preferences.audioEffectSettings
             SettingsPreferenceKey.StatusBarLyricsEnabled -> state.preferences.statusBarLyricsEnabled
@@ -188,6 +189,9 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.NowPlayingGesturesEnabled -> state.preferences.nowPlayingGesturesEnabled
             SettingsPreferenceKey.PlaybackRestoreEnabled -> state.preferences.playbackRestoreEnabled
             SettingsPreferenceKey.ReplayGainEnabled -> state.preferences.replayGainEnabled
+            SettingsPreferenceKey.AudioExclusiveEnabled -> state.preferences.audioExclusiveEnabled
+            SettingsPreferenceKey.BitPerfectEnabled -> state.preferences.bitPerfectEnabled
+            SettingsPreferenceKey.UsbExclusiveEnabled -> state.preferences.usbExclusiveEnabled
             SettingsPreferenceKey.DebugPromptsEnabled -> state.preferences.debugPromptsEnabled
             SettingsPreferenceKey.CustomBackgroundBlurEnabled -> state.preferences.customBackgroundBlurEnabled
             SettingsPreferenceKey.CustomBackgroundBlurRadiusDp -> state.preferences.customBackgroundBlurRadiusDp
@@ -223,8 +227,6 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
                 preferences = preferences.copy(refuseAutomaticQualityDowngrade = value as Boolean)
             SettingsPreferenceKey.OnlineLyricsEnabled -> runtime = runtime.copy(onlineLyricsEnabled = value as Boolean)
-            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
-                preferences = preferences.copy(concurrentPlaybackEnabled = value as Boolean)
             SettingsPreferenceKey.LyricsOffsetMs -> runtime = runtime.copy(lyricsOffsetMs = value as Long)
             SettingsPreferenceKey.AudioEffectSettings ->
                 preferences = preferences.copy(audioEffectSettings = value as AudioEffectSettings)
@@ -240,6 +242,12 @@ internal class SettingsMutationContext(
                 preferences = preferences.copy(playbackRestoreEnabled = value as Boolean)
             SettingsPreferenceKey.ReplayGainEnabled ->
                 preferences = preferences.copy(replayGainEnabled = value as Boolean)
+            SettingsPreferenceKey.AudioExclusiveEnabled ->
+                preferences = preferences.copy(audioExclusiveEnabled = value as Boolean)
+            SettingsPreferenceKey.BitPerfectEnabled ->
+                preferences = preferences.copy(bitPerfectEnabled = value as Boolean)
+            SettingsPreferenceKey.UsbExclusiveEnabled ->
+                preferences = preferences.copy(usbExclusiveEnabled = value as Boolean)
             SettingsPreferenceKey.DebugPromptsEnabled ->
                 preferences = preferences.copy(debugPromptsEnabled = value as Boolean)
             SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
@@ -263,8 +271,6 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.PlaybackSpeed -> applyRuntime(SettingsRuntimeEffect.ApplyPlaybackSpeed(preferences.playbackSpeed))
             SettingsPreferenceKey.AppVolume -> applyRuntime(SettingsRuntimeEffect.ApplyAppVolume(preferences.appVolume))
             SettingsPreferenceKey.OnlineLyricsEnabled -> applyRuntime(SettingsRuntimeEffect.SetOnlineLyricsEnabled(runtime.onlineLyricsEnabled))
-            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
-                applyRuntime(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(preferences.concurrentPlaybackEnabled))
             SettingsPreferenceKey.AudioEffectSettings -> applyRuntime(SettingsRuntimeEffect.ApplyAudioEffects(preferences.audioEffectSettings))
             SettingsPreferenceKey.StatusBarLyricsEnabled ->
                 applyRuntime(SettingsRuntimeEffect.SetStatusBarLyrics(preferences.statusBarLyricsEnabled))
@@ -276,6 +282,12 @@ internal class SettingsMutationContext(
                 applyRuntime(SettingsRuntimeEffect.SetPlaybackRestoreEnabled(preferences.playbackRestoreEnabled))
             SettingsPreferenceKey.ReplayGainEnabled ->
                 applyRuntime(SettingsRuntimeEffect.SetReplayGainEnabled(preferences.replayGainEnabled))
+            SettingsPreferenceKey.AudioExclusiveEnabled ->
+                applyRuntime(SettingsRuntimeEffect.SetAudioExclusiveEnabled(preferences.audioExclusiveEnabled))
+            SettingsPreferenceKey.BitPerfectEnabled ->
+                applyRuntime(SettingsRuntimeEffect.SetBitPerfectEnabled(preferences.bitPerfectEnabled))
+            SettingsPreferenceKey.UsbExclusiveEnabled ->
+                applyRuntime(SettingsRuntimeEffect.SetUsbExclusiveEnabled(preferences.usbExclusiveEnabled))
             SettingsPreferenceKey.LyricsOffsetMs -> applyRuntime(SettingsRuntimeEffect.SetLyricsOffsetMs(runtime.lyricsOffsetMs))
             else -> Unit
         }

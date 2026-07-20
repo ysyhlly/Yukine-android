@@ -405,6 +405,51 @@ class MainRouteControllerTest {
         assertEquals(7L, state.selectedPlaylistId)
     }
 
+    @Test
+    fun backToOverviewClearsSearchQuery() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.SONGS,
+            libraryPage = LibraryPage.Browse,
+            searchQuery = "test query"
+        )
+
+        controller.applyBackNavigation()
+
+        assertEquals(LibraryPage.Overview, controller.current().libraryPage)
+        assertEquals("", controller.current().searchQuery)
+    }
+
+    @Test
+    fun setLibraryModeClearsSearchQuery() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.SONGS,
+            libraryPage = LibraryPage.Browse,
+            searchQuery = "test query"
+        )
+
+        controller.setLibraryMode(LibraryGrouping.ALBUMS)
+
+        assertEquals(LibraryGrouping.ALBUMS, controller.current().libraryMode)
+        assertEquals("", controller.current().searchQuery)
+    }
+
+    @Test
+    fun userInitiatedLibraryTabNavigationClearsSearchQuery() {
+        val controller = controllerWith(
+            selectedTab = MainRoutes.TAB_LIBRARY,
+            libraryMode = LibraryGrouping.SONGS,
+            libraryPage = LibraryPage.Browse,
+            searchQuery = "test query"
+        )
+
+        controller.navigateToTab(LibraryTab, userInitiated = true)
+
+        assertEquals(LibraryPage.Overview, controller.current().libraryPage)
+        assertEquals("", controller.current().searchQuery)
+    }
+
     private fun controllerWith(
         selectedTab: String,
         libraryMode: String = LibraryGrouping.SONGS,
@@ -420,7 +465,8 @@ class MainRouteControllerTest {
         },
         networkPage: NetworkPage = NetworkPage.Home,
         settingsPage: String = MainRoutes.SETTINGS_HOME,
-        selectedRemoteSourceId: Long = -1L
+        selectedRemoteSourceId: Long = -1L,
+        searchQuery: String = ""
     ): MainRouteController {
         val viewModel = NavigationViewModel(SavedStateHandle())
         val controller = MainRouteController(viewModel)
@@ -432,6 +478,7 @@ class MainRouteControllerTest {
                 selectedLibraryGroupKey = selectedLibraryGroupKey,
                 selectedLibraryGroupTitle = selectedLibraryGroupTitle,
                 selectedPlaylistId = selectedPlaylistId,
+                searchQuery = searchQuery,
                 networkPage = networkPage,
                 settingsPage = SettingsPage.fromRoute(settingsPage),
                 selectedRemoteSourceId = selectedRemoteSourceId

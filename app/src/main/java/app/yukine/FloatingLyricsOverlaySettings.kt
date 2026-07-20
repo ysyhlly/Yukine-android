@@ -11,7 +11,8 @@ internal data class FloatingLyricsOverlaySettings(
     val positionXFraction: Float = DEFAULT_POSITION_X_FRACTION,
     val positionYFraction: Float = DEFAULT_POSITION_Y_FRACTION,
     val backgroundOpacityPercent: Int = DEFAULT_BACKGROUND_OPACITY_PERCENT,
-    val transparentBackground: Boolean = false
+    val transparentBackground: Boolean = false,
+    val textColorArgb: Int = DEFAULT_TEXT_COLOR_ARGB
 ) {
     fun normalized(): FloatingLyricsOverlaySettings = copy(
         textSizeSp = textSizeSp.coerceIn(MIN_TEXT_SIZE_SP, MAX_TEXT_SIZE_SP),
@@ -39,6 +40,8 @@ internal data class FloatingLyricsOverlaySettings(
         const val MIN_BACKGROUND_OPACITY_PERCENT = 0
         const val MAX_BACKGROUND_OPACITY_PERCENT = 100
         const val DEFAULT_BACKGROUND_OPACITY_PERCENT = 92
+
+        const val DEFAULT_TEXT_COLOR_ARGB = 0xFFF8FBFF.toInt()
 
         private fun Float.finiteOr(fallback: Float): Float =
             if (isFinite()) this else fallback
@@ -119,7 +122,11 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
                 KEY_BACKGROUND_OPACITY_PERCENT,
                 FloatingLyricsOverlaySettings.DEFAULT_BACKGROUND_OPACITY_PERCENT
             ),
-            transparentBackground = preferences.getBoolean(KEY_TRANSPARENT_BACKGROUND, false)
+            transparentBackground = preferences.getBoolean(KEY_TRANSPARENT_BACKGROUND, false),
+            textColorArgb = preferences.getInt(
+                KEY_TEXT_COLOR_ARGB,
+                FloatingLyricsOverlaySettings.DEFAULT_TEXT_COLOR_ARGB
+            )
         ).normalized()
         migrateLegacyKeys(settings)
         return settings
@@ -134,6 +141,7 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
             .putFloat(KEY_POSITION_Y_FRACTION, normalized.positionYFraction)
             .putInt(KEY_BACKGROUND_OPACITY_PERCENT, normalized.backgroundOpacityPercent)
             .putBoolean(KEY_TRANSPARENT_BACKGROUND, normalized.transparentBackground)
+            .putInt(KEY_TEXT_COLOR_ARGB, normalized.textColorArgb)
             .remove(KEY_LEGACY_VERTICAL_POSITION_PERCENT)
             .remove(KEY_LEGACY_CLICK_THROUGH)
             .apply()
@@ -159,6 +167,7 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
         private const val KEY_POSITION_Y_FRACTION = "position_y_fraction"
         private const val KEY_BACKGROUND_OPACITY_PERCENT = "background_opacity_percent"
         private const val KEY_TRANSPARENT_BACKGROUND = "transparent_background"
+        private const val KEY_TEXT_COLOR_ARGB = "text_color_argb"
         private const val KEY_LEGACY_VERTICAL_POSITION_PERCENT = "vertical_position_percent"
         private const val KEY_LEGACY_CLICK_THROUGH = "click_through"
     }

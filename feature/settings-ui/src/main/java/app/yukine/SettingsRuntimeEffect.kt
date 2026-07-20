@@ -7,7 +7,9 @@ sealed interface SettingsRuntimeEffect {
     data class RefreshCustomBackgroundAccent(val backgrounds: PageBackgrounds) : SettingsRuntimeEffect
     data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
     data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
-    data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetAudioExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetBitPerfectEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetUsbExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class ApplyAudioEffects(val settings: AudioEffectSettings) : SettingsRuntimeEffect
     data class SetStatusBarLyrics(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsRuntimeEffect
@@ -17,6 +19,7 @@ sealed interface SettingsRuntimeEffect {
     data class UpdateFloatingLyricsWidth(val widthPercent: Int) : SettingsRuntimeEffect
     data class UpdateFloatingLyricsBackgroundOpacity(val opacityPercent: Int) : SettingsRuntimeEffect
     data class UpdateFloatingLyricsTransparentBackground(val enabled: Boolean) : SettingsRuntimeEffect
+    data class UpdateFloatingLyricsTextColor(val colorArgb: Int) : SettingsRuntimeEffect
     data object ShowFloatingLyrics : SettingsRuntimeEffect
     data object UnlockFloatingLyrics : SettingsRuntimeEffect
     data object ResetFloatingLyricsLayout : SettingsRuntimeEffect

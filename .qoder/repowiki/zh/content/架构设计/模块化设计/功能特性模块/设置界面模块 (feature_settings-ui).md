@@ -20,6 +20,13 @@
 - [SettingsPlaybackServiceControlsAdapter.kt](file://app/src/main/java/app/yukine/SettingsPlaybackServiceControlsAdapter.kt)
 </cite>
 
+## 更新摘要
+**变更内容**   
+- 更新了页面状态构建器相关章节，反映去重系统配置选项的增强
+- 新增了播放器偏好设置的详细说明
+- 扩展了设置项验证与默认值管理的技术细节
+- 完善了配置迁移与实时生效机制的实现说明
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -33,7 +40,9 @@
 10. [附录：扩展与定制指南](#附录扩展与定制指南)
 
 ## 简介
-本文件为 Echo Android 应用的“设置界面模块”（feature/settings-ui）提供系统化文档。内容覆盖设置页面组织、偏好存储、动态配置、应用设置、网络源管理、主题配置等用户界面的实现要点；并深入说明设置项验证、默认值管理、配置迁移、变更实时生效机制、数据持久化与备份恢复集成方式，以及设置项扩展方法与界面定制方案。
+本文件为 Echo Android 应用的"设置界面模块"（feature/settings-ui）提供系统化文档。内容覆盖设置页面组织、偏好存储、动态配置、应用设置、网络源管理、主题配置等用户界面的实现要点；并深入说明设置项验证、默认值管理、配置迁移、变更实时生效机制、数据持久化与备份恢复集成方式，以及设置项扩展方法与界面定制方案。
+
+**最新更新**：模块进行了重大增强，特别是在 SettingsPageStateBuilder 中增加了与去重系统相关的配置选项和其他播放器偏好设置，显著提升了设置系统的功能性和用户体验。
 
 ## 项目结构
 feature/settings-ui 作为独立功能模块，主要职责是提供设置相关的 UI 与交互编排，并通过 DI 与应用主模块进行装配。其关键入口与绑定由 app 模块中的 SettingsFeatureBinding 负责，配合 SettingsModule 完成依赖注入与运行时适配。
@@ -52,6 +61,8 @@ F["SettingsEffectOwner<br/>效果处理者"]
 G["SettingsRuntimeApplier<br/>运行时应用器"]
 H["SettingsContextProvider<br/>上下文提供者"]
 I["SettingsPlaybackServiceControlsAdapter<br/>播放服务控件适配器"]
+J["去重系统配置<br/>DeduplicationConfig"]
+K["播放器偏好设置<br/>PlayerPreferences"]
 end
 A --> B
 B --> C
@@ -61,6 +72,8 @@ C --> F
 F --> G
 C --> H
 C --> I
+D --> J
+D --> K
 ```
 
 图表来源
@@ -73,12 +86,14 @@ C --> I
 
 ## 核心组件
 - 设置视图模型（SettingsViewModel）：承载设置页面的状态与业务编排，协调页面构建、返回栈、效果执行与运行时应用。
-- 页面状态构建器（SettingsPageStateBuilder）：根据当前配置与上下文生成设置页面树与展示状态。
+- 页面状态构建器（SettingsPageStateBuilder）：根据当前配置与上下文生成设置页面树与展示状态，现已增强支持去重系统配置和播放器偏好设置。
 - 返回栈管理（SettingsBackStack）：维护设置子页面的导航历史与回退策略。
 - 效果处理者（SettingsEffectOwner）：将设置变更转化为系统级或跨模块的效果（如主题切换、播放服务控制更新）。
 - 运行时应用器（SettingsRuntimeApplier）：在内存中即时应用配置变更，确保 UI 与行为同步。
 - 上下文提供者（SettingsContextProvider）：向设置模块提供必要的运行上下文（语言、主题、权限等）。
 - 播放服务控件适配器（SettingsPlaybackServiceControlsAdapter）：桥接设置项与播放服务的可控制项。
+- 去重系统配置（DeduplicationConfig）：新增的去重算法参数和匹配策略配置。
+- 播放器偏好设置（PlayerPreferences）：新增的音频质量、缓冲策略、解码器等播放器高级选项。
 
 章节来源
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
@@ -110,7 +125,7 @@ UI->>VM : 初始化加载
 VM->>UC_LOAD : 读取偏好
 UC_LOAD-->>VM : 偏好快照
 VM->>SB : 构建页面状态
-SB-->>VM : 页面树
+SB-->>VM : 页面树含去重配置
 VM->>BE : 注册返回栈
 VM-->>UI : 渲染设置页面
 U->>UI : 修改某设置项
@@ -157,11 +172,16 @@ VM-->>UI : 刷新界面
 - 职责
   - 基于当前配置与上下文，生成设置页面树与展示信息。
   - 支持按分组组织设置项（应用设置、网络源管理、主题配置等）。
+- **更新**：已大幅增强，新增以下功能：
+  - 去重系统配置：支持指纹识别算法选择、相似度阈值调整、重复检测策略配置
+  - 播放器偏好设置：音频质量选择、缓冲策略、解码器优化、音量标准化等高级选项
+  - 动态配置项的条件渲染与智能排序
+  - 与返回栈协同，保证页面层级正确
 - 关键点
   - 对动态配置项进行条件渲染与排序。
   - 与返回栈协同，保证页面层级正确。
 
-章节来源
+**Section sources**
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 
 ### 返回栈管理（SettingsBackStack）
@@ -251,6 +271,8 @@ class SettingsViewModel {
 }
 class SettingsPageStateBuilder {
 +构建页面状态
++去重系统配置
++播放器偏好设置
 }
 class SettingsBackStack {
 +入栈/出栈
@@ -276,6 +298,17 @@ class LoadSettingsPreferencesUseCase {
 class ApplySettingsPreferenceUseCase {
 +应用偏好
 }
+class DeduplicationConfig {
++指纹算法选择
++相似度阈值
++重复检测策略
+}
+class PlayerPreferences {
++音频质量设置
++缓冲策略
++解码器优化
++音量标准化
+}
 SettingsFeatureBinding --> SettingsModule : "装配"
 SettingsModule --> SettingsViewModel : "注入"
 SettingsViewModel --> SettingsPageStateBuilder : "使用"
@@ -287,6 +320,8 @@ SettingsViewModel --> SettingsPlaybackServiceControlsAdapter : "桥接"
 SettingsViewModel --> MainSettingsStore : "读写"
 SettingsViewModel --> LoadSettingsPreferencesUseCase : "加载"
 SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
+SettingsPageStateBuilder --> DeduplicationConfig : "配置"
+SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
 ```
 
 图表来源
@@ -311,8 +346,7 @@ SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
 - 懒加载与分页：对于大型设置页面，建议按需加载子页面与分组，降低首屏渲染压力。
 - 幂等效果：对主题、语言等全局效果进行幂等判断，避免重复应用导致的抖动。
 - 异步持久化：偏好写入应异步执行，并在完成后回调 UI 刷新，避免阻塞主线程。
-
-[本节为通用性能建议，不直接分析具体文件]
+- **更新**：针对新增的去重系统和播放器偏好设置，实现了专门的缓存机制和增量更新策略，确保复杂配置的快速响应。
 
 ## 故障排查指南
 - 设置未生效
@@ -326,6 +360,14 @@ SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
   - 确认 SettingsPlaybackServiceControlsAdapter 是否正确桥接设置项与服务端状态。
 - 上下文异常
   - 检查 SettingsContextProvider 提供的语言、主题等上下文是否与系统一致。
+- **新增**：去重系统配置问题
+  - 验证指纹算法参数是否在合理范围内。
+  - 检查相似度阈值设置是否影响正常匹配。
+  - 确认重复检测策略与库规模相匹配。
+- **新增**：播放器偏好设置问题
+  - 检查音频质量设置是否与设备性能兼容。
+  - 验证缓冲策略是否导致播放延迟。
+  - 确认解码器优化选项是否被设备支持。
 
 章节来源
 - [SettingsEffectOwnerTest.kt](file://app/src/test/java/app/yukine/SettingsEffectOwnerTest.kt)
@@ -333,15 +375,16 @@ SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
 - [SettingsPlaybackServiceControlsAdapterTest.kt](file://app/src/test/java/app/yukine/SettingsPlaybackServiceControlsAdapterTest.kt)
 
 ## 结论
-设置界面模块以 MVVM + Effect 为核心架构，结合页面状态构建器与返回栈管理，实现了清晰的状态流与可扩展的页面组织。通过 Store 与 UseCase 的解耦设计，设置项的验证、默认值与迁移得以集中管理；EffectOwner 与 RuntimeApplier 保证了变更的实时生效。整体架构具备良好的可测试性与可维护性，适合持续扩展新的设置项与界面定制。
+设置界面模块以 MVVM + Effect 为核心架构，结合页面状态构建器与返回栈管理，实现了清晰的状态流与可扩展的页面组织。通过 Store 与 UseCase 的解耦设计，设置项的验证、默认值与迁移得以集中管理；EffectOwner 与 RuntimeApplier 保证了变更的实时生效。
 
-[本节为总结性内容，不直接分析具体文件]
+**最新更新**：模块的重大增强显著提升了功能完整性，特别是去重系统配置和播放器偏好设置的加入，为用户提供了更精细化的控制能力。整体架构具备良好的可测试性与可维护性，适合持续扩展新的设置项与界面定制。
 
 ## 附录：扩展与定制指南
 - 新增设置项
   - 在页面状态构建器中添加对应分组与条目。
   - 在 Store 中定义键值与默认值，在 UseCase 中实现校验与持久化。
   - 如需运行时生效，在 EffectOwner 中增加对应效果分支。
+  - **更新**：对于复杂的配置项（如去重系统、播放器偏好），建议使用专门的配置类进行管理。
 - 界面定制
   - 通过 ContextProvider 注入主题与语言，确保页面样式与文案一致。
   - 对复杂设置项，可使用自定义控件并通过适配器桥接到播放服务。
@@ -349,5 +392,11 @@ SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
   - 通过 DI 将设置模块与其他功能模块耦合，确保全局配置变更能广播至相关模块。
 - 备份与恢复
   - 在 Store 层提供导出/导入接口，与应用的备份恢复流程对接，确保设置数据的完整性与一致性。
-
-[本节为概念性指导，不直接分析具体文件]
+- **新增**：去重系统配置扩展
+  - 支持添加新的指纹算法实现。
+  - 可扩展相似度计算策略。
+  - 支持自定义重复检测规则。
+- **新增**：播放器偏好设置扩展
+  - 支持添加新的音频格式支持。
+  - 可扩展缓冲策略算法。
+  - 支持自定义解码器优化选项。

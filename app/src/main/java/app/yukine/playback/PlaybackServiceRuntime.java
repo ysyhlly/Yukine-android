@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import android.content.Context;
+import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
@@ -16,10 +17,17 @@ import app.yukine.data.MusicLibraryRepository;
 import app.yukine.PlaybackServiceHostPort;
 import app.yukine.StreamingRepositorySource;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
+import app.yukine.playback.manager.NativeAudioFocusController;
+import app.yukine.playback.manager.AudioDeviceCapabilityProbe;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
 import app.yukine.playback.manager.PlaybackPlayerFactory;
+import app.yukine.playback.manager.AudioOutputMode;
+import app.yukine.playback.manager.AudioOutputModeResolver;
+import app.yukine.playback.manager.BitPerfectGuard;
+import app.yukine.playback.usb.UsbAudioDeviceManager;
+import app.yukine.playback.usb.UsbExclusiveAudioSink;
 import app.yukine.playback.manager.PlaybackSessionPlayer;
 import app.yukine.playback.manager.PlaybackLyricsManager;
 import app.yukine.playback.manager.PlaybackMediaLibraryCallback;
@@ -202,6 +210,19 @@ final class PlaybackServiceRuntime
     private PlaybackShutdownLifecycleResourcesOwner playbackShutdownLifecycleResourcesOwner;
     private PlaybackShutdownCoordinator playbackShutdownCoordinator;
     private PlaybackWifiLockManager playbackWifiLockManager;
+    private NativeAudioFocusController audioFocusController;
+    private final NativeAudioFocusController.Callback focusCallback = new NativeAudioFocusController.Callback() {
+        @Override public void onFocusGained() { /* no-op, playback already normal */ }
+        @Override public void onFocusLostPermanently() {
+            if (player != null) player.pause();
+        }
+        @Override public void onFocusLostTransiently() {
+            if (player != null) player.pause();
+        }
+        @Override public void onPlayRequested() {
+            if (player != null) player.play();
+        }
+    };
     private final Runnable acquireWifiLockIfStreamingAction =
             PlaybackWifiLockManager.acquireIfStreamingAction(() -> playbackWifiLockManager);
     private final Runnable releaseWifiLockAction =
@@ -222,6 +243,16 @@ final class PlaybackServiceRuntime
     private final PlaybackTransitionStateManager playbackTransitionStateManager = new PlaybackTransitionStateManager();
     private volatile boolean appVisible;
     private volatile boolean destroyed;
+    private volatile boolean bitPerfectEnabled;
+    private volatile boolean usbExclusiveEnabled;
+    private volatile AudioOutputMode currentAudioOutputMode = AudioOutputMode.STANDARD;
+    private String bitPerfectFallbackReasonOverride;
+    private String usbFallbackReasonOverride;
+    private AudioDeviceCapabilityProbe audioDeviceCapabilityProbe;
+    private UsbAudioDeviceManager usbAudioDeviceManager;
+    private UsbExclusiveAudioSink usbExclusiveAudioSink;
+    /** Saved system music stream volume before USB exclusive muting (-1 = not muted). */
+    private int savedMusicStreamVolume = -1;
     private Boolean pendingRestorePlayWhenReady;
     private final PlaybackServiceActionBuffer serviceActionBuffer = new PlaybackServiceActionBuffer();
 
@@ -313,6 +344,20 @@ final class PlaybackServiceRuntime
         @Override
         public void onPlayerError(PlaybackException error) {
             playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+            // Offload failure auto-fallback: if we're in HARDWARE_OFFLOAD mode and the error
+            // is audio-track related, degrade to DIRECT_PCM and retry transparently.
+            if (currentAudioOutputMode == AudioOutputMode.HARDWARE_OFFLOAD
+                    && isOffloadRelatedError(error)) {
+                fallbackToDirectPcm();
+                return;
+            }
+            // USB exclusive failure auto-fallback: if we're in USB_EXCLUSIVE mode and the error
+            // is audio-track related (USB write failure), degrade to DIRECT_PCM.
+            if (currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE
+                    && isOffloadRelatedError(error)) {
+                fallbackFromUsb();
+                return;
+            }
             if (playbackErrorRecoveryManager != null) {
                 playbackErrorRecoveryManager.onPlayerError(error);
                 return;
@@ -321,6 +366,19 @@ final class PlaybackServiceRuntime
                     + playbackErrorRecoveryCommandOwner.debugTrack(playbackQueueStateOwner.currentTrack()), error);
             playbackErrorRecoveryCommandOwner.setErrorMessage("Unable to play this track.");
             publishState();
+        }
+
+        @Override
+        public void onPlayWhenReadyChanged(boolean playWhenReady,
+                @Player.PlayWhenReadyChangeReason int reason) {
+            if (audioFocusController == null) return;
+            if (playWhenReady) {
+                audioFocusController.acquire();
+            } else if (reason != Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS) {
+                // User-initiated pause or other reason — release focus.
+                // Focus-loss-triggered pause is handled by the controller itself.
+                audioFocusController.release();
+            }
         }
     };
 
@@ -351,7 +409,56 @@ final class PlaybackServiceRuntime
                                 ? null
                                 : playbackNotificationManager.mediaMetadataForTrack(track)
                 );
-        playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor);
+        audioDeviceCapabilityProbe = new AudioDeviceCapabilityProbe(service);
+        audioDeviceCapabilityProbe.register(mainHandler);
+        // Initialize USB audio device manager for USB exclusive output
+        usbAudioDeviceManager = new UsbAudioDeviceManager(service);
+        usbAudioDeviceManager.register();
+        usbAudioDeviceManager.setOnDeviceChanged(() -> {
+            // USB device attach/detach — refresh probe and re-resolve output mode
+            audioDeviceCapabilityProbe.refresh();
+            if (!destroyed && (usbExclusiveEnabled || bitPerfectEnabled)) {
+                AudioOutputMode newMode = AudioOutputModeResolver.resolve(
+                        bitPerfectEnabled, usbExclusiveEnabled,
+                        audioDeviceCapabilityProbe.getCurrentProfile());
+                if (newMode != currentAudioOutputMode) {
+                    // USB detach requires immediate fallback (no debounce)
+                    if (currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE
+                            && newMode != AudioOutputMode.USB_EXCLUSIVE) {
+                        mainHandler.post(() -> switchOutputMode(newMode));
+                    } else {
+                        mainHandler.postDelayed(() -> {
+                            AudioOutputMode resolved = AudioOutputModeResolver.resolve(
+                                    bitPerfectEnabled, usbExclusiveEnabled,
+                                    audioDeviceCapabilityProbe.getCurrentProfile());
+                            switchOutputMode(resolved);
+                        }, 2000);
+                    }
+                }
+            }
+            return null;
+        });
+        currentAudioOutputMode = AudioOutputModeResolver.resolve(
+                bitPerfectEnabled, usbExclusiveEnabled,
+                audioDeviceCapabilityProbe.getCurrentProfile());
+        playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, currentAudioOutputMode, null);
+        audioEffectManager.setBitPerfectGuard(new BitPerfectGuard(() -> currentAudioOutputMode));
+        audioDeviceCapabilityProbe.setOnDeviceChanged(() -> {
+            if ((bitPerfectEnabled || usbExclusiveEnabled) && !destroyed) {
+                AudioOutputMode newMode = AudioOutputModeResolver.resolve(
+                        bitPerfectEnabled, usbExclusiveEnabled,
+                        audioDeviceCapabilityProbe.getCurrentProfile());
+                if (newMode != currentAudioOutputMode) {
+                    mainHandler.postDelayed(() -> {
+                        AudioOutputMode resolved = AudioOutputModeResolver.resolve(
+                                bitPerfectEnabled, usbExclusiveEnabled,
+                                audioDeviceCapabilityProbe.getCurrentProfile());
+                        switchOutputMode(resolved);
+                    }, 2000);
+                }
+            }
+            return null;
+        });
         playbackAudioEffectSettingsStore = new PlaybackAudioEffectSettingsStore(
                 persistenceOwner.audioEffectSettings()
         );
@@ -438,6 +545,9 @@ final class PlaybackServiceRuntime
                 playbackTransitionStateManager::setFadeOutAdvancing,
                 volume -> {
                     if (player != null) {
+                        if (audioFocusController != null) {
+                            audioFocusController.markUserVolumeChange();
+                        }
                         player.setVolume(volume);
                     }
                 },
@@ -628,7 +738,20 @@ final class PlaybackServiceRuntime
         playbackStateSnapshotOwner = new PlaybackStateSnapshotOwner(
                 playbackQueueStateOwner,
                 playbackPlayerStateOwner,
-                PlaybackStateSnapshotOwner.fromRuntimeStateManagerProvider(() -> playbackRuntimeStateManager),
+                new PlaybackStateSnapshotOwner.RuntimeStateProvider() {
+                    @Override public boolean preparing() { return playbackRuntimeStateManager.preparing(); }
+                    @Override public String errorMessage() { return playbackRuntimeStateManager.errorMessage(); }
+                    @Override public boolean shuffleEnabled() { return playbackRuntimeStateManager.shuffleEnabled(); }
+                    @Override public int repeatMode() { return playbackRuntimeStateManager.repeatMode(); }
+                    @Override public float playbackSpeed() { return playbackRuntimeStateManager.playbackSpeed(); }
+                    @Override public float appVolume() { return playbackRuntimeStateManager.appVolume(); }
+                    @Override public boolean bitPerfectActive() { return PlaybackServiceRuntime.this.bitPerfectActive(); }
+                    @Override public int outputSampleRateHz() { return outputNativeSampleRateHz(); }
+                    @Override public String bitPerfectFallbackReason() { return PlaybackServiceRuntime.this.bitPerfectFallbackReason(); }
+                    @Override public boolean audioExclusiveActive() {
+                        return audioFocusController != null && audioFocusController.isExclusiveMode();
+                    }
+                },
                 playbackSleepTimerCommandOwner::sleepTimerRemainingMs,
                 PlaybackStateSnapshotOwner.fromVisualizationAnalyzerProvider(() -> playbackVisualizationAnalyzer),
                 playbackRealtimeVisualizationOwner,
@@ -905,6 +1028,18 @@ final class PlaybackServiceRuntime
     void destroy() {
         destroyed = true;
         IdentityEnhancementPlaybackGate.clear();
+        restoreSystemMusicStream();
+        if (audioDeviceCapabilityProbe != null) {
+            audioDeviceCapabilityProbe.unregister();
+        }
+        if (usbAudioDeviceManager != null) {
+            usbAudioDeviceManager.unregister();
+            usbAudioDeviceManager = null;
+        }
+        usbExclusiveAudioSink = null;
+        if (audioFocusController != null) {
+            audioFocusController.destroy();
+        }
         if (playbackShutdownCoordinator != null) {
             playbackShutdownCoordinator.handleServiceDestroyed();
         } else {
@@ -980,6 +1115,11 @@ final class PlaybackServiceRuntime
             playbackPlayerStateOwner.setPositionEstimate(0L);
         }
         boolean wasPlaying = playbackPlayerStateOwner.isPlaying();
+        // Directly acquire focus — don't rely solely on onPlayWhenReadyChanged,
+        // which won't fire if playWhenReady is already true (e.g., during buffering).
+        if (audioFocusController != null) {
+            audioFocusController.acquire();
+        }
         player.play();
         if (!wasPlaying && playbackQueueManager != null) {
             playbackQueueManager.clearPausedPlaybackPosition();
@@ -1133,11 +1273,29 @@ final class PlaybackServiceRuntime
         playbackAudioEffectSettingsStore.restore();
         playbackModeSettingsStore.restoreInto(playbackRuntimeStateManager);
         playbackRuntimeSettingsStore.restoreInto(playbackRuntimeStateManager);
+        // Rebuild player factory if bit-perfect or USB exclusive was persisted as enabled.
+        boolean restoredBitPerfect = playbackRuntimeStateManager.bitPerfectActive();
+        boolean restoredUsbExclusive = persistenceOwner.usbExclusiveEnabled();
+        if (restoredBitPerfect != bitPerfectEnabled || restoredUsbExclusive != usbExclusiveEnabled) {
+            bitPerfectEnabled = restoredBitPerfect;
+            usbExclusiveEnabled = restoredUsbExclusive;
+            currentAudioOutputMode = AudioOutputModeResolver.resolve(
+                    bitPerfectEnabled, usbExclusiveEnabled,
+                    audioDeviceCapabilityProbe.getCurrentProfile());
+            if (currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+                usbExclusiveAudioSink = new UsbExclusiveAudioSink(usbAudioDeviceManager);
+            } else {
+                usbExclusiveAudioSink = null;
+            }
+            playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, currentAudioOutputMode, usbExclusiveAudioSink);
+        }
         PlaybackLyricsSettingsStore lyricsSettingsStore =
                 new PlaybackLyricsSettingsStore(persistenceOwner.lyricsSettings());
         lyricsSettingsStore.restoreInto(playbackLyricsManager);
         applyPlaybackModeAndParametersToPlayer();
-        audioEffectManager.bind(player, playbackAudioEffectSettingsStore.current());
+        if (!bitPerfectActive()) {
+            audioEffectManager.bind(player, playbackAudioEffectSettingsStore.current());
+        }
         Boolean pendingRestore = pendingRestorePlayWhenReady;
         pendingRestorePlayWhenReady = null;
         List<String> serviceActions = serviceActionBuffer.markReadyAndDrain();
@@ -1262,15 +1420,196 @@ final class PlaybackServiceRuntime
     }
 
     public void setConcurrentPlaybackEnabled(boolean enabled) {
-        if (playbackRuntimeSettingsStore != null) {
-            playbackRuntimeSettingsStore.setConcurrentPlaybackEnabled(playbackRuntimeStateManager, enabled);
+        // Inverted: concurrentPlaybackEnabled=false means exclusive mode is ON.
+        if (audioFocusController != null) {
+            audioFocusController.setMode(enabled
+                    ? NativeAudioFocusController.Mode.COOPERATIVE
+                    : NativeAudioFocusController.Mode.EXCLUSIVE);
         }
-        persistenceOwner.updateConcurrentPlaybackEnabled(enabled);
+    }
+
+    public void setAudioExclusiveEnabled(boolean enabled) {
+        persistenceOwner.updateAudioExclusiveEnabled(enabled);
+        // Use effective mode: USB exclusive active prevents downgrade to COOPERATIVE.
+        applyEffectiveFocusMode();
+    }
+
+    public void setBitPerfectEnabled(boolean enabled) {
+        if (bitPerfectEnabled == enabled) {
+            return;
+        }
+        bitPerfectEnabled = enabled;
+        bitPerfectFallbackReasonOverride = null;
+        persistenceOwner.updateBitPerfectEnabled(enabled);
+        playbackRuntimeStateManager.setBitPerfectActive(enabled);
+        audioEffectManager.onBitPerfectStateChanged(enabled);
+        // Resolve the appropriate output mode based on device capabilities.
+        if (audioDeviceCapabilityProbe == null) return;
+        AudioOutputMode targetMode = enabled
+                ? AudioOutputModeResolver.resolve(true, usbExclusiveEnabled, audioDeviceCapabilityProbe.getCurrentProfile())
+                : AudioOutputMode.STANDARD;
+        currentAudioOutputMode = targetMode;
+        // Rebuild the player factory with the new mode and recreate the player
+        // to apply the offload/standard AudioSink configuration.
+        if (targetMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+            usbExclusiveAudioSink = new UsbExclusiveAudioSink(usbAudioDeviceManager);
+        } else if (targetMode != AudioOutputMode.USB_EXCLUSIVE) {
+            usbExclusiveAudioSink = null;
+        }
+        playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, targetMode, usbExclusiveAudioSink);
+        boolean wasPlaying = player != null && player.isPlaying();
+        releasePlaybackPlayerResources();
+        if (wasPlaying) {
+            prepareCurrent(true);
+            if (enabled) {
+                // Skip audio effects binding in bit-perfect mode (EQ/BassBoost
+                // are incompatible with hardware offload/direct PCM).
+                audioEffectManager.bind(null, null);
+            }
+        }
+        publishState();
+    }
+
+    public boolean bitPerfectEnabled() {
+        return bitPerfectEnabled;
+    }
+
+    public boolean bitPerfectActive() {
+        return bitPerfectEnabled && playbackRuntimeStateManager.bitPerfectActive();
+    }
+
+    public int outputNativeSampleRateHz() {
+        return audioDeviceCapabilityProbe != null
+                ? audioDeviceCapabilityProbe.getCurrentProfile().getNativeSampleRateHz()
+                : 48000;
+    }
+
+    public String bitPerfectFallbackReason() {
+        if (!bitPerfectEnabled) return null;
+        if (bitPerfectFallbackReasonOverride != null) return bitPerfectFallbackReasonOverride;
+        AudioDeviceCapabilityProbe.AudioDeviceProfile profile =
+                audioDeviceCapabilityProbe != null
+                        ? audioDeviceCapabilityProbe.getCurrentProfile()
+                        : null;
+        if (profile != null && !profile.getSupportsOffload()) {
+            return "Device does not advertise offload support, using Direct PCM";
+        }
+        return null;
+    }
+
+    public void setUsbExclusiveEnabled(boolean enabled) {
+        if (usbExclusiveEnabled == enabled) {
+            return;
+        }
+        usbExclusiveEnabled = enabled;
+        usbFallbackReasonOverride = null;
+        persistenceOwner.updateUsbExclusiveEnabled(enabled);
+        // USB exclusive implies audio focus exclusive — suppress other apps' audio.
+        applyEffectiveFocusMode();
+        // HiBy-style: mute system music stream to silence other apps' speaker output.
+        if (enabled) {
+            muteSystemMusicStream();
+        } else {
+            restoreSystemMusicStream();
+        }
+        // Resolve the appropriate output mode based on device capabilities.
+        if (audioDeviceCapabilityProbe == null) return;
+        AudioOutputMode targetMode = AudioOutputModeResolver.resolve(
+                bitPerfectEnabled, usbExclusiveEnabled,
+                audioDeviceCapabilityProbe.getCurrentProfile());
+        currentAudioOutputMode = targetMode;
+        // Create USB audio sink if needed
+        if (targetMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+            usbExclusiveAudioSink = new UsbExclusiveAudioSink(usbAudioDeviceManager);
+        } else {
+            usbExclusiveAudioSink = null;
+            // Release USB interfaces so Android's audio driver can reclaim the device.
+            if (usbAudioDeviceManager != null) {
+                usbAudioDeviceManager.closeConnection();
+            }
+        }
+        // Rebuild the player factory with the new mode and recreate the player.
+        playerFactory = new PlaybackPlayerFactory(
+                service, realtimeBassAudioProcessor, targetMode, usbExclusiveAudioSink);
+        boolean wasPlaying = player != null && player.isPlaying();
+        releasePlaybackPlayerResources();
+        if (wasPlaying) {
+            // Proactively acquire focus before starting USB output to minimize the gap.
+            if (audioFocusController != null && targetMode == AudioOutputMode.USB_EXCLUSIVE) {
+                audioFocusController.acquire();
+            }
+            prepareCurrent(true);
+            if (targetMode != AudioOutputMode.STANDARD) {
+                // Skip audio effects in bit-perfect/USB exclusive modes.
+                audioEffectManager.bind(null, null);
+            }
+        }
+        publishState();
+    }
+
+    public boolean usbExclusiveEnabled() {
+        return usbExclusiveEnabled;
+    }
+
+    public boolean usbExclusiveActive() {
+        return usbExclusiveEnabled
+                && currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE;
+    }
+
+    /**
+     * Resolves the effective audio focus mode.
+     * Rule: USB exclusive active OR user audio-exclusive preference → EXCLUSIVE.
+     */
+    private NativeAudioFocusController.Mode resolveEffectiveFocusMode() {
+        if (usbExclusiveEnabled || persistenceOwner.audioExclusiveEnabled()) {
+            return NativeAudioFocusController.Mode.EXCLUSIVE;
+        }
+        return NativeAudioFocusController.Mode.COOPERATIVE;
+    }
+
+    /**
+     * Syncs the focus controller to the effective mode. Skips if mode unchanged.
+     * Re-acquires focus if currently playing and mode changed.
+     */
+    private void applyEffectiveFocusMode() {
+        if (audioFocusController == null) return;
+        NativeAudioFocusController.Mode effective = resolveEffectiveFocusMode();
+        boolean currentlyExclusive = audioFocusController.isExclusiveMode();
+        if (currentlyExclusive == (effective == NativeAudioFocusController.Mode.EXCLUSIVE)) {
+            return; // Mode unchanged, skip
+        }
+        audioFocusController.setMode(effective);
+        if (player != null && player.getPlayWhenReady()) {
+            audioFocusController.release();
+            audioFocusController.acquire();
+        }
+    }
+
+    public String usbExclusiveDeviceName() {
+        if (usbAudioDeviceManager == null) return "";
+        UsbAudioDeviceManager.UsbAudioDeviceInfo info = usbAudioDeviceManager.getActiveDevice();
+        return info != null ? info.getDeviceName() : "";
+    }
+
+    public String usbFallbackReason() {
+        if (!usbExclusiveEnabled) return null;
+        if (usbFallbackReasonOverride != null) return usbFallbackReasonOverride;
+        AudioDeviceCapabilityProbe.AudioDeviceProfile profile =
+                audioDeviceCapabilityProbe != null
+                        ? audioDeviceCapabilityProbe.getCurrentProfile()
+                        : null;
+        if (profile != null && !profile.isUsbAudioDeviceConnected()) {
+            return "No USB audio device connected";
+        }
+        return null;
+    }
+
+    public AudioOutputMode currentAudioOutputMode() {
+        return currentAudioOutputMode;
     }
 
     public boolean concurrentPlaybackEnabled() {
-        return playbackRuntimeSettingsStore != null
-                && playbackRuntimeSettingsStore.concurrentPlaybackEnabled(playbackRuntimeStateManager);
+        return !persistenceOwner.audioExclusiveEnabled() && !usbExclusiveEnabled;
     }
 
     public void setStatusBarLyricsEnabled(boolean enabled) {
@@ -1307,7 +1646,9 @@ final class PlaybackServiceRuntime
         AudioEffectSettings appliedSettings = playbackAudioEffectSettingsStore == null
                 ? (settings == null ? AudioEffectSettings.DEFAULT : settings)
                 : playbackAudioEffectSettingsStore.apply(settings);
-        audioEffectManager.bind(player, appliedSettings);
+        if (!bitPerfectActive()) {
+            audioEffectManager.bind(player, appliedSettings);
+        }
         publishState();
     }
 
@@ -1443,6 +1784,9 @@ final class PlaybackServiceRuntime
     }
 
     private void releasePlayer() {
+        if (audioFocusController != null) {
+            audioFocusController.release();
+        }
         playerFactory.releasePlayer(
                 player, playerListener, audioEffectManager,
                 this::releasePlaybackSession,
@@ -1529,12 +1873,18 @@ final class PlaybackServiceRuntime
     }
 
     private void applyPlaybackParametersToPlayer() {
+        if (audioFocusController != null) {
+            audioFocusController.markUserVolumeChange();
+        }
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.applyPlaybackParametersToPlayer(playbackRuntimeStateManager);
         }
     }
 
     private void applyCurrentTrackVolumeToPlayer() {
+        if (audioFocusController != null) {
+            audioFocusController.markUserVolumeChange();
+        }
         if (playbackRuntimeSettingsStore != null) {
             playbackRuntimeSettingsStore.applyCurrentTrackVolumeToPlayer(playbackRuntimeStateManager);
         }
@@ -1545,9 +1895,9 @@ final class PlaybackServiceRuntime
         applyPlaybackModeToPlayer();
     }
 
-    private void applyAudioFocusHandling() {
+    private void applyAudioAttributes() {
         if (playbackRuntimeSettingsStore != null) {
-            playbackRuntimeSettingsStore.applyAudioFocusHandling(playbackRuntimeStateManager);
+            playbackRuntimeSettingsStore.applyAudioAttributes(playbackRuntimeStateManager);
         }
     }
 
@@ -1577,10 +1927,26 @@ final class PlaybackServiceRuntime
             return;
         }
         player = playerFactory.createPlayer();
-        applyAudioFocusHandling();
+        // Always disable Media3 internal focus management — focus is fully handled
+        // by NativeAudioFocusController via native AudioManager APIs.
+        applyAudioAttributes();
+        // Create native audio focus controller (no initialization order dependency).
+        if (audioFocusController == null) {
+            audioFocusController = new NativeAudioFocusController(service, new Handler(Looper.getMainLooper()));
+            audioFocusController.setCallback(focusCallback);
+        }
+        audioFocusController.setMode(resolveEffectiveFocusMode());
+        // If already in playing state, acquire focus immediately.
+        if (player.getPlayWhenReady()) {
+            audioFocusController.acquire();
+        }
         player.addListener(playerListener);
         applyPlaybackModeAndParametersToPlayer();
-        audioEffectManager.bind(player, audioEffectSettings());
+        // Skip audio effects binding when Bit-Perfect output is active
+        // (EQ/BassBoost/Virtualizer are incompatible with offload/direct PCM).
+        if (!bitPerfectActive()) {
+            audioEffectManager.bind(player, audioEffectSettings());
+        }
         if (playbackSessionManager != null) {
             playbackSessionManager.bind();
         }
@@ -1633,5 +1999,99 @@ final class PlaybackServiceRuntime
 
     private long durationMs() {
         return playbackPlayerStateOwner.durationMs();
+    }
+
+    /**
+     * Switches the audio output mode at runtime, rebuilding the player to apply
+     * the new AudioSink configuration. Preserves playback position.
+     */
+    private void switchOutputMode(AudioOutputMode newMode) {
+        if (destroyed || newMode == currentAudioOutputMode) return;
+        Log.w(TAG, "Switching audio output mode: " + currentAudioOutputMode + " -> " + newMode);
+        currentAudioOutputMode = newMode;
+        // Output mode change affects USB exclusive state — re-evaluate focus mode.
+        applyEffectiveFocusMode();
+        // NOTE: System music stream mute is tied to user preference (usbExclusiveEnabled),
+        // NOT to the actual output mode. This ensures other apps stay silenced even if
+        // USB output encounters an error and falls back to DIRECT_PCM.
+        // Create USB audio sink if switching to USB exclusive mode
+        if (newMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+            usbExclusiveAudioSink = new UsbExclusiveAudioSink(usbAudioDeviceManager);
+        } else {
+            usbExclusiveAudioSink = null;
+            // Release USB interfaces so Android's audio driver can reclaim the device.
+            if (usbAudioDeviceManager != null) {
+                usbAudioDeviceManager.closeConnection();
+            }
+        }
+        playerFactory = new PlaybackPlayerFactory(
+                service, realtimeBassAudioProcessor, newMode, usbExclusiveAudioSink);
+        boolean wasPlaying = player != null && player.isPlaying();
+        releasePlaybackPlayerResources();
+        if (wasPlaying) {
+            // Proactively acquire focus when switching to USB exclusive output.
+            if (audioFocusController != null && newMode == AudioOutputMode.USB_EXCLUSIVE) {
+                audioFocusController.acquire();
+            }
+            prepareCurrent(true);
+            if (newMode != AudioOutputMode.STANDARD) {
+                audioEffectManager.bind(null, null);
+            }
+        }
+        publishState();
+    }
+
+    /**
+     * Falls back from HARDWARE_OFFLOAD to DIRECT_PCM when an offload-related error occurs.
+     * Preserves playback position and resumes playback.
+     */
+    private void fallbackToDirectPcm() {
+        Log.w(TAG, "Offload error detected, falling back to DIRECT_PCM");
+        bitPerfectFallbackReasonOverride = "Offload failed, using Direct PCM";
+        switchOutputMode(AudioOutputMode.DIRECT_PCM);
+    }
+
+    /**
+     * Falls back from USB_EXCLUSIVE to DIRECT_PCM when a USB write error occurs.
+     * Preserves playback position and resumes playback.
+     */
+    private void fallbackFromUsb() {
+        Log.w(TAG, "USB exclusive error detected, falling back to DIRECT_PCM");
+        usbFallbackReasonOverride = "USB output failed, using Direct PCM";
+        switchOutputMode(AudioOutputMode.DIRECT_PCM);
+    }
+
+    private boolean isOffloadRelatedError(PlaybackException error) {
+        int code = error.errorCode;
+        return code == PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED
+                || code == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED;
+    }
+
+    /**
+     * HiBy-style USB exclusive: mutes the system STREAM_MUSIC so other apps
+     * cannot output audio through the built-in speaker/headphone jack.
+     * Our audio bypasses AudioFlinger entirely via USB Host API, so this
+     * mute does not affect our playback.
+     */
+    private void muteSystemMusicStream() {
+        if (savedMusicStreamVolume >= 0) return; // Already muted
+        AudioManager am = (AudioManager) service.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) return;
+        savedMusicStreamVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+        am.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
+        Log.d(TAG, "USB exclusive: system music stream muted (saved volume=" + savedMusicStreamVolume + ")");
+    }
+
+    /**
+     * Restores the system STREAM_MUSIC volume that was saved before USB exclusive muting.
+     */
+    private void restoreSystemMusicStream() {
+        if (savedMusicStreamVolume < 0) return; // Not muted
+        AudioManager am = (AudioManager) service.getSystemService(Context.AUDIO_SERVICE);
+        if (am != null) {
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicStreamVolume, 0);
+            Log.d(TAG, "USB exclusive: system music stream restored to " + savedMusicStreamVolume);
+        }
+        savedMusicStreamVolume = -1;
     }
 }

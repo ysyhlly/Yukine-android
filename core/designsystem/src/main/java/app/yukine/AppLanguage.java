@@ -42,6 +42,9 @@ public final class AppLanguage {
         put("library.sort.album", "Album", "\u4e13\u8f91");
         put("library.sort.duration.asc", "Duration: shortest", "\u65f6\u957f\u5347\u5e8f");
         put("library.sort.duration.desc", "Duration: longest", "\u65f6\u957f\u964d\u5e8f");
+        put("library.sort.date.added.desc", "Recently added", "\u6700\u8fd1\u5165\u5e93");
+        put("library.sort.date.added.asc", "Earliest added", "\u6700\u65e9\u5165\u5e93");
+        put("library.sort.play.count", "Most played", "\u64ad\u653e\u6b21\u6570");
         put("library.search.clear", "Clear search", "\u6e05\u9664\u641c\u7d22");
         put("library.filter.reset", "Reset filter", "\u91cd\u7f6e\u7b5b\u9009");
         put("library.empty.search", "No matching songs", "\u6ca1\u6709\u5339\u914d\u7684\u6b4c\u66f2");
@@ -288,8 +291,14 @@ public final class AppLanguage {
         put("floating.lyrics.section.runtime", "Runtime", "\u8fd0\u884c\u72b6\u6001");
         put("floating.lyrics.section.appearance", "Appearance", "\u5916\u89c2");
         put("floating.lyrics.section.actions", "Actions", "\u64cd\u4f5c");
-        put("floating.lyrics.section.notes", "How it works", "\u8bf4\u660e");
-        put("floating.lyrics.text.size", "Lyric text size", "\u6b4c\u8bcd\u5b57\u53f7");
+        put("floating.lyrics.section.notes", "How it works", "说明");
+        put("floating.lyrics.section.text.color", "Lyric text color", "歌词文字颜色");
+        put("floating.lyrics.color.white", "Default white", "默认白");
+        put("floating.lyrics.color.cyan", "Cyan", "天青");
+        put("floating.lyrics.color.pink", "Sakura pink", "樱粉");
+        put("floating.lyrics.color.gold", "Warm gold", "暖金");
+        put("floating.lyrics.color.green", "Mint green", "薄荷绿");
+        put("floating.lyrics.text.size", "Lyric text size", "歌词字号");
         put("floating.lyrics.text.size.description", "12\u201330 sp; the compact bar supports up to two lines.", "12\u201330 sp\uff0c\u7d27\u51d1\u6b4c\u8bcd\u6761\u6700\u591a\u663e\u793a\u4e24\u884c\u3002");
         put("floating.lyrics.width", "Overlay width", "\u60ac\u6d6e\u7a97\u5bbd\u5ea6");
         put("floating.lyrics.width.description", "40%\u2013100% of the safe display width.", "\u5b89\u5168\u663e\u793a\u533a\u5bbd\u5ea6\u7684 40%\u2013100%\u3002");
@@ -323,7 +332,11 @@ public final class AppLanguage {
         put("now.playing.gestures.hint", "Swipe left or right to switch songs; swipe down to close the player", "\u5728\u64ad\u653e\u9875\u5de6\u53f3\u6ed1\u52a8\u5207\u6b4c\uff0c\u4e0b\u6ed1\u5173\u95ed\u64ad\u653e\u9875");
         put("playback.restore.hint", "Restore the last queue when the app reopens", "\u91cd\u65b0\u6253\u5f00\u5e94\u7528\u65f6\u6062\u590d\u4e0a\u6b21\u7684\u64ad\u653e\u961f\u5217");
         put("concurrent.playback.hint", "Play alongside videos or calls without pausing them", "\u4e0e\u89c6\u9891\u3001\u901a\u8bdd\u7b49\u540c\u65f6\u51fa\u58f0\uff0c\u4e92\u4e0d\u6253\u65ad");
-        put("audio.exclusive.hint", "Request audio focus while playing so other media usually pauses or mutes", "\u64ad\u653e\u65f6\u8bf7\u6c42\u7cfb\u7edf\u97f3\u9891\u7126\u70b9\uff0c\u5176\u4ed6\u5a92\u4f53\u901a\u5e38\u4f1a\u6682\u505c\u6216\u9759\u97f3");
+        put("audio.exclusive.hint", "Request audio focus while playing so other media usually pauses or mutes", "播放时请求系统音频焦点，其他媒体通常会暂停或静音");
+        put("audio.exclusive.active.description", "Aggressively reclaim focus; other apps are paused when they start playing", "抢占焦点，其他应用播放时自动夺回");
+        put("bit.perfect.hint", "Bypass system resampling, output at original sample rate", "绕过系统重采样，原始采样率直通硬件");
+        put("usb.exclusive", "USB Exclusive Output", "USB 独占输出");
+        put("usb.exclusive.hint", "Bypass system mixer, PCM direct to USB DAC for true bit-perfect output", "绕过系统混音器，PCM 直通 USB DAC，实现真正位完美输出");
         put("remote.music.sources.hint", "Add WebDAV or other network music sources", "\u6dfb\u52a0 WebDAV \u7b49\u7f51\u7edc\u97f3\u4e50\u6765\u6e90");
         put("streaming.audio.quality.hint", "Audio quality for online streaming playback", "\u5728\u7ebf\u64ad\u653e\u7684\u97f3\u8d28\u9009\u62e9");
         put("streaming.gateway.hint", "For advanced users; normal users can skip this", "\u9ad8\u7ea7\u9009\u9879\uff0c\u666e\u901a\u7528\u6237\u65e0\u9700\u8bbe\u7f6e");
@@ -343,7 +356,8 @@ public final class AppLanguage {
         put("eq.preset", "Preset", "\u9884\u8bbe");
         put("streaming.audio.quality", "Streaming quality", "\u6d41\u5a92\u4f53\u97f3\u8d28");
         put("concurrent.playback", "Mix with other media", "\u4e0e\u5176\u4ed6\u5a92\u4f53\u540c\u65f6\u64ad\u653e");
-        put("audio.exclusive", "Audio exclusive", "\u97f3\u9891\u72ec\u5360");
+        put("audio.exclusive", "Audio exclusive", "音频独占");
+        put("bit.perfect", "Bit-Perfect output", "Bit-Perfect 输出");
         put("sleep.timer", "Sleep timer", "\u7761\u7720\u5b9a\u65f6");
         put("lyrics", "Lyrics", "\u6b4c\u8bcd");
         put("duration", "Duration", "\u65f6\u957f");
@@ -929,6 +943,7 @@ public final class AppLanguage {
         put("streaming.manual.cookie", "Enter account info manually", "\u624b\u52a8\u586b\u5199\u8d26\u53f7\u4fe1\u606f");
         put("streaming.cookie.hint.default", "Paste the provider Cookie here, for example MUSIC_U=...; os=pc; appver=...", "\u5728\u8fd9\u91cc\u7c98\u8d34\u97f3\u6e90 Cookie\uff0c\u4f8b\u5982 MUSIC_U=...; os=pc; appver=...");
         put("streaming.cookie.hint.qq", "Paste QQ Music Cookie here. It usually contains qqmusic_key/qm_keyst and uin/p_uin.", "\u5728\u8fd9\u91cc\u7c98\u8d34 QQ \u97f3\u4e50 Cookie\uff0c\u901a\u5e38\u9700\u8981\u5305\u542b qqmusic_key/qm_keyst \u548c uin/p_uin\u3002");
+        put("streaming.cookie.hint.kugou", "Paste Kugou Cookie here. It usually contains token/t_token. You can get it from kugou.com in a desktop browser after logging in.", "\u5728\u8fd9\u91cc\u7c98\u8d34\u9177\u72d7 Cookie\uff0c\u901a\u5e38\u9700\u8981\u5305\u542b token/t_token\u3002\u53ef\u5728\u7535\u8111\u6d4f\u89c8\u5668\u767b\u5f55 www.kugou.com \u540e\u4ece\u5f00\u53d1\u8005\u5de5\u5177\u83b7\u53d6\u3002");
         put("streaming.cookie.empty", "Account info is empty", "\u8d26\u53f7\u4fe1\u606f\u4e3a\u7a7a");
         put("streaming.cookie.saved", "Account info saved", "\u8d26\u53f7\u4fe1\u606f\u5df2\u4fdd\u5b58");
         put("streaming.choose.login.provider", "Choose a streaming source to sign in", "\u8bf7\u5148\u9009\u62e9\u8981\u767b\u5f55\u7684\u6d41\u5a92\u4f53\u97f3\u6e90");

@@ -1,6 +1,7 @@
 package app.yukine
 
 import android.net.Uri
+import androidx.lifecycle.viewModelScope
 import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
@@ -12,8 +13,12 @@ import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.EchoIconKind
 import app.yukine.streaming.StreamingPlaybackAdapter
 import java.util.ArrayList
+import java.util.Collections
 import java.util.LinkedHashMap
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 fun interface LibraryGroupsUiDispatcher {
     fun dispatch(action: Runnable)
@@ -44,10 +49,12 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
     private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() },
     private val artistLocalInfoSource: ArtistLocalInfoSource? = null
 ) {
-    private val artistInfoCache = object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistInfo>?): Boolean = size > 24
-    }
-    private val artistInfoRequests = HashSet<String>()
+    private val artistInfoCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistInfo>?): Boolean = size > 24
+        }
+    )
+    private val artistInfoRequests = ConcurrentHashMap.newKeySet<String>()
     private var activeArtistInfoKey: String = ""
     private var artistInfoRequestSerial = 0
 
@@ -287,7 +294,7 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         val lookupKey = artistInfoLookupKey(stableArtistId)
         if (!artistInfoRequests.add(lookupKey)) return
         val requestSerial = ++artistInfoRequestSerial
-        Thread {
+        viewModel.viewModelScope.launch(Dispatchers.IO) {
             val info = runCatching { source.load(languageMode, stableArtistId, tracks) }.getOrNull()
             uiDispatcher.dispatch(Runnable {
                 artistInfoRequests.remove(lookupKey)
@@ -297,10 +304,6 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
                 }
                 publishArtistTrackList(languageMode, artist, tracks, headerActions, info)
             })
-        }.apply {
-            name = "LocalArtistInfo-$stableArtistId"
-            isDaemon = true
-            start()
         }
     }
 

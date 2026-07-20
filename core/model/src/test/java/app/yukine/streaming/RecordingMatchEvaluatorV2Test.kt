@@ -55,15 +55,15 @@ class RecordingMatchEvaluatorV2Test {
     }
 
     @Test
-    fun confirmedCanonicalWorkIsRequiredForMetadataOnlyAutoMerge() {
+    fun metadataOnlyAutoMergeReachesThresholdWithCompleteMetadata() {
         val unresolved = evaluate(reference(), reference())
         val resolved = evaluate(
             reference(canonicalWorkId = "work-echo", canonicalWorkConfirmed = true),
             reference(canonicalWorkId = "work-echo", canonicalWorkConfirmed = true)
         )
 
-        assertEquals(0.91, unresolved.recordingConfidenceCeiling, 0.0001)
-        assertTrue(unresolved.similarityScore < RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
+        assertEquals(0.95, unresolved.recordingConfidenceCeiling, 0.0001)
+        assertTrue(unresolved.similarityScore >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)
         assertEquals(1.0, resolved.canonicalWorkIdentityScore, 0.0001)
         assertTrue("canonical_work" in resolved.identifierEvidence)
         assertTrue(resolved.similarityScore >= RecordingMatchEvaluatorV2.AUTO_MERGE_MINIMUM_SCORE)

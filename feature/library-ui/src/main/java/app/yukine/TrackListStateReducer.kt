@@ -73,7 +73,8 @@ class TrackListStateReducer(
         favoriteIds: Set<Long>,
         footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
         context: LibraryListContext = LibraryListContext.Songs,
-        favoritePendingIds: Set<Long> = emptySet()
+        favoritePendingIds: Set<Long> = emptySet(),
+        playCountByTrackId: Map<Long, Int> = emptyMap()
     ) {
         val libraryUi = viewModel.libraryUi.value
         latestCurrentTrackId = playbackState?.currentTrack?.id
@@ -107,7 +108,8 @@ class TrackListStateReducer(
                 tracks,
                 details,
                 libraryUi,
-                favoriteIds
+                favoriteIds,
+                playCountByTrackId
             )
             val visibleTracks = presented.map { it.track }
             val visibleDetails = presented.map { it.detail }

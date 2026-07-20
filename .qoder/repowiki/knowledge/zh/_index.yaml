@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-07-19T18:29:08Z"
+exported_at: "2026-07-19T19:41:00Z"
 modules:
     "":
-        dir_name: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
-        title: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
+        dir_name: YUKINE 多运行时聚合根项目
+        title: YUKINE 多运行时聚合根项目
         scope:
             - README.md
             - .editorconfig
@@ -26,18 +26,17 @@ modules:
         depends_on: []
         related_to: []
     app:
-        dir_name: Echo Android 应用装配层（App Shell & Feature Wiring）
-        title: Echo Android 应用装配层（App Shell & Feature Wiring）
+        dir_name: Echo Android 应用装配层与运行时入口
+        title: Echo Android 应用装配层与运行时入口
         scope:
             - app/
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: metadata_gateway/core_api
+        related_to: []
     docs_and_audits:
-        dir_name: 架构文档与 UX 审计归档
-        title: 架构文档与 UX 审计归档
+        dir_name: 架构文档与 UX 审计报告
+        title: 架构文档与 UX 审计报告
         scope:
             - docs/
             - ux-audit/
@@ -65,8 +64,7 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to:
-            - path: app
+        related_to: []
     scripts_and_artifacts:
         dir_name: 发布门禁与播放稳定性验证脚本及证据归档
         title: 发布门禁与播放稳定性验证脚本及证据归档

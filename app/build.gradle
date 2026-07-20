@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
@@ -19,7 +18,7 @@ def echoMetadataGatewayUrl   = findProperty("ECHO_METADATA_GATEWAY_URL")   ?: Sy
 
 android {
     namespace "app.yukine"
-    compileSdk 35
+    compileSdk 37
 
     defaultConfig {
         applicationId "app.yukine"

@@ -10,11 +10,26 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import app.yukine.playback.usb.UsbExclusiveAudioSink
+
+/**
+ * Audio output mode for the playback pipeline.
+ *
+ * - [STANDARD]: Default path with AudioProcessors (EQ, bass analysis, etc.)
+ * - [HARDWARE_OFFLOAD]: Compressed bitstream sent directly to hardware DSP, bypassing Android SRC.
+ * - [DIRECT_PCM]: Uncompressed PCM output with no AudioProcessors, closest to bit-perfect
+ *   when hardware offload is unavailable.
+ * - [USB_EXCLUSIVE]: PCM output directly to USB DAC via USB Host API, completely bypassing
+ *   AudioFlinger and system SRC for true bit-perfect output.
+ */
+internal enum class AudioOutputMode { STANDARD, HARDWARE_OFFLOAD, DIRECT_PCM, USB_EXCLUSIVE }
 
 @UnstableApi
 internal class PlaybackPlayerFactory(
     private val context: Context,
-    private val audioProcessor: AudioProcessor
+    private val audioProcessor: AudioProcessor,
+    private val audioOutputMode: AudioOutputMode = AudioOutputMode.STANDARD,
+    private val usbAudioSink: UsbExclusiveAudioSink? = null
 ) {
     companion object {
         private const val TAG = "PlaybackPlayerFactory"
@@ -32,11 +47,43 @@ internal class PlaybackPlayerFactory(
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParams: Boolean
             ): AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setAudioProcessors(arrayOf(audioProcessor))
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .build()
+                return when (audioOutputMode) {
+                    AudioOutputMode.HARDWARE_OFFLOAD -> {
+                        // Bit-Perfect mode: enable hardware offload to bypass Android SRC.
+                        // No AudioProcessors are injected so the raw bitstream reaches the
+                        // hardware DSP directly without software resampling.
+                        val audioSink = DefaultAudioSink.Builder(context)
+                            .setAudioProcessors(emptyArray())
+                            .setEnableFloatOutput(true)
+                            .setEnableAudioTrackPlaybackParams(false)
+                            .build()
+                        audioSink.setOffloadMode(AudioSink.OFFLOAD_MODE_ENABLED_GAPLESS_REQUIRED)
+                        audioSink
+                    }
+                    AudioOutputMode.DIRECT_PCM -> {
+                        // Direct PCM path: no AudioProcessors, no offload.
+                        // AudioTrack outputs raw PCM at the source sample rate,
+                        // bypassing software mixing/resampling as much as possible.
+                        DefaultAudioSink.Builder(context)
+                            .setAudioProcessors(emptyArray())
+                            .setEnableFloatOutput(true)
+                            .setEnableAudioTrackPlaybackParams(false)
+                            .build()
+                    }
+                    AudioOutputMode.STANDARD -> {
+                        DefaultAudioSink.Builder(context)
+                            .setAudioProcessors(arrayOf(audioProcessor))
+                            .setEnableFloatOutput(enableFloatOutput)
+                            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                            .build()
+                    }
+                    AudioOutputMode.USB_EXCLUSIVE -> {
+                        // USB Exclusive: PCM directly to USB DAC, bypassing AudioFlinger entirely.
+                        usbAudioSink ?: throw IllegalStateException(
+                            "USB_EXCLUSIVE mode requires a UsbExclusiveAudioSink instance"
+                        )
+                    }
+                }
             }
         }
         return ExoPlayer.Builder(context, renderersFactory)
@@ -53,7 +100,6 @@ internal class PlaybackPlayerFactory(
                     .build()
             )
             .setWakeMode(C.WAKE_MODE_LOCAL)
-            .setHandleAudioBecomingNoisy(true)
             .build()
     }
 

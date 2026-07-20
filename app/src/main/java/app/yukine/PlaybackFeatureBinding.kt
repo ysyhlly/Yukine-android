@@ -77,7 +77,6 @@ internal class PlaybackFeatureBinding(
         val serviceHost = PlaybackServiceHostController(MainPlaybackServiceHost(
             settingsStore::playbackSpeed,
             settingsStore::appVolume,
-            settingsStore::concurrentPlaybackEnabled,
             settingsStore::statusBarLyricsEnabled,
             settingsStore::systemMediaLyricsTitleEnabled,
             settingsStore::playbackRestoreEnabled,

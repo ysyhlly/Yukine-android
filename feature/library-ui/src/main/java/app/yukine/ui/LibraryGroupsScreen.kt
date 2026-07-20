@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -332,11 +333,21 @@ private fun LibraryGroupsHeader(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    "$resultCount ${state.labels.groupCountSuffix}",
-                    style = EchoTypography.caption,
-                    color = p.muted
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$resultCount ${state.labels.groupCountSuffix}",
+                        style = EchoTypography.caption,
+                        color = p.muted
+                    )
+                    if (state.operationInProgress) {
+                        Spacer(Modifier.width(6.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = p.accent
+                        )
+                    }
+                }
             }
             Box {
                 GroupIconButton(EchoIconKind.More, state.labels.more) { menuExpanded = true }

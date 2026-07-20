@@ -27,10 +27,6 @@ class SettingsRuntimeApplierTest {
                 calls += "volume:$volume"
             }
 
-            override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-                calls += "concurrent:$enabled"
-            }
-
             override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
                 calls += "effects:${settings.enabled}"
             }
@@ -49,6 +45,18 @@ class SettingsRuntimeApplierTest {
 
             override fun setReplayGainEnabled(enabled: Boolean) {
                 calls += "replayGain:$enabled"
+            }
+
+            override fun setAudioExclusiveEnabled(enabled: Boolean) {
+                calls += "exclusive:$enabled"
+            }
+
+            override fun setBitPerfectEnabled(enabled: Boolean) {
+                calls += "bitPerfect:$enabled"
+            }
+
+            override fun setUsbExclusiveEnabled(enabled: Boolean) {
+                calls += "usbExclusive:$enabled"
             }
         }
         val lyricsControls = object : SettingsLyricsControls {
@@ -83,7 +91,6 @@ class SettingsRuntimeApplierTest {
         assertTrue(applier.apply(SettingsRuntimeEffect.RefreshCustomBackgroundAccent(PageBackgrounds(sharedUri = "content://all"))))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyPlaybackSpeed(1.25f)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAppVolume(0.75f)))
-        assertTrue(applier.apply(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)))
         assertTrue(applier.apply(SettingsRuntimeEffect.ApplyAudioEffects(AudioEffectSettings.DEFAULT.withEnabled(true))))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetStatusBarLyrics(false)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetSystemMediaLyricsTitleEnabled(true)))
@@ -102,7 +109,6 @@ class SettingsRuntimeApplierTest {
                 "accent:content://all",
                 "speed:1.25",
                 "volume:0.75",
-                "concurrent:true",
                 "effects:true",
                 "statusLyrics:false",
                 "systemMediaTitle:true",

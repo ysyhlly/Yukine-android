@@ -20,6 +20,10 @@ public final class PlaybackStateSnapshot {
     public final PlaybackWaveformSnapshot waveform;
     public final PlaybackSpectrumSnapshot spectrum;
     public final float realtimeBeat;
+    public final boolean bitPerfectActive;
+    public final int outputSampleRateHz;
+    public final String bitPerfectFallbackReason;
+    public final boolean audioExclusiveActive;
 
     public PlaybackStateSnapshot(
             Track currentTrack,
@@ -38,7 +42,11 @@ public final class PlaybackStateSnapshot {
             PlaybackWaveformSnapshot waveform,
             PlaybackSpectrumSnapshot spectrum,
             float realtimeBeat,
-            long queueRevision
+            long queueRevision,
+            boolean bitPerfectActive,
+            int outputSampleRateHz,
+            String bitPerfectFallbackReason,
+            boolean audioExclusiveActive
     ) {
         this.currentTrack = currentTrack;
         this.currentIndex = currentIndex;
@@ -57,6 +65,10 @@ public final class PlaybackStateSnapshot {
         this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
         this.spectrum = spectrum == null ? PlaybackSpectrumSnapshot.empty() : spectrum;
         this.realtimeBeat = Math.max(0f, Math.min(realtimeBeat, 1f));
+        this.bitPerfectActive = bitPerfectActive;
+        this.outputSampleRateHz = Math.max(outputSampleRateHz, 0);
+        this.bitPerfectFallbackReason = bitPerfectFallbackReason;
+        this.audioExclusiveActive = audioExclusiveActive;
     }
 
     public PlaybackStateSnapshot(
@@ -94,7 +106,11 @@ public final class PlaybackStateSnapshot {
                 waveform,
                 spectrum,
                 realtimeBeat,
-                0L
+                0L,
+                false,
+                0,
+                null,
+                false
         );
     }
 
@@ -132,7 +148,11 @@ public final class PlaybackStateSnapshot {
                 waveform,
                 spectrum,
                 0f,
-                0L
+                0L,
+                false,
+                0,
+                null,
+                false
         );
     }
 
@@ -169,7 +189,11 @@ public final class PlaybackStateSnapshot {
                 waveform,
                 PlaybackSpectrumSnapshot.empty(),
                 0f,
-                0L
+                0L,
+                false,
+                0,
+                null,
+                false
         );
     }
 
@@ -206,7 +230,11 @@ public final class PlaybackStateSnapshot {
                 PlaybackWaveformSnapshot.empty(),
                 PlaybackSpectrumSnapshot.empty(),
                 0f,
-                queueRevision
+                queueRevision,
+                false,
+                0,
+                null,
+                false
         );
     }
 

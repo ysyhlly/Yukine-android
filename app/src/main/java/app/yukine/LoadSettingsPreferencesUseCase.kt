@@ -13,7 +13,6 @@ internal data class LoadedSettingsPreferences(
     val appVolume: Float,
     val streamingAudioQuality: String,
     val refuseAutomaticQualityDowngrade: Boolean,
-    val concurrentPlaybackEnabled: Boolean,
     val audioEffectSettings: AudioEffectSettings,
     val statusBarLyricsEnabled: Boolean,
     val systemMediaLyricsTitleEnabled: Boolean,
@@ -21,6 +20,9 @@ internal data class LoadedSettingsPreferences(
     val nowPlayingGesturesEnabled: Boolean,
     val playbackRestoreEnabled: Boolean,
     val replayGainEnabled: Boolean,
+    val audioExclusiveEnabled: Boolean,
+    val bitPerfectEnabled: Boolean,
+    val usbExclusiveEnabled: Boolean,
     val debugPromptsEnabled: Boolean,
     val customBackgroundBlurEnabled: Boolean,
     val customBackgroundBlurRadiusDp: Float,
@@ -41,7 +43,6 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadAppVolume(): Float
     fun loadStreamingAudioQuality(): String
     fun loadRefuseAutomaticQualityDowngrade(): Boolean
-    fun loadConcurrentPlaybackEnabled(): Boolean
     fun loadAudioEffectSettings(): AudioEffectSettings
     fun loadStatusBarLyricsEnabled(): Boolean
     fun loadSystemMediaLyricsTitleEnabled(): Boolean
@@ -49,6 +50,9 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadNowPlayingGesturesEnabled(): Boolean
     fun loadPlaybackRestoreEnabled(): Boolean
     fun loadReplayGainEnabled(): Boolean
+    fun loadAudioExclusiveEnabled(): Boolean
+    fun loadBitPerfectEnabled(): Boolean
+    fun loadUsbExclusiveEnabled(): Boolean
     fun loadDebugPromptsEnabled(): Boolean
     fun loadCustomBackgroundBlurEnabled(): Boolean
     fun loadCustomBackgroundBlurRadiusDp(): Float
@@ -79,9 +83,6 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
     override fun loadRefuseAutomaticQualityDowngrade(): Boolean =
         repository.loadRefuseAutomaticQualityDowngrade()
 
-    override fun loadConcurrentPlaybackEnabled(): Boolean =
-        repository.loadConcurrentPlaybackEnabled()
-
     override fun loadAudioEffectSettings(): AudioEffectSettings =
         repository.loadAudioEffectSettings()
 
@@ -102,6 +103,15 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadReplayGainEnabled(): Boolean =
         repository.loadReplayGainEnabled()
+
+    override fun loadAudioExclusiveEnabled(): Boolean =
+        repository.loadAudioExclusiveEnabled()
+
+    override fun loadBitPerfectEnabled(): Boolean =
+        repository.loadBitPerfectEnabled()
+
+    override fun loadUsbExclusiveEnabled(): Boolean =
+        repository.loadUsbExclusiveEnabled()
 
     override fun loadDebugPromptsEnabled(): Boolean =
         repository.loadDebugPromptsEnabled()
@@ -146,7 +156,6 @@ internal class LoadSettingsPreferencesUseCase(
         val appVolume = operations.loadAppVolume()
         val streamingAudioQuality = StreamingQualityPreference.normalize(operations.loadStreamingAudioQuality())
         val refuseAutomaticQualityDowngrade = operations.loadRefuseAutomaticQualityDowngrade()
-        val concurrentPlaybackEnabled = operations.loadConcurrentPlaybackEnabled()
         val audioEffectSettings = operations.loadAudioEffectSettings()
         val statusBarLyricsEnabled = operations.loadStatusBarLyricsEnabled()
         val floatingLyricsEnabled = operations.loadFloatingLyricsEnabled()
@@ -158,7 +167,6 @@ internal class LoadSettingsPreferencesUseCase(
             appVolume = appVolume,
             streamingAudioQuality = streamingAudioQuality,
             refuseAutomaticQualityDowngrade = refuseAutomaticQualityDowngrade,
-            concurrentPlaybackEnabled = concurrentPlaybackEnabled,
             audioEffectSettings = audioEffectSettings,
             statusBarLyricsEnabled = statusBarLyricsEnabled && !floatingLyricsEnabled,
             systemMediaLyricsTitleEnabled = operations.loadSystemMediaLyricsTitleEnabled(),
@@ -166,6 +174,9 @@ internal class LoadSettingsPreferencesUseCase(
             nowPlayingGesturesEnabled = operations.loadNowPlayingGesturesEnabled(),
             playbackRestoreEnabled = operations.loadPlaybackRestoreEnabled(),
             replayGainEnabled = operations.loadReplayGainEnabled(),
+            audioExclusiveEnabled = operations.loadAudioExclusiveEnabled(),
+            bitPerfectEnabled = operations.loadBitPerfectEnabled(),
+            usbExclusiveEnabled = operations.loadUsbExclusiveEnabled(),
             debugPromptsEnabled = operations.loadDebugPromptsEnabled(),
             customBackgroundBlurEnabled = operations.loadCustomBackgroundBlurEnabled(),
             customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(

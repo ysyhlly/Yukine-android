@@ -50,7 +50,9 @@ final class PlaybackPersistenceOwner {
     private volatile int repeatMode = PlaybackRepeatMode.REPEAT_ALL;
     private volatile AudioEffectSettings audioEffectSettings = AudioEffectSettings.DEFAULT;
     private volatile boolean replayGainEnabled;
-    private volatile boolean concurrentPlaybackEnabled;
+    private volatile boolean bitPerfectEnabled;
+    private volatile boolean usbExclusiveEnabled;
+    private volatile boolean audioExclusiveEnabled = false;
     private volatile float playbackSpeed = 1.0f;
     private volatile float appVolume = 1.0f;
     private volatile boolean statusBarLyricsEnabled;
@@ -192,11 +194,6 @@ final class PlaybackPersistenceOwner {
             }
 
             @Override
-            public boolean loadConcurrentPlaybackEnabled() {
-                return concurrentPlaybackEnabled;
-            }
-
-            @Override
             public float loadPlaybackSpeed() {
                 return playbackSpeed;
             }
@@ -204,6 +201,11 @@ final class PlaybackPersistenceOwner {
             @Override
             public float loadAppVolume() {
                 return appVolume;
+            }
+
+            @Override
+            public boolean loadBitPerfectEnabled() {
+                return bitPerfectEnabled;
             }
         };
     }
@@ -234,12 +236,31 @@ final class PlaybackPersistenceOwner {
         updateCache(() -> appVolume = volume);
     }
 
-    void updateConcurrentPlaybackEnabled(boolean enabled) {
-        updateCache(() -> concurrentPlaybackEnabled = enabled);
-    }
-
     void updateReplayGainEnabled(boolean enabled) {
         updateCache(() -> replayGainEnabled = enabled);
+    }
+
+    void updateBitPerfectEnabled(boolean enabled) {
+        updateCache(() -> bitPerfectEnabled = enabled);
+        execute(() -> repository.saveBitPerfectEnabled(enabled));
+    }
+
+    void updateUsbExclusiveEnabled(boolean enabled) {
+        updateCache(() -> usbExclusiveEnabled = enabled);
+        execute(() -> repository.saveUsbExclusiveEnabled(enabled));
+    }
+
+    boolean usbExclusiveEnabled() {
+        return usbExclusiveEnabled;
+    }
+
+    boolean audioExclusiveEnabled() {
+        return audioExclusiveEnabled;
+    }
+
+    void updateAudioExclusiveEnabled(boolean enabled) {
+        updateCache(() -> audioExclusiveEnabled = enabled);
+        execute(() -> repository.saveAudioExclusiveEnabled(enabled));
     }
 
     void updateStatusBarLyricsEnabled(boolean enabled) {
@@ -292,7 +313,9 @@ final class PlaybackPersistenceOwner {
             int loadedRepeat = repository.loadRepeatMode();
             AudioEffectSettings loadedAudioEffects = repository.loadAudioEffectSettings();
             boolean loadedReplayGain = repository.loadReplayGainEnabled();
-            boolean loadedConcurrent = repository.loadConcurrentPlaybackEnabled();
+            boolean loadedBitPerfect = repository.loadBitPerfectEnabled();
+            boolean loadedUsbExclusive = repository.loadUsbExclusiveEnabled();
+            boolean loadedAudioExclusive = repository.loadAudioExclusiveEnabled();
             float loadedSpeed = repository.loadPlaybackSpeed();
             float loadedVolume = repository.loadAppVolume();
             boolean loadedStatusLyrics = repository.loadStatusBarLyricsEnabled();
@@ -313,7 +336,9 @@ final class PlaybackPersistenceOwner {
                         ? AudioEffectSettings.DEFAULT
                         : loadedAudioEffects;
                 replayGainEnabled = loadedReplayGain;
-                concurrentPlaybackEnabled = loadedConcurrent;
+                bitPerfectEnabled = loadedBitPerfect;
+                usbExclusiveEnabled = loadedUsbExclusive;
+                audioExclusiveEnabled = loadedAudioExclusive;
                 playbackSpeed = loadedSpeed;
                 appVolume = loadedVolume;
                 statusBarLyricsEnabled = loadedStatusLyrics;

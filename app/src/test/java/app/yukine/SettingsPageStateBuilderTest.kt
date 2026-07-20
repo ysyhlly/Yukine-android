@@ -468,35 +468,33 @@ class SettingsPageStateBuilderTest {
             languageMode = AppLanguage.MODE_ENGLISH,
             playbackSpeed = 1.25f,
             appVolume = 0.7f,
-            concurrentPlaybackEnabled = false,
             audioEffects = audioEffects,
             playbackRestoreEnabled = true,
             replayGainEnabled = false,
+            audioExclusiveEnabled = true,
+            bitPerfectEnabled = false,
             remainingMs = 61000L,
             onNavigate = { page -> navigated += page },
             onReplayGainEnabledChange = { enabled -> toggled += "replay:$enabled" },
-            onPlaybackRestoreEnabledChange = { enabled -> toggled += "restore:$enabled" },
-            onAudioExclusiveEnabledChange = { enabled -> toggled += "exclusive:$enabled" }
+            onPlaybackRestoreEnabledChange = { enabled -> toggled += "restore:$enabled" }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.playback"), content.uiState.title)
-        assertEquals(7, content.uiState.metrics.size)
+        assertEquals(9, content.uiState.metrics.size)
         assertEquals("1.25x", content.uiState.metrics[0].value)
         assertEquals("70%", content.uiState.metrics[1].value)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.exclusive"), content.uiState.metrics[5].label)
-        assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled"), content.uiState.metrics[5].value)
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "enabled") + " / " + AppLanguage.text(AppLanguage.MODE_ENGLISH, "eq.classical"),
             content.uiState.metrics[2].value
         )
-        assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[6].value)
-        assertEquals(8, content.actions.size)
+        assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[8].value)
+        assertEquals(10, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.effects.hint"), content.actions[3].description)
         assertEquals("1.25x", content.actions[1].value)
         assertEquals(SettingsActionStyle.Toggle, content.actions[4].style)
         assertEquals(false, content.actions[4].checked)
-        assertEquals(SettingsActionStyle.Toggle, content.actions[6].style)
-        assertEquals(true, content.actions[6].checked)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[5].style)
+        assertEquals(true, content.actions[5].checked)
 
         content.actions.forEach { action -> action.onClick.run() }
 
@@ -511,7 +509,7 @@ class SettingsPageStateBuilderTest {
             navigated
         )
         assertEquals(
-            listOf("replay:true", "restore:false", "exclusive:false"),
+            listOf("replay:true", "restore:false"),
             toggled
         )
     }
@@ -561,31 +559,6 @@ class SettingsPageStateBuilderTest {
         assertEquals(1000, applied[2].bassBoostStrength.toInt())
         assertEquals(1000, applied[3].virtualizerStrength.toInt())
         assertEquals(600, applied[4].loudnessGainMb)
-    }
-
-    @Test
-    fun audioExclusiveBuildsBooleanLeafPage() {
-        val navigated = mutableListOf<SettingsPage>()
-        val toggles = mutableListOf<Boolean>()
-
-        val content = SettingsPageStateBuilder.audioExclusive(
-            languageMode = AppLanguage.MODE_ENGLISH,
-            enabled = true,
-            onNavigate = { page -> navigated += page },
-            onToggle = { enabled -> toggles += enabled }
-        )
-
-        assertBooleanLeafPage(
-            content = content,
-            titleKey = "audio.exclusive",
-            enabled = true
-        )
-
-        content.actions[0].onClick.run()
-        content.actions[1].onClick.run()
-
-        assertEquals(listOf(SettingsPage.PlaybackGroup), navigated)
-        assertEquals(listOf(false), toggles)
     }
 
     @Test

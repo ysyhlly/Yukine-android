@@ -141,11 +141,14 @@ object LibraryTrackMergePolicy {
                 return@forEach
             }
             val metadata = track.mergeMetadataOrNull()
-            if (metadata == null) {
+            if (metadata == null || identity == null) {
                 val cluster = TrackCluster(mutableListOf(track), identity)
                 result += cluster
                 identity?.let { canonicalId ->
                     clustersByCanonicalIdentity.getOrPut(canonicalId) { ArrayList() } += cluster
+                }
+                if (metadata != null) {
+                    clustersByTitle.getOrPut(metadata.title) { ArrayList() } += cluster
                 }
                 return@forEach
             }

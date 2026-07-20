@@ -14,13 +14,14 @@ object LibraryTrackPresentationPolicy {
         tracks: List<Track>,
         details: List<String>,
         uiState: LibraryUiState,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        playCountByTrackId: Map<Long, Int> = emptyMap()
     ): List<LibraryPresentedTrack> {
         val values = ArrayList<SortablePresentedTrack>(tracks.size)
         tracks.forEachIndexed { index, track ->
             if (!included(track, uiState.filter, favoriteIds)) return@forEachIndexed
             val value = LibraryPresentedTrack(track, details.getOrElse(index) { "" })
-            values += sortable(value, uiState.sort)
+            values += sortable(value, uiState.sort, playCountByTrackId)
         }
         val comparator = when (uiState.sort) {
             LibrarySort.TitleAscending -> compareBy<SortablePresentedTrack> { it.primaryText }
@@ -31,6 +32,12 @@ object LibraryTrackPresentationPolicy {
             LibrarySort.DurationAscending -> compareBy<SortablePresentedTrack> { it.durationMs }
                 .thenBy { it.secondaryText }
             LibrarySort.DurationDescending -> compareByDescending<SortablePresentedTrack> { it.durationMs }
+                .thenBy { it.secondaryText }
+            LibrarySort.DateAddedDescending -> compareByDescending<SortablePresentedTrack> { it.updatedAt }
+                .thenBy { it.secondaryText }
+            LibrarySort.DateAddedAscending -> compareBy<SortablePresentedTrack> { it.updatedAt }
+                .thenBy { it.secondaryText }
+            LibrarySort.PlayCountDescending -> compareByDescending<SortablePresentedTrack> { it.playCount }
                 .thenBy { it.secondaryText }
         }
         values.sortWith(comparator)
@@ -53,7 +60,8 @@ object LibraryTrackPresentationPolicy {
 
     private fun sortable(
         value: LibraryPresentedTrack,
-        sort: LibrarySort
+        sort: LibrarySort,
+        playCountByTrackId: Map<Long, Int>
     ): SortablePresentedTrack = when (sort) {
         LibrarySort.TitleAscending,
         LibrarySort.TitleDescending -> SortablePresentedTrack(
@@ -76,10 +84,22 @@ object LibraryTrackPresentationPolicy {
             secondaryText = normalized(value.track.title),
             durationMs = value.track.durationMs
         )
+        LibrarySort.DateAddedDescending,
+        LibrarySort.DateAddedAscending -> SortablePresentedTrack(
+            value = value,
+            secondaryText = normalized(value.track.title),
+            updatedAt = value.track.updatedAt
+        )
+        LibrarySort.PlayCountDescending -> SortablePresentedTrack(
+            value = value,
+            secondaryText = normalized(value.track.title),
+            playCount = playCountByTrackId[value.track.id] ?: 0
+        )
     }
 
     fun sourceKind(track: Track): LibrarySourceKind = when {
         track.dataPath.startsWith("stream:") -> LibrarySourceKind.Stream
+        track.dataPath.startsWith("streaming:") -> LibrarySourceKind.Stream
         track.dataPath.startsWith("webdav:") -> LibrarySourceKind.WebDav
         track.dataPath.startsWith("document:") -> LibrarySourceKind.Document
         else -> LibrarySourceKind.MediaStore
@@ -91,6 +111,8 @@ object LibraryTrackPresentationPolicy {
         val value: LibraryPresentedTrack,
         val primaryText: String = "",
         val secondaryText: String = "",
-        val durationMs: Long = 0L
+        val durationMs: Long = 0L,
+        val updatedAt: Long = 0L,
+        val playCount: Int = 0
     )
 }

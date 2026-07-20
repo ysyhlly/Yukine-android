@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: YUKINE Android 多模块工程根（含元数据网关与 Web 原型）
+title: YUKINE 多运行时聚合根项目
 scope:
     - README.md
     - .editorconfig

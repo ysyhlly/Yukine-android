@@ -18,7 +18,6 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.AppVolume, 0.7f))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.StreamingAudioQuality, "lossless"))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.OnlineLyricsEnabled, true))
-        useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ConcurrentPlaybackEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.LyricsOffsetMs, -200L))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.AudioEffectSettings, AudioEffectSettings.DEFAULT.withEnabled(true)))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.StatusBarLyricsEnabled, false))
@@ -52,7 +51,6 @@ class ApplySettingsPreferenceUseCaseTest {
                 "volume:0.7",
                 "quality:lossless",
                 "onlineLyrics:true",
-                "concurrent:false",
                 "lyricsOffset:-200",
                 "effects:true",
                 "statusLyrics:false",
@@ -111,10 +109,6 @@ class ApplySettingsPreferenceUseCaseTest {
             events.add("onlineLyrics:$enabled")
         }
 
-        override fun saveConcurrentPlaybackEnabled(enabled: Boolean) {
-            events.add("concurrent:$enabled")
-        }
-
         override fun saveLyricsOffsetMs(offsetMs: Long) {
             events.add("lyricsOffset:$offsetMs")
         }
@@ -145,6 +139,18 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveReplayGainEnabled(enabled: Boolean) {
             events.add("replayGain:$enabled")
+        }
+
+        override fun saveAudioExclusiveEnabled(enabled: Boolean) {
+            events.add("audioExclusive:$enabled")
+        }
+
+        override fun saveBitPerfectEnabled(enabled: Boolean) {
+            events.add("bitPerfect:$enabled")
+        }
+
+        override fun saveUsbExclusiveEnabled(enabled: Boolean) {
+            events.add("usbExclusive:$enabled")
         }
 
         override fun saveDebugPromptsEnabled(enabled: Boolean) {

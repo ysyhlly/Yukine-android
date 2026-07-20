@@ -52,7 +52,11 @@ public final class IdentityEnhancementPlaybackGateTest {
                 null,
                 null,
                 0.0f,
-                0L
+                0L,
+                false,
+                0,
+                null,
+                false
         );
     }
 }

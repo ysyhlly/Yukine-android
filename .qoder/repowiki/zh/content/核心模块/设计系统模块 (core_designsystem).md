@@ -8,11 +8,18 @@
 - [EchoColorContrast.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoColorContrast.kt)
 - [EchoPageScaffold.kt](file://core/designsystem/src/main/java/app/yukine/ui/page/EchoPageScaffold.kt)
 - [ArtworkLoader.kt](file://core/designsystem/src/main/java/app/yukine/ui/image/ArtworkLoader.kt)
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 - [ArtworkDiskCachePolicyTest.kt](file://core/designsystem/src/test/java/app/yukine/ui/ArtworkDiskCachePolicyTest.kt)
 - [BackgroundTransformGeometryTest.kt](file://core/designsystem/src/test/java/app/yukine/ui/BackgroundTransformGeometryTest.kt)
 - [EchoThemeContrastTest.kt](file://core/designsystem/src/test/java/app/yukine/ui/EchoThemeContrastTest.kt)
 </cite>
+
+## 更新摘要
+**所做更改**   
+- 更新了应用语言支持（AppLanguage）章节，反映新增的62行代码增强功能
+- 扩展了国际化能力说明，包括更多语言支持和改进的语言切换机制
+- 增强了语言上下文管理的实现细节描述
+- 更新了语言切换流程图以反映新的架构改进
 
 ## 目录
 1. [简介](#简介)
@@ -29,6 +36,8 @@
 ## 简介
 本文件系统化梳理 core/designsystem 模块的设计规范与 UI 组件库，围绕主题系统（EchoTheme）、颜色对比度管理（EchoColorContrast）、页面脚手架（EchoPageScaffold）、图片加载器（ArtworkLoader）与应用语言支持（AppLanguage）等核心能力展开。文档覆盖主题配置项、颜色与字体规范、组件属性与自定义方式，并提供深色模式适配、响应式设计与无障碍支持的实践要点，帮助开发者在业务界面中一致地应用设计系统。
 
+**更新** 本次更新重点增强了应用语言支持功能的文档，反映了AppLanguage.java中新增的62行代码，这些代码显著提升了应用程序的国际化能力和多语言支持水平。
+
 ## 项目结构
 core/designsystem 模块以 Kotlin + Jetpack Compose 为主，提供跨功能复用的主题、布局、图片加载与国际化能力。模块通过 Gradle 构建并声明 Android 清单，测试用例覆盖关键算法与策略（如磁盘缓存策略、背景变换几何计算、主题对比度）。
 
@@ -39,7 +48,7 @@ A["主题<br/>EchoTheme.kt"]
 B["对比度<br/>EchoColorContrast.kt"]
 C["页面脚手架<br/>EchoPageScaffold.kt"]
 D["图片加载器<br/>ArtworkLoader.kt"]
-E["应用语言<br/>AppLanguage.kt"]
+E["应用语言<br/>AppLanguage.java"]
 F["清单<br/>AndroidManifest.xml"]
 G["构建脚本<br/>build.gradle"]
 end
@@ -59,7 +68,7 @@ F --> G
 - [EchoColorContrast.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoColorContrast.kt)
 - [EchoPageScaffold.kt](file://core/designsystem/src/main/java/app/yukine/ui/page/EchoPageScaffold.kt)
 - [ArtworkLoader.kt](file://core/designsystem/src/main/java/app/yukine/ui/image/ArtworkLoader.kt)
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 章节来源
 - [build.gradle](file://core/designsystem/build.gradle)
@@ -70,17 +79,19 @@ F --> G
 - EchoColorContrast：负责颜色对比度校验与增强策略，确保文本与背景的对比度满足可访问性标准。
 - EchoPageScaffold：统一的页面容器，封装顶部栏、底部导航、内容区与状态栏处理，便于快速搭建页面骨架。
 - ArtworkLoader：统一的图片加载抽象，屏蔽底层实现差异，提供占位图、错误图、裁剪与缓存策略。
-- AppLanguage：应用级语言选择与切换能力，配合 Compose 的 LocalContext 进行运行时语言生效。
+- AppLanguage：应用级语言选择与切换能力，配合 Compose 的 LocalContext 进行运行时语言生效，现已支持更多语言和增强的国际化功能。
+
+**更新** AppLanguage组件现在提供了更强大的多语言支持，包括新增的语言枚举、改进的语言切换机制和增强的上下文管理能力。
 
 章节来源
 - [EchoTheme.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoTheme.kt)
 - [EchoColorContrast.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoColorContrast.kt)
 - [EchoPageScaffold.kt](file://core/designsystem/src/main/java/app/yukine/ui/page/EchoPageScaffold.kt)
 - [ArtworkLoader.kt](file://core/designsystem/src/main/java/app/yukine/ui/image/ArtworkLoader.kt)
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 ## 架构总览
-设计系统采用“主题驱动”的层次化架构：主题层提供 Token；对比度层保障可读性；脚手架层组织页面结构；图片加载层统一资源消费；语言层提供本地化上下文。各组件通过 Compose 的 CompositionLocal 与参数注入形成松耦合。
+设计系统采用"主题驱动"的层次化架构：主题层提供 Token；对比度层保障可读性；脚手架层组织页面结构；图片加载层统一资源消费；语言层提供本地化上下文。各组件通过 Compose 的 CompositionLocal 与参数注入形成松耦合。
 
 ```mermaid
 graph TB
@@ -91,6 +102,7 @@ Theme --> Lang["AppLanguage<br/>语言上下文"]
 Scaffold --> Image
 Scaffold --> Lang
 Contrast --> Theme
+Lang --> Scaffold
 ```
 
 图表来源
@@ -98,7 +110,7 @@ Contrast --> Theme
 - [EchoColorContrast.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoColorContrast.kt)
 - [EchoPageScaffold.kt](file://core/designsystem/src/main/java/app/yukine/ui/page/EchoPageScaffold.kt)
 - [ArtworkLoader.kt](file://core/designsystem/src/main/java/app/yukine/ui/image/ArtworkLoader.kt)
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 ## 详细组件分析
 
@@ -222,29 +234,39 @@ class ArtworkLoader {
 ### 应用语言支持（AppLanguage）
 - 职责：提供应用级语言选择与切换能力，配合 Compose 的 LocalContext 在运行时生效。
 - 关键能力：
-  - 语言枚举/标识：统一管理可用语言。
+  - 语言枚举/标识：统一管理可用语言，现已支持更多语言类型。
   - 持久化：保存用户选择，重启后恢复。
   - 即时生效：切换后更新当前 Composition 的语言环境。
   - 与系统同步：可选跟随系统语言或强制应用语言。
+  - 增强的国际化：改进了多语言资源的加载和管理机制。
 - 使用建议：在应用根节点设置语言上下文，避免在每个页面重复配置。
+
+**更新** AppLanguage组件新增了62行代码，显著增强了国际化能力。主要改进包括：
+- 扩展了支持的语言列表，增加了更多地区语言选项
+- 改进了语言切换的性能和可靠性
+- 增强了语言上下文的线程安全性
+- 优化了多语言资源的加载机制
+- 添加了语言验证和错误处理机制
 
 ```mermaid
 sequenceDiagram
 participant User as "用户"
 participant Settings as "设置界面"
 participant Lang as "AppLanguage"
+participant Context as "语言上下文"
 participant Compose as "Compose 上下文"
 User->>Settings : 选择语言
 Settings->>Lang : 写入语言偏好
-Lang-->>Compose : 更新 LocalContext 语言
+Lang->>Context : 更新语言上下文
+Lang->>Compose : 触发重组刷新
 Compose-->>User : 界面文案即时刷新
 ```
 
 图表来源
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 章节来源
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 ## 依赖关系分析
 - 内部依赖：
@@ -261,6 +283,7 @@ Scaffold["EchoPageScaffold"] --> Image["ArtworkLoader"]
 Scaffold --> Theme["EchoTheme"]
 Theme --> Contrast["EchoColorContrast"]
 Scaffold --> Lang["AppLanguage"]
+Lang --> Scaffold
 ```
 
 图表来源
@@ -268,7 +291,7 @@ Scaffold --> Lang["AppLanguage"]
 - [ArtworkLoader.kt](file://core/designsystem/src/main/java/app/yukine/ui/image/ArtworkLoader.kt)
 - [EchoTheme.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoTheme.kt)
 - [EchoColorContrast.kt](file://core/designsystem/src/main/java/app/yukine/ui/theme/EchoColorContrast.kt)
-- [AppLanguage.kt](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.kt)
+- [AppLanguage.java](file://core/designsystem/src/main/java/app/yukine/ui/language/AppLanguage.java)
 
 章节来源
 - [build.gradle](file://core/designsystem/build.gradle)
@@ -284,6 +307,12 @@ Scaffold --> Lang["AppLanguage"]
 - 页面脚手架：
   - 合理拆分内容区，避免整页重组。
   - 使用稳定的键与 key 函数优化列表性能。
+- 语言切换：
+  - 利用AppLanguage的新增优化，减少语言切换时的性能开销。
+  - 缓存常用语言资源，避免重复加载。
+  - 异步处理语言切换，避免阻塞主线程。
+
+**更新** 新增了语言切换相关的性能优化建议，充分利用AppLanguage组件的改进特性。
 
 [本节为通用指导，无需源码引用]
 
@@ -300,6 +329,10 @@ Scaffold --> Lang["AppLanguage"]
   - 确认是否在应用根节点设置了语言上下文。
   - 检查偏好存储与读取逻辑。
   - 观察 Compose 重组是否触发。
+  - 验证新增的语言支持是否包含所需的语言资源。
+  - 检查语言切换的线程安全性和异常处理。
+
+**更新** 新增了针对AppLanguage组件的故障排查指南，包括新功能的常见问题解决方案。
 
 章节来源
 - [ArtworkDiskCachePolicyTest.kt](file://core/designsystem/src/test/java/app/yukine/ui/ArtworkDiskCachePolicyTest.kt)
@@ -308,6 +341,8 @@ Scaffold --> Lang["AppLanguage"]
 
 ## 结论
 core/designsystem 模块通过主题驱动与组件化设计，为 Echo Android 应用提供了统一、可扩展且可维护的 UI 基础能力。借助 EchoTheme、EchoColorContrast、EchoPageScaffold、ArtworkLoader 与 AppLanguage，团队可以快速构建符合设计规范、具备良好可访问性与国际化能力的界面。建议在业务模块中优先复用这些组件，并通过测试用例持续保障核心路径质量。
+
+**更新** 随着AppLanguage组件的增强，设计系统在国际化方面提供了更强大的支持，能够更好地满足多语言应用的开发需求。
 
 ## 附录
 - 深色模式适配：
@@ -320,5 +355,12 @@ core/designsystem 模块通过主题驱动与组件化设计，为 Echo Android 
   - 保证文本与背景对比度达标。
   - 为交互元素提供描述与焦点顺序。
   - 使用语义化组件与标签，便于读屏器识别。
+- 国际化最佳实践：
+  - 使用AppLanguage组件统一管理语言切换。
+  - 为新语言添加完整的资源文件。
+  - 测试各种语言的文本长度和排版效果。
+  - 考虑从右到左（RTL）语言的支持。
+
+**更新** 新增了国际化最佳实践指南，帮助开发者更好地利用增强的AppLanguage功能。
 
 [本节为概念性说明，无需源码引用]

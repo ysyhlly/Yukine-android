@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: app
+title: Echo Android 应用装配层与运行时入口
+scope:
+    - app/
+source_files: []
+depends_on: []
+related_to: []

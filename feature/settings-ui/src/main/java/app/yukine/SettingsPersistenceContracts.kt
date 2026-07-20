@@ -9,7 +9,6 @@ enum class SettingsPreferenceKey {
     StreamingAudioQuality,
     RefuseAutomaticQualityDowngrade,
     OnlineLyricsEnabled,
-    ConcurrentPlaybackEnabled,
     LyricsOffsetMs,
     AudioEffectSettings,
     StatusBarLyricsEnabled,
@@ -18,6 +17,7 @@ enum class SettingsPreferenceKey {
     NowPlayingGesturesEnabled,
     PlaybackRestoreEnabled,
     ReplayGainEnabled,
+    AudioExclusiveEnabled,
     DebugPromptsEnabled,
     CustomBackgroundBlurEnabled,
     CustomBackgroundBlurRadiusDp,
@@ -27,7 +27,9 @@ enum class SettingsPreferenceKey {
     CompactSettingsCards,
     HomeDashboardLayout,
     ShareStyle,
-    PageBackgrounds
+    PageBackgrounds,
+    BitPerfectEnabled,
+    UsbExclusiveEnabled
 }
 
 data class SettingsPreferenceUpdate(

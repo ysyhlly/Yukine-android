@@ -141,7 +141,8 @@ public final class TrackEntityMapper {
                 entity.getAlbumArtist(),
                 entity.getComposer(),
                 entity.getReleaseType(),
-                entity.getYear()
+                entity.getYear(),
+                entity.getUpdatedAt()
         );
     }
 

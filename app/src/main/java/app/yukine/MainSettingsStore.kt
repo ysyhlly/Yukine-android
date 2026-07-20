@@ -13,7 +13,6 @@ internal class MainSettingsStore {
     private var appVolume: Float = 1.0f
     private var streamingAudioQuality: String = StreamingQualityPreference.defaultValue()
     private var refuseAutomaticQualityDowngrade: Boolean = false
-    private var concurrentPlaybackEnabled: Boolean = false
     private var audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT
     private var statusBarLyricsEnabled: Boolean = true
     private var systemMediaLyricsTitleEnabled: Boolean = false
@@ -21,6 +20,9 @@ internal class MainSettingsStore {
     private var nowPlayingGesturesEnabled: Boolean = true
     private var playbackRestoreEnabled: Boolean = true
     private var replayGainEnabled: Boolean = true
+    private var audioExclusiveEnabled: Boolean = true
+    private var bitPerfectEnabled: Boolean = false
+    private var usbExclusiveEnabled: Boolean = false
     private var debugPromptsEnabled: Boolean = false
     private var customBackgroundBlurEnabled: Boolean = false
     private var customBackgroundBlurRadiusDp: Float =
@@ -41,7 +43,6 @@ internal class MainSettingsStore {
         appVolume = preferences.appVolume
         streamingAudioQuality = preferences.streamingAudioQuality
         refuseAutomaticQualityDowngrade = preferences.refuseAutomaticQualityDowngrade
-        concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
         systemMediaLyricsTitleEnabled = preferences.systemMediaLyricsTitleEnabled
@@ -49,6 +50,9 @@ internal class MainSettingsStore {
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
+        audioExclusiveEnabled = preferences.audioExclusiveEnabled
+        bitPerfectEnabled = preferences.bitPerfectEnabled
+        usbExclusiveEnabled = preferences.usbExclusiveEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
         customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
@@ -73,7 +77,6 @@ internal class MainSettingsStore {
         appVolume = preferences.appVolume
         streamingAudioQuality = StreamingQualityPreference.normalize(preferences.streamingAudioQuality)
         refuseAutomaticQualityDowngrade = preferences.refuseAutomaticQualityDowngrade
-        concurrentPlaybackEnabled = preferences.concurrentPlaybackEnabled
         audioEffectSettings = preferences.audioEffectSettings
         statusBarLyricsEnabled = preferences.statusBarLyricsEnabled && !preferences.floatingLyricsEnabled
         systemMediaLyricsTitleEnabled = preferences.systemMediaLyricsTitleEnabled
@@ -81,6 +84,9 @@ internal class MainSettingsStore {
         nowPlayingGesturesEnabled = preferences.nowPlayingGesturesEnabled
         playbackRestoreEnabled = preferences.playbackRestoreEnabled
         replayGainEnabled = preferences.replayGainEnabled
+        audioExclusiveEnabled = preferences.audioExclusiveEnabled
+        bitPerfectEnabled = preferences.bitPerfectEnabled
+        usbExclusiveEnabled = preferences.usbExclusiveEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
         customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
@@ -104,7 +110,6 @@ internal class MainSettingsStore {
             appVolume = appVolume,
             streamingAudioQuality = streamingAudioQuality,
             refuseAutomaticQualityDowngrade = refuseAutomaticQualityDowngrade,
-            concurrentPlaybackEnabled = concurrentPlaybackEnabled,
             audioEffectSettings = audioEffectSettings,
             statusBarLyricsEnabled = statusBarLyricsEnabled,
             systemMediaLyricsTitleEnabled = systemMediaLyricsTitleEnabled,
@@ -112,6 +117,9 @@ internal class MainSettingsStore {
             nowPlayingGesturesEnabled = nowPlayingGesturesEnabled,
             playbackRestoreEnabled = playbackRestoreEnabled,
             replayGainEnabled = replayGainEnabled,
+            audioExclusiveEnabled = audioExclusiveEnabled,
+            bitPerfectEnabled = bitPerfectEnabled,
+            usbExclusiveEnabled = usbExclusiveEnabled,
             debugPromptsEnabled = debugPromptsEnabled,
             customBackgroundBlurEnabled = customBackgroundBlurEnabled,
             customBackgroundBlurRadiusDp = customBackgroundBlurRadiusDp,
@@ -149,10 +157,6 @@ internal class MainSettingsStore {
     }
 
     fun refuseAutomaticQualityDowngrade(): Boolean = refuseAutomaticQualityDowngrade
-
-    fun concurrentPlaybackEnabled(): Boolean {
-        return concurrentPlaybackEnabled
-    }
 
     fun audioEffectSettings(): AudioEffectSettings {
         return audioEffectSettings
@@ -231,10 +235,6 @@ internal class MainSettingsStore {
 
     fun setRefuseAutomaticQualityDowngrade(refuse: Boolean) {
         refuseAutomaticQualityDowngrade = refuse
-    }
-
-    fun setConcurrentPlaybackEnabled(concurrentPlaybackEnabled: Boolean) {
-        this.concurrentPlaybackEnabled = concurrentPlaybackEnabled
     }
 
     fun setAudioEffectSettings(audioEffectSettings: AudioEffectSettings?) {

@@ -12,23 +12,23 @@ class SettingsPlaybackServiceControlsAdapterTest {
 
         controls.setPlaybackSpeed(1.25f)
         controls.setAppVolume(0.75f)
-        controls.setConcurrentPlaybackEnabled(true)
         controls.applyAudioEffectSettings(AudioEffectSettings.DEFAULT.withEnabled(true))
         controls.setStatusBarLyricsEnabled(false)
         controls.setSystemMediaLyricsTitleEnabled(true)
         controls.setPlaybackRestoreEnabled(true)
         controls.setReplayGainEnabled(false)
+        controls.setAudioExclusiveEnabled(true)
 
         assertEquals(
             listOf(
                 "speed:1.25",
                 "volume:0.75",
-                "concurrent:true",
                 "effects:true",
                 "statusLyrics:false",
                 "systemMediaTitle:true",
                 "restore:true",
-                "replayGain:false"
+                "replayGain:false",
+                "exclusive:true"
             ),
             service.calls
         )
@@ -43,10 +43,6 @@ class SettingsPlaybackServiceControlsAdapterTest {
 
         override fun setAppVolume(volume: Float) {
             calls += "volume:$volume"
-        }
-
-        override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-            calls += "concurrent:$enabled"
         }
 
         override fun applyAudioEffectSettings(settings: AudioEffectSettings) {
@@ -67,6 +63,18 @@ class SettingsPlaybackServiceControlsAdapterTest {
 
         override fun setReplayGainEnabled(enabled: Boolean) {
             calls += "replayGain:$enabled"
+        }
+
+        override fun setAudioExclusiveEnabled(enabled: Boolean) {
+            calls += "exclusive:$enabled"
+        }
+
+        override fun setBitPerfectEnabled(enabled: Boolean) {
+            calls += "bitPerfect:$enabled"
+        }
+
+        override fun setUsbExclusiveEnabled(enabled: Boolean) {
+            calls += "usbExclusive:$enabled"
         }
     }
 }

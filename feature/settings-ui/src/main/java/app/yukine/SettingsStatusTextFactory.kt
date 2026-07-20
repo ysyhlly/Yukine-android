@@ -24,8 +24,6 @@ object SettingsStatusTextFactory {
                 SettingsLabelFormatter.appVolumeLabel(appVolume),
             onlineLyricsEnabled = AppLanguage.text(language, "online.lyrics.enabled"),
             onlineLyricsDisabled = AppLanguage.text(language, "online.lyrics.disabled"),
-            concurrentPlaybackEnabled = AppLanguage.text(language, "concurrent.playback.enabled"),
-            concurrentPlaybackDisabled = AppLanguage.text(language, "concurrent.playback.disabled"),
             lyricsOffsetApplied = AppLanguage.text(language, "lyrics.offset.applied") +
                 SettingsLabelFormatter.lyricsOffsetLabel(lyricsOffsetMs),
             audioEffectsApplied = AppLanguage.text(language, "audio.effects.applied"),
@@ -40,6 +38,8 @@ object SettingsStatusTextFactory {
             playbackRestoreDisabled = AppLanguage.text(language, "playback.restore.disabled"),
             replayGainEnabled = AppLanguage.text(language, "replay.gain.enabled"),
             replayGainDisabled = AppLanguage.text(language, "replay.gain.disabled"),
+            audioExclusiveEnabled = AppLanguage.text(language, "audio.exclusive.enabled"),
+            audioExclusiveDisabled = AppLanguage.text(language, "audio.exclusive.disabled"),
             shareStyleApplied = AppLanguage.text(language, "share.style.applied"),
             pageBackgroundApplied = AppLanguage.text(language, "page.background.applied"),
             pageBackgroundCleared = AppLanguage.text(language, "page.background.cleared")

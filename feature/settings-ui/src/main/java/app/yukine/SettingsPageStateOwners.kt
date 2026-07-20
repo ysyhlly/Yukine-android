@@ -160,31 +160,6 @@ class PlaybackSettingsStateOwner internal constructor(private val context: Setti
         context.save(SettingsPreferenceKey.RefuseAutomaticQualityDowngrade, refuse)
     }
 
-    fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-        val status = context.currentStatus()
-        updateConcurrentPlaybackEnabled(
-            enabled,
-            if (enabled) status.concurrentPlaybackEnabled else status.concurrentPlaybackDisabled
-        )
-    }
-
-    fun setAudioExclusiveEnabled(enabled: Boolean) {
-        updateConcurrentPlaybackEnabled(
-            !enabled,
-            AppLanguage.text(
-                context.state().preferences.languageMode,
-                if (enabled) "audio.exclusive.enabled" else "audio.exclusive.disabled"
-            )
-        )
-    }
-
-    private fun updateConcurrentPlaybackEnabled(enabled: Boolean, status: String) {
-        context.applyRuntime(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(enabled))
-        context.updatePreferences { it.copy(concurrentPlaybackEnabled = enabled) }
-        context.emitStatus(status)
-        context.save(SettingsPreferenceKey.ConcurrentPlaybackEnabled, enabled)
-    }
-
     fun applyAudioEffectSettings(settings: AudioEffectSettings) {
         context.applyRuntime(SettingsRuntimeEffect.ApplyAudioEffects(settings))
         context.updatePreferences { it.copy(audioEffectSettings = settings) }
@@ -213,6 +188,26 @@ class PlaybackSettingsStateOwner internal constructor(private val context: Setti
         val status = context.currentStatus()
         context.emitStatus(if (enabled) status.replayGainEnabled else status.replayGainDisabled)
         context.save(SettingsPreferenceKey.ReplayGainEnabled, enabled)
+    }
+
+    fun setAudioExclusiveEnabled(enabled: Boolean) {
+        context.applyRuntime(SettingsRuntimeEffect.SetAudioExclusiveEnabled(enabled))
+        context.updatePreferences { it.copy(audioExclusiveEnabled = enabled) }
+        val status = context.currentStatus()
+        context.emitStatus(if (enabled) status.audioExclusiveEnabled else status.audioExclusiveDisabled)
+        context.save(SettingsPreferenceKey.AudioExclusiveEnabled, enabled)
+    }
+
+    fun setBitPerfectEnabled(enabled: Boolean) {
+        context.applyRuntime(SettingsRuntimeEffect.SetBitPerfectEnabled(enabled))
+        context.updatePreferences { it.copy(bitPerfectEnabled = enabled) }
+        context.save(SettingsPreferenceKey.BitPerfectEnabled, enabled)
+    }
+
+    fun setUsbExclusiveEnabled(enabled: Boolean) {
+        context.applyRuntime(SettingsRuntimeEffect.SetUsbExclusiveEnabled(enabled))
+        context.updatePreferences { it.copy(usbExclusiveEnabled = enabled) }
+        context.save(SettingsPreferenceKey.UsbExclusiveEnabled, enabled)
     }
 
     fun startSleepTimer(minutes: Int) {
@@ -340,6 +335,11 @@ class LyricsSettingsStateOwner internal constructor(private val context: Setting
             SettingsRuntimeEffect.UpdateFloatingLyricsTransparentBackground(enabled)
         )
         context.updateRuntime { it.copy(floatingLyricsTransparentBackground = enabled) }
+    }
+
+    fun setFloatingLyricsTextColor(colorArgb: Int) {
+        context.applyRuntime(SettingsRuntimeEffect.UpdateFloatingLyricsTextColor(colorArgb))
+        context.updateRuntime { it.copy(floatingLyricsTextColorArgb = colorArgb) }
     }
 
     fun showFloatingLyrics() {

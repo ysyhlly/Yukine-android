@@ -2,7 +2,7 @@ package app.yukine.playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.robolectric.Shadows.shadowOf;
+import org.robolectric.shadows.ShadowLooper;
 
 import android.content.Context;
 import android.net.Uri;
@@ -44,7 +44,7 @@ public final class PlaybackVisualizationCacheManagerTest {
 
         manager.scheduleVisualizationCache(track);
         manager.release();
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
@@ -59,7 +59,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
         manager.release();
         stateProvider.scheduledTasks.get(0).run();
 
@@ -77,7 +77,7 @@ public final class PlaybackVisualizationCacheManagerTest {
 
         manager.release();
         manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
@@ -94,7 +94,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         holder[0] = manager(stateProvider, writerFactory);
 
         holder[0].scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
         stateProvider.scheduledTasks.get(0).run();
 
         assertEquals(1, writer.cacheCalls);
@@ -114,7 +114,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         manager.release();
         int generationAfterFirstRelease = cacheGeneration(manager);
         manager.release();
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(generationBeforeRelease + 1, generationAfterFirstRelease);
         assertEquals(generationAfterFirstRelease, cacheGeneration(manager));
@@ -132,7 +132,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
         stateProvider.scheduledTasks.get(0).run();
 
         assertEquals(1, stateProvider.scheduledTasks.size());
@@ -153,7 +153,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
@@ -168,7 +168,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.scheduleVisualizationCache(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);
@@ -185,7 +185,7 @@ public final class PlaybackVisualizationCacheManagerTest {
                 PlaybackVisualizationCacheManager.scheduleVisualizationCacheActionFromSupplier(() -> manager);
 
         action.accept(track);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(1, stateProvider.scheduledTasks.size());
     }
@@ -207,7 +207,7 @@ public final class PlaybackVisualizationCacheManagerTest {
         PlaybackVisualizationCacheManager manager = manager(stateProvider, writerFactory);
 
         manager.scheduleVisualizationCache(visualTrack);
-        shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
 
         assertEquals(0, stateProvider.scheduledTasks.size());
         assertEquals(0, writerFactory.createCalls);

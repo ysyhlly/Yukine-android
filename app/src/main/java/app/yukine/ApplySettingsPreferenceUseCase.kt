@@ -12,7 +12,6 @@ internal interface SettingsPreferenceOperations {
     fun saveStreamingAudioQuality(quality: String)
     fun saveRefuseAutomaticQualityDowngrade(refuse: Boolean)
     fun saveOnlineLyricsEnabled(enabled: Boolean)
-    fun saveConcurrentPlaybackEnabled(enabled: Boolean)
     fun saveLyricsOffsetMs(offsetMs: Long)
     fun saveAudioEffectSettings(settings: AudioEffectSettings)
     fun saveStatusBarLyricsEnabled(enabled: Boolean)
@@ -21,6 +20,9 @@ internal interface SettingsPreferenceOperations {
     fun saveNowPlayingGesturesEnabled(enabled: Boolean)
     fun savePlaybackRestoreEnabled(enabled: Boolean)
     fun saveReplayGainEnabled(enabled: Boolean)
+    fun saveAudioExclusiveEnabled(enabled: Boolean)
+    fun saveBitPerfectEnabled(enabled: Boolean)
+    fun saveUsbExclusiveEnabled(enabled: Boolean)
     fun saveDebugPromptsEnabled(enabled: Boolean)
     fun saveCustomBackgroundBlurEnabled(enabled: Boolean)
     fun saveCustomBackgroundBlurRadiusDp(radiusDp: Float)
@@ -55,9 +57,6 @@ internal class MusicLibrarySettingsPreferenceOperations(
     override fun saveOnlineLyricsEnabled(enabled: Boolean) =
         repository.saveOnlineLyricsEnabled(enabled)
 
-    override fun saveConcurrentPlaybackEnabled(enabled: Boolean) =
-        repository.saveConcurrentPlaybackEnabled(enabled)
-
     override fun saveLyricsOffsetMs(offsetMs: Long) = repository.saveLyricsOffsetMs(offsetMs)
 
     override fun saveAudioEffectSettings(settings: AudioEffectSettings) =
@@ -80,6 +79,15 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveReplayGainEnabled(enabled: Boolean) =
         repository.saveReplayGainEnabled(enabled)
+
+    override fun saveAudioExclusiveEnabled(enabled: Boolean) =
+        repository.saveAudioExclusiveEnabled(enabled)
+
+    override fun saveBitPerfectEnabled(enabled: Boolean) =
+        repository.saveBitPerfectEnabled(enabled)
+
+    override fun saveUsbExclusiveEnabled(enabled: Boolean) =
+        repository.saveUsbExclusiveEnabled(enabled)
 
     override fun saveDebugPromptsEnabled(enabled: Boolean) =
         repository.saveDebugPromptsEnabled(enabled)
@@ -124,8 +132,6 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.saveRefuseAutomaticQualityDowngrade(update.value as Boolean)
                 SettingsPreferenceKey.OnlineLyricsEnabled ->
                     operations.saveOnlineLyricsEnabled(update.value as Boolean)
-                SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
-                    operations.saveConcurrentPlaybackEnabled(update.value as Boolean)
                 SettingsPreferenceKey.LyricsOffsetMs -> operations.saveLyricsOffsetMs(update.value as Long)
                 SettingsPreferenceKey.AudioEffectSettings ->
                     operations.saveAudioEffectSettings(update.value as AudioEffectSettings)
@@ -141,6 +147,12 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.savePlaybackRestoreEnabled(update.value as Boolean)
                 SettingsPreferenceKey.ReplayGainEnabled ->
                     operations.saveReplayGainEnabled(update.value as Boolean)
+                SettingsPreferenceKey.AudioExclusiveEnabled ->
+                    operations.saveAudioExclusiveEnabled(update.value as Boolean)
+                SettingsPreferenceKey.BitPerfectEnabled ->
+                    operations.saveBitPerfectEnabled(update.value as Boolean)
+                SettingsPreferenceKey.UsbExclusiveEnabled ->
+                    operations.saveUsbExclusiveEnabled(update.value as Boolean)
                 SettingsPreferenceKey.DebugPromptsEnabled ->
                     operations.saveDebugPromptsEnabled(update.value as Boolean)
                 SettingsPreferenceKey.CustomBackgroundBlurEnabled ->

@@ -24,7 +24,6 @@ object SettingsBackStack {
             SettingsPage.AudioEffects,
             SettingsPage.ReplayGain,
             SettingsPage.PlaybackRestore,
-            SettingsPage.ConcurrentPlayback,
             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
 
             SettingsPage.Library,

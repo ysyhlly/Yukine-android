@@ -402,7 +402,8 @@ private fun LibraryTrackListContent(
                         subtitle = "${tracks.size} ${labels.songsLabel}",
                         backLabel = libraryUi.labels.back,
                         onNavigateUp = onNavigateUp ?: Runnable { },
-                        overflowActions = overflowActions
+                        overflowActions = overflowActions,
+                        operationInProgress = libraryUi.operationInProgress
                     )
                 }
             }
@@ -509,7 +510,8 @@ private fun LibraryTrackListHeader(
     subtitle: String,
     backLabel: String,
     onNavigateUp: Runnable,
-    overflowActions: List<TrackListHeaderAction>
+    overflowActions: List<TrackListHeaderAction>,
+    operationInProgress: Boolean = false
 ) {
     val p = EchoTheme.colors()
     var expanded by remember { mutableStateOf(false) }
@@ -536,7 +538,17 @@ private fun LibraryTrackListHeader(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(subtitle, style = EchoTypography.caption, color = p.muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(subtitle, style = EchoTypography.caption, color = p.muted)
+                    if (operationInProgress) {
+                        Spacer(Modifier.width(6.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = p.accent
+                        )
+                    }
+                }
             }
             if (overflowActions.isNotEmpty()) {
                 Box {
@@ -967,6 +979,9 @@ private fun sortLabel(state: LibraryUiState, sort: LibrarySort): String = when (
     LibrarySort.Album -> state.labels.sortAlbum
     LibrarySort.DurationAscending -> state.labels.sortDurationAscending
     LibrarySort.DurationDescending -> state.labels.sortDurationDescending
+    LibrarySort.DateAddedDescending -> state.labels.sortDateAddedDescending
+    LibrarySort.DateAddedAscending -> state.labels.sortDateAddedAscending
+    LibrarySort.PlayCountDescending -> state.labels.sortPlayCount
 }
 
 private fun filterLabel(state: LibraryUiState): String = filterLabel(state, state.filter)

@@ -197,6 +197,26 @@ public class PlaybackStateSnapshotOwnerTest {
         public float appVolume() {
             return appVolume;
         }
+
+        @Override
+        public boolean bitPerfectActive() {
+            return false;
+        }
+
+        @Override
+        public int outputSampleRateHz() {
+            return 0;
+        }
+
+        @Override
+        public String bitPerfectFallbackReason() {
+            return null;
+        }
+
+        @Override
+        public boolean audioExclusiveActive() {
+            return false;
+        }
     }
 
     private static final class FakeVisualizationProvider

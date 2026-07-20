@@ -19,9 +19,28 @@ internal class PlaybackAudioEffectManager(
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
     private var loudnessEnhancer: LoudnessEnhancer? = null
+    private var bitPerfectGuard: BitPerfectGuard? = null
+
+    fun setBitPerfectGuard(guard: BitPerfectGuard?) {
+        bitPerfectGuard = guard
+    }
+
+    /**
+     * Called when Bit-Perfect state changes at runtime.
+     * When activated, releases all audio effects immediately.
+     */
+    fun onBitPerfectStateChanged(active: Boolean) {
+        if (active) {
+            release()
+        }
+    }
 
     fun bind(player: ExoPlayer?, settings: AudioEffectSettings?) {
         release()
+        // Bit-Perfect guard: effects are incompatible with offload/direct PCM output.
+        if (bitPerfectGuard?.isActive == true) {
+            return
+        }
         if (player == null || settings == null || !settings.enabled) {
             return
         }

@@ -188,6 +188,8 @@ class StreamingAuthStateOwner internal constructor(
             title = text(languageMode, "streaming.manual.cookie"),
             hint = if (provider == StreamingProviderName.QQ_MUSIC) {
                 text(languageMode, "streaming.cookie.hint.qq")
+            } else if (provider == StreamingProviderName.KUGOU) {
+                text(languageMode, "streaming.cookie.hint.kugou")
             } else {
                 text(languageMode, "streaming.cookie.hint.default")
             },

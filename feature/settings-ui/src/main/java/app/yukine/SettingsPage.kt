@@ -27,7 +27,6 @@ sealed class SettingsPage(
     data object StreamingAudioQuality : SettingsPage(MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
     data object ShareStyle : SettingsPage(MainRoutes.SETTINGS_SHARE_STYLE)
     data object Downloads : SettingsPage(MainRoutes.SETTINGS_DOWNLOADS)
-    data object ConcurrentPlayback : SettingsPage(MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
@@ -60,7 +59,6 @@ sealed class SettingsPage(
                 MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> StreamingAudioQuality
                 MainRoutes.SETTINGS_SHARE_STYLE -> ShareStyle
                 MainRoutes.SETTINGS_DOWNLOADS -> Downloads
-                MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> ConcurrentPlayback
                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
                 MainRoutes.SETTINGS_LYRICS -> Lyrics
                 MainRoutes.SETTINGS_LIBRARY -> Library
@@ -98,7 +96,6 @@ sealed class SettingsPage(
                 StreamingAudioQuality,
                 ShareStyle,
                 Downloads,
-                ConcurrentPlayback,
                 SleepTimer,
                 Lyrics,
                 Library,

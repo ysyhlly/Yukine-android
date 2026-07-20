@@ -22,6 +22,7 @@ internal class FloatingLyricsWindowController(
     private var settings = FloatingLyricsOverlaySettings()
     private var interaction = FloatingLyricsInteraction.Interactive
     private val safeMarginPx = dp(8)
+    private var consecutiveFailures = 0
 
     val attached: Boolean
         get() = root != null && layoutParams != null
@@ -44,12 +45,10 @@ internal class FloatingLyricsWindowController(
                 ?: return false
             root = view
             layoutParams = params
-            view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                clampAndUpdate()
-            }
             view.post(::clampAndUpdate)
             true
         } catch (error: RuntimeException) {
+            consecutiveFailures++
             reportFailure("Unable to attach floating lyrics window", error)
             clearReferences()
             false
@@ -60,6 +59,7 @@ internal class FloatingLyricsWindowController(
         nextSettings: FloatingLyricsOverlaySettings = settings,
         nextInteraction: FloatingLyricsInteraction = interaction
     ): Boolean {
+        val previousSettings = settings
         settings = nextSettings.normalized()
         interaction = nextInteraction
         val params = layoutParams ?: return false
@@ -69,7 +69,11 @@ internal class FloatingLyricsWindowController(
             interaction,
             FloatingLyricsOverlayWindowPolicy.maximumObscuringOpacity(context)
         )
-        applyPositionFractions(params, settings)
+        if (settings.positionXFraction != previousSettings.positionXFraction ||
+            settings.positionYFraction != previousSettings.positionYFraction
+        ) {
+            applyPositionFractions(params, settings)
+        }
         return updateLayout()
     }
 
@@ -161,10 +165,16 @@ internal class FloatingLyricsWindowController(
             (settings.positionYFraction * maxY).roundToInt()
     }
 
+    fun hasTooManyFailures(): Boolean = consecutiveFailures >= 3
+
     private fun clampAndUpdate() {
         val params = layoutParams ?: return
+        val oldX = params.x
+        val oldY = params.y
         clamp(params)
-        updateLayout()
+        if (params.x != oldX || params.y != oldY) {
+            updateLayout()
+        }
     }
 
     private fun clamp(params: WindowManager.LayoutParams) {
@@ -190,8 +200,10 @@ internal class FloatingLyricsWindowController(
         val params = layoutParams ?: return false
         return try {
             windowManager?.updateViewLayout(view, params)
+            consecutiveFailures = 0
             true
         } catch (error: RuntimeException) {
+            consecutiveFailures++
             reportFailure("Unable to update floating lyrics window", error)
             remove()
             false

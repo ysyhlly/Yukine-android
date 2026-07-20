@@ -35,6 +35,11 @@ internal class DefaultStreamingSearchActionHandler(
             )
             return
         }
+        // 酷狗网页无移动端登录入口，直接使用手动 Cookie 导入
+        if (provider == StreamingProviderName.KUGOU) {
+            actionGateway.openManualCookieImport(provider)
+            return
+        }
         streamingViewModel.auth.startAuth(
             provider = provider,
             redirectUri = STREAMING_AUTH_REDIRECT_URI + "?provider=${provider.wireName}",

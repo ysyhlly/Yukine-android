@@ -117,35 +117,6 @@ class PlaybackRuntimeStateManagerTest {
     }
 
     @Test
-    fun concurrentPlaybackStateCanBeManaged() {
-        val manager = PlaybackRuntimeStateManager(FakeStateProvider())
-
-        manager.setConcurrentPlaybackEnabled(true)
-        assertTrue(manager.concurrentPlaybackEnabled())
-    }
-
-    @Test
-    fun concurrentPlaybackSetterAppliesAudioFocusHandling() {
-        val player = RecordingExoPlayer()
-        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
-
-        manager.setConcurrentPlaybackEnabled(true)
-
-        assertEquals(listOf("setAudioAttributes"), player.calls)
-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
-        assertEquals(false, player.handleAudioFocus)
-
-        player.calls.clear()
-        manager.setConcurrentPlaybackEnabled(false)
-
-        assertEquals(listOf("setAudioAttributes"), player.calls)
-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
-        assertEquals(true, player.handleAudioFocus)
-    }
-
-    @Test
     fun replayGainSetterAppliesCurrentVolumeToPlayer() {
         val player = RecordingExoPlayer()
         val manager = PlaybackRuntimeStateManager(

@@ -977,8 +977,8 @@ private fun LayeredLyricText(
         if (line.translation.isNotBlank()) {
             Text(
                 line.translation,
-                style = EchoTypography.caption,
-                color = if (line.active) p.text else p.muted.copy(alpha = 0.75f),
+                style = primaryStyle,
+                color = primaryColor,
                 textAlign = TextAlign.Center,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis

@@ -64,11 +64,13 @@ internal object SettingsPageContentFactory {
                     languageMode,
                     preferences.playbackSpeed,
                     preferences.appVolume,
-                    preferences.concurrentPlaybackEnabled,
                     preferences.audioEffectSettings,
                     preferences.playbackRestoreEnabled,
                     preferences.replayGainEnabled,
-                    runtime.sleepTimerRemainingMs,
+                    audioExclusiveEnabled = preferences.audioExclusiveEnabled,
+                    bitPerfectEnabled = preferences.bitPerfectEnabled,
+                    usbExclusiveEnabled = preferences.usbExclusiveEnabled,
+                    remainingMs = runtime.sleepTimerRemainingMs,
                     onNavigate = { nextPage -> onNavigate(nextPage) },
                     onReplayGainEnabledChange = { enabled ->
                         playback.setReplayGainEnabled(enabled)
@@ -78,6 +80,12 @@ internal object SettingsPageContentFactory {
                     },
                     onAudioExclusiveEnabledChange = { enabled ->
                         playback.setAudioExclusiveEnabled(enabled)
+                    },
+                    onBitPerfectEnabledChange = { enabled ->
+                        playback.setBitPerfectEnabled(enabled)
+                    },
+                    onUsbExclusiveEnabledChange = { enabled ->
+                        playback.setUsbExclusiveEnabled(enabled)
                     }
                 )
             SettingsPage.LibraryGroup,
@@ -274,13 +282,6 @@ internal object SettingsPageContentFactory {
                     onNavigate = ::navigateSettingsPage,
                     onApplyStyle = { style -> appearance.applyShareStyle(style) }
                 )
-            SettingsPage.ConcurrentPlayback ->
-                SettingsPageStateBuilder.audioExclusive(
-                    languageMode,
-                    !preferences.concurrentPlaybackEnabled,
-                    onNavigate = ::navigateSettingsPage,
-                    onToggle = { enabled -> playback.setAudioExclusiveEnabled(enabled) }
-                )
             SettingsPage.SleepTimer ->
                 SettingsPageStateBuilder.sleepTimer(
                     languageMode,
@@ -329,6 +330,7 @@ internal object SettingsPageContentFactory {
                     runtime.floatingLyricsWidthPercent,
                     runtime.floatingLyricsBackgroundOpacityPercent,
                     runtime.floatingLyricsTransparentBackground,
+                    runtime.floatingLyricsTextColorArgb,
                     onNavigate = ::navigateSettingsPage,
                     onOpenPermission = { platform.openFloatingLyricsPermission() },
                     onToggle = { enabled -> lyrics.setFloatingLyricsEnabled(enabled) },
@@ -340,6 +342,7 @@ internal object SettingsPageContentFactory {
                     onTransparentBackgroundChange = { value ->
                         lyrics.setFloatingLyricsTransparentBackground(value)
                     },
+                    onTextColorChange = { color -> lyrics.setFloatingLyricsTextColor(color) },
                     onShow = { lyrics.showFloatingLyrics() },
                     onUnlock = { lyrics.unlockFloatingLyrics() },
                     onReset = { lyrics.resetFloatingLyricsLayout() }

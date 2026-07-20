@@ -158,6 +158,7 @@ internal class MainRouteController(
         var nextLibraryGroupKey = selectedLibraryGroupKey()
         var nextLibraryGroupTitle = selectedLibraryGroupTitle()
         var nextSelectedPlaylistId = selectedPlaylistId()
+        var nextSearchQuery = searchQuery()
         if (userInitiated && MainRoutes.TAB_NETWORK == normalizedTab) {
             nextNetworkPage = NetworkPage.Home
             nextRemoteSourceId = -1L
@@ -168,6 +169,7 @@ internal class MainRouteController(
             nextLibraryGroupKey = ""
             nextLibraryGroupTitle = ""
             nextSelectedPlaylistId = -1L
+            nextSearchQuery = ""
         }
         update(
             normalizedTab,
@@ -176,7 +178,7 @@ internal class MainRouteController(
             nextLibraryGroupKey,
             nextLibraryGroupTitle,
             nextSelectedPlaylistId,
-            searchQuery(),
+            nextSearchQuery,
             nextNetworkPage,
             nextSettingsPage,
             nextRemoteSourceId
@@ -210,7 +212,7 @@ internal class MainRouteController(
             "",
             "",
             -1L,
-            searchQuery(),
+            "",
             networkPage(),
             settingsPage(),
             selectedRemoteSourceId()
@@ -415,6 +417,7 @@ internal class MainRouteController(
         } else {
             libraryPage()
         }
+        val nextSearchQuery = if (result.showLibraryOverview) "" else searchQuery()
         update(
             nextSelectedTab,
             nextLibraryPage,
@@ -422,7 +425,7 @@ internal class MainRouteController(
             nextLibraryGroupKey,
             nextLibraryGroupTitle,
             nextSelectedPlaylistId,
-            searchQuery(),
+            nextSearchQuery,
             result.networkPage,
             result.settingsPage,
             nextRemoteSourceId

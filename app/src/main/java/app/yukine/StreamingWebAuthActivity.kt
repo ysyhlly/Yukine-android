@@ -210,13 +210,13 @@ class StreamingWebAuthActivity : Activity() {
             )
             addView(
                 Button(this@StreamingWebAuthActivity).apply {
-                    text = if (providerName() == StreamingProviderName.QQ_MUSIC) {
+                    text = if (providerName() == StreamingProviderName.QQ_MUSIC || providerName() == StreamingProviderName.KUGOU) {
                         text("streaming.web.auth.manual.cookie")
                     } else {
                         text("streaming.web.auth.done")
                     }
                     setOnClickListener {
-                        if (providerName() == StreamingProviderName.QQ_MUSIC) {
+                        if (providerName() == StreamingProviderName.QQ_MUSIC || providerName() == StreamingProviderName.KUGOU) {
                             finishWithAuthCallback(manualCookieCallbackUri())
                         } else {
                             finishWithAuthCallback(fallbackCallbackUri())

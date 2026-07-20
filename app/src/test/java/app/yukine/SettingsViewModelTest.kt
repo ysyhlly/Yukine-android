@@ -294,7 +294,6 @@ class SettingsViewModelTest {
             playbackSpeed = 1.25f,
             appVolume = 0.75f,
             streamingAudioQuality = "lossless",
-            concurrentPlaybackEnabled = true,
             statusBarLyricsEnabled = false,
             floatingLyricsEnabled = true,
             nowPlayingGesturesEnabled = false,
@@ -374,7 +373,6 @@ class SettingsViewModelTest {
         viewModel.playback.applyAppVolume(-0.4f)
         viewModel.playback.applyStreamingAudioQuality("lossless")
         viewModel.appearance.applyShareStyle(TrackShareStyle.CARD)
-        viewModel.playback.setConcurrentPlaybackEnabled(false)
         viewModel.lyrics.setOnlineLyricsEnabled(true)
         viewModel.lyrics.applyLyricsOffset(5555L)
         viewModel.playback.applyAudioEffectSettings(app.yukine.playback.AudioEffectSettings.DEFAULT.withEnabled(true))
@@ -395,7 +393,6 @@ class SettingsViewModelTest {
                 "theme",
                 "speed:2.0",
                 "volume:0.0",
-                "concurrent:false",
                 "onlineLyrics:true",
                 "lyricsOffset:5000",
                 "audioEffects:true",
@@ -411,7 +408,6 @@ class SettingsViewModelTest {
                     is SettingsRuntimeEffect.RefreshCustomBackgroundAccent -> "accentRefresh"
                     is SettingsRuntimeEffect.ApplyPlaybackSpeed -> "speed:${effect.speed}"
                     is SettingsRuntimeEffect.ApplyAppVolume -> "volume:${effect.volume}"
-                    is SettingsRuntimeEffect.SetConcurrentPlaybackEnabled -> "concurrent:${effect.enabled}"
                     is SettingsRuntimeEffect.SetOnlineLyricsEnabled -> "onlineLyrics:${effect.enabled}"
                     is SettingsRuntimeEffect.SetLyricsOffsetMs -> "lyricsOffset:${effect.offsetMs}"
                     is SettingsRuntimeEffect.ApplyAudioEffects -> "audioEffects:${effect.settings.enabled}"
@@ -432,6 +428,11 @@ class SettingsViewModelTest {
                     SettingsRuntimeEffect.ResetFloatingLyricsLayout -> "floatingReset"
                     is SettingsRuntimeEffect.SetPlaybackRestoreEnabled -> "restore:${effect.enabled}"
                     is SettingsRuntimeEffect.SetReplayGainEnabled -> "replayGain:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetAudioExclusiveEnabled -> "audioExclusive:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetBitPerfectEnabled -> "bitPerfect:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetUsbExclusiveEnabled -> "usbExclusive:${effect.enabled}"
+                    is SettingsRuntimeEffect.UpdateFloatingLyricsTextColor ->
+                        "floatingTextColor:${effect.colorArgb}"
                 }
             }
         )
@@ -445,7 +446,6 @@ class SettingsViewModelTest {
                 "volume:0.0",
                 "quality:lossless",
                 "shareStyle:${TrackShareStyle.CARD}",
-                "concurrent:false",
                 "onlineLyrics:true",
                 "lyricsOffset:5000",
                 "audioEffects:enabled=true;preset=-1;bands=;bass=0;virtualizer=0;loudness=0",
@@ -471,7 +471,6 @@ class SettingsViewModelTest {
         assertEquals(StreamingQualityPreference.LOSSLESS, state.preferences.streamingAudioQuality)
         assertEquals(TrackShareStyle.CARD, state.preferences.shareStyle)
         assertEquals(true, state.runtime.onlineLyricsEnabled)
-        assertEquals(false, state.preferences.concurrentPlaybackEnabled)
         assertEquals(false, state.preferences.statusBarLyricsEnabled)
         assertEquals(true, state.preferences.systemMediaLyricsTitleEnabled)
         assertEquals(true, state.preferences.floatingLyricsEnabled)
@@ -508,40 +507,6 @@ class SettingsViewModelTest {
             .filterIsInstance<SettingsEffect.ShowStatus>()
             .map { it.message }
         assertTrue(statuses.last().contains("Failed to save"))
-    }
-
-    @Test
-    fun audioExclusiveMapsToTheInverseConcurrentPlaybackRuntimeSetting() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val viewModel = SettingsViewModel(dispatcher)
-        val preferenceGateway = FakePreferenceGateway()
-        val runtimeEffects = mutableListOf<SettingsRuntimeEffect>()
-        viewModel.bindPreferenceGateway(preferenceGateway)
-        viewModel.bindRuntimeEffectListener { effect ->
-            runtimeEffects += effect
-            true
-        }
-
-        viewModel.playback.setAudioExclusiveEnabled(true)
-        viewModel.playback.setAudioExclusiveEnabled(false)
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(
-                SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(false),
-                SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(true)
-            ),
-            runtimeEffects
-        )
-        assertEquals(listOf("concurrent:false", "concurrent:true"), preferenceGateway.events)
-        assertEquals(true, viewModel.state.value.preferences.concurrentPlaybackEnabled)
-        assertEquals(
-            listOf(
-                AppLanguage.text(AppLanguage.MODE_SYSTEM, "audio.exclusive.enabled"),
-                AppLanguage.text(AppLanguage.MODE_SYSTEM, "audio.exclusive.disabled")
-            ),
-            viewModel.drainEffects().filterIsInstance<SettingsEffect.ShowStatus>().map { it.message }
-        )
     }
 
     @Test
@@ -654,7 +619,6 @@ class SettingsViewModelTest {
         viewModel.playback.applyStreamingAudioQuality("lossless")
         viewModel.appearance.applyShareStyle(TrackShareStyle.CARD)
         viewModel.lyrics.setOnlineLyricsEnabled(true)
-        viewModel.playback.setConcurrentPlaybackEnabled(false)
         viewModel.lyrics.setStatusBarLyricsEnabled(false)
         viewModel.lyrics.setFloatingLyricsEnabled(true)
         viewModel.playback.setNowPlayingGesturesEnabled(false)
@@ -676,7 +640,6 @@ class SettingsViewModelTest {
                 "quality:lossless",
                 "shareStyle:${TrackShareStyle.CARD}",
                 "onlineLyrics:true",
-                "concurrent:false",
                 "statusLyrics:false",
                 "floatingLyrics:true",
                 "gestures:false",
@@ -688,7 +651,7 @@ class SettingsViewModelTest {
         )
         assertTrue(mirror.snapshots.isNotEmpty())
         assertEquals(
-            "dark|teal|en|2.0|0.0|lossless|false|true|false|true|${TrackShareStyle.CARD}|content://bg",
+            "dark|teal|en|2.0|0.0|lossless|true|false|true|${TrackShareStyle.CARD}|content://bg",
             mirror.snapshots.last()
         )
     }
@@ -844,14 +807,6 @@ class SettingsViewModelTest {
             status.onlineLyricsDisabled
         )
         assertEquals(
-            AppLanguage.text(AppLanguage.MODE_ENGLISH, "concurrent.playback.enabled"),
-            status.concurrentPlaybackEnabled
-        )
-        assertEquals(
-            AppLanguage.text(AppLanguage.MODE_ENGLISH, "concurrent.playback.disabled"),
-            status.concurrentPlaybackDisabled
-        )
-        assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "lyrics.offset.applied") +
                     SettingsLabelFormatter.lyricsOffsetLabel(-300L),
             status.lyricsOffsetApplied
@@ -909,7 +864,6 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
                     "refuseQualityDowngrade:${update.value}"
                 SettingsPreferenceKey.OnlineLyricsEnabled -> "onlineLyrics:${update.value}"
-                SettingsPreferenceKey.ConcurrentPlaybackEnabled -> "concurrent:${update.value}"
                 SettingsPreferenceKey.LyricsOffsetMs -> "lyricsOffset:${update.value}"
                 SettingsPreferenceKey.AudioEffectSettings -> {
                     val settings = update.value as app.yukine.playback.AudioEffectSettings
@@ -921,6 +875,9 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.NowPlayingGesturesEnabled -> "gestures:${update.value}"
                 SettingsPreferenceKey.PlaybackRestoreEnabled -> "restore:${update.value}"
                 SettingsPreferenceKey.ReplayGainEnabled -> "replayGain:${update.value}"
+                SettingsPreferenceKey.AudioExclusiveEnabled -> "audioExclusive:${update.value}"
+                SettingsPreferenceKey.BitPerfectEnabled -> "bitPerfect:${update.value}"
+                SettingsPreferenceKey.UsbExclusiveEnabled -> "usbExclusive:${update.value}"
                 SettingsPreferenceKey.DebugPromptsEnabled -> "debugPrompts:${update.value}"
                 SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
                     "customBackgroundBlurEnabled:${update.value}"
@@ -952,7 +909,6 @@ class SettingsViewModelTest {
                 preferences.playbackSpeed.toString(),
                 preferences.appVolume.toString(),
                 preferences.streamingAudioQuality,
-                preferences.concurrentPlaybackEnabled.toString(),
                 preferences.floatingLyricsEnabled.toString(),
                 preferences.nowPlayingGesturesEnabled.toString(),
                 preferences.playbackRestoreEnabled.toString(),

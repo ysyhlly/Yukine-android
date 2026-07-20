@@ -51,6 +51,7 @@ internal class SettingsContextProvider(
                 floatingLyricsSettings.backgroundOpacityPercent,
             floatingLyricsTransparentBackground =
                 floatingLyricsSettings.transparentBackground,
+            floatingLyricsTextColorArgb = floatingLyricsSettings.textColorArgb,
             playbackServiceConnected = playbackConnectionController.isBound(),
             sleepTimerRemainingMs = playbackSnapshotProvider.playbackSnapshot.value.sleepTimerRemainingMs,
             lyricsOffsetMs = lyricsViewModel?.offsetMs() ?: 0L,

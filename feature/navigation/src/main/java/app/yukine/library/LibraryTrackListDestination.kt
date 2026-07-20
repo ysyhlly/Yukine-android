@@ -32,6 +32,7 @@ fun LibraryTrackListDestination(
     onNavigateUp: Runnable? = null
 ) {
     val uiState by state.collectAsState()
+    // Back priority: isBack action in headerActions (carries business semantics like closeGroup) > onNavigateUp (generic navigation back)
     val backAction = uiState.headerActions.firstOrNull { action -> action.isBack }
     val effectiveNavigateUp = backAction?.onClick ?: onNavigateUp
     BackHandler(enabled = effectiveNavigateUp != null) {

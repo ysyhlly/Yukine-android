@@ -49,7 +49,6 @@ internal class FloatingLyricsOverlayView(
     }
 
     val lyricsView: TextView = TextView(context).apply {
-        setTextColor(TEXT_PRIMARY)
         gravity = Gravity.CENTER
         maxLines = 2
         ellipsize = TextUtils.TruncateAt.END
@@ -93,14 +92,18 @@ internal class FloatingLyricsOverlayView(
         max = 100
         contentDescription = context.getString(R.string.floating_lyrics_background_opacity_description)
         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser && !syncingControls) {
-                    onAction(FloatingLyricsOverlayAction.UpdateBackgroundOpacity(progress))
-                }
-            }
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = Unit
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                if (!syncingControls && seekBar != null) {
+                    val progress = seekBar.progress
+                    seekBar.post {
+                        onAction(FloatingLyricsOverlayAction.UpdateBackgroundOpacity(progress))
+                    }
+                }
+            }
         })
     }
 
@@ -138,7 +141,9 @@ internal class FloatingLyricsOverlayView(
         state: FloatingLyricsState,
         artwork: Bitmap?
     ) {
-        lyricsView.text = state.activeLine
+        if (lyricsView.text?.toString() != state.activeLine) {
+            lyricsView.text = state.activeLine
+        }
         titleView.text = state.trackTitle.ifBlank {
             context.getString(R.string.floating_lyrics_unknown_track)
         }
@@ -156,12 +161,19 @@ internal class FloatingLyricsOverlayView(
         )
     }
 
+    private var lastBackgroundAlpha = -1
+
     fun applySettings(next: FloatingLyricsOverlaySettings) {
         settings = next.normalized()
-        lyricsView.textSize = settings.textSizeSp.toFloat()
-        compactSurface.background = surfaceBackground(
-            FloatingLyricsOverlayWindowPolicy.backgroundAlpha(settings)
-        )
+        if (lyricsView.textSize != settings.textSizeSp.toFloat()) {
+            lyricsView.textSize = settings.textSizeSp.toFloat()
+        }
+        lyricsView.setTextColor(settings.textColorArgb)
+        val alpha = FloatingLyricsOverlayWindowPolicy.backgroundAlpha(settings)
+        if (alpha != lastBackgroundAlpha) {
+            lastBackgroundAlpha = alpha
+            compactSurface.background = surfaceBackground(alpha)
+        }
         syncingControls = true
         opacitySlider.progress = settings.backgroundOpacityPercent
         opacitySlider.isEnabled = !settings.transparentBackground
@@ -173,11 +185,14 @@ internal class FloatingLyricsOverlayView(
         next: FloatingLyricsPresentation.Visible,
         animate: Boolean = true
     ) {
+        val previous = presentation
         presentation = next
         val expanded = next.mode == FloatingLyricsMode.Expanded &&
             next.interaction == FloatingLyricsInteraction.Interactive
-        lockConfirmation.visibility = View.GONE
         if (expanded) {
+            val wasExpanded = previous.mode == FloatingLyricsMode.Expanded &&
+                previous.interaction == FloatingLyricsInteraction.Interactive
+            if (wasExpanded && controlsView.visibility == View.VISIBLE) return
             controlsView.visibility = View.VISIBLE
             if (animate && animationsEnabled()) {
                 controlsView.alpha = 0f
@@ -188,6 +203,7 @@ internal class FloatingLyricsOverlayView(
         } else {
             controlsView.animate().cancel()
             controlsView.visibility = View.GONE
+            lockConfirmation.visibility = View.GONE
         }
     }
 

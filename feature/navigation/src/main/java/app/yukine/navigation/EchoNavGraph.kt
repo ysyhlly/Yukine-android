@@ -395,7 +395,7 @@ private fun LibraryDestination(
         RecordingMatchDestination(recordingMatchState.value, recordingMatchStateProvider)
         return
     }
-    if (route.libraryPage == LibraryPage.Overview) {
+    if (route.libraryPage == LibraryPage.Overview && route.selectedLibraryGroupKey.isBlank() && route.selectedPlaylistId < 0L) {
         val library by libraryState.collectAsState()
         val downloads by downloadsState.collectAsState()
         val groups by groupsState.collectAsState()
@@ -469,7 +469,8 @@ private fun LibraryDestination(
                 state.libraryUi.mode == LibraryMode.fromRouteKey(route.libraryMode) &&
                 (
                     route.selectedLibraryGroupTitle.isBlank() ||
-                        state.title == route.selectedLibraryGroupTitle
+                        state.title == route.selectedLibraryGroupTitle ||
+                        state.rows.isNotEmpty()
                     )
         }.distinctUntilChanged()
     }.collectAsState(initial = false)

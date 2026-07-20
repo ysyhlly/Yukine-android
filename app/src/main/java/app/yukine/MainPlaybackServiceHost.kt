@@ -3,7 +3,6 @@ package app.yukine
 internal class MainPlaybackServiceHost(
     private val playbackSpeedSource: PlaybackSpeedSource,
     private val appVolumeSource: AppVolumeSource,
-    private val concurrentPlaybackSource: ConcurrentPlaybackSource,
     private val statusBarLyricsSource: StatusBarLyricsSource,
     private val systemMediaLyricsTitleSource: SystemMediaLyricsTitleSource,
     private val playbackRestoreSource: PlaybackRestoreSource,
@@ -17,10 +16,6 @@ internal class MainPlaybackServiceHost(
 
     fun interface AppVolumeSource {
         fun appVolume(): Float
-    }
-
-    fun interface ConcurrentPlaybackSource {
-        fun concurrentPlaybackEnabled(): Boolean
     }
 
     fun interface StatusBarLyricsSource {
@@ -50,8 +45,6 @@ internal class MainPlaybackServiceHost(
     override fun playbackSpeed(): Float = playbackSpeedSource.playbackSpeed()
 
     override fun appVolume(): Float = appVolumeSource.appVolume()
-
-    override fun concurrentPlaybackEnabled(): Boolean = concurrentPlaybackSource.concurrentPlaybackEnabled()
 
     override fun statusBarLyricsEnabled(): Boolean = statusBarLyricsSource.statusBarLyricsEnabled()
 

@@ -11,7 +11,11 @@ interface SettingsPlaybackServiceControls {
 
     fun setAppVolume(volume: Float)
 
-    fun setConcurrentPlaybackEnabled(enabled: Boolean)
+    fun setAudioExclusiveEnabled(enabled: Boolean)
+
+    fun setBitPerfectEnabled(enabled: Boolean)
+
+    fun setUsbExclusiveEnabled(enabled: Boolean)
 
     fun applyAudioEffectSettings(settings: AudioEffectSettings)
 
@@ -50,6 +54,8 @@ interface SettingsFloatingLyricsControls {
     fun updateBackgroundOpacity(opacityPercent: Int): Boolean = false
 
     fun updateTransparentBackground(enabled: Boolean): Boolean = false
+
+    fun updateTextColor(colorArgb: Int): Boolean = false
 
     fun show(): Boolean = false
 

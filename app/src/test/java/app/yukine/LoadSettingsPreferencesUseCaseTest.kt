@@ -32,7 +32,6 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.appVolume = 0.8f
         operations.streamingAudioQuality = "bad-quality"
         operations.refuseAutomaticQualityDowngrade = true
-        operations.concurrentPlaybackEnabled = false
         operations.statusBarLyricsEnabled = false
         operations.systemMediaLyricsTitleEnabled = true
         operations.floatingLyricsEnabled = true
@@ -59,7 +58,6 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(0.8f, result.appVolume)
         assertEquals(StreamingQualityPreference.defaultValue(), result.streamingAudioQuality)
         assertEquals(true, result.refuseAutomaticQualityDowngrade)
-        assertFalse(result.concurrentPlaybackEnabled)
         assertFalse(result.audioEffectSettings.enabled)
         assertFalse(result.statusBarLyricsEnabled)
         assertEquals(true, result.systemMediaLyricsTitleEnabled)
@@ -78,7 +76,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "concurrent", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "audioExclusive", "bitPerfect", "usbExclusive", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -104,7 +102,6 @@ class LoadSettingsPreferencesUseCaseTest {
         var appVolume = 1.0f
         var streamingAudioQuality = StreamingQualityPreference.defaultValue()
         var refuseAutomaticQualityDowngrade = false
-        var concurrentPlaybackEnabled = true
         var audioEffectSettings = AudioEffectSettings.DEFAULT
         var statusBarLyricsEnabled = true
         var systemMediaLyricsTitleEnabled = false
@@ -158,11 +155,6 @@ class LoadSettingsPreferencesUseCaseTest {
             return refuseAutomaticQualityDowngrade
         }
 
-        override fun loadConcurrentPlaybackEnabled(): Boolean {
-            events.add("concurrent")
-            return concurrentPlaybackEnabled
-        }
-
         override fun loadAudioEffectSettings(): AudioEffectSettings {
             events.add("effects")
             return audioEffectSettings
@@ -196,6 +188,21 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadReplayGainEnabled(): Boolean {
             events.add("replayGain")
             return replayGainEnabled
+        }
+
+        override fun loadAudioExclusiveEnabled(): Boolean {
+            events.add("audioExclusive")
+            return true
+        }
+
+        override fun loadBitPerfectEnabled(): Boolean {
+            events.add("bitPerfect")
+            return false
+        }
+
+        override fun loadUsbExclusiveEnabled(): Boolean {
+            events.add("usbExclusive")
+            return false
         }
 
         override fun loadDebugPromptsEnabled(): Boolean {

@@ -16,7 +16,6 @@ class MainPlaybackServiceHostTest {
         val host = MainPlaybackServiceHost(
             playbackSpeedSource = MainPlaybackServiceHost.PlaybackSpeedSource { 1.35f },
             appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 0.65f },
-            concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { true },
             statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { false },
             systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
@@ -27,7 +26,6 @@ class MainPlaybackServiceHostTest {
 
         assertEquals(1.35f, host.playbackSpeed())
         assertEquals(0.65f, host.appVolume())
-        assertTrue(host.concurrentPlaybackEnabled())
         assertFalse(host.statusBarLyricsEnabled())
         assertTrue(host.systemMediaLyricsTitleEnabled())
         assertTrue(host.playbackRestoreEnabled())
@@ -45,7 +43,6 @@ class MainPlaybackServiceHostTest {
         val host = MainPlaybackServiceHost(
             playbackSpeedSource = MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
             appVolumeSource = MainPlaybackServiceHost.AppVolumeSource { 1.0f },
-            concurrentPlaybackSource = MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
             statusBarLyricsSource = MainPlaybackServiceHost.StatusBarLyricsSource { true },
             systemMediaLyricsTitleSource = MainPlaybackServiceHost.SystemMediaLyricsTitleSource { false },
             playbackRestoreSource = MainPlaybackServiceHost.PlaybackRestoreSource { true },
@@ -61,7 +58,6 @@ class MainPlaybackServiceHostTest {
                 "visible:true",
                 "speed:1.0",
                 "volume:1.0",
-                "concurrent:false",
                 "statusLyrics:true",
                 "systemMediaTitle:false",
                 "restore:true",
@@ -78,7 +74,6 @@ class MainPlaybackServiceHostTest {
         val host = MainPlaybackServiceHost(
             MainPlaybackServiceHost.PlaybackSpeedSource { 1.0f },
             MainPlaybackServiceHost.AppVolumeSource { 0.9f },
-            MainPlaybackServiceHost.ConcurrentPlaybackSource { false },
             MainPlaybackServiceHost.StatusBarLyricsSource { true },
             MainPlaybackServiceHost.SystemMediaLyricsTitleSource { true },
             MainPlaybackServiceHost.PlaybackRestoreSource { false },
@@ -89,7 +84,6 @@ class MainPlaybackServiceHostTest {
 
         assertEquals(1.0f, host.playbackSpeed())
         assertEquals(0.9f, host.appVolume())
-        assertFalse(host.concurrentPlaybackEnabled())
         assertTrue(host.statusBarLyricsEnabled())
         assertTrue(host.systemMediaLyricsTitleEnabled())
         assertFalse(host.playbackRestoreEnabled())
@@ -170,10 +164,6 @@ class MainPlaybackServiceHostTest {
             calls += "volume:$volume"
         }
 
-        override fun setConcurrentPlaybackEnabled(enabled: Boolean) {
-            calls += "concurrent:$enabled"
-        }
-
         override fun applyAudioEffectSettings(settings: AudioEffectSettings) = Unit
 
         override fun setStatusBarLyricsEnabled(enabled: Boolean) {
@@ -190,6 +180,18 @@ class MainPlaybackServiceHostTest {
 
         override fun setReplayGainEnabled(enabled: Boolean) {
             calls += "replayGain:$enabled"
+        }
+
+        override fun setAudioExclusiveEnabled(enabled: Boolean) {
+            calls += "exclusive:$enabled"
+        }
+
+        override fun setBitPerfectEnabled(enabled: Boolean) {
+            calls += "bitPerfect:$enabled"
+        }
+
+        override fun setUsbExclusiveEnabled(enabled: Boolean) {
+            calls += "usbExclusive:$enabled"
         }
     }
 }
