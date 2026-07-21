@@ -689,7 +689,18 @@
                             },
                             "wordLyricsSource": {
                               "type": "string",
-                              "enum": ["qqmusic", "kugou"]
+                              "enum": [
+                                "qqmusic",
+                                "kugou"
+                              ]
+                            },
+                            "romanization": {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            "translation": {
+                              "type": "string",
+                              "maxLength": 524288
                             },
                             "confidence": {
                               "type": "number",

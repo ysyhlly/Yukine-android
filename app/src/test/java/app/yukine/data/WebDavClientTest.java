@@ -239,7 +239,7 @@ public final class WebDavClientTest {
 
         Method metadataFingerprint = WebDavClient.class.getDeclaredMethod("metadataFingerprint", String.class);
         metadataFingerprint.setAccessible(true);
-        assertEquals("metadata-v3|etag:abc", metadataFingerprint.invoke(client, "etag:abc"));
+        assertEquals("metadata-v4|etag:abc", metadataFingerprint.invoke(client, "etag:abc"));
         assertEquals("", metadataFingerprint.invoke(client, ""));
 
         Method retryWithoutRange = WebDavClient.class.getDeclaredMethod(

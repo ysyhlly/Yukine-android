@@ -340,7 +340,7 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(database.contains("abstract class YukineDatabase : RoomDatabase()"));
         assertTrue(database.contains(".addMigrations(*YukineMigrations.all)"));
         assertFalse(database.contains("fallbackToDestructiveMigration"));
-        assertTrue(migrations.contains("TARGET_VERSION: Int = 33"));
+        assertTrue(migrations.contains("TARGET_VERSION: Int = 34"));
         assertTrue(migrations.contains("(1 until TARGET_VERSION)"));
         assertFalse(libraryFacade.contains("SQLiteDatabase"));
         assertFalse(libraryFacade.contains("rawQuery"));
@@ -369,7 +369,7 @@ public final class MainActivityArchitectureContractTest {
                 "feature/data/src/main/java/app/yukine/data/RoomIdentityJobRepository.kt");
 
         assertFalse(worker.contains("MAX_JOBS_PER_RUN = 100"));
-        assertTrue(worker.contains("engine.runReadyJobs(Int.MAX_VALUE)"));
+        assertTrue(worker.contains("engine.runReadyJobs(if (onDemand) ON_DEMAND_JOB_LIMIT else Int.MAX_VALUE)"));
         assertFalse(engine.contains("limit.coerceIn(1, 100)"));
         assertFalse(jobs.contains("limit.coerceIn(1, 100)"));
         assertTrue(worker.contains("PERIODIC_INTERVAL_MINUTES = 15L"));
