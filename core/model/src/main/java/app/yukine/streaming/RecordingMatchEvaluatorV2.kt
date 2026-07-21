@@ -112,33 +112,6 @@ object RecordingMatchEvaluatorV2 {
     const val AUTO_MERGE_MINIMUM_SCORE = 0.92
     const val AUTO_MERGE_MINIMUM_MARGIN = 0.08
 
-    private const val WORK_IDENTITY_WEIGHT = 0.50
-    private const val DURATION_WEIGHT = 0.30
-    private const val VERSION_WEIGHT = 0.20
-
-    private enum class ScoringProfile(
-        val scoreVersion: Int,
-        val workWeight: Double,
-        val durationWeight: Double,
-        val versionWeight: Double,
-        val softIsrcConflict: Boolean
-    ) {
-        V4(
-            scoreVersion = SCORE_VERSION,
-            workWeight = WORK_IDENTITY_WEIGHT,
-            durationWeight = DURATION_WEIGHT,
-            versionWeight = VERSION_WEIGHT,
-            softIsrcConflict = false
-        ),
-        V5(
-            scoreVersion = V5_SCORE_VERSION,
-            workWeight = 0.60,
-            durationWeight = 0.15,
-            versionWeight = 0.25,
-            softIsrcConflict = true
-        )
-    }
-
     fun evaluate(
         reference: StreamingTrackMatchPolicy.Reference,
         candidate: StreamingTrack
@@ -172,7 +145,7 @@ object RecordingMatchEvaluatorV2 {
         candidate = candidate,
         includeExplanation = includeExplanation,
         recallEvidence = recallEvidence,
-        profile = ScoringProfile.V4
+        config = RecordingMatchScoringConfig.V4
     )
 
     fun evaluateV5(
@@ -195,7 +168,7 @@ object RecordingMatchEvaluatorV2 {
         candidate = candidate,
         includeExplanation = includeExplanation,
         recallEvidence = recallEvidence,
-        profile = ScoringProfile.V5
+        config = RecordingMatchScoringConfig.V5
     )
 
     private fun evaluateInternal(
@@ -203,7 +176,7 @@ object RecordingMatchEvaluatorV2 {
         candidate: RecordingMatchFeatures,
         includeExplanation: Boolean,
         recallEvidence: MetadataRecallEvidence?,
-        profile: ScoringProfile
+        config: RecordingMatchScoringConfig
     ): MatchEvaluation {
         val explanation = mutableListOf<String>()
         val identifiers = linkedSetOf<String>()
@@ -260,7 +233,7 @@ object RecordingMatchEvaluatorV2 {
         )
         val referenceIsrcs = reference.isrcs.ifEmpty { setOfNotNull(reference.isrc) }
         val candidateIsrcs = candidate.isrcs.ifEmpty { setOfNotNull(candidate.isrc) }
-        if (profile.softIsrcConflict) {
+        if (config.softIsrcConflict) {
             compareSoftIdentifierSets(
                 referenceIsrcs,
                 candidateIsrcs,
@@ -280,7 +253,7 @@ object RecordingMatchEvaluatorV2 {
             )
         }
 
-        val titleScore = titleSimilarity(reference, candidate, profile)
+        val titleScore = titleSimilarity(reference, candidate, config)
         if (titleScore >= 0.85) evidence += MatchEvidence.TITLE
         if (includeExplanation) explanation += "title=${formatScore(titleScore)}"
 
@@ -296,7 +269,7 @@ object RecordingMatchEvaluatorV2 {
         val artistScore = if (commonArtistIds.isNotEmpty()) {
             1.0
         } else {
-            setSimilarity(referenceArtists, candidateArtists)
+            artistSetSimilarity(referenceArtists, candidateArtists, config)
         }
         if (artistScore >= 0.92) evidence += MatchEvidence.PRIMARY_ARTIST
         if (referenceArtistIds.isNotEmpty() && candidateArtistIds.isNotEmpty() &&
@@ -306,7 +279,10 @@ object RecordingMatchEvaluatorV2 {
         } else if (referenceArtists.isNotEmpty() && candidateArtists.isNotEmpty() &&
             referenceArtists.intersect(candidateArtists).isEmpty()
         ) {
-            hardConflicts += RecordingMatchHardConflict.PRIMARY_ARTIST
+            // V5: trigram evidence >= threshold suggests a possible spelling variant; don't hard-block.
+            if (artistScore < config.artistTrigramHardConflictThreshold) {
+                hardConflicts += RecordingMatchHardConflict.PRIMARY_ARTIST
+            }
         }
         if (includeExplanation) explanation += "artist=${formatScore(artistScore)}"
 
@@ -361,9 +337,9 @@ object RecordingMatchEvaluatorV2 {
             identifiers = identifiers,
             hardConflicts = hardConflicts
         )
-        var sameRecordingProbability = canonicalWorkIdentityScore * profile.workWeight +
-            durationScore * profile.durationWeight +
-            versionScore * profile.versionWeight
+        var sameRecordingProbability = canonicalWorkIdentityScore * config.workWeight +
+            durationScore * config.durationWeight +
+            versionScore * config.versionWeight
 
         sameRecordingProbability = min(
             sameRecordingProbability,
@@ -386,10 +362,10 @@ object RecordingMatchEvaluatorV2 {
         }
         if (RecordingMatchSoftConflict.ISRC in softConflicts && !directIdentity) {
             sameRecordingProbability = min(
-                (sameRecordingProbability - 0.08).coerceAtLeast(0.0),
-                0.91
+                (sameRecordingProbability - config.softIsrcPenalty).coerceAtLeast(0.0),
+                config.softIsrcCeiling
             )
-            if (includeExplanation) explanation += "soft_conflicts=ISRC:-0.080"
+            if (includeExplanation) explanation += "soft_conflicts=ISRC:-${formatScore(config.softIsrcPenalty)}"
         }
         if (includeExplanation && identifiers.isNotEmpty()) {
             explanation += "identifiers=${identifiers.joinToString(",")}"
@@ -434,7 +410,7 @@ object RecordingMatchEvaluatorV2 {
             sameWorkIdentity = sameWorkIdentity,
             explicitVersionRelationship = explicitVersionRelationship,
             workMbidConflict = RecordingMatchHardConflict.WORK_MBID in hardConflicts,
-            profile = profile
+            config = config
         )
         sameWorkProbability = min(sameWorkProbability, workConfidenceCeiling)
         val relationship = relationship(
@@ -476,7 +452,7 @@ object RecordingMatchEvaluatorV2 {
             durationDeltaMs = durationDeltaMs,
             durationToleranceMs = durationToleranceMs,
             explanation = explanation,
-            scoreVersion = profile.scoreVersion,
+            scoreVersion = config.scoreVersion,
             metadataRecallEvidence = recallEvidence,
             authorScore = authorScore,
             softConflicts = softConflicts
@@ -631,7 +607,7 @@ object RecordingMatchEvaluatorV2 {
     private fun titleSimilarity(
         left: RecordingMatchFeatures,
         right: RecordingMatchFeatures,
-        profile: ScoringProfile
+        config: RecordingMatchScoringConfig
     ): Double {
         if (left.titleAliases.isEmpty() && right.titleAliases.isEmpty()) {
             return textSimilarity(
@@ -641,17 +617,17 @@ object RecordingMatchEvaluatorV2 {
                 right.titleTokens,
                 left.titleBigrams,
                 right.titleBigrams,
-                profile
+                config
             )
         }
         val leftTitles = left.titleAliases + left.normalizedTitle
         val rightTitles = right.titleAliases + right.normalizedTitle
         return leftTitles.maxOfOrNull { leftTitle ->
-            rightTitles.maxOfOrNull { rightTitle -> textSimilarity(leftTitle, rightTitle, profile) } ?: 0.0
+            rightTitles.maxOfOrNull { rightTitle -> textSimilarity(leftTitle, rightTitle, config) } ?: 0.0
         } ?: 0.0
     }
 
-    private fun textSimilarity(left: String, right: String, profile: ScoringProfile): Double {
+    private fun textSimilarity(left: String, right: String, config: RecordingMatchScoringConfig): Double {
         return textSimilarity(
             left,
             right,
@@ -659,7 +635,7 @@ object RecordingMatchEvaluatorV2 {
             RecordingMatchFeatureExtractor.tokens(right),
             RecordingMatchFeatureExtractor.bigrams(left),
             RecordingMatchFeatureExtractor.bigrams(right),
-            profile
+            config
         )
     }
 
@@ -670,14 +646,14 @@ object RecordingMatchEvaluatorV2 {
         rightTokens: Set<String>,
         leftBigrams: Set<String>,
         rightBigrams: Set<String>,
-        profile: ScoringProfile
+        config: RecordingMatchScoringConfig
     ): Double {
         if (left.isBlank() || right.isBlank()) return 0.0
         if (left == right) return 1.0
         val tokenScore = dice(leftTokens, rightTokens)
         val bigramScore = dice(leftBigrams, rightBigrams)
         val editScore = normalizedEditSimilarity(left, right)
-        return if (profile == ScoringProfile.V5) {
+        return if (config.useV5TitleWeighting) {
             // The planned semantic title component is deliberately unavailable until a title-only
             // embedding exists. Re-normalize 40/30/20 across the three trustworthy components.
             (tokenScore * (4.0 / 9.0) + bigramScore * (3.0 / 9.0) + editScore * (2.0 / 9.0))
@@ -717,6 +693,50 @@ object RecordingMatchEvaluatorV2 {
         if (intersection == 0) return 0.0
         if (intersection == min(left.size, right.size)) return 0.92
         return intersection.toDouble() / left.union(right).size
+    }
+
+    /**
+     * Artist-specific set similarity with a character-trigram fallback (V5 only). When canonical
+     * name sets share no exact element, computes the best trigram Dice coefficient across all name
+     * pairs. The fallback is capped at [RecordingMatchScoringConfig.artistTrigramCap] so it can
+     * never alone reach the 0.92 auto-merge floor.
+     */
+    private fun artistSetSimilarity(
+        left: Set<String>,
+        right: Set<String>,
+        config: RecordingMatchScoringConfig
+    ): Double {
+        if (left.isEmpty() || right.isEmpty()) return 0.45
+        if (left == right) return 1.0
+        val intersection = left.intersect(right).size
+        if (intersection == 0) {
+            if (config.artistTrigramCap > 0.0) {
+                return artistTrigramFallback(left, right).coerceAtMost(config.artistTrigramCap)
+            }
+            return 0.0
+        }
+        if (intersection == min(left.size, right.size)) return 0.92
+        return intersection.toDouble() / left.union(right).size
+    }
+
+    private fun artistTrigramFallback(left: Set<String>, right: Set<String>): Double {
+        var best = 0.0
+        for (l in left) {
+            for (r in right) {
+                val lGrams = characterTrigrams(l)
+                val rGrams = characterTrigrams(r)
+                if (lGrams.isNotEmpty() && rGrams.isNotEmpty()) {
+                    best = maxOf(best, dice(lGrams, rGrams))
+                }
+            }
+        }
+        return best
+    }
+
+    private fun characterTrigrams(value: String): Set<String> {
+        val normalized = value.lowercase().trim()
+        if (normalized.length < 3) return if (normalized.isEmpty()) emptySet() else setOf(normalized)
+        return (0..normalized.length - 3).mapTo(mutableSetOf()) { normalized.substring(it, it + 3) }
     }
 
     private fun durationSimilarity(deltaMs: Long?, toleranceMs: Long): Double {
@@ -764,6 +784,13 @@ object RecordingMatchEvaluatorV2 {
         else -> 0.65
     }
 
+    /**
+     * Metadata-completeness ceiling for recording confidence.
+     *
+     * Ensures metadata-only matches (no identifier/fingerprint) cannot reach 1.0. With complete
+     * metadata (title+artist+duration), ceiling=0.95 > SAFE threshold 0.92, enabling auto-merge
+     * without identifiers. Partial metadata gets progressively lower ceilings.
+     */
     private fun recordingConfidenceCeiling(
         reference: RecordingMatchFeatures,
         candidate: RecordingMatchFeatures,
@@ -816,11 +843,11 @@ object RecordingMatchEvaluatorV2 {
         sameWorkIdentity: Boolean,
         explicitVersionRelationship: Boolean,
         workMbidConflict: Boolean,
-        profile: ScoringProfile
+        config: RecordingMatchScoringConfig
     ): Double {
         if (workMbidConflict) return 0.0
         if (sameWorkIdentity) return 1.0
-        var probability = if (profile == ScoringProfile.V5 && authorScore != null) {
+        var probability = if (config.useAuthorScoreWeighting && authorScore != null) {
             titleScore * 0.60 + authorScore * 0.25 + artistScore * 0.15
         } else {
             titleScore * 0.70 + artistScore * 0.15 + durationScore * 0.05 + albumScore * 0.10

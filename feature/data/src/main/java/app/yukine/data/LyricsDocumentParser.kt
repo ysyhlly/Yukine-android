@@ -24,6 +24,8 @@ class LyricsDocumentParser {
             "ttml", "xml" -> parseTtml(bytes, fileName)
             "txt" -> parsePlain(decodeText(bytes), fileName)
             "lrc", "elrc" -> parseLrc(decodeText(bytes), fileName)
+            "qrc" -> parseProviderPayload(decodeText(bytes), fileName)
+            "krc" -> parseKrc(decodeText(bytes), fileName)
             else -> throw IllegalArgumentException("Unsupported lyrics format: $extension")
         }
     }
@@ -33,6 +35,8 @@ class LyricsDocumentParser {
             "ttml", "xml" -> parseTtml(text.toByteArray(StandardCharsets.UTF_8), sourceName)
             "txt", "plain" -> parsePlain(text, sourceName)
             "lrc", "elrc", "enhanced_lrc" -> parseLrc(text, sourceName)
+            "qrc" -> parseProviderPayload(text, sourceName)
+            "krc" -> parseKrc(text, sourceName)
             else -> throw IllegalArgumentException("Unsupported lyrics format: $format")
         }
 
@@ -40,17 +44,76 @@ class LyricsDocumentParser {
     fun parseProvider(
         primary: String,
         translation: String = "",
+        romanization: String = "",
         sourceName: String = ""
     ): LyricsDocument {
-        val primaryDocument = parseProviderPayload(primary, sourceName)
+        val primaryDocument = stripCreditLines(parseProviderPayload(primary, sourceName))
         if (primaryDocument.isEmpty()) return LyricsDocument.empty()
-        val translationDocument = parseProviderPayload(translation, sourceName)
-        if (translationDocument.isEmpty()) return primaryDocument
-        val translationTracks = translationDocument.tracks
-            .filter { it.lines.isNotEmpty() }
-            .map { track -> track.copy(role = LyricsTrackRole.TRANSLATION) }
-        if (translationTracks.isEmpty()) return primaryDocument
-        return primaryDocument.copy(tracks = primaryDocument.tracks + translationTracks)
+        val primaryTrack = primaryDocument.primaryOrFirstTrack() ?: return primaryDocument
+        var result = primaryDocument
+
+        val translationDocument = stripCreditLines(parseProviderPayload(translation, sourceName))
+        if (!translationDocument.isEmpty()) {
+            val translationTracks = translationDocument.tracks
+                .filter { it.lines.isNotEmpty() }
+                .map { track -> alignToPrimary(track.copy(role = LyricsTrackRole.TRANSLATION), primaryTrack) }
+            if (translationTracks.isNotEmpty()) {
+                result = result.copy(tracks = result.tracks + translationTracks)
+            }
+        }
+
+        val romanDocument = stripCreditLines(parseProviderPayload(romanization, sourceName))
+        if (!romanDocument.isEmpty()) {
+            val romanTracks = romanDocument.tracks
+                .filter { it.lines.isNotEmpty() }
+                .map { track -> alignToPrimary(track.copy(role = LyricsTrackRole.ROMANIZATION), primaryTrack) }
+            if (romanTracks.isNotEmpty()) {
+                result = result.copy(tracks = result.tracks + romanTracks)
+            }
+        }
+        return result
+    }
+
+    /**
+     * Removes consecutive leading credit/metadata lines (作词、编曲、作曲 etc.) from every track
+     * in the document. These lines are production credits, not sung lyrics, and cause the first
+     * translation line to "stick" to them during time-based alignment.
+     */
+    private fun stripCreditLines(document: LyricsDocument): LyricsDocument {
+        if (document.isEmpty()) return document
+        val stripped = document.tracks.map { track ->
+            val lines = track.lines
+            var firstNonCredit = 0
+            while (firstNonCredit < lines.size && isCreditLine(lines[firstNonCredit].text)) {
+                firstNonCredit++
+            }
+            if (firstNonCredit == 0) track else track.copy(lines = lines.drop(firstNonCredit))
+        }.filter { it.lines.isNotEmpty() }
+        return document.copy(tracks = stripped)
+    }
+
+    private fun isCreditLine(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() || trimmed.length > 80) return false
+        return CREDIT_LINE_PATTERN.containsMatchIn(trimmed)
+    }
+
+    /**
+     * Snaps each translation line's [LyricLine.startMs] to the closest primary line start so that
+     * downstream UI matching (e.g. `closestText`) can reliably pair them even when the source
+     * timestamps differ slightly between the primary and translation payloads.
+     */
+    private fun alignToPrimary(translation: LyricsTrack, primary: LyricsTrack): LyricsTrack {
+        if (primary.lines.isEmpty() || translation.lines.isEmpty()) return translation
+        val aligned = translation.lines.map { tLine ->
+            val closest = primary.lines.minByOrNull { kotlin.math.abs(it.startMs - tLine.startMs) }
+            if (closest != null && kotlin.math.abs(closest.startMs - tLine.startMs) <= ALIGN_TOLERANCE_MS) {
+                tLine.copy(startMs = closest.startMs, endMs = maxOf(closest.endMs, closest.startMs))
+            } else {
+                tLine
+            }
+        }
+        return translation.copy(lines = aligned)
     }
 
     private fun parseProviderPayload(text: String, sourceName: String): LyricsDocument {
@@ -58,10 +121,15 @@ class LyricsDocumentParser {
         if (clean.isEmpty()) return LyricsDocument.empty()
         if (clean.startsWith("<")) {
             runCatching {
+                val qrc = parseQrcXml(clean, sourceName)
+                if (!qrc.isEmpty()) return qrc
+            }
+            runCatching {
                 return parseTtml(clean.toByteArray(StandardCharsets.UTF_8), sourceName)
             }
         }
         parseNeteaseKaraoke(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
+        parseKrc(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
         parseLrc(clean, sourceName).takeUnless(LyricsDocument::isEmpty)?.let { return it }
         return parsePlain(clean, sourceName)
     }
@@ -147,6 +215,156 @@ class LyricsDocumentParser {
                 start to word
             }
         }
+    }
+
+    /**
+     * Parses QQ Music QRC XML format with per-character timing.
+     * Format: `<Lyric_1><Lyric><Lyric_1><sentence starttime="ms" duration="ms">(charTime,charDur,0)char...</sentence>...`
+     */
+    private fun parseQrcXml(text: String, sourceName: String): LyricsDocument {
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = false
+            isXIncludeAware = false
+            setExpandEntityReferences(false)
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+            runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
+            runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        }
+        val builder = factory.newDocumentBuilder().apply {
+            setEntityResolver { _, _ -> throw org.xml.sax.SAXException("External entities are disabled") }
+        }
+        val xml = builder.parse(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)))
+        val root = xml.documentElement ?: return LyricsDocument.empty()
+        val rootName = (root.localName ?: root.nodeName).lowercase(Locale.ROOT)
+        if (rootName != "lyric_1" && rootName != "qrc" && rootName != "lyric") {
+            return LyricsDocument.empty()
+        }
+        val metadata = linkedMapOf<String, String>()
+        for (attrIndex in 0 until root.attributes.length) {
+            val attr = root.attributes.item(attrIndex)
+            val name = attr.nodeName.lowercase(Locale.ROOT)
+            when {
+                name == "lyriccontent" -> { /* inline content, handled below */ }
+                name.startsWith("ti") || name == "title" -> metadata["ti"] = attr.nodeValue
+                name.startsWith("ar") || name == "artist" -> metadata["ar"] = attr.nodeValue
+                name.startsWith("al") || name == "album" -> metadata["al"] = attr.nodeValue
+            }
+        }
+        val sentences = xml.getElementsByTagName("sentence")
+        if (sentences.length == 0) return LyricsDocument.empty()
+        val lines = mutableListOf<LyricLine>()
+        for (i in 0 until sentences.length) {
+            val sentence = sentences.item(i) as? Element ?: continue
+            val lineStart = sentence.getAttribute("starttime").toLongOrNull() ?: continue
+            val lineDuration = sentence.getAttribute("duration").toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+            val content = sentence.textContent.orEmpty()
+            if (content.isBlank()) continue
+            val words = parseQrcWords(content, lineStart)
+            val visibleText = if (words.isNotEmpty()) {
+                words.joinToString("") { it.text }
+            } else {
+                content.trim()
+            }
+            if (visibleText.isBlank()) continue
+            val lineEnd = if (words.isNotEmpty()) {
+                maxOf(lineStart + lineDuration, words.maxOf(LyricWord::endMs), lineStart + 1L)
+            } else {
+                lineStart + maxOf(lineDuration, 1L)
+            }
+            lines += LyricLine(
+                startMs = lineStart,
+                endMs = lineEnd,
+                text = visibleText,
+                words = if (words.isNotEmpty()) withTextOffsets(visibleText, words) else emptyList()
+            )
+        }
+        if (lines.isEmpty()) return LyricsDocument.empty()
+        return document(sourceName, "qrc", metadata, lines.sortedBy(LyricLine::startMs))
+    }
+
+    /**
+     * Parses QRC word timing from sentence content.
+     * Format: `(charStart,charDuration,0)char` where charStart is relative to line start or absolute.
+     */
+    private fun parseQrcWords(content: String, lineStart: Long): List<LyricWord> {
+        val matches = KARAOKE_WORD_PATTERN.findAll(content).toList()
+        if (matches.isEmpty()) return emptyList()
+        val firstWordStart = matches.first().groupValues[1].toLongOrNull() ?: return emptyList()
+        val usesRelativeTimes = firstWordStart < lineStart
+        return matches.mapNotNull { match ->
+            val rawStart = match.groupValues[1].toLongOrNull() ?: return@mapNotNull null
+            val duration = match.groupValues[2].toLongOrNull()?.coerceAtLeast(0L) ?: return@mapNotNull null
+            val wordText = match.groupValues[3]
+            if (wordText.isEmpty()) return@mapNotNull null
+            val start = if (usesRelativeTimes) lineStart + rawStart else rawStart
+            LyricWord(
+                startMs = start.coerceAtLeast(lineStart),
+                endMs = (start + duration).coerceAtLeast(start),
+                text = wordText
+            )
+        }
+    }
+
+    /**
+     * Parses Kugou KRC word-by-word lyrics format.
+     * Format: `[lineStartMs,lineDurationMs]<charStartMs,charDurationMs>char...`
+     * All times are in milliseconds; char times are relative to line start.
+     */
+    fun parseKrc(text: String, sourceName: String): LyricsDocument {
+        val metadata = linkedMapOf<String, String>()
+        val lines = mutableListOf<LyricLine>()
+        for (raw in text.lineSequence()) {
+            val trimmed = raw.trim()
+            if (trimmed.isEmpty()) continue
+            // Metadata lines: [key:value]
+            val metaMatch = KRC_METADATA_PATTERN.matchEntire(trimmed)
+            if (metaMatch != null) {
+                val key = metaMatch.groupValues[1].lowercase(Locale.ROOT)
+                val value = metaMatch.groupValues[2].trim()
+                when (key) {
+                    "ti" -> metadata["ti"] = value
+                    "ar" -> metadata["ar"] = value
+                    "al" -> metadata["al"] = value
+                }
+                continue
+            }
+            // Lyric lines: [lineStart,lineDuration]<wordStart,wordDuration>text...
+            val lineMatch = KRC_LINE_PATTERN.matchEntire(trimmed) ?: continue
+            val lineStart = lineMatch.groupValues[1].toLongOrNull() ?: continue
+            val lineDuration = lineMatch.groupValues[2].toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+            val body = lineMatch.groupValues[3]
+            val wordMatches = KRC_WORD_PATTERN.findAll(body).toList()
+            if (wordMatches.isEmpty()) continue
+            val rawWords = wordMatches.mapNotNull { match ->
+                val wordOffset = match.groupValues[1].toLongOrNull() ?: return@mapNotNull null
+                val wordDuration = match.groupValues[2].toLongOrNull()?.coerceAtLeast(0L)
+                    ?: return@mapNotNull null
+                val wordText = match.groupValues[3]
+                if (wordText.isEmpty()) return@mapNotNull null
+                val start = lineStart + wordOffset
+                LyricWord(
+                    startMs = start.coerceAtLeast(lineStart),
+                    endMs = (start + wordDuration).coerceAtLeast(start),
+                    text = wordText
+                )
+            }
+            if (rawWords.isEmpty()) continue
+            val visibleText = rawWords.joinToString("") { it.text }.trim()
+            if (visibleText.isEmpty()) continue
+            val lineEnd = maxOf(
+                lineStart + lineDuration,
+                rawWords.maxOf(LyricWord::endMs),
+                lineStart + 1L
+            )
+            lines += LyricLine(
+                startMs = lineStart,
+                endMs = lineEnd,
+                text = visibleText,
+                words = withTextOffsets(visibleText, rawWords)
+            )
+        }
+        if (lines.isEmpty()) return LyricsDocument.empty()
+        return document(sourceName, "krc", metadata, lines.sortedBy(LyricLine::startMs))
     }
 
     private fun parseNeteaseKaraoke(text: String, sourceName: String): LyricsDocument {
@@ -376,6 +594,8 @@ class LyricsDocumentParser {
 
     companion object {
         const val MAX_FILE_BYTES: Int = 2 * 1024 * 1024
+        /** Maximum time difference (ms) for snapping a translation line to its closest primary line. */
+        private const val ALIGN_TOLERANCE_MS = 5_000L
         private val TIME_PATTERN =
             Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
         private val WORD_TIME_PATTERN =
@@ -383,8 +603,15 @@ class LyricsDocumentParser {
         private val KARAOKE_LINE_PATTERN = Regex("""\[\s*(\d+)\s*,\s*(\d+)\s*](.*)""")
         private val KARAOKE_WORD_PATTERN =
             Regex("""\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*\d+)?\s*\)([^()]*)""")
+        private val KRC_LINE_PATTERN = Regex("""\[\s*(\d+)\s*,\s*(\d+)\s*](.*)""")
+        private val KRC_WORD_PATTERN = Regex("""<\s*(\d+)\s*,\s*(\d+)\s*>([^<]*)""")
+        private val KRC_METADATA_PATTERN = Regex("""\[([A-Za-z]+):(.*)]""")
         private val METADATA_PATTERN = Regex("""\[([A-Za-z]+):\s*(.*)]""")
         private val WHITESPACE_PATTERN = Regex("""\s+""")
+        private val CREDIT_LINE_PATTERN = Regex(
+            """^(?:作词|作詞|作曲|编曲|編曲|词曲|詞曲|词|詞|曲|制作人|製作人|制作|製作|监制|監製|混音|录音|錄音|母带|母帶|出品|发行|發行|企划|企劃|统筹|統籌|吉他|贝斯|貝斯|鼓|和声|和聲|弦乐|弦樂|原唱|演唱|歌手|专辑|專輯|曲风|曲風|OP|SP)\s*[:：]|^(?:Lyrics?|Composed?|Arranged?|Produced?|Mixed?|Recorded?|Mastered?|Written?|Performed?|Vocals?|Guitar|Bass|Drums|Piano|Strings|Chorus|Producer|Engineer|Studio|Label|Copyright|℗|©)(?:\s+by)?\s*[:：]""",
+            RegexOption.IGNORE_CASE
+        )
 
         @JvmStatic
         fun normalizeMatchText(value: String): String = Normalizer

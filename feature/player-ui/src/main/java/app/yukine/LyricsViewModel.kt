@@ -40,7 +40,7 @@ data class LyricsState @JvmOverloads constructor(
 data class LyricsTrackVisibility @JvmOverloads constructor(
     val primary: Boolean = true,
     val translation: Boolean = true,
-    val romanization: Boolean = false
+    val romanization: Boolean = true
 ) {
     fun enabled(role: LyricsTrackRole): Boolean = when (role) {
         LyricsTrackRole.PRIMARY -> primary

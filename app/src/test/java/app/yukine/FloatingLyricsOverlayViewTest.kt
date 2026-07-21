@@ -82,6 +82,48 @@ class FloatingLyricsOverlayViewTest {
         assertEquals(30f, overlay.lyricsView.textSize / context.resources.displayMetrics.scaledDensity)
     }
 
+    @Test
+    fun bindStateShowsTranslationAndRomanizationWhenPresent() {
+        val overlay = FloatingLyricsOverlayView(
+            context,
+            FloatingLyricsOverlaySettings(),
+        ) { }
+        overlay.bindState(
+            FloatingLyricsState(
+                activeLine = "\u539f\u6587\u6b4c\u8bcd",
+                activeTranslation = "Translation text",
+                activeRomanization = "genbun kashi",
+                visible = true
+            ),
+            artwork = null
+        )
+
+        assertEquals(View.VISIBLE, overlay.translationView.visibility)
+        assertEquals("Translation text", overlay.translationView.text.toString())
+        assertEquals(View.VISIBLE, overlay.romanizationView.visibility)
+        assertEquals("genbun kashi", overlay.romanizationView.text.toString())
+    }
+
+    @Test
+    fun translationAndRomanizationHiddenWhenEmpty() {
+        val overlay = FloatingLyricsOverlayView(
+            context,
+            FloatingLyricsOverlaySettings(),
+        ) { }
+        overlay.bindState(
+            FloatingLyricsState(
+                activeLine = "\u539f\u6587\u6b4c\u8bcd",
+                activeTranslation = "",
+                activeRomanization = "",
+                visible = true
+            ),
+            artwork = null
+        )
+
+        assertEquals(View.GONE, overlay.translationView.visibility)
+        assertEquals(View.GONE, overlay.romanizationView.visibility)
+    }
+
     private fun descendants(root: View): Sequence<View> = sequence {
         yield(root)
         if (root is ViewGroup) {

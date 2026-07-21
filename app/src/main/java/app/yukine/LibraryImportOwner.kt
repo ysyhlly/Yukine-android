@@ -53,7 +53,7 @@ internal class LibraryImportOwner @JvmOverloads constructor(
             allowCachedFirst,
             canScan,
             { result ->
-                replaceLibrary(result.tracks, result.favorites, result.status) {
+                replaceLibrary(result.tracks, result.favorites, result.status, result.scanned) {
                     if (canScan && !allowCachedFirst) {
                         statusSink.setStatus(libraryScanResultStatus(result.tracks.size))
                     }
@@ -112,17 +112,22 @@ internal class LibraryImportOwner @JvmOverloads constructor(
         tracks: List<Track>,
         favorites: Set<Long>,
         status: String,
+        scanned: Boolean = true,
         onApplied: Runnable = Runnable {}
     ) {
         applyLibraryReplacement(tracks, favorites) {
             statusSink.setStatus(status)
-            viewModel.loading.parseMissingAudioSpecsJava { result ->
-                audioVerificationScheduler.schedule()
-                applyLibraryReplacement(result.tracks, result.favorites) {
-                    if (result.updatedCount > 0) {
-                        statusSink.setStatus(text("audio.specs.updated") + " (${result.updatedCount})")
+            if (scanned) {
+                viewModel.loading.parseMissingAudioSpecsJava { result ->
+                    audioVerificationScheduler.schedule()
+                    applyLibraryReplacement(result.tracks, result.favorites) {
+                        if (result.updatedCount > 0) {
+                            statusSink.setStatus(text("audio.specs.updated") + " (${result.updatedCount})")
+                        }
                     }
                 }
+            } else {
+                audioVerificationScheduler.schedule()
             }
             onApplied.run()
         }

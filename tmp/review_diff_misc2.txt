@@ -1,0 +1,143 @@
+warning: in the working copy of 'app/src/main/java/app/yukine/SettingsContextProvider.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt b/app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt
+index dd2e8519..5390a45b 100644
+--- a/app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt
++++ b/app/src/main/java/app/yukine/DefaultStreamingSearchActionHandler.kt
+@@ -35,6 +35,11 @@ internal class DefaultStreamingSearchActionHandler(
+             )
+             return
+         }
++        // 閰风嫍缃戦〉鏃犵Щ鍔ㄧ鐧诲綍鍏ュ彛锛岀洿鎺ヤ娇鐢ㄦ墜鍔?Cookie 瀵煎叆
++        if (provider == StreamingProviderName.KUGOU) {
++            actionGateway.openManualCookieImport(provider)
++            return
++        }
+         streamingViewModel.auth.startAuth(
+             provider = provider,
+             redirectUri = STREAMING_AUTH_REDIRECT_URI + "?provider=${provider.wireName}",
+diff --git a/app/src/main/java/app/yukine/LibraryStateBinding.kt b/app/src/main/java/app/yukine/LibraryStateBinding.kt
+index 82dedddb..7e46832e 100644
+--- a/app/src/main/java/app/yukine/LibraryStateBinding.kt
++++ b/app/src/main/java/app/yukine/LibraryStateBinding.kt
+@@ -162,6 +162,9 @@ internal class LibraryStateBinding @JvmOverloads constructor(
+     }
+ 
+     private fun publishSongs(inputs: LibraryBindingInputs, modeActions: List<TrackListModeAction>) {
++        val playCountByTrackId = inputs.library.mostPlayedRecords.associate { record ->
++            record.track.id to record.playCount
++        }
+         trackListReducer.reduce(
+             AppLanguage.text(inputs.languageMode, "library.allSongs"),
+             inputs.library.visibleTracks,
+@@ -176,7 +179,8 @@ internal class LibraryStateBinding @JvmOverloads constructor(
+             playbackReadModel?.state?.value,
+             inputs.library.favoriteTrackIds,
+             context = LibraryListContext.Songs,
+-            favoritePendingIds = libraryStore.favoritePendingTrackIds.value
++            favoritePendingIds = libraryStore.favoritePendingTrackIds.value,
++            playCountByTrackId = playCountByTrackId
+         )
+     }
+ 
+@@ -275,6 +279,9 @@ private fun libraryUiLabels(languageMode: String): LibraryUiLabels = LibraryUiLa
+     sortAlbum = AppLanguage.text(languageMode, "library.sort.album"),
+     sortDurationAscending = AppLanguage.text(languageMode, "library.sort.duration.asc"),
+     sortDurationDescending = AppLanguage.text(languageMode, "library.sort.duration.desc"),
++    sortDateAddedDescending = AppLanguage.text(languageMode, "library.sort.date.added.desc"),
++    sortDateAddedAscending = AppLanguage.text(languageMode, "library.sort.date.added.asc"),
++    sortPlayCount = AppLanguage.text(languageMode, "library.sort.play.count"),
+     syncLibrary = AppLanguage.text(languageMode, "library.sync.title"),
+     syncLibraryDescription = AppLanguage.text(languageMode, "library.sync.description"),
+     syncingLibrary = AppLanguage.text(languageMode, "library.sync.in.progress"),
+diff --git a/app/src/main/java/app/yukine/SettingsContextProvider.kt b/app/src/main/java/app/yukine/SettingsContextProvider.kt
+index 5d51f611..841a8e6b 100644
+--- a/app/src/main/java/app/yukine/SettingsContextProvider.kt
++++ b/app/src/main/java/app/yukine/SettingsContextProvider.kt
+@@ -51,6 +51,7 @@ internal class SettingsContextProvider(
+                 floatingLyricsSettings.backgroundOpacityPercent,
+             floatingLyricsTransparentBackground =
+                 floatingLyricsSettings.transparentBackground,
++            floatingLyricsTextColorArgb = floatingLyricsSettings.textColorArgb,
+             playbackServiceConnected = playbackConnectionController.isBound(),
+             sleepTimerRemainingMs = playbackSnapshotProvider.playbackSnapshot.value.sleepTimerRemainingMs,
+             lyricsOffsetMs = lyricsViewModel?.offsetMs() ?: 0L,
+diff --git a/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt b/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
+index a7fcb527..36583e33 100644
+--- a/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
++++ b/app/src/main/java/app/yukine/StreamingWebAuthActivity.kt
+@@ -210,13 +210,13 @@ class StreamingWebAuthActivity : Activity() {
+             )
+             addView(
+                 Button(this@StreamingWebAuthActivity).apply {
+-                    text = if (providerName() == StreamingProviderName.QQ_MUSIC) {
++                    text = if (providerName() == StreamingProviderName.QQ_MUSIC || providerName() == StreamingProviderName.KUGOU) {
+                         text("streaming.web.auth.manual.cookie")
+                     } else {
+                         text("streaming.web.auth.done")
+                     }
+                     setOnClickListener {
+-                        if (providerName() == StreamingProviderName.QQ_MUSIC) {
++                        if (providerName() == StreamingProviderName.QQ_MUSIC || providerName() == StreamingProviderName.KUGOU) {
+                             finishWithAuthCallback(manualCookieCallbackUri())
+                         } else {
+                             finishWithAuthCallback(fallbackCallbackUri())
+diff --git a/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt b/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
+index b0aef021..0f7a18b2 100644
+--- a/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
++++ b/feature/data/src/main/java/app/yukine/data/OfflinePhysicalSourceClusterer.kt
+@@ -645,7 +645,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         if (activePairs.isEmpty()) return null
+         val activeAggregate = aggregatePairs(
+             activePairs,
+-            trustAware = true,
++            trustAware = scoringMode == IdentityScoringMode.V5_ON,
+             autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
+         )
+         val evidenceJson = JSONObject()
+@@ -665,7 +665,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         if (shadowPairs.isNotEmpty()) {
+             val shadowAggregate = aggregatePairs(
+                 shadowPairs,
+-                trustAware = true,
++                trustAware = scoringMode == IdentityScoringMode.V5_SHADOW,
+                 autoMergeMinimumScore = dedupPolicy.autoMergeMinimumScore
+             )
+             evidenceJson.put(
+@@ -852,8 +852,18 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         autoMergeMinimumScore: Double
+     ): PairAggregate {
+         if (!trustAware) {
+-            val recording = pairs.minOf { it.evaluation.sameRecordingProbability }
+-            val work = pairs.minOf { it.evaluation.sameWorkProbability }
++            val recording: Double
++            val work: Double
++            val aggregation: String
++            if (pairs.size >= ROBUST_MEDIAN_MINIMUM_PAIRS) {
++                recording = sourceBalancedMedian(pairs) { it.sameRecordingProbability }
++                work = sourceBalancedMedian(pairs) { it.sameWorkProbability }
++                aggregation = "SOURCE_BALANCED_MEDIAN"
++            } else {
++                recording = pairs.minOf { it.evaluation.sameRecordingProbability }
++                work = pairs.minOf { it.evaluation.sameWorkProbability }
++                aggregation = "COMPLETE_LINK_MINIMUM"
++            }
+             val relationship = pairs.fold(RecordingRelationship.SAME_RECORDING) { current, pair ->
+                 combineRelationship(current, pair.evaluation.relationship)
+             }
+@@ -863,7 +873,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+                 relationship = relationship,
+                 confidence = relationshipConfidence(relationship, recording, work),
+                 scoreVersion = pairs.maxOf { it.evaluation.scoreVersion },
+-                aggregation = "COMPLETE_LINK_MINIMUM"
++                aggregation = aggregation
+             )
+         }
+ 
+@@ -1041,6 +1051,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
+         const val CANDIDATE_WRITE_BATCH_SIZE = 1_000
+         const val HIGH_TRUST_THRESHOLD = 0.85
+         const val SAME_WORK_MINIMUM_SCORE = 0.85
++        const val ROBUST_MEDIAN_MINIMUM_PAIRS = 3
+         const val TAG = "IdentityDiagnostics"
+         val OPERATION = MusicIdentityDiagnostics.Operation.PHYSICAL_CLUSTER
+         val blockedCandidateStatuses = setOf("REJECTED", "ALTERNATE_VERSION")

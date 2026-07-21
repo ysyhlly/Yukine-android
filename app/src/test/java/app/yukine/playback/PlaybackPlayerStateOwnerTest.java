@@ -124,6 +124,74 @@ public class PlaybackPlayerStateOwnerTest {
     }
 
     @Test
+    public void stalePositionAfterMediaItemIndexAlreadyChangedIsSuppressed() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 180_000L, 200_000L);
+        state.mediaItemIndex = 0;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        assertEquals(180_000L, owner.positionMs());
+
+        // Auto-advance fires onMediaItemTransition: ExoPlayer already changed index to 1,
+        // but getCurrentPosition() still returns the old track's position.
+        state.mediaItemIndex = 1;
+        owner.beginMediaItemPositionTransition(1, 0L);
+
+        // Position should be clamped to 0, not leak 180_000 from the previous track.
+        clock.nowMs = 10_050L;
+        assertEquals(0L, owner.positionMs());
+        assertEquals(0L, owner.sessionPositionMs());
+
+        // Once ExoPlayer reports the real (zero) position, guard disarms.
+        state.positionMs = 0L;
+        clock.nowMs = 10_100L;
+        assertEquals(0L, owner.positionMs());
+    }
+
+    @Test
+    public void transitionGuardDisarmsAfterWindowExpires() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 180_000L, 200_000L);
+        state.mediaItemIndex = 1;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.beginMediaItemPositionTransition(1, 0L);
+
+        // Within the guard window, stale position is suppressed.
+        clock.nowMs = 10_500L;
+        assertEquals(0L, owner.positionMs());
+
+        // After the guard window expires, trust the player's position again.
+        state.positionMs = 5_000L;
+        clock.nowMs = 11_000L;
+        assertEquals(5_000L, owner.positionMs());
+    }
+
+    @Test
+    public void transitionGuardAllowsPositionConsistentWithExpectedStart() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 4_500L, 200_000L);
+        state.mediaItemIndex = 1;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        // Seek to 4200ms in the mirrored queue.
+        owner.beginMediaItemPositionTransition(1, 4_200L);
+
+        // Position 4500 is within threshold of expected 4200; guard disarms.
+        clock.nowMs = 10_100L;
+        assertEquals(4_500L, owner.positionMs());
+    }
+
+    @Test
     public void keepsEstimatedPositionWhenPausedPlayerReportsZero() {
         MutableClock clock = new MutableClock(1_000L);
         MutablePlayerState state = new MutablePlayerState(true, 0L, 9_000L);

@@ -1,6 +1,9 @@
+@file:Suppress("DEPRECATION")
+
 package app.yukine
 
 import app.yukine.model.Track
+// Imports retained for deprecated legacy V4 scoring path (clusters)
 import app.yukine.streaming.RecordingMatchEvaluatorV2
 import app.yukine.streaming.RecordingVersionClassifier
 import app.yukine.streaming.StreamingTrackMatchPolicy
@@ -12,6 +15,14 @@ import app.yukine.streaming.StreamingTrackMatchPolicy
  * complete metadata and duration agree, those rows are one logical song with interchangeable
  * sources. Remote catalog copies may disagree on album labels, while two local album copies stay
  * separate. Remix/version, unknown metadata, and materially different duration never collapse.
+ *
+ * **Unified dedup policy**: The production library display uses [persistedRecordingSnapshot]
+ * which groups tracks by their persisted `recordingId` from the background identity ingestion
+ * pipeline (`SourceIdentityIngestor`). This ensures the UI displays exactly what the background
+ * deduplication decides (V5 scoring + audio fingerprint + configurable thresholds).
+ *
+ * The legacy metadata-based [clusters] path (V4 scoring) is deprecated and retained only for
+ * backward compatibility with existing tests.
  */
 object LibraryTrackMergePolicy {
     private val unknownMetadata = setOf(
@@ -29,30 +40,72 @@ object LibraryTrackMergePolicy {
         val sourceCandidatesByTrackId: Map<Long, List<Track>>
     )
 
+    /**
+     * Legacy metadata-based merge using V4 scoring.
+     * @deprecated Use [persistedRecordingSnapshot] which reflects background dedup decisions.
+     */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot() which reflects background dedup decisions",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }")
+    )
     fun merge(tracks: List<Track>): List<Track> = snapshot(tracks).mergedTracks
 
+    /**
+     * Legacy metadata-based merge using V4 scoring.
+     * @deprecated Use [persistedRecordingSnapshot] which reflects background dedup decisions.
+     */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot() which reflects background dedup decisions",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }")
+    )
     fun merge(
         tracks: List<Track>,
         canonicalIdentity: (Track) -> String?
     ): List<Track> = snapshot(tracks, canonicalIdentity).mergedTracks
 
-    /** Returns every interchangeable source for [track], in the same cluster used by [merge]. */
+    /**
+     * Legacy source candidate lookup using V4 metadata clustering.
+     * @deprecated Use [persistedRecordingSnapshot] and access [Snapshot.sourceCandidatesByTrackId].
+     */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot().sourceCandidatesByTrackId instead",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }.sourceCandidatesByTrackId[track?.id]")
+    )
     fun sourceCandidatesFor(track: Track?, tracks: List<Track>): List<Track> {
         val selected = track ?: return emptyList()
         return sourceCandidateIndex(tracks)[selected.id].orEmpty()
     }
 
     /**
-     * Builds the lookup used by the playback page. Only duplicated groups are indexed, keeping
-     * singleton songs out of both memory and Now Playing recomposition work.
+     * Legacy source candidate index using V4 metadata clustering.
+     * @deprecated Use [persistedRecordingSnapshot] and access [Snapshot.sourceCandidatesByTrackId].
      */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot().sourceCandidatesByTrackId instead",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }.sourceCandidatesByTrackId")
+    )
     fun sourceCandidateIndex(tracks: List<Track>): Map<Long, List<Track>> {
         return snapshot(tracks).sourceCandidatesByTrackId
     }
 
-    /** Builds the library display list and duplicate-source lookup in one metadata pass. */
+    /**
+     * Legacy snapshot using V4 metadata clustering.
+     * @deprecated Use [persistedRecordingSnapshot] which reflects background dedup decisions.
+     */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot() which reflects background dedup decisions",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }")
+    )
     fun snapshot(tracks: List<Track>): Snapshot = snapshot(tracks) { null }
 
+    /**
+     * Legacy snapshot using V4 metadata clustering.
+     * @deprecated Use [persistedRecordingSnapshot] which reflects background dedup decisions.
+     */
+    @Deprecated(
+        message = "Use persistedRecordingSnapshot() which reflects background dedup decisions",
+        replaceWith = ReplaceWith("persistedRecordingSnapshot(tracks) { track -> recordingIdentities[track.id] }")
+    )
     fun snapshot(
         tracks: List<Track>,
         canonicalIdentity: (Track) -> String?
@@ -115,6 +168,19 @@ object LibraryTrackMergePolicy {
         )
     }
 
+    /**
+     * Legacy V4 metadata-based clustering.
+     *
+     * Complete-link comparison prevents A≈B and B≈C from silently producing A=B=C.
+     *
+     * Display merge intentionally uses V4 scoring (via [RecordingMatchEvaluatorV2.evaluate]) as a
+     * conservative baseline. The canonical pipeline may merge via V5 in AGGRESSIVE mode; display
+     * merge is stricter by design to avoid UI-level grouping that the user hasn't confirmed.
+     *
+     * @deprecated This method is retained for backward compatibility with existing tests.
+     * Production code should use [persistedRecordingSnapshot] which reflects background dedup.
+     */
+    @Deprecated("Retained for test compatibility; production uses persistedRecordingSnapshot")
     private fun clusters(
         tracks: List<Track>,
         canonicalIdentity: (Track) -> String?
@@ -187,7 +253,8 @@ object LibraryTrackMergePolicy {
         return result
     }
 
-    /** Complete-link comparison prevents A≈B and B≈C from silently producing A=B=C. */
+    /** Legacy V4 complete-link pair comparison. @deprecated Part of deprecated [clusters] path. */
+    @Deprecated("Part of deprecated clusters() path")
     private fun clusterMatch(cluster: TrackCluster, candidate: Track): ClusterMatch {
         var minimumScore = 1.0
         cluster.tracks.forEach { member ->

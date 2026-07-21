@@ -379,7 +379,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
 
     private fun List<app.yukine.model.LyricLine>.closestText(timeMs: Long): String {
         val match = minByOrNull { kotlin.math.abs(it.startMs - timeMs) } ?: return ""
-        return match.text.takeIf { kotlin.math.abs(match.startMs - timeMs) <= 500L }.orEmpty()
+        return match.text.takeIf { kotlin.math.abs(match.startMs - timeMs) <= 2_000L }.orEmpty()
     }
 
     fun drainEffects(): List<NowPlayingEffect> {

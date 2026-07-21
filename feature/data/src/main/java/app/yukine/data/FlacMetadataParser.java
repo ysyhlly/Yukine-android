@@ -84,80 +84,7 @@ final class FlacMetadataParser {
     }
 
     private static void parseVorbisComment(byte[] data, int start, int end, Result result) {
-        int cursor = start;
-        if (cursor + 4 > end) {
-            return;
-        }
-        int vendorLength = readLittleEndianInt(data, cursor);
-        cursor += 4;
-        if (vendorLength < 0 || cursor + (long) vendorLength + 4L > end) {
-            return;
-        }
-        cursor += vendorLength;
-        int commentCount = readLittleEndianInt(data, cursor);
-        cursor += 4;
-        if (commentCount < 0) {
-            return;
-        }
-        for (int i = 0; i < commentCount && cursor + 4 <= end; i++) {
-            int commentLength = readLittleEndianInt(data, cursor);
-            cursor += 4;
-            if (commentLength < 0 || cursor + (long) commentLength > end) {
-                return;
-            }
-            String comment = new String(data, cursor, commentLength, StandardCharsets.UTF_8);
-            cursor += commentLength;
-            int separator = comment.indexOf('=');
-            if (separator <= 0) {
-                continue;
-            }
-            String key = comment.substring(0, separator).trim().toUpperCase(Locale.ROOT);
-            String value = comment.substring(separator + 1).trim();
-            if (value.isEmpty()) {
-                continue;
-            }
-            if ("TITLE".equals(key) && result.title.isEmpty()) {
-                result.title = value;
-            } else if ("ARTIST".equals(key) && result.artist.isEmpty()) {
-                result.artist = value;
-            } else if (("ALBUMARTIST".equals(key) || "ALBUM_ARTIST".equals(key))
-                    && result.albumArtist.isEmpty()) {
-                result.albumArtist = value;
-            } else if ("ALBUM".equals(key) && result.album.isEmpty()) {
-                result.album = value;
-            } else if ("COMPOSER".equals(key) && result.composer.isEmpty()) {
-                result.composer = value;
-            } else if (("RELEASETYPE".equals(key)
-                    || "RELEASE_TYPE".equals(key)
-                    || "MUSICBRAINZ_ALBUMTYPE".equals(key))
-                    && result.releaseType.isEmpty()) {
-                result.releaseType = value;
-            } else if (("DATE".equals(key) || "YEAR".equals(key)) && result.year == 0) {
-                result.year = parseYear(value);
-            } else if (("MUSICBRAINZ_TRACKID".equals(key)
-                    || "MUSICBRAINZ_RECORDINGID".equals(key))
-                    && result.recordingMusicBrainzId.isEmpty()) {
-                result.recordingMusicBrainzId = value;
-            } else if (("MUSICBRAINZ_WORKID".equals(key)
-                    || "MUSICBRAINZ_RECORDING_WORK_ID".equals(key))
-                    && result.workMusicBrainzId.isEmpty()) {
-                result.workMusicBrainzId = value;
-            } else if ("ISRC".equals(key) && result.isrc.isEmpty()) {
-                result.isrc = value;
-            } else if (("ACOUSTID_ID".equals(key) || "ACOUSTID".equals(key))
-                    && result.acoustId.isEmpty()) {
-                result.acoustId = value;
-            } else if ("MUSICBRAINZ_ARTISTID".equals(key)) {
-                addValues(result.artistMusicBrainzIds, value);
-            } else if ("REPLAYGAIN_TRACK_GAIN".equals(key)) {
-                result.replayGainTrackDb = parseGain(value);
-            } else if ("REPLAYGAIN_ALBUM_GAIN".equals(key)) {
-                result.replayGainAlbumDb = parseGain(value);
-            }
-        }
-        if (result.artist.isEmpty()) {
-            result.artist = result.albumArtist;
-        }
+        VorbisCommentDecoder.decode(data, start, end, result);
     }
 
     private static void parsePicture(byte[] data, int start, int end, Result result) {
@@ -281,5 +208,10 @@ final class FlacMetadataParser {
         float replayGainAlbumDb;
         byte[] artwork;
         int requiredPrefixBytes;
+        String genre = "";
+        int discNumber;
+        int trackNumber;
+        int bpm;
+        String lyrics = "";
     }
 }

@@ -1,0 +1,86 @@
+diff --git a/app/src/main/java/app/yukine/playback/PlaybackRuntimeSettingsStore.java b/app/src/main/java/app/yukine/playback/PlaybackRuntimeSettingsStore.java
+index cd0af67c..78f156d4 100644
+--- a/app/src/main/java/app/yukine/playback/PlaybackRuntimeSettingsStore.java
++++ b/app/src/main/java/app/yukine/playback/PlaybackRuntimeSettingsStore.java
+@@ -7,11 +7,11 @@ final class PlaybackRuntimeSettingsStore {
+     interface RuntimeSettings {
+         boolean loadReplayGainEnabled();
+ 
+-        boolean loadConcurrentPlaybackEnabled();
+-
+         float loadPlaybackSpeed();
+ 
+         float loadAppVolume();
++
++        boolean loadBitPerfectEnabled();
+     }
+ 
+     private final RuntimeSettings runtimeSettings;
+@@ -29,9 +29,9 @@ final class PlaybackRuntimeSettingsStore {
+             return;
+         }
+         runtimeStateManager.setReplayGainEnabled(runtimeSettings.loadReplayGainEnabled());
+-        runtimeStateManager.setConcurrentPlaybackEnabled(runtimeSettings.loadConcurrentPlaybackEnabled());
+         runtimeStateManager.setPlaybackSpeed(runtimeSettings.loadPlaybackSpeed());
+         runtimeStateManager.setAppVolume(runtimeSettings.loadAppVolume());
++        runtimeStateManager.setBitPerfectActive(runtimeSettings.loadBitPerfectEnabled());
+     }
+ 
+     void setPlaybackSpeed(PlaybackRuntimeStateManager runtimeStateManager, float speed) {
+@@ -46,12 +46,6 @@ final class PlaybackRuntimeSettingsStore {
+         }
+     }
+ 
+-    void setConcurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
+-        if (runtimeStateManager != null) {
+-            runtimeStateManager.setConcurrentPlaybackEnabled(enabled);
+-        }
+-    }
+-
+     void setReplayGainEnabled(PlaybackRuntimeStateManager runtimeStateManager, boolean enabled) {
+         if (runtimeStateManager != null) {
+             runtimeStateManager.setReplayGainEnabled(enabled);
+@@ -67,7 +61,7 @@ final class PlaybackRuntimeSettingsStore {
+     }
+ 
+     boolean concurrentPlaybackEnabled(PlaybackRuntimeStateManager runtimeStateManager) {
+-        return runtimeStateManager != null && runtimeStateManager.concurrentPlaybackEnabled();
++        return false;
+     }
+ 
+     float currentTrackVolume(PlaybackRuntimeStateManager runtimeStateManager) {
+@@ -86,9 +80,9 @@ final class PlaybackRuntimeSettingsStore {
+         }
+     }
+ 
+-    void applyAudioFocusHandling(PlaybackRuntimeStateManager runtimeStateManager) {
++    void applyAudioAttributes(PlaybackRuntimeStateManager runtimeStateManager) {
+         if (runtimeStateManager != null) {
+-            runtimeStateManager.applyAudioFocusHandling();
++            runtimeStateManager.applyAudioAttributes();
+         }
+     }
+ 
+@@ -104,11 +98,6 @@ final class PlaybackRuntimeSettingsStore {
+             return repository.loadReplayGainEnabled();
+         }
+ 
+-        @Override
+-        public boolean loadConcurrentPlaybackEnabled() {
+-            return repository.loadConcurrentPlaybackEnabled();
+-        }
+-
+         @Override
+         public float loadPlaybackSpeed() {
+             return repository.loadPlaybackSpeed();
+@@ -118,5 +107,10 @@ final class PlaybackRuntimeSettingsStore {
+         public float loadAppVolume() {
+             return repository.loadAppVolume();
+         }
++
++        @Override
++        public boolean loadBitPerfectEnabled() {
++            return repository.loadBitPerfectEnabled();
++        }
+     }
+ }

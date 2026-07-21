@@ -1798,7 +1798,7 @@ class LocalLuoxueStreamingClient(
         private const val KUGOU_PLAYBACK_USER_AGENT = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi"
         private const val SHIQIANJIANG_SOURCE_HOST = "source.shiqianjiang.cn"
         private val TERMINAL_IMPORTED_SOURCE_HTTP_ERROR = Regex("(?i)HTTP\\s+(?:4\\d\\d|5\\d\\d)")
-        private val BUILT_IN_SEARCH_SOURCE_KEYS = listOf("tx", "wy", "kw", "kg", "mg")
+        private val BUILT_IN_SEARCH_SOURCE_KEYS = listOf("tx", "wy", "kg", "kw", "mg")
         private val LUOXUE_SCRIPT_SOURCE_KEYS = setOf("kw", "kg", "tx", "wy", "mg", "git", "local")
     }
 }

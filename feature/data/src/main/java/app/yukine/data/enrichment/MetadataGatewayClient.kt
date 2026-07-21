@@ -13,6 +13,7 @@ import app.yukine.identity.CanonicalRecording
 import app.yukine.identity.ProviderArtistCandidate
 import app.yukine.identity.ProviderCacheFreshness
 import app.yukine.identity.ProviderResponseCacheRepository
+import app.yukine.identity.RecordingDuplicateCandidate
 import app.yukine.identity.RecordingVariantRecognizer
 import app.yukine.identity.WorkCreditEvidence
 import app.yukine.identity.WorkIdentifierEvidence
@@ -33,7 +34,9 @@ data class GatewayLyrics(
     val album: String,
     val durationMs: Long,
     val syncedLyrics: String,
-    val plainLyrics: String
+    val plainLyrics: String,
+    val wordLyrics: String = "",
+    val wordLyricsSource: String = ""
 )
 
 data class GatewayLyricsSearchResult(
@@ -107,14 +110,16 @@ class MetadataGatewayClient(
         title: String,
         artist: String,
         album: String,
-        durationMs: Long
+        durationMs: Long,
+        neteaseSongId: String = ""
     ): GatewayLyricsSearchResult {
         if (endpoint.isBlank()) return GatewayLyricsSearchResult(null, allEndpointsFailed = true)
         val params = linkedMapOf(
             "title" to title,
             "artist" to artist,
             "album" to album,
-            "durationMs" to durationMs.takeIf { it > 0L }?.toString().orEmpty()
+            "durationMs" to durationMs.takeIf { it > 0L }?.toString().orEmpty(),
+            "neteaseSongId" to neteaseSongId
         )
         return fetch(
             "v2/lyrics/search",
@@ -260,6 +265,18 @@ class MetadataGatewayClient(
                         )
                     }
                 }
+                val possibleDuplicates = buildList {
+                    val duplicatesArray = item.optJSONArray("possibleDuplicates")
+                    if (duplicatesArray != null) for (dupIndex in 0 until duplicatesArray.length()) {
+                        val dup = duplicatesArray.optJSONObject(dupIndex) ?: continue
+                        val dupCanonicalId = dup.optString("canonicalId").trim()
+                        if (dupCanonicalId.isBlank()) continue
+                        add(RecordingDuplicateCandidate(
+                            canonicalId = dupCanonicalId,
+                            confidence = dup.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
+                        ))
+                    }
+                }
                 add(AnonymousRecordingCandidate(
                     provider = source.provider,
                     providerItemId = source.itemId,
@@ -277,7 +294,8 @@ class MetadataGatewayClient(
                     coverUrl = trustedCoverUrl(item.optString("coverUrl")),
                     fingerprintVerified = item.optBoolean("fingerprintVerified", false),
                     variantType = RecordingVariantRecognizer.recognize(title, item.optString("album")),
-                    providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
+                    providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0),
+                    possibleDuplicates = possibleDuplicates
                 ))
             }
         }
@@ -312,7 +330,9 @@ class MetadataGatewayClient(
                     avatarUrl = httpsUrl(item.optString("avatarUrl")),
                     providerScore = item.optDouble("confidence", 0.0).coerceIn(0.0, 1.0),
                     description = item.optString("description").trim()
-                        .take(MAX_ARTIST_DESCRIPTION_LENGTH)
+                        .take(MAX_ARTIST_DESCRIPTION_LENGTH),
+                    biography = item.optString("biography").trim()
+                        .take(MAX_ARTIST_BIOGRAPHY_LENGTH)
                 ))
             }
         }
@@ -324,7 +344,13 @@ class MetadataGatewayClient(
             ?: return@runCatching GatewayLyricsSearchResult(null)
         val synced = item.optString("syncedLyrics")
         val plain = item.optString("plainLyrics")
-        if (synced.isBlank() && plain.isBlank()) return@runCatching GatewayLyricsSearchResult(null)
+        val wordLyrics = item.optString("wordLyrics")
+            .take(MAX_WORD_LYRICS_LENGTH)
+            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
+        val wordLyricsSource = item.optString("wordLyricsSource")
+        if (synced.isBlank() && plain.isBlank() && wordLyrics.isBlank()) {
+            return@runCatching GatewayLyricsSearchResult(null)
+        }
         val source = sourceIdentity(item)
         val canonicalId = item.optString("canonicalId").trim()
         GatewayLyricsSearchResult(
@@ -336,7 +362,9 @@ class MetadataGatewayClient(
                 album = item.optString("album"),
                 durationMs = item.optLong("durationMs", 0L),
                 syncedLyrics = synced,
-                plainLyrics = plain
+                plainLyrics = plain,
+                wordLyrics = wordLyrics,
+                wordLyricsSource = wordLyricsSource
             )
         )
     }.getOrNull()
@@ -428,6 +456,8 @@ class MetadataGatewayClient(
         const val PROVIDER = "echo_metadata_gateway"
         const val LYRICS_CACHE_TTL_MS = 7L * 24L * 60L * 60L * 1_000L
         private const val MAX_ARTIST_DESCRIPTION_LENGTH = 1_000
+        private const val MAX_ARTIST_BIOGRAPHY_LENGTH = 4_096
+        private const val MAX_WORD_LYRICS_LENGTH = 512 * 1024
 
         @JvmStatic
         fun normalizeEndpoint(value: String?): String {

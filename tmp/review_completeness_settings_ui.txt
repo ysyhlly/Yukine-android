@@ -1,0 +1,919 @@
+diff --git a/feature/playback/build.gradle b/feature/playback/build.gradle
+index 833d27b0..ee9c469e 100644
+--- a/feature/playback/build.gradle
++++ b/feature/playback/build.gradle
+@@ -1,11 +1,10 @@
+ plugins {
+     alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+ }
+ 
+ android {
+     namespace "app.yukine.feature.playback"
+-    compileSdk 35
++    compileSdk 37
+ 
+     defaultConfig {
+         minSdk 23
+diff --git a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackAudioEffectManager.kt b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackAudioEffectManager.kt
+index e5552cae..8ac2bc27 100644
+--- a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackAudioEffectManager.kt
++++ b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackAudioEffectManager.kt
+@@ -19,9 +19,28 @@ internal class PlaybackAudioEffectManager(
+     private var bassBoost: BassBoost? = null
+     private var virtualizer: Virtualizer? = null
+     private var loudnessEnhancer: LoudnessEnhancer? = null
++    private var bitPerfectGuard: BitPerfectGuard? = null
++
++    fun setBitPerfectGuard(guard: BitPerfectGuard?) {
++        bitPerfectGuard = guard
++    }
++
++    /**
++     * Called when Bit-Perfect state changes at runtime.
++     * When activated, releases all audio effects immediately.
++     */
++    fun onBitPerfectStateChanged(active: Boolean) {
++        if (active) {
++            release()
++        }
++    }
+ 
+     fun bind(player: ExoPlayer?, settings: AudioEffectSettings?) {
+         release()
++        // Bit-Perfect guard: effects are incompatible with offload/direct PCM output.
++        if (bitPerfectGuard?.isActive == true) {
++            return
++        }
+         if (player == null || settings == null || !settings.enabled) {
+             return
+         }
+diff --git a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackPlayerFactory.kt b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackPlayerFactory.kt
+index e191fdda..1a3c65e2 100644
+--- a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackPlayerFactory.kt
++++ b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackPlayerFactory.kt
+@@ -10,11 +10,26 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
+ import androidx.media3.exoplayer.ExoPlayer
+ import androidx.media3.exoplayer.audio.AudioSink
+ import androidx.media3.exoplayer.audio.DefaultAudioSink
++import app.yukine.playback.usb.UsbExclusiveAudioSink
++
++/**
++ * Audio output mode for the playback pipeline.
++ *
++ * - [STANDARD]: Default path with AudioProcessors (EQ, bass analysis, etc.)
++ * - [HARDWARE_OFFLOAD]: Compressed bitstream sent directly to hardware DSP, bypassing Android SRC.
++ * - [DIRECT_PCM]: Uncompressed PCM output with no AudioProcessors, closest to bit-perfect
++ *   when hardware offload is unavailable.
++ * - [USB_EXCLUSIVE]: PCM output directly to USB DAC via USB Host API, completely bypassing
++ *   AudioFlinger and system SRC for true bit-perfect output.
++ */
++internal enum class AudioOutputMode { STANDARD, HARDWARE_OFFLOAD, DIRECT_PCM, USB_EXCLUSIVE }
+ 
+ @UnstableApi
+ internal class PlaybackPlayerFactory(
+     private val context: Context,
+-    private val audioProcessor: AudioProcessor
++    private val audioProcessor: AudioProcessor,
++    private val audioOutputMode: AudioOutputMode = AudioOutputMode.STANDARD,
++    private val usbAudioSink: UsbExclusiveAudioSink? = null
+ ) {
+     companion object {
+         private const val TAG = "PlaybackPlayerFactory"
+@@ -32,11 +47,43 @@ internal class PlaybackPlayerFactory(
+                 enableFloatOutput: Boolean,
+                 enableAudioTrackPlaybackParams: Boolean
+             ): AudioSink {
+-                return DefaultAudioSink.Builder(context)
+-                    .setAudioProcessors(arrayOf(audioProcessor))
+-                    .setEnableFloatOutput(enableFloatOutput)
+-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+-                    .build()
++                return when (audioOutputMode) {
++                    AudioOutputMode.HARDWARE_OFFLOAD -> {
++                        // Bit-Perfect mode: enable hardware offload to bypass Android SRC.
++                        // No AudioProcessors are injected so the raw bitstream reaches the
++                        // hardware DSP directly without software resampling.
++                        val audioSink = DefaultAudioSink.Builder(context)
++                            .setAudioProcessors(emptyArray())
++                            .setEnableFloatOutput(true)
++                            .setEnableAudioTrackPlaybackParams(false)
++                            .build()
++                        audioSink.setOffloadMode(AudioSink.OFFLOAD_MODE_ENABLED_GAPLESS_REQUIRED)
++                        audioSink
++                    }
++                    AudioOutputMode.DIRECT_PCM -> {
++                        // Direct PCM path: no AudioProcessors, no offload.
++                        // AudioTrack outputs raw PCM at the source sample rate,
++                        // bypassing software mixing/resampling as much as possible.
++                        DefaultAudioSink.Builder(context)
++                            .setAudioProcessors(emptyArray())
++                            .setEnableFloatOutput(true)
++                            .setEnableAudioTrackPlaybackParams(false)
++                            .build()
++                    }
++                    AudioOutputMode.STANDARD -> {
++                        DefaultAudioSink.Builder(context)
++                            .setAudioProcessors(arrayOf(audioProcessor))
++                            .setEnableFloatOutput(enableFloatOutput)
++                            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
++                            .build()
++                    }
++                    AudioOutputMode.USB_EXCLUSIVE -> {
++                        // USB Exclusive: PCM directly to USB DAC, bypassing AudioFlinger entirely.
++                        usbAudioSink ?: throw IllegalStateException(
++                            "USB_EXCLUSIVE mode requires a UsbExclusiveAudioSink instance"
++                        )
++                    }
++                }
+             }
+         }
+         return ExoPlayer.Builder(context, renderersFactory)
+@@ -53,7 +100,6 @@ internal class PlaybackPlayerFactory(
+                     .build()
+             )
+             .setWakeMode(C.WAKE_MODE_LOCAL)
+-            .setHandleAudioBecomingNoisy(true)
+             .build()
+     }
+ 
+diff --git a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
+index 176bffec..bd3683cf 100644
+--- a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
++++ b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
+@@ -17,13 +17,14 @@ internal class PlaybackRuntimeStateManager(
+     private val stateProvider: StateProvider
+ ) {
+     private var replayGainEnabled = true
+-    private var concurrentPlaybackEnabled = false
+     private var playbackSpeed = 1.0f
+     private var appVolume = 1.0f
+     private var shuffleEnabled = false
+     private var repeatMode = REPEAT_ALL
+     private var preparing = false
+     private var errorMessage = ""
++    private var bitPerfectActive = false
++    private var lastDeferredAction: String? = null
+ 
+     interface StateProvider {
+         fun player(): ExoPlayer?
+@@ -32,29 +33,32 @@ internal class PlaybackRuntimeStateManager(
+     }
+ 
+     fun setReplayGainEnabled(enabled: Boolean) {
++        if (bitPerfectActive && enabled) {
++            lastDeferredAction = "ReplayGain"
++            return
++        }
+         replayGainEnabled = enabled
+         applyPlaybackParametersToPlayer()
+     }
+ 
+-    fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+-        concurrentPlaybackEnabled = enabled
+-        applyAudioFocusHandling()
+-    }
+-
+     fun replayGainEnabled(): Boolean {
+         return replayGainEnabled
+     }
+ 
+-    fun concurrentPlaybackEnabled(): Boolean {
+-        return concurrentPlaybackEnabled
+-    }
+-
+     fun setPlaybackSpeed(speed: Float) {
++        if (bitPerfectActive && speed != 1.0f) {
++            // Value is recorded but deferred until Bit-Perfect is disabled.
++            lastDeferredAction = "PlaybackSpeed"
++        }
+         playbackSpeed = normalizePlaybackSpeed(speed)
+         applyPlaybackParametersToPlayer()
+     }
+ 
+     fun setAppVolume(volume: Float) {
++        if (bitPerfectActive && volume != 1.0f) {
++            // Value is recorded but deferred until Bit-Perfect is disabled.
++            lastDeferredAction = "AppVolume"
++        }
+         appVolume = normalizeAppVolume(volume)
+         applyPlaybackParametersToPlayer()
+     }
+@@ -145,10 +149,22 @@ internal class PlaybackRuntimeStateManager(
+     }
+ 
+     fun applyPlaybackParametersToPlayer() {
++        if (bitPerfectActive) {
++            // Bit-Perfect mode: lock speed to 1.0x and volume to 1.0 to avoid
++            // triggering software mixing/SRC in the audio pipeline.
++            applyBitPerfectPlaybackParameters()
++            return
++        }
+         applyPlaybackSpeed()
+         applyAppVolume()
+     }
+ 
++    private fun applyBitPerfectPlaybackParameters() {
++        val player = stateProvider.player() ?: return
++        player.setPlaybackParameters(PlaybackParameters(1.0f))
++        player.setVolume(1.0f)
++    }
++
+     fun currentTrackVolume(): Float {
+         return normalizeAppVolume(
+             appVolume * replayGainMultiplierForTrack(
+@@ -167,19 +183,41 @@ internal class PlaybackRuntimeStateManager(
+         applyCurrentTrackVolumeToPlayer()
+     }
+ 
+-    fun applyAudioFocusHandling() {
++    /**
++     * Sets audio attributes for the player.
++     * Media3's internal focus management is permanently disabled (handleAudioFocus=false);
++     * focus is fully managed by [NativeAudioFocusController] via native AudioManager APIs.
++     */
++    fun applyAudioAttributes() {
+         val player = stateProvider.player() ?: return
+-        // Standard media focus is Android's long-lived audio-exclusivity contract. It asks
+-        // compatible media apps to pause or duck without interfering with calls/navigation.
+         player.setAudioAttributes(
+             AudioAttributes.Builder()
+                 .setUsage(C.USAGE_MEDIA)
+                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                 .build(),
+-            !concurrentPlaybackEnabled
++            false // Focus managed by NativeAudioFocusController, not Media3
+         )
+     }
+ 
++    fun setBitPerfectActive(active: Boolean) {
++        bitPerfectActive = active
++        if (!active) {
++            lastDeferredAction = null
++        }
++    }
++
++    fun bitPerfectActive(): Boolean {
++        return bitPerfectActive
++    }
++
++    /**
++     * Returns the last action that was deferred by Bit-Perfect guard, or null if none.
++     * Deferred values are stored internally and will apply when Bit-Perfect is disabled.
++     */
++    fun lastDeferredAction(): String? {
++        return if (bitPerfectActive) lastDeferredAction else null
++    }
++
+     fun replayGainMultiplierForTrack(enabled: Boolean, track: Track?): Float {
+         if (!enabled || track == null) {
+             return 1.0f
+diff --git a/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt b/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
+index fc2aa660..23f229b4 100644
+--- a/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
++++ b/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
+@@ -116,35 +116,6 @@ class PlaybackRuntimeStateManagerTest {
+         assertEquals(1.0f, player.volume, 0.0f)
+     }
+ 
+-    @Test
+-    fun concurrentPlaybackStateCanBeManaged() {
+-        val manager = PlaybackRuntimeStateManager(FakeStateProvider())
+-
+-        manager.setConcurrentPlaybackEnabled(true)
+-        assertTrue(manager.concurrentPlaybackEnabled())
+-    }
+-
+-    @Test
+-    fun concurrentPlaybackSetterAppliesAudioFocusHandling() {
+-        val player = RecordingExoPlayer()
+-        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
+-
+-        manager.setConcurrentPlaybackEnabled(true)
+-
+-        assertEquals(listOf("setAudioAttributes"), player.calls)
+-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
+-        assertEquals(false, player.handleAudioFocus)
+-
+-        player.calls.clear()
+-        manager.setConcurrentPlaybackEnabled(false)
+-
+-        assertEquals(listOf("setAudioAttributes"), player.calls)
+-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
+-        assertEquals(true, player.handleAudioFocus)
+-    }
+-
+     @Test
+     fun replayGainSetterAppliesCurrentVolumeToPlayer() {
+         val player = RecordingExoPlayer()
+diff --git a/feature/settings-ui/build.gradle b/feature/settings-ui/build.gradle
+index 5d67bed1..485af507 100644
+--- a/feature/settings-ui/build.gradle
++++ b/feature/settings-ui/build.gradle
+@@ -1,12 +1,11 @@
+ plugins {
+     alias(libs.plugins.android.library)
+-    alias(libs.plugins.kotlin.android)
+     alias(libs.plugins.kotlin.compose)
+ }
+ 
+ android {
+     namespace "app.yukine.feature.settingsui"
+-    compileSdk 35
++    compileSdk 37
+     defaultConfig { minSdk 23 }
+     compileOptions {
+         sourceCompatibility JavaVersion.VERSION_17
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+index 071aa7c3..1d393576 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+@@ -24,7 +24,6 @@ object SettingsBackStack {
+             SettingsPage.AudioEffects,
+             SettingsPage.ReplayGain,
+             SettingsPage.PlaybackRestore,
+-            SettingsPage.ConcurrentPlayback,
+             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
+ 
+             SettingsPage.Library,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
+index 14a0d1f4..13c4cf72 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
+@@ -11,7 +11,11 @@ interface SettingsPlaybackServiceControls {
+ 
+     fun setAppVolume(volume: Float)
+ 
+-    fun setConcurrentPlaybackEnabled(enabled: Boolean)
++    fun setAudioExclusiveEnabled(enabled: Boolean)
++
++    fun setBitPerfectEnabled(enabled: Boolean)
++
++    fun setUsbExclusiveEnabled(enabled: Boolean)
+ 
+     fun applyAudioEffectSettings(settings: AudioEffectSettings)
+ 
+@@ -51,6 +55,8 @@ interface SettingsFloatingLyricsControls {
+ 
+     fun updateTransparentBackground(enabled: Boolean): Boolean = false
+ 
++    fun updateTextColor(colorArgb: Int): Boolean = false
++
+     fun show(): Boolean = false
+ 
+     fun unlock(): Boolean = false
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+index 6ed3910c..d5f6ecb9 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+@@ -20,6 +20,8 @@ enum class SettingsEntryId {
+     ReplayGain,
+     PlaybackRestore,
+     AudioExclusive,
++    BitPerfect,
++    UsbExclusive,
+     SleepTimer,
+     LibraryScan,
+     ImportAudioFiles,
+@@ -165,7 +167,9 @@ object SettingsInformationArchitecture {
+         entry(SettingsEntryId.AudioEffects, SettingsCategoryId.PlaybackAudio, "audio.effects", "audio.effects.hint", EchoIconKind.Gauge, "equalizer", "eq", "\u5747\u8861\u5668", "\u97f3\u6548"),
+         entry(SettingsEntryId.ReplayGain, SettingsCategoryId.PlaybackAudio, "replay.gain", "replay.gain.hint", EchoIconKind.Gauge, "replaygain", "normalization", "\u97f3\u91cf\u5747\u8861"),
+         entry(SettingsEntryId.PlaybackRestore, SettingsCategoryId.PlaybackAudio, "playback.restore", "playback.restore.hint", EchoIconKind.Refresh, "queue restore", "\u6062\u590d\u961f\u5217"),
+-        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "\u97f3\u9891\u7126\u70b9"),
++        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "闊抽鐒︾偣"),
++        entry(SettingsEntryId.BitPerfect, SettingsCategoryId.PlaybackAudio, "bit.perfect", "bit.perfect.hint", EchoIconKind.Gauge, "bit-perfect", "src bypass", "缁曡繃SRC", "浣嶅畬缇?),
++        entry(SettingsEntryId.UsbExclusive, SettingsCategoryId.PlaybackAudio, "usb.exclusive", "usb.exclusive.hint", EchoIconKind.Gauge, "usb dac", "usb exclusive", "USB鐙崰", "澶栫疆瑙ｇ爜"),
+         entry(SettingsEntryId.SleepTimer, SettingsCategoryId.PlaybackAudio, "sleep.timer", "sleep.timer.description", EchoIconKind.Timer, "timer", "\u5b9a\u65f6"),
+ 
+         entryWithKeywords(SettingsEntryId.LibraryScan, SettingsCategoryId.LibraryMetadata, "scan.library", icon = EchoIconKind.Sync, keywords = arrayOf("rescan", "\u626b\u63cf")),
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt
+index acddf106..a8cac2d9 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt
+@@ -147,7 +147,6 @@ internal class SettingsMutationContext(
+         SettingsPreferenceKey.StreamingAudioQuality to preferences.streamingAudioQuality,
+         SettingsPreferenceKey.RefuseAutomaticQualityDowngrade to preferences.refuseAutomaticQualityDowngrade,
+         SettingsPreferenceKey.OnlineLyricsEnabled to runtime.onlineLyricsEnabled,
+-        SettingsPreferenceKey.ConcurrentPlaybackEnabled to preferences.concurrentPlaybackEnabled,
+         SettingsPreferenceKey.LyricsOffsetMs to runtime.lyricsOffsetMs,
+         SettingsPreferenceKey.AudioEffectSettings to preferences.audioEffectSettings,
+         SettingsPreferenceKey.StatusBarLyricsEnabled to preferences.statusBarLyricsEnabled,
+@@ -156,6 +155,9 @@ internal class SettingsMutationContext(
+         SettingsPreferenceKey.NowPlayingGesturesEnabled to preferences.nowPlayingGesturesEnabled,
+         SettingsPreferenceKey.PlaybackRestoreEnabled to preferences.playbackRestoreEnabled,
+         SettingsPreferenceKey.ReplayGainEnabled to preferences.replayGainEnabled,
++        SettingsPreferenceKey.AudioExclusiveEnabled to preferences.audioExclusiveEnabled,
++        SettingsPreferenceKey.BitPerfectEnabled to preferences.bitPerfectEnabled,
++        SettingsPreferenceKey.UsbExclusiveEnabled to preferences.usbExclusiveEnabled,
+         SettingsPreferenceKey.DebugPromptsEnabled to preferences.debugPromptsEnabled,
+         SettingsPreferenceKey.CustomBackgroundBlurEnabled to preferences.customBackgroundBlurEnabled,
+         SettingsPreferenceKey.CustomBackgroundBlurRadiusDp to preferences.customBackgroundBlurRadiusDp,
+@@ -179,7 +181,6 @@ internal class SettingsMutationContext(
+             SettingsPreferenceKey.StreamingAudioQuality -> state.preferences.streamingAudioQuality
+             SettingsPreferenceKey.RefuseAutomaticQualityDowngrade -> state.preferences.refuseAutomaticQualityDowngrade
+             SettingsPreferenceKey.OnlineLyricsEnabled -> state.runtime.onlineLyricsEnabled
+-            SettingsPreferenceKey.ConcurrentPlaybackEnabled -> state.preferences.concurrentPlaybackEnabled
+             SettingsPreferenceKey.LyricsOffsetMs -> state.runtime.lyricsOffsetMs
+             SettingsPreferenceKey.AudioEffectSettings -> state.preferences.audioEffectSettings
+             SettingsPreferenceKey.StatusBarLyricsEnabled -> state.preferences.statusBarLyricsEnabled
+@@ -188,6 +189,9 @@ internal class SettingsMutationContext(
+             SettingsPreferenceKey.NowPlayingGesturesEnabled -> state.preferences.nowPlayingGesturesEnabled
+             SettingsPreferenceKey.PlaybackRestoreEnabled -> state.preferences.playbackRestoreEnabled
+             SettingsPreferenceKey.ReplayGainEnabled -> state.preferences.replayGainEnabled
++            SettingsPreferenceKey.AudioExclusiveEnabled -> state.preferences.audioExclusiveEnabled
++            SettingsPreferenceKey.BitPerfectEnabled -> state.preferences.bitPerfectEnabled
++            SettingsPreferenceKey.UsbExclusiveEnabled -> state.preferences.usbExclusiveEnabled
+             SettingsPreferenceKey.DebugPromptsEnabled -> state.preferences.debugPromptsEnabled
+             SettingsPreferenceKey.CustomBackgroundBlurEnabled -> state.preferences.customBackgroundBlurEnabled
+             SettingsPreferenceKey.CustomBackgroundBlurRadiusDp -> state.preferences.customBackgroundBlurRadiusDp
+@@ -223,8 +227,6 @@ internal class SettingsMutationContext(
+             SettingsPreferenceKey.RefuseAutomaticQualityDowngrade ->
+                 preferences = preferences.copy(refuseAutomaticQualityDowngrade = value as Boolean)
+             SettingsPreferenceKey.OnlineLyricsEnabled -> runtime = runtime.copy(onlineLyricsEnabled = value as Boolean)
+-            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
+-                preferences = preferences.copy(concurrentPlaybackEnabled = value as Boolean)
+             SettingsPreferenceKey.LyricsOffsetMs -> runtime = runtime.copy(lyricsOffsetMs = value as Long)
+             SettingsPreferenceKey.AudioEffectSettings ->
+                 preferences = preferences.copy(audioEffectSettings = value as AudioEffectSettings)
+@@ -240,6 +242,12 @@ internal class SettingsMutationContext(
+                 preferences = preferences.copy(playbackRestoreEnabled = value as Boolean)
+             SettingsPreferenceKey.ReplayGainEnabled ->
+                 preferences = preferences.copy(replayGainEnabled = value as Boolean)
++            SettingsPreferenceKey.AudioExclusiveEnabled ->
++                preferences = preferences.copy(audioExclusiveEnabled = value as Boolean)
++            SettingsPreferenceKey.BitPerfectEnabled ->
++                preferences = preferences.copy(bitPerfectEnabled = value as Boolean)
++            SettingsPreferenceKey.UsbExclusiveEnabled ->
++                preferences = preferences.copy(usbExclusiveEnabled = value as Boolean)
+             SettingsPreferenceKey.DebugPromptsEnabled ->
+                 preferences = preferences.copy(debugPromptsEnabled = value as Boolean)
+             SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
+@@ -263,8 +271,6 @@ internal class SettingsMutationContext(
+             SettingsPreferenceKey.PlaybackSpeed -> applyRuntime(SettingsRuntimeEffect.ApplyPlaybackSpeed(preferences.playbackSpeed))
+             SettingsPreferenceKey.AppVolume -> applyRuntime(SettingsRuntimeEffect.ApplyAppVolume(preferences.appVolume))
+             SettingsPreferenceKey.OnlineLyricsEnabled -> applyRuntime(SettingsRuntimeEffect.SetOnlineLyricsEnabled(runtime.onlineLyricsEnabled))
+-            SettingsPreferenceKey.ConcurrentPlaybackEnabled ->
+-                applyRuntime(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(preferences.concurrentPlaybackEnabled))
+             SettingsPreferenceKey.AudioEffectSettings -> applyRuntime(SettingsRuntimeEffect.ApplyAudioEffects(preferences.audioEffectSettings))
+             SettingsPreferenceKey.StatusBarLyricsEnabled ->
+                 applyRuntime(SettingsRuntimeEffect.SetStatusBarLyrics(preferences.statusBarLyricsEnabled))
+@@ -276,6 +282,12 @@ internal class SettingsMutationContext(
+                 applyRuntime(SettingsRuntimeEffect.SetPlaybackRestoreEnabled(preferences.playbackRestoreEnabled))
+             SettingsPreferenceKey.ReplayGainEnabled ->
+                 applyRuntime(SettingsRuntimeEffect.SetReplayGainEnabled(preferences.replayGainEnabled))
++            SettingsPreferenceKey.AudioExclusiveEnabled ->
++                applyRuntime(SettingsRuntimeEffect.SetAudioExclusiveEnabled(preferences.audioExclusiveEnabled))
++            SettingsPreferenceKey.BitPerfectEnabled ->
++                applyRuntime(SettingsRuntimeEffect.SetBitPerfectEnabled(preferences.bitPerfectEnabled))
++            SettingsPreferenceKey.UsbExclusiveEnabled ->
++                applyRuntime(SettingsRuntimeEffect.SetUsbExclusiveEnabled(preferences.usbExclusiveEnabled))
+             SettingsPreferenceKey.LyricsOffsetMs -> applyRuntime(SettingsRuntimeEffect.SetLyricsOffsetMs(runtime.lyricsOffsetMs))
+             else -> Unit
+         }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+index 33f8e0c1..89568e38 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+@@ -27,7 +27,6 @@ sealed class SettingsPage(
+     data object StreamingAudioQuality : SettingsPage(MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
+     data object ShareStyle : SettingsPage(MainRoutes.SETTINGS_SHARE_STYLE)
+     data object Downloads : SettingsPage(MainRoutes.SETTINGS_DOWNLOADS)
+-    data object ConcurrentPlayback : SettingsPage(MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
+     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
+     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
+     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
+@@ -60,7 +59,6 @@ sealed class SettingsPage(
+                 MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> StreamingAudioQuality
+                 MainRoutes.SETTINGS_SHARE_STYLE -> ShareStyle
+                 MainRoutes.SETTINGS_DOWNLOADS -> Downloads
+-                MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> ConcurrentPlayback
+                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
+                 MainRoutes.SETTINGS_LYRICS -> Lyrics
+                 MainRoutes.SETTINGS_LIBRARY -> Library
+@@ -98,7 +96,6 @@ sealed class SettingsPage(
+                 StreamingAudioQuality,
+                 ShareStyle,
+                 Downloads,
+-                ConcurrentPlayback,
+                 SleepTimer,
+                 Lyrics,
+                 Library,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+index fc67dffd..bfe7fc18 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+@@ -64,11 +64,13 @@ internal object SettingsPageContentFactory {
+                     languageMode,
+                     preferences.playbackSpeed,
+                     preferences.appVolume,
+-                    preferences.concurrentPlaybackEnabled,
+                     preferences.audioEffectSettings,
+                     preferences.playbackRestoreEnabled,
+                     preferences.replayGainEnabled,
+-                    runtime.sleepTimerRemainingMs,
++                    audioExclusiveEnabled = preferences.audioExclusiveEnabled,
++                    bitPerfectEnabled = preferences.bitPerfectEnabled,
++                    usbExclusiveEnabled = preferences.usbExclusiveEnabled,
++                    remainingMs = runtime.sleepTimerRemainingMs,
+                     onNavigate = { nextPage -> onNavigate(nextPage) },
+                     onReplayGainEnabledChange = { enabled ->
+                         playback.setReplayGainEnabled(enabled)
+@@ -78,6 +80,12 @@ internal object SettingsPageContentFactory {
+                     },
+                     onAudioExclusiveEnabledChange = { enabled ->
+                         playback.setAudioExclusiveEnabled(enabled)
++                    },
++                    onBitPerfectEnabledChange = { enabled ->
++                        playback.setBitPerfectEnabled(enabled)
++                    },
++                    onUsbExclusiveEnabledChange = { enabled ->
++                        playback.setUsbExclusiveEnabled(enabled)
+                     }
+                 )
+             SettingsPage.LibraryGroup,
+@@ -274,13 +282,6 @@ internal object SettingsPageContentFactory {
+                     onNavigate = ::navigateSettingsPage,
+                     onApplyStyle = { style -> appearance.applyShareStyle(style) }
+                 )
+-            SettingsPage.ConcurrentPlayback ->
+-                SettingsPageStateBuilder.audioExclusive(
+-                    languageMode,
+-                    !preferences.concurrentPlaybackEnabled,
+-                    onNavigate = ::navigateSettingsPage,
+-                    onToggle = { enabled -> playback.setAudioExclusiveEnabled(enabled) }
+-                )
+             SettingsPage.SleepTimer ->
+                 SettingsPageStateBuilder.sleepTimer(
+                     languageMode,
+@@ -329,6 +330,7 @@ internal object SettingsPageContentFactory {
+                     runtime.floatingLyricsWidthPercent,
+                     runtime.floatingLyricsBackgroundOpacityPercent,
+                     runtime.floatingLyricsTransparentBackground,
++                    runtime.floatingLyricsTextColorArgb,
+                     onNavigate = ::navigateSettingsPage,
+                     onOpenPermission = { platform.openFloatingLyricsPermission() },
+                     onToggle = { enabled -> lyrics.setFloatingLyricsEnabled(enabled) },
+@@ -340,6 +342,7 @@ internal object SettingsPageContentFactory {
+                     onTransparentBackgroundChange = { value ->
+                         lyrics.setFloatingLyricsTransparentBackground(value)
+                     },
++                    onTextColorChange = { color -> lyrics.setFloatingLyricsTextColor(color) },
+                     onShow = { lyrics.showFloatingLyrics() },
+                     onUnlock = { lyrics.unlockFloatingLyrics() },
+                     onReset = { lyrics.resetFloatingLyricsLayout() }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+index e6c4c9e2..cb053866 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+@@ -637,15 +637,21 @@ object SettingsPageStateBuilder {
+         languageMode: String,
+         playbackSpeed: Float,
+         appVolume: Float,
+-        concurrentPlaybackEnabled: Boolean,
+         audioEffects: AudioEffectSettings,
+         playbackRestoreEnabled: Boolean,
+         replayGainEnabled: Boolean,
++        audioExclusiveEnabled: Boolean,
++        bitPerfectEnabled: Boolean,
++        usbExclusiveEnabled: Boolean = false,
+         remainingMs: Long,
+         onNavigate: (SettingsPage) -> Unit,
+         onReplayGainEnabledChange: (Boolean) -> Unit = {},
+         onPlaybackRestoreEnabledChange: (Boolean) -> Unit = {},
+-        onAudioExclusiveEnabledChange: (Boolean) -> Unit = {}
++        onAudioExclusiveEnabledChange: (Boolean) -> Unit = {},
++        onBitPerfectEnabledChange: (Boolean) -> Unit = {},
++        onUsbExclusiveEnabledChange: (Boolean) -> Unit = {},
++        bitPerfectStatusDescription: String? = null,
++        usbExclusiveStatusDescription: String? = null
+     ): SettingsPageStateContent {
+         val metrics = listOf(
+             SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)),
+@@ -653,7 +659,9 @@ object SettingsPageStateBuilder {
+             SettingsMetric(text(languageMode, "audio.effects"), audioEffectsLabel(audioEffects, languageMode)),
+             SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(replayGainEnabled, languageMode)),
+             SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(playbackRestoreEnabled, languageMode)),
+-            SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(!concurrentPlaybackEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(audioExclusiveEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "bit.perfect"), enabledLabel(bitPerfectEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "usb.exclusive"), enabledLabel(usbExclusiveEnabled, languageMode)),
+             SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode))
+         )
+         val actions = listOf(
+@@ -710,14 +718,37 @@ object SettingsPageStateBuilder {
+             ),
+             SettingsAction(
+                 label = text(languageMode, "audio.exclusive"),
+-                onClick = Runnable { onAudioExclusiveEnabledChange(concurrentPlaybackEnabled) },
+-                description = text(languageMode, "audio.exclusive.hint"),
++                onClick = Runnable { onAudioExclusiveEnabledChange(!audioExclusiveEnabled) },
++                description = if (audioExclusiveEnabled)
++                    "鎶㈠崰鐒︾偣锛屽叾浠栧簲鐢ㄦ挱鏀炬椂鑷姩澶哄洖"
++                else
++                    "鏍囧噯琛屼负锛岀劍鐐逛涪澶辨椂鏆傚仠",
+                 style = SettingsActionStyle.Toggle,
+                 icon = EchoIconKind.Gauge,
+-                checked = !concurrentPlaybackEnabled,
++                checked = audioExclusiveEnabled,
+                 section = text(languageMode, "settings.section.behavior"),
+                 entryId = SettingsEntryId.AudioExclusive
+             ),
++            SettingsAction(
++                label = text(languageMode, "bit.perfect"),
++                onClick = Runnable { onBitPerfectEnabledChange(!bitPerfectEnabled) },
++                description = bitPerfectStatusDescription ?: text(languageMode, "bit.perfect.hint"),
++                style = SettingsActionStyle.Toggle,
++                icon = EchoIconKind.Gauge,
++                checked = bitPerfectEnabled,
++                section = text(languageMode, "settings.section.behavior"),
++                entryId = SettingsEntryId.BitPerfect
++            ),
++            SettingsAction(
++                label = text(languageMode, "usb.exclusive"),
++                onClick = Runnable { onUsbExclusiveEnabledChange(!usbExclusiveEnabled) },
++                description = usbExclusiveStatusDescription ?: text(languageMode, "usb.exclusive.hint"),
++                style = SettingsActionStyle.Toggle,
++                icon = EchoIconKind.Gauge,
++                checked = usbExclusiveEnabled,
++                section = text(languageMode, "settings.section.behavior"),
++                entryId = SettingsEntryId.UsbExclusive
++            ),
+             navigationAction(
+                 text(languageMode, "sleep.timer"),
+                 SettingsPage.SleepTimer,
+@@ -892,23 +923,6 @@ object SettingsPageStateBuilder {
+         return buildContent(text(languageMode, "page.background"), metrics, actions)
+     }
+ 
+-    fun audioExclusive(
+-        languageMode: String,
+-        enabled: Boolean,
+-        onNavigate: (SettingsPage) -> Unit,
+-        onToggle: (Boolean) -> Unit
+-    ): SettingsPageStateContent = booleanLeafPage(
+-        languageMode = languageMode,
+-        currentPage = SettingsPage.ConcurrentPlayback,
+-        titleKey = "audio.exclusive",
+-        descriptionKey = "audio.exclusive.description",
+-        enableKey = "enable.audio.exclusive",
+-        disableKey = "disable.audio.exclusive",
+-        enabled = enabled,
+-        onNavigate = onNavigate,
+-        onToggle = onToggle
+-    )
+-
+     fun nowPlayingGestures(
+         languageMode: String,
+         enabled: Boolean,
+@@ -1082,6 +1096,7 @@ object SettingsPageStateBuilder {
+         widthPercent: Int,
+         backgroundOpacityPercent: Int,
+         transparentBackground: Boolean,
++        textColorArgb: Int,
+         onNavigate: (SettingsPage) -> Unit,
+         onOpenPermission: () -> Unit,
+         onToggle: (Boolean) -> Unit,
+@@ -1089,6 +1104,7 @@ object SettingsPageStateBuilder {
+         onWidthChange: (Int) -> Unit,
+         onBackgroundOpacityChange: (Int) -> Unit,
+         onTransparentBackgroundChange: (Boolean) -> Unit,
++        onTextColorChange: (Int) -> Unit,
+         onShow: () -> Unit,
+         onUnlock: () -> Unit,
+         onReset: () -> Unit
+@@ -1202,6 +1218,25 @@ object SettingsPageStateBuilder {
+                     section = text(languageMode, "floating.lyrics.section.appearance")
+                 )
+             )
++            val colorPresets = listOf(
++                0xFFF8FBFF.toInt() to "floating.lyrics.color.white",
++                0xFF7FDBFF.toInt() to "floating.lyrics.color.cyan",
++                0xFFFF9EC4.toInt() to "floating.lyrics.color.pink",
++                0xFFFFD700.toInt() to "floating.lyrics.color.gold",
++                0xFF98FB98.toInt() to "floating.lyrics.color.green"
++            )
++            for ((color, labelKey) in colorPresets) {
++                add(
++                    SettingsAction(
++                        label = text(languageMode, labelKey),
++                        onClick = Runnable { onTextColorChange(color) },
++                        style = SettingsActionStyle.Choice,
++                        icon = EchoIconKind.Palette,
++                        checked = textColorArgb == color,
++                        section = text(languageMode, "floating.lyrics.section.text.color")
++                    )
++                )
++            }
+             add(
+                 SettingsAction(
+                     label = text(languageMode, "floating.lyrics.show"),
+@@ -1996,7 +2031,7 @@ object SettingsPageStateBuilder {
+         SettingsPage.AdvancedTheme -> EchoIconKind.Sparkle
+         SettingsPage.Accent -> EchoIconKind.Swatch
+         SettingsPage.Language -> EchoIconKind.Language
+-        SettingsPage.PlaybackGroup, SettingsPage.AudioEffects, SettingsPage.ConcurrentPlayback,
++        SettingsPage.PlaybackGroup, SettingsPage.AudioEffects,
+         SettingsPage.PlaybackSpeed -> EchoIconKind.Gauge
+         SettingsPage.AppVolume -> EchoIconKind.Volume
+         SettingsPage.LyricsGroup, SettingsPage.Lyrics, SettingsPage.StatusBarLyrics -> EchoIconKind.Lyrics
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
+index e15bfff8..5a500727 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateOwners.kt
+@@ -160,31 +160,6 @@ class PlaybackSettingsStateOwner internal constructor(private val context: Setti
+         context.save(SettingsPreferenceKey.RefuseAutomaticQualityDowngrade, refuse)
+     }
+ 
+-    fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+-        val status = context.currentStatus()
+-        updateConcurrentPlaybackEnabled(
+-            enabled,
+-            if (enabled) status.concurrentPlaybackEnabled else status.concurrentPlaybackDisabled
+-        )
+-    }
+-
+-    fun setAudioExclusiveEnabled(enabled: Boolean) {
+-        updateConcurrentPlaybackEnabled(
+-            !enabled,
+-            AppLanguage.text(
+-                context.state().preferences.languageMode,
+-                if (enabled) "audio.exclusive.enabled" else "audio.exclusive.disabled"
+-            )
+-        )
+-    }
+-
+-    private fun updateConcurrentPlaybackEnabled(enabled: Boolean, status: String) {
+-        context.applyRuntime(SettingsRuntimeEffect.SetConcurrentPlaybackEnabled(enabled))
+-        context.updatePreferences { it.copy(concurrentPlaybackEnabled = enabled) }
+-        context.emitStatus(status)
+-        context.save(SettingsPreferenceKey.ConcurrentPlaybackEnabled, enabled)
+-    }
+-
+     fun applyAudioEffectSettings(settings: AudioEffectSettings) {
+         context.applyRuntime(SettingsRuntimeEffect.ApplyAudioEffects(settings))
+         context.updatePreferences { it.copy(audioEffectSettings = settings) }
+@@ -215,6 +190,26 @@ class PlaybackSettingsStateOwner internal constructor(private val context: Setti
+         context.save(SettingsPreferenceKey.ReplayGainEnabled, enabled)
+     }
+ 
++    fun setAudioExclusiveEnabled(enabled: Boolean) {
++        context.applyRuntime(SettingsRuntimeEffect.SetAudioExclusiveEnabled(enabled))
++        context.updatePreferences { it.copy(audioExclusiveEnabled = enabled) }
++        val status = context.currentStatus()
++        context.emitStatus(if (enabled) status.audioExclusiveEnabled else status.audioExclusiveDisabled)
++        context.save(SettingsPreferenceKey.AudioExclusiveEnabled, enabled)
++    }
++
++    fun setBitPerfectEnabled(enabled: Boolean) {
++        context.applyRuntime(SettingsRuntimeEffect.SetBitPerfectEnabled(enabled))
++        context.updatePreferences { it.copy(bitPerfectEnabled = enabled) }
++        context.save(SettingsPreferenceKey.BitPerfectEnabled, enabled)
++    }
++
++    fun setUsbExclusiveEnabled(enabled: Boolean) {
++        context.applyRuntime(SettingsRuntimeEffect.SetUsbExclusiveEnabled(enabled))
++        context.updatePreferences { it.copy(usbExclusiveEnabled = enabled) }
++        context.save(SettingsPreferenceKey.UsbExclusiveEnabled, enabled)
++    }
++
+     fun startSleepTimer(minutes: Int) {
+         context.emit(SettingsEffect.StartSleepTimer(minutes))
+     }
+@@ -342,6 +337,11 @@ class LyricsSettingsStateOwner internal constructor(private val context: Setting
+         context.updateRuntime { it.copy(floatingLyricsTransparentBackground = enabled) }
+     }
+ 
++    fun setFloatingLyricsTextColor(colorArgb: Int) {
++        context.applyRuntime(SettingsRuntimeEffect.UpdateFloatingLyricsTextColor(colorArgb))
++        context.updateRuntime { it.copy(floatingLyricsTextColorArgb = colorArgb) }
++    }
++
+     fun showFloatingLyrics() {
+         context.applyRuntime(SettingsRuntimeEffect.ShowFloatingLyrics)
+         context.updateRuntime { it.copy(floatingLyricsRuntimeStatus = "Waiting") }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
+index 41d76b4f..bec8954c 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
+@@ -9,7 +9,6 @@ enum class SettingsPreferenceKey {
+     StreamingAudioQuality,
+     RefuseAutomaticQualityDowngrade,
+     OnlineLyricsEnabled,
+-    ConcurrentPlaybackEnabled,
+     LyricsOffsetMs,
+     AudioEffectSettings,
+     StatusBarLyricsEnabled,
+@@ -18,6 +17,7 @@ enum class SettingsPreferenceKey {
+     NowPlayingGesturesEnabled,
+     PlaybackRestoreEnabled,
+     ReplayGainEnabled,
++    AudioExclusiveEnabled,
+     DebugPromptsEnabled,
+     CustomBackgroundBlurEnabled,
+     CustomBackgroundBlurRadiusDp,
+@@ -27,7 +27,9 @@ enum class SettingsPreferenceKey {
+     CompactSettingsCards,
+     HomeDashboardLayout,
+     ShareStyle,
+-    PageBackgrounds
++    PageBackgrounds,
++    BitPerfectEnabled,
++    UsbExclusiveEnabled
+ }
+ 
+ data class SettingsPreferenceUpdate(
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt
+index 15de9125..fd862b71 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt
+@@ -7,7 +7,9 @@ sealed interface SettingsRuntimeEffect {
+     data class RefreshCustomBackgroundAccent(val backgrounds: PageBackgrounds) : SettingsRuntimeEffect
+     data class ApplyPlaybackSpeed(val speed: Float) : SettingsRuntimeEffect
+     data class ApplyAppVolume(val volume: Float) : SettingsRuntimeEffect
+-    data class SetConcurrentPlaybackEnabled(val enabled: Boolean) : SettingsRuntimeEffect
++    data class SetAudioExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
++    data class SetBitPerfectEnabled(val enabled: Boolean) : SettingsRuntimeEffect
++    data class SetUsbExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+     data class ApplyAudioEffects(val settings: AudioEffectSettings) : SettingsRuntimeEffect
+     data class SetStatusBarLyrics(val enabled: Boolean) : SettingsRuntimeEffect
+     data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+@@ -17,6 +19,7 @@ sealed interface SettingsRuntimeEffect {
+     data class UpdateFloatingLyricsWidth(val widthPercent: Int) : SettingsRuntimeEffect
+     data class UpdateFloatingLyricsBackgroundOpacity(val opacityPercent: Int) : SettingsRuntimeEffect
+     data class UpdateFloatingLyricsTransparentBackground(val enabled: Boolean) : SettingsRuntimeEffect
++    data class UpdateFloatingLyricsTextColor(val colorArgb: Int) : SettingsRuntimeEffect
+     data object ShowFloatingLyrics : SettingsRuntimeEffect
+     data object UnlockFloatingLyrics : SettingsRuntimeEffect
+     data object ResetFloatingLyricsLayout : SettingsRuntimeEffect
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
+index 3fb6f3e9..eff4009b 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
+@@ -24,8 +24,6 @@ object SettingsStatusTextFactory {
+                 SettingsLabelFormatter.appVolumeLabel(appVolume),
+             onlineLyricsEnabled = AppLanguage.text(language, "online.lyrics.enabled"),
+             onlineLyricsDisabled = AppLanguage.text(language, "online.lyrics.disabled"),
+-            concurrentPlaybackEnabled = AppLanguage.text(language, "concurrent.playback.enabled"),
+-            concurrentPlaybackDisabled = AppLanguage.text(language, "concurrent.playback.disabled"),
+             lyricsOffsetApplied = AppLanguage.text(language, "lyrics.offset.applied") +
+                 SettingsLabelFormatter.lyricsOffsetLabel(lyricsOffsetMs),
+             audioEffectsApplied = AppLanguage.text(language, "audio.effects.applied"),
+@@ -40,6 +38,8 @@ object SettingsStatusTextFactory {
+             playbackRestoreDisabled = AppLanguage.text(language, "playback.restore.disabled"),
+             replayGainEnabled = AppLanguage.text(language, "replay.gain.enabled"),
+             replayGainDisabled = AppLanguage.text(language, "replay.gain.disabled"),
++            audioExclusiveEnabled = AppLanguage.text(language, "audio.exclusive.enabled"),
++            audioExclusiveDisabled = AppLanguage.text(language, "audio.exclusive.disabled"),
+             shareStyleApplied = AppLanguage.text(language, "share.style.applied"),
+             pageBackgroundApplied = AppLanguage.text(language, "page.background.applied"),
+             pageBackgroundCleared = AppLanguage.text(language, "page.background.cleared")
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
+index 22d99253..da24d44a 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsViewModel.kt
+@@ -51,7 +51,6 @@ data class SettingsPreferencesSnapshot(
+     val appVolume: Float = 1.0f,
+     val streamingAudioQuality: String = StreamingQualityPreference.defaultValue(),
+     val refuseAutomaticQualityDowngrade: Boolean = false,
+-    val concurrentPlaybackEnabled: Boolean = false,
+     val audioEffectSettings: AudioEffectSettings = AudioEffectSettings.DEFAULT,
+     val statusBarLyricsEnabled: Boolean = true,
+     val systemMediaLyricsTitleEnabled: Boolean = false,
+@@ -59,6 +58,9 @@ data class SettingsPreferencesSnapshot(
+     val nowPlayingGesturesEnabled: Boolean = true,
+     val playbackRestoreEnabled: Boolean = true,
+     val replayGainEnabled: Boolean = true,
++    val audioExclusiveEnabled: Boolean = true,
++    val bitPerfectEnabled: Boolean = false,
++    val usbExclusiveEnabled: Boolean = false,
+     val debugPromptsEnabled: Boolean = false,
+     val customBackgroundBlurEnabled: Boolean = false,
+     val customBackgroundBlurRadiusDp: Float = app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP,
+@@ -81,6 +83,7 @@ data class RuntimeSettingsStatus(
+     val floatingLyricsWidthPercent: Int = 88,
+     val floatingLyricsBackgroundOpacityPercent: Int = 92,
+     val floatingLyricsTransparentBackground: Boolean = false,
++    val floatingLyricsTextColorArgb: Int = 0xFFF8FBFF.toInt(),
+     val playbackServiceConnected: Boolean = false,
+     val sleepTimerRemainingMs: Long = 0L,
+     val lyricsOffsetMs: Long = 0L,
+@@ -181,8 +184,6 @@ data class SettingsAppliedStatusText(
+     val appVolumeApplied: String = "",
+     val onlineLyricsEnabled: String = "",
+     val onlineLyricsDisabled: String = "",
+-    val concurrentPlaybackEnabled: String = "",
+-    val concurrentPlaybackDisabled: String = "",
+     val lyricsOffsetApplied: String = "",
+     val audioEffectsApplied: String = "",
+     val statusBarLyricsEnabled: String = "",
+@@ -196,6 +197,8 @@ data class SettingsAppliedStatusText(
+     val playbackRestoreDisabled: String = "",
+     val replayGainEnabled: String = "",
+     val replayGainDisabled: String = "",
++    val audioExclusiveEnabled: String = "",
++    val audioExclusiveDisabled: String = "",
+     val shareStyleApplied: String = "",
+     val pageBackgroundApplied: String = "",
+     val pageBackgroundCleared: String = ""

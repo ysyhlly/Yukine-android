@@ -1546,6 +1546,90 @@ class LibraryRepositoryTest {
         assertEquals(hanserArtist.artistUuid, rescannedArtist.artistUuid)
     }
 
+    @Test
+    fun incrementalReplacePreservesUnchangedTracks() {
+        val first = track(300L, "First", "/music/first.flac")
+        val second = track(301L, "Second", "/music/second.flac")
+        repository.upsertTracks(listOf(first, second))
+        val before = repository.loadTracks().associateBy { it.id }
+
+        // Re-scan with identical metadata: nothing should be rewritten
+        repository.replaceScanManagedTracksIncremental(listOf(first, second))
+
+        val after = repository.loadTracks().associateBy { it.id }
+        assertEquals(before.keys, after.keys)
+        // Unchanged tracks should not have been deleted+recreated
+        assertEquals(2, after.size)
+    }
+
+    @Test
+    fun incrementalReplaceRemovesDeletedTracks() {
+        val kept = track(310L, "Kept", "/music/kept.flac")
+        val removed = track(311L, "Removed", "/music/removed.flac")
+        repository.upsertTracks(listOf(kept, removed))
+
+        repository.replaceScanManagedTracksIncremental(listOf(kept))
+
+        val remaining = repository.loadTracks()
+        assertEquals(listOf(kept.id), remaining.map { it.id })
+    }
+
+    @Test
+    fun incrementalReplaceUpsertsNewAndChangedTracks() {
+        val original = track(320L, "Original", "/music/song.flac")
+        repository.upsertTracks(listOf(original))
+
+        val renamed = Track(
+            original.id, "Renamed", original.artist, original.album,
+            original.durationMs, original.contentUri, original.dataPath,
+            original.albumId, original.albumArtUri
+        )
+        val added = track(321L, "Added", "/music/added.flac")
+
+        repository.replaceScanManagedTracksIncremental(listOf(renamed, added))
+
+        val tracks = repository.loadTracks().associateBy { it.id }
+        assertEquals(2, tracks.size)
+        assertEquals("Renamed", tracks[320L]?.title)
+        assertEquals("Added", tracks[321L]?.title)
+    }
+
+    @Test
+    fun incrementalReplacePreservesAudioSpecs() {
+        val original = track(330L, "Song", "/music/song.flac")
+        repository.upsertTracks(listOf(original))
+        // Simulate audio spec enrichment
+        val enriched = Track(
+            original.id, original.title, original.artist, original.album,
+            original.durationMs, original.contentUri, original.dataPath,
+            original.albumId, original.albumArtUri,
+            "flac", 1411, 96_000, 24, 2
+        )
+        repository.upsertTracks(listOf(enriched))
+
+        // Re-scan with same metadata but no audio specs (as scanner produces)
+        repository.replaceScanManagedTracksIncremental(listOf(original))
+
+        val stored = repository.loadTracks().single { it.id == 330L }
+        assertEquals("flac", stored.codec)
+        assertEquals(1411, stored.bitrateKbps)
+        assertEquals(96_000, stored.sampleRateHz)
+    }
+
+    @Test
+    fun incrementalReplaceFallsBackToFullReplaceOnMassRemoval() {
+        val tracks = (1..10).map { track(it.toLong(), "Track $it", "/music/$it.flac") }
+        repository.upsertTracks(tracks)
+
+        // Simulate a scan that "sees" only 2 tracks (e.g. permission loss)
+        // This should trigger the safety fallback to full replacement
+        repository.replaceScanManagedTracksIncremental(tracks.take(2))
+
+        // Full replacement still writes the 2 tracks
+        val remaining = repository.loadTracks()
+        assertEquals(2, remaining.size)
+    }
+
     private fun track(
         id: Long,
         title: String = "Track $id",

@@ -5,7 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -53,6 +56,24 @@ internal class FloatingLyricsOverlayView(
         maxLines = 2
         ellipsize = TextUtils.TruncateAt.END
         contentDescription = context.getString(R.string.floating_lyrics_interaction_hint)
+        typeface = ResourcesCompat.getFont(context, R.font.noto_sans_cjk_sc_regular)
+            ?: Typeface.create("sans-serif", Typeface.NORMAL)
+    }
+
+    val romanizationView: TextView = TextView(context).apply {
+        gravity = Gravity.CENTER
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+        visibility = View.GONE
+        typeface = ResourcesCompat.getFont(context, R.font.noto_sans_cjk_sc_regular)
+            ?: Typeface.create("sans-serif", Typeface.NORMAL)
+    }
+
+    val translationView: TextView = TextView(context).apply {
+        gravity = Gravity.CENTER
+        maxLines = 2
+        ellipsize = TextUtils.TruncateAt.END
+        visibility = View.GONE
         typeface = ResourcesCompat.getFont(context, R.font.noto_sans_cjk_sc_regular)
             ?: Typeface.create("sans-serif", Typeface.NORMAL)
     }
@@ -118,6 +139,20 @@ internal class FloatingLyricsOverlayView(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
+        compactSurface.addView(
+            romanizationView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+        compactSurface.addView(
+            translationView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
         root.addView(
             compactSurface,
             LinearLayout.LayoutParams(
@@ -141,7 +176,9 @@ internal class FloatingLyricsOverlayView(
         state: FloatingLyricsState,
         artwork: Bitmap?
     ) {
-        if (lyricsView.text?.toString() != state.activeLine) {
+        if (state.activeLineWords.isNotEmpty()) {
+            lyricsView.text = buildKaraokeSpannable(state)
+        } else if (lyricsView.text?.toString() != state.activeLine) {
             lyricsView.text = state.activeLine
         }
         titleView.text = state.trackTitle.ifBlank {
@@ -159,6 +196,74 @@ internal class FloatingLyricsOverlayView(
         playPauseButton.contentDescription = context.getString(
             if (state.playing) R.string.pause else R.string.play
         )
+        if (state.activeRomanization.isNotBlank()) {
+            romanizationView.visibility = View.VISIBLE
+            if (romanizationView.text?.toString() != state.activeRomanization) {
+                romanizationView.text = state.activeRomanization
+            }
+        } else {
+            romanizationView.visibility = View.GONE
+        }
+        if (state.activeTranslation.isNotBlank()) {
+            translationView.visibility = View.VISIBLE
+            if (translationView.text?.toString() != state.activeTranslation) {
+                translationView.text = state.activeTranslation
+            }
+        } else {
+            translationView.visibility = View.GONE
+        }
+    }
+
+    private fun buildKaraokeSpannable(state: FloatingLyricsState): SpannableString {
+        val text = state.activeLine
+        val spannable = SpannableString(text)
+        val positionMs = state.linePositionMs
+        val baseColor = settings.textColorArgb
+        val accentColor = ACCENT
+        var searchFrom = 0
+        for (word in state.activeLineWords) {
+            val start = word.startOffset.coerceAtLeast(searchFrom)
+            val end = word.endOffset.coerceAtMost(text.length)
+            if (end <= start) continue
+            when {
+                positionMs >= word.endMs -> {
+                    spannable.setSpan(
+                        ForegroundColorSpan(accentColor),
+                        start, end,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+                positionMs in word.startMs until word.endMs -> {
+                    val fraction = (positionMs - word.startMs).toFloat() /
+                        (word.endMs - word.startMs).coerceAtLeast(1L)
+                    val filled = (fraction * (end - start)).roundToInt().coerceIn(0, end - start)
+                    val splitAt = start + filled
+                    if (splitAt > start) {
+                        spannable.setSpan(
+                            ForegroundColorSpan(accentColor),
+                            start, splitAt,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                    if (splitAt < end) {
+                        spannable.setSpan(
+                            ForegroundColorSpan(baseColor),
+                            splitAt, end,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                }
+                else -> {
+                    spannable.setSpan(
+                        ForegroundColorSpan(baseColor),
+                        start, end,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+            }
+            searchFrom = end
+        }
+        return spannable
     }
 
     private var lastBackgroundAlpha = -1
@@ -169,6 +274,11 @@ internal class FloatingLyricsOverlayView(
             lyricsView.textSize = settings.textSizeSp.toFloat()
         }
         lyricsView.setTextColor(settings.textColorArgb)
+        val secondarySizeSp = (settings.textSizeSp - 2).coerceAtLeast(11).toFloat()
+        romanizationView.textSize = secondarySizeSp
+        translationView.textSize = secondarySizeSp
+        romanizationView.setTextColor(settings.textColorArgb)
+        translationView.setTextColor(settings.textColorArgb)
         val alpha = FloatingLyricsOverlayWindowPolicy.backgroundAlpha(settings)
         if (alpha != lastBackgroundAlpha) {
             lastBackgroundAlpha = alpha

@@ -1,0 +1,128 @@
+diff --git a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
+index 176bffec..50aaf56e 100644
+--- a/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
++++ b/feature/playback/src/main/java/app/yukine/playback/manager/PlaybackRuntimeStateManager.kt
+@@ -17,13 +17,14 @@ internal class PlaybackRuntimeStateManager(
+     private val stateProvider: StateProvider
+ ) {
+     private var replayGainEnabled = true
+-    private var concurrentPlaybackEnabled = false
+     private var playbackSpeed = 1.0f
+     private var appVolume = 1.0f
+     private var shuffleEnabled = false
+     private var repeatMode = REPEAT_ALL
+     private var preparing = false
+     private var errorMessage = ""
++    private var bitPerfectActive = false
++    private var lastBlockedAction: String? = null
+ 
+     interface StateProvider {
+         fun player(): ExoPlayer?
+@@ -32,29 +33,30 @@ internal class PlaybackRuntimeStateManager(
+     }
+ 
+     fun setReplayGainEnabled(enabled: Boolean) {
++        if (bitPerfectActive && enabled) {
++            lastBlockedAction = "ReplayGain"
++            return
++        }
+         replayGainEnabled = enabled
+         applyPlaybackParametersToPlayer()
+     }
+ 
+-    fun setConcurrentPlaybackEnabled(enabled: Boolean) {
+-        concurrentPlaybackEnabled = enabled
+-        applyAudioFocusHandling()
+-    }
+-
+     fun replayGainEnabled(): Boolean {
+         return replayGainEnabled
+     }
+ 
+-    fun concurrentPlaybackEnabled(): Boolean {
+-        return concurrentPlaybackEnabled
+-    }
+-
+     fun setPlaybackSpeed(speed: Float) {
++        if (bitPerfectActive && speed != 1.0f) {
++            lastBlockedAction = "PlaybackSpeed"
++        }
+         playbackSpeed = normalizePlaybackSpeed(speed)
+         applyPlaybackParametersToPlayer()
+     }
+ 
+     fun setAppVolume(volume: Float) {
++        if (bitPerfectActive && volume != 1.0f) {
++            lastBlockedAction = "AppVolume"
++        }
+         appVolume = normalizeAppVolume(volume)
+         applyPlaybackParametersToPlayer()
+     }
+@@ -145,10 +147,22 @@ internal class PlaybackRuntimeStateManager(
+     }
+ 
+     fun applyPlaybackParametersToPlayer() {
++        if (bitPerfectActive) {
++            // Bit-Perfect mode: lock speed to 1.0x and volume to 1.0 to avoid
++            // triggering software mixing/SRC in the audio pipeline.
++            applyBitPerfectPlaybackParameters()
++            return
++        }
+         applyPlaybackSpeed()
+         applyAppVolume()
+     }
+ 
++    private fun applyBitPerfectPlaybackParameters() {
++        val player = stateProvider.player() ?: return
++        player.setPlaybackParameters(PlaybackParameters(1.0f))
++        player.setVolume(1.0f)
++    }
++
+     fun currentTrackVolume(): Float {
+         return normalizeAppVolume(
+             appVolume * replayGainMultiplierForTrack(
+@@ -167,19 +181,40 @@ internal class PlaybackRuntimeStateManager(
+         applyCurrentTrackVolumeToPlayer()
+     }
+ 
+-    fun applyAudioFocusHandling() {
++    /**
++     * Sets audio attributes for the player with Media3-managed audio focus enabled.
++     * Media3 automatically requests/abandons focus tied to play/pause lifecycle.
++     * Exclusive mode counteraction is handled by [ExclusiveAudioFocusDelegate].
++     */
++    fun applyAudioAttributes() {
+         val player = stateProvider.player() ?: return
+-        // Standard media focus is Android's long-lived audio-exclusivity contract. It asks
+-        // compatible media apps to pause or duck without interfering with calls/navigation.
+         player.setAudioAttributes(
+             AudioAttributes.Builder()
+                 .setUsage(C.USAGE_MEDIA)
+                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                 .build(),
+-            !concurrentPlaybackEnabled
++            true
+         )
+     }
+ 
++    fun setBitPerfectActive(active: Boolean) {
++        bitPerfectActive = active
++        if (!active) {
++            lastBlockedAction = null
++        }
++    }
++
++    fun bitPerfectActive(): Boolean {
++        return bitPerfectActive
++    }
++
++    /**
++     * Returns the last action that was blocked by Bit-Perfect guard, or null if none.
++     */
++    fun lastBlockedAction(): String? {
++        return if (bitPerfectActive) lastBlockedAction else null
++    }
++
+     fun replayGainMultiplierForTrack(enabled: Boolean, track: Track?): Float {
+         if (!enabled || track == null) {
+             return 1.0f

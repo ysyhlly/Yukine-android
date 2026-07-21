@@ -1,0 +1,122 @@
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsService.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/main/java/app/yukine/FloatingLyricsService.kt b/app/src/main/java/app/yukine/FloatingLyricsService.kt
+index 9863f317..5bb79fde 100644
+--- a/app/src/main/java/app/yukine/FloatingLyricsService.kt
++++ b/app/src/main/java/app/yukine/FloatingLyricsService.kt
+@@ -62,19 +62,28 @@ object FloatingLyricsPublisher {
+     @JvmStatic
+     fun update(state: NowPlayingUiState, lyricsState: LyricsState?) {
+         val matchingTimeline = lyricsState?.takeIf { it.trackId == state.track.trackId }
+-        val activeLine = state.lyrics.lines.firstOrNull { it.active }?.text
+-            ?: state.lyrics.lines.firstOrNull()?.text
+-            ?: ""
+-        update(
++        updateLyricsTimeline(
+             state.track.trackId,
+-            state.track.title,
+-            state.track.artist,
+-            state.artwork.coverUri,
+-            state.progress.playing,
+-            activeLine,
+             matchingTimeline?.lines.orEmpty(),
+             matchingTimeline?.offsetMs ?: 0L
+         )
++        val timeline = lyricsTimeline
++        val activeLine = if (timeline.trackId == state.track.trackId) {
++            activeLineAt(timeline.lines, (state.progress.positionMs + timeline.offsetMs).coerceAtLeast(0L))
++        } else {
++            ""
++        }
++        publish(
++            FloatingLyricsState(
++                trackTitle = state.track.title,
++                artist = state.track.artist,
++                albumArtUri = state.artwork.coverUri,
++                playing = state.progress.playing,
++                activeLine = activeLine,
++                visible = activeLine.isNotBlank(),
++                trackId = state.track.trackId
++            )
++        )
+     }
+ 
+     @JvmStatic
+@@ -444,16 +453,24 @@ class FloatingLyricsService : Service() {
+                 renderVisibleState(state, current)
+             }
+         }
+-        notificationOwner.notify(presentation)
++        try {
++            notificationOwner.notify(presentation)
++        } catch (error: RuntimeException) {
++            Log.w(TAG, "Unable to update floating lyrics notification", error)
++        }
+     }
+ 
+     private fun ensureOverlay(visible: FloatingLyricsPresentation.Visible): Boolean {
++        if (windowController.hasTooManyFailures()) {
++            Log.w(TAG, "Too many consecutive window failures, stopping service")
++            stopSelf()
++            return false
++        }
+         val view = overlayView ?: FloatingLyricsOverlayView(
+             this,
+             overlaySettings,
+             ::handleAction
+         ).also { overlayView = it }
+-        view.applySettings(overlaySettings)
+         view.renderPresentation(visible, animate = false)
+         return windowController.show(view.root, overlaySettings, visible.interaction)
+     }
+@@ -485,21 +502,24 @@ class FloatingLyricsService : Service() {
+                 return
+             }
+             FloatingLyricsOverlayAction.PlayPause -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             FloatingLyricsOverlayAction.Previous -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             FloatingLyricsOverlayAction.Next -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             is FloatingLyricsOverlayAction.UpdateBackgroundOpacity -> {
+@@ -544,9 +564,15 @@ class FloatingLyricsService : Service() {
+         overlayView?.applySettings(overlaySettings)
+         val visible = presentation as? FloatingLyricsPresentation.Visible
+         if (visible != null) {
+-            windowController.update(overlaySettings, visible.interaction)
++            overlayView?.root?.post {
++                windowController.update(overlaySettings, visible.interaction)
++            }
++        }
++        try {
++            notificationOwner.notify(presentation)
++        } catch (error: RuntimeException) {
++            Log.w(TAG, "Unable to update floating lyrics notification", error)
+         }
+-        notificationOwner.notify(presentation)
+     }
+ 
+     private fun removeOverlay() {

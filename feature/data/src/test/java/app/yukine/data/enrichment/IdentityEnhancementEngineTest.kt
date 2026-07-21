@@ -320,6 +320,114 @@ class IdentityEnhancementEngineTest {
     }
 
     @Test
+    fun multipleExactArtistCandidatesWithAvatarsSelectsHighestScored() {
+        val recording = recordings.ensureCanonicalForTrack(track(36L))
+        val artistBefore = artists.creditsForRecording(recording.recordingId).single().let {
+            checkNotNull(artists.artistByKey(it.artistKey))
+        }
+        val lowerScoredAvatar = "https://provider-a.example.com/artist/low.jpg"
+        val higherScoredAvatar = "https://provider-b.example.com/artist/high.jpg"
+        val artistProvider = object : AnonymousArtistMetadataProvider {
+            override val providerName: String = "musicbrainz"
+            override fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>) =
+                AnonymousArtistProviderResult(
+                    listOf(
+                        AnonymousArtistCandidate(
+                            provider = "musicbrainz",
+                            providerItemId = "mbid-low",
+                            displayName = artist.displayName,
+                            artistMbid = "mbid-low",
+                            avatarUrl = lowerScoredAvatar,
+                            providerScore = 0.96
+                        ),
+                        AnonymousArtistCandidate(
+                            provider = "netease",
+                            providerItemId = "netease-high",
+                            displayName = artist.displayName,
+                            avatarUrl = higherScoredAvatar,
+                            providerScore = 1.0
+                        )
+                    )
+                )
+        }
+
+        val result = engine(
+            fixedProvider(AnonymousProviderResult(emptyList())),
+            artistProvider
+        ).runReadyJobs(20)
+
+        assertTrue(result.succeeded >= 1)
+        val updated = checkNotNull(artists.artistByKey(artistBefore.artistKey))
+        assertEquals(higherScoredAvatar, updated.avatarUrl)
+    }
+
+    @Test
+    fun multipleExactCandidatesWithDescriptionsSelectsHighestScored() {
+        val recording = recordings.ensureCanonicalForTrack(track(37L))
+        val artistBefore = artists.creditsForRecording(recording.recordingId).single().let {
+            checkNotNull(artists.artistByKey(it.artistKey))
+        }
+        val artistProvider = object : AnonymousArtistMetadataProvider {
+            override val providerName: String = "musicbrainz"
+            override fun search(artist: CanonicalArtist, aliases: List<ArtistAlias>) =
+                AnonymousArtistProviderResult(
+                    listOf(
+                        AnonymousArtistCandidate(
+                            provider = "musicbrainz",
+                            providerItemId = "mbid-desc-low",
+                            displayName = artist.displayName,
+                            artistMbid = "mbid-desc-low",
+                            description = "Lower scored description.",
+                            providerScore = 0.96
+                        ),
+                        AnonymousArtistCandidate(
+                            provider = "netease",
+                            providerItemId = "netease-desc-high",
+                            displayName = artist.displayName,
+                            description = "Higher scored description.",
+                            providerScore = 1.0
+                        )
+                    )
+                )
+        }
+
+        val result = engine(
+            fixedProvider(AnonymousProviderResult(emptyList())),
+            artistProvider
+        ).runReadyJobs(20)
+
+        assertTrue(result.succeeded >= 1)
+        val updated = checkNotNull(artists.artistByKey(artistBefore.artistKey))
+        assertEquals("Higher scored description.", updated.description)
+    }
+
+    @Test
+    fun failedArtistJobIsRecoveredAfterCooldown() {
+        val recording = recordings.ensureCanonicalForTrack(track(38L))
+        val artistKey = artists.creditsForRecording(recording.recordingId).single().artistKey
+        val artistJob = jobs.readyJobs(100L, 100)
+            .first { it.targetType == IdentityTargetType.ARTIST && it.targetId == artistKey }
+        checkNotNull(jobs.claim(artistJob.jobId, 100L))
+        jobs.markFailed(artistJob.jobId, "Network error", 100L)
+
+        // Before cooldown: no recovery
+        val tooEarly = jobs.recoverFailedArtistJobs(
+            100L + RoomIdentityJobRepository.FAILED_RECOVERY_COOLDOWN_MS - 1
+        )
+        assertEquals(0, tooEarly)
+
+        // After cooldown: recovered
+        val recovered = jobs.recoverFailedArtistJobs(
+            100L + RoomIdentityJobRepository.FAILED_RECOVERY_COOLDOWN_MS + 1
+        )
+        assertEquals(1, recovered)
+        val retryJob = jobs.readyJobs(
+            100L + RoomIdentityJobRepository.FAILED_RECOVERY_COOLDOWN_MS + 1, 100
+        ).first { it.targetType == IdentityTargetType.ARTIST && it.targetId == artistKey }
+        assertEquals(0, retryJob.attemptCount)
+    }
+
+    @Test
     fun authoritativeCandidateSkipsFallbackProviders() {
         val recording = recordings.ensureCanonicalForTrack(track(4L))
         val calls = mutableListOf<String>()

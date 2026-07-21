@@ -78,7 +78,8 @@ fun NowPlayingDestination(
             audioSpec = track.audioSpecSummary(),
             songInfo = listOfNotNull(
                 uiState.track.album?.takeIf { it.isNotBlank() }?.let { "专辑：$it" },
-                track.audioSpecSummary().takeIf { it.isNotBlank() }?.let { "规格：$it" }
+                track.audioSpecSummary().takeIf { it.isNotBlank() }?.let { "规格：$it" },
+                track.metadataSummary().takeIf { it.isNotBlank() }?.let { "信息：$it" }
             ).joinToString("\n"),
             sourceInfo = sourceInfo(track),
             sourceOptions = sourceOptions(

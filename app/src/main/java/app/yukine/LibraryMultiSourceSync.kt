@@ -434,7 +434,16 @@ internal class LibraryMultiSourceSyncCoordinator(
         }
     }
 
-    /** Persisted recording-only identity for the library display hot path. */
+    /**
+     * Persisted recording-only identity for the library display hot path.
+     * @deprecated No longer used in production. The library display now uses
+     * `recordingIdentitySnapshotProvider` (integer recording IDs) directly.
+     * Retained for test compatibility.
+     */
+    @Deprecated(
+        message = "No longer used in production; library uses recordingIdentitySnapshotProvider",
+        level = DeprecationLevel.WARNING
+    )
     fun persistedMergeIdentityFor(track: Track?): String? {
         val selected = track ?: return null
         return operations.canonicalIdentity(selected)

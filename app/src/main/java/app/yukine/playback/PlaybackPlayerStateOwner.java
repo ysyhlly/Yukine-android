@@ -27,6 +27,13 @@ final class PlaybackPlayerStateOwner implements
     // during that short hand-off window.
     private int pendingMediaItemIndex = C.INDEX_UNSET;
     private long pendingMediaItemPositionMs;
+    // After a media-item transition, ExoPlayer may still report the previous item's position
+    // for a brief window even though getCurrentMediaItemIndex() already reflects the new item.
+    // Track the transition timestamp and expected start position to suppress stale readings.
+    private long transitionStartElapsedMs = Long.MIN_VALUE;
+    private long transitionExpectedPositionMs;
+    private static final long TRANSITION_GUARD_WINDOW_MS = 800L;
+    private static final long TRANSITION_STALE_THRESHOLD_MS = 500L;
 
     PlaybackPlayerStateOwner(PlayerProvider playerProvider) {
         this(playerProvider, SystemClock::elapsedRealtime);
@@ -66,9 +73,16 @@ final class PlaybackPlayerStateOwner implements
                 return pendingMediaItemPositionMs;
             }
             clearPendingMediaItemPosition();
-            long rawPositionMs = Math.max(0L, player.getCurrentPosition());
-            boolean playing = player.isPlaying();
+            long rawFromPlayer = Math.max(0L, player.getCurrentPosition());
             long nowMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
+            long rawPositionMs = guardStalePositionAfterTransition(rawFromPlayer, nowMs);
+            if (rawPositionMs != rawFromPlayer) {
+                // Guard suppressed a stale reading; anchor the estimate at the expected
+                // position so interpolation does not add elapsed time from the old clock.
+                seedPositionEstimate(rawPositionMs, nowMs, false);
+                return rawPositionMs;
+            }
+            boolean playing = player.isPlaying();
             if (!playing) {
                 long pausedPositionMs = Math.max(rawPositionMs, estimatedPositionMs);
                 seedPositionEstimate(pausedPositionMs, nowMs, false);
@@ -107,6 +121,8 @@ final class PlaybackPlayerStateOwner implements
             }
             clearPendingMediaItemPosition();
             long rawPositionMs = Math.max(0L, player.getCurrentPosition());
+            long nowMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
+            rawPositionMs = guardStalePositionAfterTransition(rawPositionMs, nowMs);
             if (rawPositionMs > 0L || estimatedPositionMs <= 0L) {
                 return rawPositionMs;
             }
@@ -148,6 +164,8 @@ final class PlaybackPlayerStateOwner implements
         resetPositionEstimateInternal();
         pendingMediaItemIndex = mediaItemIndex < 0 ? C.INDEX_UNSET : mediaItemIndex;
         pendingMediaItemPositionMs = Math.max(0L, startPositionMs);
+        transitionStartElapsedMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
+        transitionExpectedPositionMs = Math.max(0L, startPositionMs);
     }
 
     private boolean shouldReportPendingMediaItemPosition(Player player) {
@@ -165,6 +183,30 @@ final class PlaybackPlayerStateOwner implements
         estimatedPositionMs = 0L;
         lastEstimateTimeMs = 0L;
         lastPlaying = false;
+    }
+
+    /**
+     * Suppresses a stale position reading from ExoPlayer during the brief window after a
+     * media-item transition. Even though {@code getCurrentMediaItemIndex()} already reports
+     * the new item, {@code getCurrentPosition()} can momentarily return the previous item's
+     * position. If the raw position is far above the expected start position within the guard
+     * window, it is clamped to the expected value.
+     */
+    private long guardStalePositionAfterTransition(long rawPositionMs, long nowMs) {
+        if (transitionStartElapsedMs == Long.MIN_VALUE) {
+            return rawPositionMs;
+        }
+        long sinceTransitionMs = nowMs - transitionStartElapsedMs;
+        if (sinceTransitionMs < 0L || sinceTransitionMs > TRANSITION_GUARD_WINDOW_MS) {
+            transitionStartElapsedMs = Long.MIN_VALUE;
+            return rawPositionMs;
+        }
+        if (rawPositionMs > transitionExpectedPositionMs + TRANSITION_STALE_THRESHOLD_MS) {
+            return transitionExpectedPositionMs;
+        }
+        // Position is consistent with the new track; disarm the guard early.
+        transitionStartElapsedMs = Long.MIN_VALUE;
+        return rawPositionMs;
     }
 
     synchronized void setPositionEstimate(long positionMs) {

@@ -48,10 +48,10 @@ object HomeDashboardStateFactory {
             .toList()
 
         val weekStartMs = startOfWeek(nowMs)
-        val weekRecords = recentRecords.filter { it.playedAt >= weekStartMs }
+        val weekRecords = recentRecords.filter { it.track != null && it.playedAt >= weekStartMs }
         val weekPlayCount = weekRecords.sumOf { max(1, it.playCount) }
         val weekDurationMs = weekRecords.sumOf { it.track.durationMs * max(1, it.playCount) }
-        val continueTrack = current ?: recentRecords.firstOrNull()?.track ?: activeTracks.firstOrNull()
+        val continueTrack = current ?: recentRecords.firstOrNull { it.track != null }?.track ?: activeTracks.firstOrNull()
         val durationMs = when {
             snapshot.durationMs > 0L -> snapshot.durationMs
             continueTrack != null -> continueTrack.durationMs
@@ -150,7 +150,7 @@ object HomeDashboardStateFactory {
         val buckets = LongArray(24)
 
         records.forEach { record ->
-            if (record.playedAt < todayStartMs || record.playedAt >= tomorrowStartMs) {
+            if (record.track == null || record.playedAt < todayStartMs || record.playedAt >= tomorrowStartMs) {
                 return@forEach
             }
             calendar.timeInMillis = record.playedAt

@@ -53,9 +53,10 @@ public final class WebDavClient {
     private static final int INITIAL_FLAC_PREFIX_BYTES = 64 * 1024;
     private static final int MAX_FLAC_PREFIX_BYTES = 2 * 1024 * 1024;
     private static final int MAX_ARTWORK_BYTES = 16 * 1024 * 1024;
-    private static final String METADATA_CACHE_VERSION = "metadata-v3";
+    private static final String METADATA_CACHE_VERSION = "metadata-v4";
     private static final String[] AUDIO_EXTENSIONS = {
-            ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".alac"
+            ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".alac",
+            ".dsf", ".dff", ".ape", ".wv", ".tta"
     };
     private static final String[] IMAGE_EXTENSIONS = {
             ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"
@@ -199,7 +200,7 @@ public final class WebDavClient {
                 continue;
             }
             long trackId = stableId(source.id, entry.url);
-            FlacMetadataParser.Result metadata = readFlacMetadata(source, entry.url, title);
+            FlacMetadataParser.Result metadata = readRemoteMetadata(source, entry.url, title);
             Uri artworkUri = storeArtwork(trackId, metadata.artwork);
             if (artworkUri == null) {
                 artworkUri = loadExternalArtwork(
@@ -236,7 +237,13 @@ public final class WebDavClient {
                     metadata.albumArtist,
                     metadata.composer,
                     metadata.releaseType,
-                    metadata.year
+                    metadata.year,
+                    0L,
+                    metadata.genre,
+                    metadata.discNumber,
+                    metadata.trackNumber,
+                    metadata.bpm,
+                    metadata.lyrics
             ));
         }
         return stats;
@@ -637,24 +644,61 @@ public final class WebDavClient {
         return object.toString();
     }
 
-    private FlacMetadataParser.Result readFlacMetadata(RemoteSource source, String url, String title) {
-        if (!title.toLowerCase(Locale.ROOT).endsWith(".flac")) {
+    private FlacMetadataParser.Result readRemoteMetadata(RemoteSource source, String url, String title) {
+        String ext = extensionCodec(title);
+        if (ext.isEmpty()) {
             return new FlacMetadataParser.Result();
+        }
+        switch (ext) {
+            case "flac":
+            case "mp3":
+            case "m4a":
+            case "aac":
+            case "alac":
+            case "ogg":
+            case "opus":
+            case "dsf":
+            case "dff":
+                break;
+            // ape, wv, tta: APE Tag parsing not yet implemented; discovery works but metadata
+            // will be limited to filename. Keep them in AUDIO_EXTENSIONS for library visibility.
+            default:
+                return new FlacMetadataParser.Result();
         }
         try {
             byte[] prefix = readPrefix(source, url, INITIAL_FLAC_PREFIX_BYTES);
-            FlacMetadataParser.Result metadata = FlacMetadataParser.parse(prefix);
+            FlacMetadataParser.Result metadata = parseByFormat(prefix, ext);
             int required = metadata.requiredPrefixBytes;
             if (required > prefix.length && required <= MAX_FLAC_PREFIX_BYTES) {
                 byte[] expanded = readPrefix(source, url, required);
                 if (expanded.length > prefix.length) {
-                    metadata = FlacMetadataParser.parse(expanded);
+                    metadata = parseByFormat(expanded, ext);
                 }
             }
             return metadata;
         } catch (Exception ignored) {
             // Remote metadata is best-effort; an audio file remains playable when its tags fail.
             return new FlacMetadataParser.Result();
+        }
+    }
+
+    private static FlacMetadataParser.Result parseByFormat(byte[] prefix, String ext) {
+        switch (ext) {
+            case "flac":
+                return FlacMetadataParser.parse(prefix);
+            case "mp3":
+            case "dsf":  // DSD Stream File uses ID3v2 tags
+            case "dff":  // DSDIFF uses ID3v2 tags
+                return Mp3MetadataParser.parse(prefix);
+            case "m4a":
+            case "aac":
+            case "alac":
+                return Mp4MetadataParser.parse(prefix);
+            case "ogg":
+            case "opus":
+                return OggMetadataParser.parse(prefix);
+            default:
+                return new FlacMetadataParser.Result();
         }
     }
 

@@ -70,6 +70,42 @@ class RecordingMatchEvaluatorV5Test {
         assertTrue(RecordingMatchHardConflict.WORK_MBID !in result.hardConflicts)
     }
 
+    @Test
+    fun artistTypoUsesTrigramFallbackAndSuppressesHardConflict() {
+        val result = evaluate(
+            reference(artist = "taylor swift"),
+            reference(artist = "taylro swift")
+        )
+
+        assertTrue("artistScore=${result.artistScore}", result.artistScore > 0.50)
+        assertTrue("artistScore=${result.artistScore}", result.artistScore <= 0.85)
+        assertFalse(RecordingMatchHardConflict.PRIMARY_ARTIST in result.hardConflicts)
+    }
+
+    @Test
+    fun completelyDifferentArtistsStillTriggerHardConflict() {
+        val result = evaluate(
+            reference(artist = "Taylor Swift"),
+            reference(artist = "金属乐队")
+        )
+
+        assertEquals(0.0, result.artistScore, 0.001)
+        assertTrue(RecordingMatchHardConflict.PRIMARY_ARTIST in result.hardConflicts)
+    }
+
+    @Test
+    fun v4DoesNotUseTrigramFallbackForArtists() {
+        val left = RecordingMatchFeatureExtractor.extract(reference(artist = "taylor swift"))
+        val right = RecordingMatchFeatureExtractor.extract(reference(artist = "taylro swift"))
+        val v4 = RecordingMatchEvaluatorV2.evaluate(left, right)
+        val v5 = RecordingMatchEvaluatorV2.evaluateV5(left, right)
+
+        assertEquals(0.0, v4.artistScore, 0.001)
+        assertTrue(RecordingMatchHardConflict.PRIMARY_ARTIST in v4.hardConflicts)
+        assertTrue(v5.artistScore > 0.50)
+        assertFalse(RecordingMatchHardConflict.PRIMARY_ARTIST in v5.hardConflicts)
+    }
+
     private fun evaluate(
         left: StreamingTrackMatchPolicy.Reference,
         right: StreamingTrackMatchPolicy.Reference

@@ -35,7 +35,7 @@ data class CustomLyricsRecordingWrite(
 data class LyricsDisplayPreferences(
     val primary: Boolean = true,
     val translation: Boolean = true,
-    val romanization: Boolean = false
+    val romanization: Boolean = true
 ) {
     init {
         require(primary || translation || romanization) {
@@ -218,7 +218,7 @@ class CustomLyricsRepository @Inject constructor(
     fun loadDisplayPreferences(): LyricsDisplayPreferences {
         val primary = settingBoolean(KEY_PRIMARY_VISIBLE, true)
         val translation = settingBoolean(KEY_TRANSLATION_VISIBLE, true)
-        val romanization = settingBoolean(KEY_ROMANIZATION_VISIBLE, false)
+        val romanization = settingBoolean(KEY_ROMANIZATION_VISIBLE, true)
         return if (primary || translation || romanization) {
             LyricsDisplayPreferences(primary, translation, romanization)
         } else {

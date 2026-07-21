@@ -1,0 +1,405 @@
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsService.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsWindowController.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 234feb51..f73d6750 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -16,6 +16,8 @@
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ 
++    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
++
+     <application
+         android:name=".EchoApplication"
+         android:allowBackup="false"
+diff --git a/app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt b/app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt
+index 385613e7..d033c4e8 100644
+--- a/app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt
++++ b/app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt
+@@ -11,7 +11,8 @@ internal data class FloatingLyricsOverlaySettings(
+     val positionXFraction: Float = DEFAULT_POSITION_X_FRACTION,
+     val positionYFraction: Float = DEFAULT_POSITION_Y_FRACTION,
+     val backgroundOpacityPercent: Int = DEFAULT_BACKGROUND_OPACITY_PERCENT,
+-    val transparentBackground: Boolean = false
++    val transparentBackground: Boolean = false,
++    val textColorArgb: Int = DEFAULT_TEXT_COLOR_ARGB
+ ) {
+     fun normalized(): FloatingLyricsOverlaySettings = copy(
+         textSizeSp = textSizeSp.coerceIn(MIN_TEXT_SIZE_SP, MAX_TEXT_SIZE_SP),
+@@ -40,6 +41,8 @@ internal data class FloatingLyricsOverlaySettings(
+         const val MAX_BACKGROUND_OPACITY_PERCENT = 100
+         const val DEFAULT_BACKGROUND_OPACITY_PERCENT = 92
+ 
++        const val DEFAULT_TEXT_COLOR_ARGB = 0xFFF8FBFF.toInt()
++
+         private fun Float.finiteOr(fallback: Float): Float =
+             if (isFinite()) this else fallback
+     }
+@@ -119,7 +122,11 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
+                 KEY_BACKGROUND_OPACITY_PERCENT,
+                 FloatingLyricsOverlaySettings.DEFAULT_BACKGROUND_OPACITY_PERCENT
+             ),
+-            transparentBackground = preferences.getBoolean(KEY_TRANSPARENT_BACKGROUND, false)
++            transparentBackground = preferences.getBoolean(KEY_TRANSPARENT_BACKGROUND, false),
++            textColorArgb = preferences.getInt(
++                KEY_TEXT_COLOR_ARGB,
++                FloatingLyricsOverlaySettings.DEFAULT_TEXT_COLOR_ARGB
++            )
+         ).normalized()
+         migrateLegacyKeys(settings)
+         return settings
+@@ -134,6 +141,7 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
+             .putFloat(KEY_POSITION_Y_FRACTION, normalized.positionYFraction)
+             .putInt(KEY_BACKGROUND_OPACITY_PERCENT, normalized.backgroundOpacityPercent)
+             .putBoolean(KEY_TRANSPARENT_BACKGROUND, normalized.transparentBackground)
++            .putInt(KEY_TEXT_COLOR_ARGB, normalized.textColorArgb)
+             .remove(KEY_LEGACY_VERTICAL_POSITION_PERCENT)
+             .remove(KEY_LEGACY_CLICK_THROUGH)
+             .apply()
+@@ -159,6 +167,7 @@ internal class FloatingLyricsOverlaySettingsStore(context: Context) {
+         private const val KEY_POSITION_Y_FRACTION = "position_y_fraction"
+         private const val KEY_BACKGROUND_OPACITY_PERCENT = "background_opacity_percent"
+         private const val KEY_TRANSPARENT_BACKGROUND = "transparent_background"
++        private const val KEY_TEXT_COLOR_ARGB = "text_color_argb"
+         private const val KEY_LEGACY_VERTICAL_POSITION_PERCENT = "vertical_position_percent"
+         private const val KEY_LEGACY_CLICK_THROUGH = "click_through"
+     }
+diff --git a/app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt b/app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt
+index a2c2f67d..04cd7500 100644
+--- a/app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt
++++ b/app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt
+@@ -49,7 +49,6 @@ internal class FloatingLyricsOverlayView(
+     }
+ 
+     val lyricsView: TextView = TextView(context).apply {
+-        setTextColor(TEXT_PRIMARY)
+         gravity = Gravity.CENTER
+         maxLines = 2
+         ellipsize = TextUtils.TruncateAt.END
+@@ -93,14 +92,18 @@ internal class FloatingLyricsOverlayView(
+         max = 100
+         contentDescription = context.getString(R.string.floating_lyrics_background_opacity_description)
+         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+-                if (fromUser && !syncingControls) {
+-                    onAction(FloatingLyricsOverlayAction.UpdateBackgroundOpacity(progress))
+-                }
+-            }
++            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = Unit
+ 
+             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+-            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
++
++            override fun onStopTrackingTouch(seekBar: SeekBar?) {
++                if (!syncingControls && seekBar != null) {
++                    val progress = seekBar.progress
++                    seekBar.post {
++                        onAction(FloatingLyricsOverlayAction.UpdateBackgroundOpacity(progress))
++                    }
++                }
++            }
+         })
+     }
+ 
+@@ -138,7 +141,9 @@ internal class FloatingLyricsOverlayView(
+         state: FloatingLyricsState,
+         artwork: Bitmap?
+     ) {
+-        lyricsView.text = state.activeLine
++        if (lyricsView.text?.toString() != state.activeLine) {
++            lyricsView.text = state.activeLine
++        }
+         titleView.text = state.trackTitle.ifBlank {
+             context.getString(R.string.floating_lyrics_unknown_track)
+         }
+@@ -156,12 +161,19 @@ internal class FloatingLyricsOverlayView(
+         )
+     }
+ 
++    private var lastBackgroundAlpha = -1
++
+     fun applySettings(next: FloatingLyricsOverlaySettings) {
+         settings = next.normalized()
+-        lyricsView.textSize = settings.textSizeSp.toFloat()
+-        compactSurface.background = surfaceBackground(
+-            FloatingLyricsOverlayWindowPolicy.backgroundAlpha(settings)
+-        )
++        if (lyricsView.textSize != settings.textSizeSp.toFloat()) {
++            lyricsView.textSize = settings.textSizeSp.toFloat()
++        }
++        lyricsView.setTextColor(settings.textColorArgb)
++        val alpha = FloatingLyricsOverlayWindowPolicy.backgroundAlpha(settings)
++        if (alpha != lastBackgroundAlpha) {
++            lastBackgroundAlpha = alpha
++            compactSurface.background = surfaceBackground(alpha)
++        }
+         syncingControls = true
+         opacitySlider.progress = settings.backgroundOpacityPercent
+         opacitySlider.isEnabled = !settings.transparentBackground
+@@ -173,11 +185,14 @@ internal class FloatingLyricsOverlayView(
+         next: FloatingLyricsPresentation.Visible,
+         animate: Boolean = true
+     ) {
++        val previous = presentation
+         presentation = next
+         val expanded = next.mode == FloatingLyricsMode.Expanded &&
+             next.interaction == FloatingLyricsInteraction.Interactive
+-        lockConfirmation.visibility = View.GONE
+         if (expanded) {
++            val wasExpanded = previous.mode == FloatingLyricsMode.Expanded &&
++                previous.interaction == FloatingLyricsInteraction.Interactive
++            if (wasExpanded && controlsView.visibility == View.VISIBLE) return
+             controlsView.visibility = View.VISIBLE
+             if (animate && animationsEnabled()) {
+                 controlsView.alpha = 0f
+@@ -188,6 +203,7 @@ internal class FloatingLyricsOverlayView(
+         } else {
+             controlsView.animate().cancel()
+             controlsView.visibility = View.GONE
++            lockConfirmation.visibility = View.GONE
+         }
+     }
+ 
+diff --git a/app/src/main/java/app/yukine/FloatingLyricsService.kt b/app/src/main/java/app/yukine/FloatingLyricsService.kt
+index 9863f317..5bb79fde 100644
+--- a/app/src/main/java/app/yukine/FloatingLyricsService.kt
++++ b/app/src/main/java/app/yukine/FloatingLyricsService.kt
+@@ -62,19 +62,28 @@ object FloatingLyricsPublisher {
+     @JvmStatic
+     fun update(state: NowPlayingUiState, lyricsState: LyricsState?) {
+         val matchingTimeline = lyricsState?.takeIf { it.trackId == state.track.trackId }
+-        val activeLine = state.lyrics.lines.firstOrNull { it.active }?.text
+-            ?: state.lyrics.lines.firstOrNull()?.text
+-            ?: ""
+-        update(
++        updateLyricsTimeline(
+             state.track.trackId,
+-            state.track.title,
+-            state.track.artist,
+-            state.artwork.coverUri,
+-            state.progress.playing,
+-            activeLine,
+             matchingTimeline?.lines.orEmpty(),
+             matchingTimeline?.offsetMs ?: 0L
+         )
++        val timeline = lyricsTimeline
++        val activeLine = if (timeline.trackId == state.track.trackId) {
++            activeLineAt(timeline.lines, (state.progress.positionMs + timeline.offsetMs).coerceAtLeast(0L))
++        } else {
++            ""
++        }
++        publish(
++            FloatingLyricsState(
++                trackTitle = state.track.title,
++                artist = state.track.artist,
++                albumArtUri = state.artwork.coverUri,
++                playing = state.progress.playing,
++                activeLine = activeLine,
++                visible = activeLine.isNotBlank(),
++                trackId = state.track.trackId
++            )
++        )
+     }
+ 
+     @JvmStatic
+@@ -444,16 +453,24 @@ class FloatingLyricsService : Service() {
+                 renderVisibleState(state, current)
+             }
+         }
+-        notificationOwner.notify(presentation)
++        try {
++            notificationOwner.notify(presentation)
++        } catch (error: RuntimeException) {
++            Log.w(TAG, "Unable to update floating lyrics notification", error)
++        }
+     }
+ 
+     private fun ensureOverlay(visible: FloatingLyricsPresentation.Visible): Boolean {
++        if (windowController.hasTooManyFailures()) {
++            Log.w(TAG, "Too many consecutive window failures, stopping service")
++            stopSelf()
++            return false
++        }
+         val view = overlayView ?: FloatingLyricsOverlayView(
+             this,
+             overlaySettings,
+             ::handleAction
+         ).also { overlayView = it }
+-        view.applySettings(overlaySettings)
+         view.renderPresentation(visible, animate = false)
+         return windowController.show(view.root, overlaySettings, visible.interaction)
+     }
+@@ -485,21 +502,24 @@ class FloatingLyricsService : Service() {
+                 return
+             }
+             FloatingLyricsOverlayAction.PlayPause -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             FloatingLyricsOverlayAction.Previous -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             FloatingLyricsOverlayAction.Next -> {
+-                dispatchPlaybackAction(requireNotNull(
+-                    FloatingLyricsPlaybackActionMapper.serviceAction(action, latestState.playing)
+-                ))
++                val serviceAction = FloatingLyricsPlaybackActionMapper.serviceAction(
++                    action, latestState.playing
++                )
++                if (serviceAction != null) dispatchPlaybackAction(serviceAction)
+                 return
+             }
+             is FloatingLyricsOverlayAction.UpdateBackgroundOpacity -> {
+@@ -544,9 +564,15 @@ class FloatingLyricsService : Service() {
+         overlayView?.applySettings(overlaySettings)
+         val visible = presentation as? FloatingLyricsPresentation.Visible
+         if (visible != null) {
+-            windowController.update(overlaySettings, visible.interaction)
++            overlayView?.root?.post {
++                windowController.update(overlaySettings, visible.interaction)
++            }
++        }
++        try {
++            notificationOwner.notify(presentation)
++        } catch (error: RuntimeException) {
++            Log.w(TAG, "Unable to update floating lyrics notification", error)
+         }
+-        notificationOwner.notify(presentation)
+     }
+ 
+     private fun removeOverlay() {
+diff --git a/app/src/main/java/app/yukine/FloatingLyricsWindowController.kt b/app/src/main/java/app/yukine/FloatingLyricsWindowController.kt
+index 3131eb81..36f067ce 100644
+--- a/app/src/main/java/app/yukine/FloatingLyricsWindowController.kt
++++ b/app/src/main/java/app/yukine/FloatingLyricsWindowController.kt
+@@ -22,6 +22,7 @@ internal class FloatingLyricsWindowController(
+     private var settings = FloatingLyricsOverlaySettings()
+     private var interaction = FloatingLyricsInteraction.Interactive
+     private val safeMarginPx = dp(8)
++    private var consecutiveFailures = 0
+ 
+     val attached: Boolean
+         get() = root != null && layoutParams != null
+@@ -44,12 +45,10 @@ internal class FloatingLyricsWindowController(
+                 ?: return false
+             root = view
+             layoutParams = params
+-            view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+-                clampAndUpdate()
+-            }
+             view.post(::clampAndUpdate)
+             true
+         } catch (error: RuntimeException) {
++            consecutiveFailures++
+             reportFailure("Unable to attach floating lyrics window", error)
+             clearReferences()
+             false
+@@ -60,6 +59,7 @@ internal class FloatingLyricsWindowController(
+         nextSettings: FloatingLyricsOverlaySettings = settings,
+         nextInteraction: FloatingLyricsInteraction = interaction
+     ): Boolean {
++        val previousSettings = settings
+         settings = nextSettings.normalized()
+         interaction = nextInteraction
+         val params = layoutParams ?: return false
+@@ -69,7 +69,11 @@ internal class FloatingLyricsWindowController(
+             interaction,
+             FloatingLyricsOverlayWindowPolicy.maximumObscuringOpacity(context)
+         )
+-        applyPositionFractions(params, settings)
++        if (settings.positionXFraction != previousSettings.positionXFraction ||
++            settings.positionYFraction != previousSettings.positionYFraction
++        ) {
++            applyPositionFractions(params, settings)
++        }
+         return updateLayout()
+     }
+ 
+@@ -161,10 +165,16 @@ internal class FloatingLyricsWindowController(
+             (settings.positionYFraction * maxY).roundToInt()
+     }
+ 
++    fun hasTooManyFailures(): Boolean = consecutiveFailures >= 3
++
+     private fun clampAndUpdate() {
+         val params = layoutParams ?: return
++        val oldX = params.x
++        val oldY = params.y
+         clamp(params)
+-        updateLayout()
++        if (params.x != oldX || params.y != oldY) {
++            updateLayout()
++        }
+     }
+ 
+     private fun clamp(params: WindowManager.LayoutParams) {
+@@ -190,8 +200,10 @@ internal class FloatingLyricsWindowController(
+         val params = layoutParams ?: return false
+         return try {
+             windowManager?.updateViewLayout(view, params)
++            consecutiveFailures = 0
+             true
+         } catch (error: RuntimeException) {
++            consecutiveFailures++
+             reportFailure("Unable to update floating lyrics window", error)
+             remove()
+             false
+diff --git a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+index 99915a1c..3084b34a 100644
+--- a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
++++ b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+@@ -33,6 +33,9 @@ public final class SettingsRepository {
+     private static final String NOW_PLAYING_GESTURES = "now_playing_gestures";
+     private static final String PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
+     private static final String REPLAY_GAIN_ENABLED = "replay_gain_enabled";
++        private static final String AUDIO_EXCLUSIVE_ENABLED = "audio_exclusive_enabled";
++    private static final String BIT_PERFECT_ENABLED = "bit_perfect_enabled";
++    private static final String USB_EXCLUSIVE_ENABLED = "usb_exclusive_enabled";
+     private static final String DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
+     private static final String CUSTOM_BACKGROUND_BLUR_ENABLED = "custom_background_blur_enabled";
+     private static final String CUSTOM_BACKGROUND_BLUR_RADIUS_DP = "custom_background_blur_radius_dp";
+@@ -85,8 +88,6 @@ public final class SettingsRepository {
+     }
+     boolean loadOnlineLyricsEnabled() { return bool(ONLINE_LYRICS, true); }
+     void saveOnlineLyricsEnabled(boolean value) { saveBool(ONLINE_LYRICS, value); }
+-    boolean loadConcurrentPlaybackEnabled() { return bool(CONCURRENT_PLAYBACK, false); }
+-    void saveConcurrentPlaybackEnabled(boolean value) { saveBool(CONCURRENT_PLAYBACK, value); }
+     boolean loadLibraryAutoSyncEnabled() { return bool(LIBRARY_AUTO_SYNC_ENABLED, false); }
+     void saveLibraryAutoSyncEnabled(boolean value) { saveBool(LIBRARY_AUTO_SYNC_ENABLED, value); }
+     LibraryDedupMode loadLibraryDedupMode() {
+@@ -136,6 +137,19 @@ public final class SettingsRepository {
+     void savePlaybackRestoreEnabled(boolean value) { saveBool(PLAYBACK_RESTORE_ENABLED, value); }
+     boolean loadReplayGainEnabled() { return bool(REPLAY_GAIN_ENABLED, true); }
+     void saveReplayGainEnabled(boolean value) { saveBool(REPLAY_GAIN_ENABLED, value); }
++        boolean loadAudioExclusiveEnabled() {
++        // One-time migration from legacy concurrent_playback key (inverted semantics).
++        if (dao.value(CONCURRENT_PLAYBACK) != null && dao.value(AUDIO_EXCLUSIVE_ENABLED) == null) {
++            boolean legacy = bool(CONCURRENT_PLAYBACK, false);
++            saveBool(AUDIO_EXCLUSIVE_ENABLED, !legacy);
++        }
++        return bool(AUDIO_EXCLUSIVE_ENABLED, true);
++    }
++        void saveAudioExclusiveEnabled(boolean value) { saveBool(AUDIO_EXCLUSIVE_ENABLED, value); }
++    boolean loadBitPerfectEnabled() { return bool(BIT_PERFECT_ENABLED, false); }
++    void saveBitPerfectEnabled(boolean value) { saveBool(BIT_PERFECT_ENABLED, value); }
++    boolean loadUsbExclusiveEnabled() { return bool(USB_EXCLUSIVE_ENABLED, false); }
++    void saveUsbExclusiveEnabled(boolean value) { saveBool(USB_EXCLUSIVE_ENABLED, value); }
+     boolean loadDebugPromptsEnabled() { return bool(DEBUG_PROMPTS_ENABLED, false); }
+     void saveDebugPromptsEnabled(boolean value) { saveBool(DEBUG_PROMPTS_ENABLED, value); }
+     boolean loadCustomBackgroundBlurEnabled() { return bool(CUSTOM_BACKGROUND_BLUR_ENABLED, false); }

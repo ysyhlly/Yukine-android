@@ -85,7 +85,7 @@ class LibraryLoadStateOwner internal constructor(
                 if (activeLoadId == loadId) onLoaded?.invoke(fresh)
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 if (activeLoadId == loadId) {
                     val status = if (error is SecurityException) "audio.permission.required" else "library.scan.failed"
                     gateway()?.showStatusKey(status)

@@ -1,0 +1,175 @@
+diff --git a/app/src/test/java/app/yukine/playback/PlaybackRuntimeSettingsStoreTest.java b/app/src/test/java/app/yukine/playback/PlaybackRuntimeSettingsStoreTest.java
+index 6c59f986..4bfbddf0 100644
+--- a/app/src/test/java/app/yukine/playback/PlaybackRuntimeSettingsStoreTest.java
++++ b/app/src/test/java/app/yukine/playback/PlaybackRuntimeSettingsStoreTest.java
+@@ -13,14 +13,12 @@ import java.util.List;
+ 
+ import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.assertFalse;
+-import static org.junit.Assert.assertTrue;
+ 
+ public final class PlaybackRuntimeSettingsStoreTest {
+     @Test
+     public void restoreAppliesRuntimeSettingsToStateOwner() {
+         FakeRuntimeSettings settings = new FakeRuntimeSettings();
+         settings.replayGainEnabled = false;
+-        settings.concurrentPlaybackEnabled = true;
+         settings.playbackSpeed = 1.25f;
+         settings.appVolume = 0.55f;
+         PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
+@@ -28,7 +26,6 @@ public final class PlaybackRuntimeSettingsStoreTest {
+         new PlaybackRuntimeSettingsStore(settings).restoreInto(runtimeStateManager);
+ 
+         assertFalse(runtimeStateManager.replayGainEnabled());
+-        assertTrue(runtimeStateManager.concurrentPlaybackEnabled());
+         assertEquals(1.25f, runtimeStateManager.playbackSpeed(), 0.001f);
+         assertEquals(0.55f, runtimeStateManager.appVolume(), 0.001f);
+     }
+@@ -55,14 +52,12 @@ public final class PlaybackRuntimeSettingsStoreTest {
+     }
+ 
+     @Test
+-    public void setConcurrentPlaybackAndReplayGainDelegateToRuntimeStateOwner() {
++    public void setReplayGainDelegatesToRuntimeStateOwner() {
+         PlaybackRuntimeStateManager runtimeStateManager = runtimeStateManager();
+         PlaybackRuntimeSettingsStore store = new PlaybackRuntimeSettingsStore(new FakeRuntimeSettings());
+ 
+-        store.setConcurrentPlaybackEnabled(runtimeStateManager, true);
+         store.setReplayGainEnabled(runtimeStateManager, false);
+ 
+-        assertTrue(runtimeStateManager.concurrentPlaybackEnabled());
+         assertFalse(runtimeStateManager.replayGainEnabled());
+     }
+ 
+@@ -73,12 +68,11 @@ public final class PlaybackRuntimeSettingsStoreTest {
+ 
+         store.setPlaybackSpeed(runtimeStateManager, 1.36f);
+         store.setAppVolume(runtimeStateManager, 0.42f);
+-        store.setConcurrentPlaybackEnabled(runtimeStateManager, true);
+ 
+         assertEquals(1.36f, store.playbackSpeed(runtimeStateManager), 0.001f);
+         assertEquals(0.42f, store.appVolume(runtimeStateManager), 0.001f);
+         assertEquals(0.42f, store.currentTrackVolume(runtimeStateManager), 0.001f);
+-        assertTrue(store.concurrentPlaybackEnabled(runtimeStateManager));
++        assertFalse(store.concurrentPlaybackEnabled(runtimeStateManager));
+     }
+ 
+     @Test
+@@ -97,7 +91,7 @@ public final class PlaybackRuntimeSettingsStoreTest {
+ 
+         store.applyPlaybackParametersToPlayer(null);
+         store.applyCurrentTrackVolumeToPlayer(null);
+-        store.applyAudioFocusHandling(null);
++        store.applyAudioAttributes(null);
+     }
+ 
+     @Test
+@@ -119,7 +113,6 @@ public final class PlaybackRuntimeSettingsStoreTest {
+ 
+         store.setPlaybackSpeed(null, 1.36f);
+         store.setAppVolume(null, 0.42f);
+-        store.setConcurrentPlaybackEnabled(null, true);
+         store.setReplayGainEnabled(null, false);
+     }
+ 
+@@ -161,36 +154,19 @@ public final class PlaybackRuntimeSettingsStoreTest {
+     }
+ 
+     private static Object defaultReturnValue(Class<?> returnType) {
+-        if (returnType == Boolean.TYPE) {
+-            return false;
+-        }
+-        if (returnType == Byte.TYPE) {
+-            return (byte) 0;
+-        }
+-        if (returnType == Character.TYPE) {
+-            return (char) 0;
+-        }
+-        if (returnType == Double.TYPE) {
+-            return 0.0d;
+-        }
+-        if (returnType == Float.TYPE) {
+-            return 0.0f;
+-        }
+-        if (returnType == Integer.TYPE) {
+-            return 0;
+-        }
+-        if (returnType == Long.TYPE) {
+-            return 0L;
+-        }
+-        if (returnType == Short.TYPE) {
+-            return (short) 0;
+-        }
++        if (returnType == Boolean.TYPE) return false;
++        if (returnType == Byte.TYPE) return (byte) 0;
++        if (returnType == Character.TYPE) return (char) 0;
++        if (returnType == Double.TYPE) return 0.0d;
++        if (returnType == Float.TYPE) return 0.0f;
++        if (returnType == Integer.TYPE) return 0;
++        if (returnType == Long.TYPE) return 0L;
++        if (returnType == Short.TYPE) return (short) 0;
+         return null;
+     }
+ 
+     private static final class FakeRuntimeSettings implements PlaybackRuntimeSettingsStore.RuntimeSettings {
+         boolean replayGainEnabled = true;
+-        boolean concurrentPlaybackEnabled = false;
+         float playbackSpeed = 1.0f;
+         float appVolume = 1.0f;
+         int loadCalls;
+@@ -201,12 +177,6 @@ public final class PlaybackRuntimeSettingsStoreTest {
+             return replayGainEnabled;
+         }
+ 
+-        @Override
+-        public boolean loadConcurrentPlaybackEnabled() {
+-            loadCalls++;
+-            return concurrentPlaybackEnabled;
+-        }
+-
+         @Override
+         public float loadPlaybackSpeed() {
+             loadCalls++;
+@@ -218,5 +188,11 @@ public final class PlaybackRuntimeSettingsStoreTest {
+             loadCalls++;
+             return appVolume;
+         }
++
++        @Override
++        public boolean loadBitPerfectEnabled() {
++            loadCalls++;
++            return false;
++        }
+     }
+ }
+diff --git a/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java b/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
+index 869caa59..9fbf4331 100644
+--- a/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
++++ b/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
+@@ -197,6 +197,26 @@ public class PlaybackStateSnapshotOwnerTest {
+         public float appVolume() {
+             return appVolume;
+         }
++
++        @Override
++        public boolean bitPerfectActive() {
++            return false;
++        }
++
++        @Override
++        public int outputSampleRateHz() {
++            return 0;
++        }
++
++        @Override
++        public String bitPerfectFallbackReason() {
++            return null;
++        }
++
++        @Override
++        public boolean audioExclusiveActive() {
++            return false;
++        }
+     }
+ 
+     private static final class FakeVisualizationProvider

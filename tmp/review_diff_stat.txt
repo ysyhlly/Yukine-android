@@ -1,0 +1,60 @@
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsOverlaySettings.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/FloatingLyricsOverlayView.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/main/java/app/yukine/SettingsContextProvider.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'feature/library-ui/src/main/java/app/yukine/LibraryTrackPresentationPolicy.kt', LF will be replaced by CRLF the next time Git touches it
+ .../184q4g1k/arm64-v8a/configure_fingerprint.bin   | 24 ++++----
+ .../184q4g1k/x86_64/configure_fingerprint.bin      | 24 ++++----
+ .../app/yukine/ApplySettingsPreferenceUseCase.kt   |  6 --
+ .../app/yukine/FloatingLyricsOverlaySettings.kt    | 13 ++++-
+ .../java/app/yukine/FloatingLyricsOverlayView.kt   |  6 +-
+ .../main/java/app/yukine/LibraryStateBinding.kt    |  9 ++-
+ .../app/yukine/LoadSettingsPreferencesUseCase.kt   |  7 ---
+ .../java/app/yukine/MainPlaybackServiceHost.kt     |  7 ---
+ .../main/java/app/yukine/MainRouteController.kt    |  7 ++-
+ app/src/main/java/app/yukine/MainSettingsStore.kt  | 12 ----
+ .../main/java/app/yukine/PlaybackFeatureBinding.kt |  1 -
+ .../yukine/PlaybackServiceConnectionController.kt  |  4 +-
+ .../app/yukine/PlaybackServiceHostController.kt    |  3 -
+ .../java/app/yukine/SettingsContextProvider.kt     |  1 +
+ .../SettingsPlaybackServiceControlsAdapter.kt      |  6 +-
+ .../main/java/app/yukine/SettingsRuntimeApplier.kt | 14 +++--
+ .../yukine/playback/PlaybackPersistenceOwner.java  | 12 ----
+ .../playback/PlaybackRuntimeSettingsStore.java     | 20 +------
+ .../yukine/playback/PlaybackServiceRuntime.java    | 44 ++++++++++++---
+ .../yukine/ApplySettingsPreferenceUseCaseTest.kt   |  6 --
+ .../yukine/LibraryTrackPresentationPolicyTest.kt   | 65 ++++++++++++++++++++++
+ .../yukine/LoadSettingsPreferencesUseCaseTest.kt   | 10 +---
+ .../java/app/yukine/MainPlaybackServiceHostTest.kt | 10 ----
+ .../app/yukine/SettingsPageStateBuilderTest.kt     | 43 +++-----------
+ .../SettingsPlaybackServiceControlsAdapterTest.kt  |  6 --
+ .../java/app/yukine/SettingsRuntimeApplierTest.kt  |  6 --
+ .../test/java/app/yukine/SettingsViewModelTest.kt  | 54 +-----------------
+ .../playback/PlaybackRuntimeSettingsStoreTest.java | 52 ++++-------------
+ .../src/main/java/app/yukine/AppLanguage.java      | 13 ++++-
+ .../model/src/main/java/app/yukine/MainRoutes.java |  1 -
+ .../src/main/java/app/yukine/model/Track.java      | 33 +++++++++++
+ .../streaming/RecordingMatchEvaluatorV2Test.kt     |  6 +-
+ .../app/yukine/data/MusicLibraryRepository.java    |  8 ---
+ .../yukine/data/OfflinePhysicalSourceClusterer.kt  | 21 +++++--
+ .../java/app/yukine/data/SettingsRepository.java   |  2 -
+ .../app/yukine/data/room/TrackEntityMapper.java    |  3 +-
+ .../app/yukine/LibraryTrackPresentationPolicy.kt   | 30 ++++++++--
+ .../main/java/app/yukine/TrackListStateReducer.kt  |  6 +-
+ .../main/java/app/yukine/ui/LibraryInteraction.kt  |  6 +-
+ .../src/main/java/app/yukine/ui/TrackListScreen.kt |  3 +
+ .../java/app/yukine/navigation/EchoNavGraph.kt     |  2 +-
+ .../manager/PlaybackRuntimeStateManager.kt         | 20 ++-----
+ .../playback/PlaybackRuntimeStateManagerTest.kt    | 29 ----------
+ .../src/main/java/app/yukine/SettingsBackStack.kt  |  1 -
+ .../src/main/java/app/yukine/SettingsControls.kt   |  4 +-
+ .../java/app/yukine/SettingsMutationContext.kt     |  6 --
+ .../src/main/java/app/yukine/SettingsPage.kt       |  3 -
+ .../java/app/yukine/SettingsPageContentFactory.kt  | 13 ++---
+ .../java/app/yukine/SettingsPageStateBuilder.kt    | 48 ++++++++--------
+ .../java/app/yukine/SettingsPageStateOwners.kt     | 34 +++--------
+ .../app/yukine/SettingsPersistenceContracts.kt     |  1 -
+ .../main/java/app/yukine/SettingsRuntimeEffect.kt  |  3 +-
+ .../java/app/yukine/SettingsStatusTextFactory.kt   |  2 -
+ .../src/main/java/app/yukine/SettingsViewModel.kt  |  4 +-
+ 54 files changed, 347 insertions(+), 427 deletions(-)

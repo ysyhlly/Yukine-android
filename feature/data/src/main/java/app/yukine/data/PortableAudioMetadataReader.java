@@ -25,7 +25,8 @@ import app.yukine.model.TrackIdentityTags;
 /** Reads portable tags that Android's MediaMetadataRetriever may ignore for some containers. */
 final class PortableAudioMetadataReader {
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of(
-            "mp3", "flac", "m4a", "mp4", "ogg", "opus", "wav", "aif", "aiff", "wma"
+            "mp3", "flac", "m4a", "mp4", "ogg", "opus", "wav", "aif", "aiff", "wma",
+            "dsf", "dff", "ape", "wv", "tta"
     );
 
     private final Context context;
@@ -101,7 +102,12 @@ final class PortableAudioMetadataReader {
                             text(tag.getFirst(FieldKey.ISRC)),
                             text(tag.getFirst(FieldKey.ACOUSTID_ID)),
                             values(tag, FieldKey.MUSICBRAINZ_ARTISTID)
-                    )
+                    ),
+                    text(tag.getFirst(FieldKey.GENRE)),
+                    parseLeadingInt(text(tag.getFirst(FieldKey.DISC_NO))),
+                    parseLeadingInt(text(tag.getFirst(FieldKey.TRACK))),
+                    parseLeadingInt(text(tag.getFirst(FieldKey.BPM))),
+                    text(tag.getFirst(FieldKey.LYRICS))
             );
         } catch (Exception ignored) {
             return Metadata.EMPTY;
@@ -163,6 +169,19 @@ final class PortableAudioMetadataReader {
         }
     }
 
+    private static int parseLeadingInt(String value) {
+        if (value == null || value.isEmpty()) {
+            return 0;
+        }
+        int slash = value.indexOf('/');
+        String numeric = slash > 0 ? value.substring(0, slash).trim() : value;
+        try {
+            return Math.max(Integer.parseInt(numeric), 0);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
     static final class Metadata {
         static final Metadata EMPTY = new Metadata(
                 "",
@@ -173,7 +192,12 @@ final class PortableAudioMetadataReader {
                 "",
                 0,
                 null,
-                TrackIdentityTags.EMPTY
+                TrackIdentityTags.EMPTY,
+                "",
+                0,
+                0,
+                0,
+                ""
         );
 
         final String title;
@@ -185,6 +209,11 @@ final class PortableAudioMetadataReader {
         final int year;
         final byte[] artwork;
         final TrackIdentityTags identityTags;
+        final String genre;
+        final int discNumber;
+        final int trackNumber;
+        final int bpm;
+        final String lyrics;
 
         Metadata(
                 String title,
@@ -195,7 +224,12 @@ final class PortableAudioMetadataReader {
                 String releaseType,
                 int year,
                 byte[] artwork,
-                TrackIdentityTags identityTags
+                TrackIdentityTags identityTags,
+                String genre,
+                int discNumber,
+                int trackNumber,
+                int bpm,
+                String lyrics
         ) {
             this.title = title;
             this.artist = artist;
@@ -206,6 +240,11 @@ final class PortableAudioMetadataReader {
             this.year = year;
             this.artwork = artwork;
             this.identityTags = identityTags == null ? TrackIdentityTags.EMPTY : identityTags;
+            this.genre = genre == null ? "" : genre;
+            this.discNumber = discNumber;
+            this.trackNumber = trackNumber;
+            this.bpm = bpm;
+            this.lyrics = lyrics == null ? "" : lyrics;
         }
     }
 }

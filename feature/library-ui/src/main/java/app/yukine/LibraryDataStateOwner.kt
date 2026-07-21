@@ -57,12 +57,11 @@ class LibraryDataStateOwner @JvmOverloads constructor(
     private var searchJob: Job? = null
     private var libraryRevision = 0L
 
-    @Volatile
-    private var mergeIdentityProvider: ((Track) -> String?)? = null
-
-    @Volatile
-    private var mergeIdentitySnapshotProvider: (() -> Map<Long, String>)? = null
-
+    /**
+     * The authoritative Room-backed recording identity snapshot.
+     * This is the sole identity source for library display, ensuring UI grouping
+     * reflects background deduplication decisions (V5 scoring + audio fingerprint).
+     */
     @Volatile
     private var recordingIdentitySnapshotProvider: (() -> Map<Long, Long>)? = null
 
@@ -79,20 +78,6 @@ class LibraryDataStateOwner @JvmOverloads constructor(
 
     fun allTracks(): ArrayList<Track> {
         return ArrayList(state().allTracks)
-    }
-
-    /** Binds the optional catalog identity used to merge rows across local and remote metadata. */
-    fun bindMergeIdentityProvider(provider: ((Track) -> String?)?) {
-        mergeIdentityProvider = provider
-    }
-
-    /**
-     * Binds the authoritative Room-backed identity snapshot used by an async library replacement.
-     * The provider is invoked once on [preparationDispatcher], so a scan/sync commit cannot be
-     * hidden by an older process cache and the display path still performs no per-track queries.
-     */
-    fun bindMergeIdentitySnapshotProvider(provider: (() -> Map<Long, String>)?) {
-        mergeIdentitySnapshotProvider = provider
     }
 
     /** Binds the integer recording snapshot used by the production library hot path. */
@@ -194,30 +179,11 @@ class LibraryDataStateOwner @JvmOverloads constructor(
         favorites: Set<Long>
     ): PreparedLibraryBase {
         val sourceTracks = tracks.toList()
-        val recordingSnapshotProvider = recordingIdentitySnapshotProvider
-        val recordingIdentities = recordingSnapshotProvider?.invoke().orEmpty()
-        val snapshotProvider = mergeIdentitySnapshotProvider
-        val identitySnapshot = snapshotProvider?.invoke().orEmpty()
-        val fallbackIdentityProvider = mergeIdentityProvider ?: { _: Track -> null }
-        val librarySnapshot = if (recordingSnapshotProvider != null) {
-            LibraryTrackMergePolicy.persistedRecordingSnapshot(sourceTracks) { track ->
-                recordingIdentities[track.id]
-            }
-        } else {
-            val mergeIdentitiesByTrackId = sourceTracks.associate { track ->
-                val persistedIdentity = identitySnapshot[track.id]
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { "recording:$it" }
-                track.id to if (snapshotProvider != null) {
-                    persistedIdentity
-                } else {
-                    fallbackIdentityProvider(track)
-                }
-            }
-            LibraryTrackMergePolicy.persistedSnapshot(sourceTracks) { track ->
-                mergeIdentitiesByTrackId[track.id]
-            }
+        // Unified dedup: always use persisted recording identities from background ingestion.
+        // Tracks without a recording identity remain as singletons (unmerged).
+        val recordingIdentities = recordingIdentitySnapshotProvider?.invoke().orEmpty()
+        val librarySnapshot = LibraryTrackMergePolicy.persistedRecordingSnapshot(sourceTracks) { track ->
+            recordingIdentities[track.id]
         }
         return PreparedLibraryBase(
             librarySnapshot = librarySnapshot,

@@ -542,6 +542,161 @@ class MetadataGatewayClientTest {
         .digest(value.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
 
+    @Test
+    fun lyricsSearchSendsNeteaseSongIdWhenPresent() {
+        var requestedUrl = ""
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { url, _ ->
+                requestedUrl = url
+                MetadataHttpResponse(200, LYRICS_RESPONSE)
+            },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        client.searchLyrics("Song", "Artist", "Album", 180_000L, neteaseSongId = "12345")
+
+        assertTrue(requestedUrl.contains("neteaseSongId=12345"))
+    }
+
+    @Test
+    fun lyricsSearchOmitsNeteaseSongIdWhenBlank() {
+        var requestedUrl = ""
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { url, _ ->
+                requestedUrl = url
+                MetadataHttpResponse(200, LYRICS_RESPONSE)
+            },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        client.searchLyrics("Song", "Artist", "Album", 180_000L)
+
+        assertFalse(requestedUrl.contains("neteaseSongId"))
+    }
+
+    @Test
+    fun lyricsResponseParsesWordLyricsFields() {
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { _, _ ->
+                MetadataHttpResponse(200, LYRICS_RESPONSE_WITH_WORD_LYRICS)
+            },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        val result = client.searchLyrics("Song", "Artist", "", 0L)
+
+        assertEquals("[1000,500](0,300,0)歌(300,200,0)词", result.lyrics?.wordLyrics)
+        assertEquals("qqmusic", result.lyrics?.wordLyricsSource)
+    }
+
+    @Test
+    fun lyricsResponseWithoutWordLyricsStillParses() {
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { _, _ ->
+                MetadataHttpResponse(200, LYRICS_RESPONSE)
+            },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        val result = client.searchLyrics("Song", "Artist", "", 0L)
+
+        assertEquals("", result.lyrics?.wordLyrics)
+        assertEquals("", result.lyrics?.wordLyricsSource)
+        assertEquals("[00:01.00]歌词", result.lyrics?.syncedLyrics)
+    }
+
+    @Test
+    fun wordLyricsExceedingSizeLimitAreDiscarded() {
+        val hugeWordLyrics = "x".repeat(600 * 1024)
+        val response = """
+            {"lyrics":{
+              "canonicalId":"lyrics:test:1","title":"Song","artist":"Artist","album":"",
+              "durationMs":0,"syncedLyrics":"[00:01.00]OK","plainLyrics":"OK",
+              "wordLyrics":"$hugeWordLyrics","wordLyricsSource":"qqmusic",
+              "confidence":1.0,"sources":[]
+            }}
+        """
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { _, _ -> MetadataHttpResponse(200, response) },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        val result = client.searchLyrics("Song", "", "", 0L)
+
+        assertEquals("", result.lyrics?.wordLyrics)
+        assertEquals("[00:01.00]OK", result.lyrics?.syncedLyrics)
+    }
+
+    @Test
+    fun recordingResponseParsesPossibleDuplicates() {
+        val response = """
+            {"recordings":[{
+              "canonicalId":"recording:test:1","title":"Song",
+              "artists":[{"id":"a1","name":"Artist"}],
+              "album":"Album","coverUrl":"","durationMs":180000,
+              "identifiers":{},"fingerprintVerified":false,"confidence":0.9,
+              "sources":[{"provider":"mb","id":"1","role":"identity","matchedBy":[],"fields":[],"confidence":0.9}],
+              "possibleDuplicates":[
+                {"canonicalId":"recording:test:2","confidence":0.85},
+                {"canonicalId":"recording:test:3","confidence":0.7}
+              ]
+            }]}
+        """
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { _, _ -> MetadataHttpResponse(200, response) },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        val result = client.searchRecording(CanonicalRecording(1L, "id", title = "Song"), "", null)
+
+        val duplicates = result.candidates.single().possibleDuplicates
+        assertEquals(2, duplicates.size)
+        assertEquals("recording:test:2", duplicates[0].canonicalId)
+        assertEquals(0.85, duplicates[0].confidence, 0.0001)
+        assertEquals("recording:test:3", duplicates[1].canonicalId)
+        assertEquals(0.7, duplicates[1].confidence, 0.0001)
+    }
+
+    @Test
+    fun artistResponseParsesBiography() {
+        val response = """
+            {"artists":[{
+              "canonicalId":"artist:test:1","name":"Aimer","sortName":"Aimer",
+              "aliases":[],"country":"JP","type":"PERSON",
+              "identifiers":{"artistMbid":"mbid-1"},
+              "avatarUrl":"https://example.com/avatar.jpg",
+              "description":"Short desc",
+              "biography":"Full biography text here.",
+              "confidence":1.0,
+              "sources":[{"provider":"mb","id":"1","role":"identity","matchedBy":[],"fields":[],"confidence":1.0}]
+            }]}
+        """
+        val client = MetadataGatewayClient(
+            FakeCache(),
+            MetadataHttpTransport { _, _ -> MetadataHttpResponse(200, response) },
+            "https://gateway.example",
+            "1.0"
+        )
+
+        val result = client.searchArtist(CanonicalArtist(artistKey = 1L, artistId = "id", displayName = "Aimer"), emptyList())
+
+        val artist = result.candidates.single()
+        assertEquals("Short desc", artist.description)
+        assertEquals("Full biography text here.", artist.biography)
+    }
+
     private companion object {
         const val RECORDING_RESPONSE = """
             {"recordings":[{
@@ -626,6 +781,19 @@ class MetadataGatewayClientTest {
               "sources":[{
                 "provider":"lrclib","id":"7","role":"identity","matchedBy":["exact_metadata"],
                 "fields":["syncedLyrics","plainLyrics"],"confidence":1.0
+              }]
+            }}
+        """
+
+        const val LYRICS_RESPONSE_WITH_WORD_LYRICS = """
+            {"lyrics":{
+              "canonicalId":"lyrics:lrclib:8","title":"Song","artist":"Artist","album":"Album",
+              "durationMs":180000,"syncedLyrics":"[00:01.00]歌词","plainLyrics":"歌词",
+              "wordLyrics":"[1000,500](0,300,0)歌(300,200,0)词","wordLyricsSource":"qqmusic",
+              "confidence":1.0,
+              "sources":[{
+                "provider":"lrclib","id":"8","role":"identity","matchedBy":["exact_metadata"],
+                "fields":["syncedLyrics","plainLyrics","wordLyrics"],"confidence":1.0
               }]
             }}
         """

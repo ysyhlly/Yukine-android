@@ -68,18 +68,31 @@ data class LyricsDocument @JvmOverloads constructor(
         ): LyricsDocument {
             val safeLines = lines.orEmpty()
             if (safeLines.isEmpty()) return empty()
-            val richLines = safeLines.mapIndexed { index, line ->
+            val primaryLines = mutableListOf<LyricLine>()
+            val translationLines = mutableListOf<LyricLine>()
+            safeLines.forEachIndexed { index, line ->
                 val nextStart = safeLines.getOrNull(index + 1)?.timeMs
-                LyricLine(
-                    startMs = line.timeMs,
-                    endMs = nextStart?.coerceAtLeast(line.timeMs) ?: (line.timeMs + 3_000L),
-                    text = line.text
-                )
+                val endMs = nextStart?.coerceAtLeast(line.timeMs) ?: (line.timeMs + 3_000L)
+                val newlineIdx = line.text.indexOf('\n')
+                if (newlineIdx > 0 && newlineIdx < line.text.length - 1) {
+                    val primaryText = line.text.substring(0, newlineIdx)
+                    val translationText = line.text.substring(newlineIdx + 1)
+                    primaryLines += LyricLine(line.timeMs, endMs, primaryText)
+                    if (translationText.isNotBlank()) {
+                        translationLines += LyricLine(line.timeMs, endMs, translationText)
+                    }
+                } else {
+                    primaryLines += LyricLine(line.timeMs, endMs, line.text)
+                }
+            }
+            val tracks = mutableListOf(LyricsTrack(LyricsTrackRole.PRIMARY, lines = primaryLines))
+            if (translationLines.isNotEmpty()) {
+                tracks += LyricsTrack(LyricsTrackRole.TRANSLATION, lines = translationLines)
             }
             return LyricsDocument(
                 sourceName = sourceName,
                 format = format,
-                tracks = listOf(LyricsTrack(LyricsTrackRole.PRIMARY, lines = richLines))
+                tracks = tracks
             )
         }
     }

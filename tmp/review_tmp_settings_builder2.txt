@@ -1,0 +1,155 @@
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+index e6c4c9e2..cb053866 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageStateBuilder.kt
+@@ -637,15 +637,21 @@ object SettingsPageStateBuilder {
+         languageMode: String,
+         playbackSpeed: Float,
+         appVolume: Float,
+-        concurrentPlaybackEnabled: Boolean,
+         audioEffects: AudioEffectSettings,
+         playbackRestoreEnabled: Boolean,
+         replayGainEnabled: Boolean,
++        audioExclusiveEnabled: Boolean,
++        bitPerfectEnabled: Boolean,
++        usbExclusiveEnabled: Boolean = false,
+         remainingMs: Long,
+         onNavigate: (SettingsPage) -> Unit,
+         onReplayGainEnabledChange: (Boolean) -> Unit = {},
+         onPlaybackRestoreEnabledChange: (Boolean) -> Unit = {},
+-        onAudioExclusiveEnabledChange: (Boolean) -> Unit = {}
++        onAudioExclusiveEnabledChange: (Boolean) -> Unit = {},
++        onBitPerfectEnabledChange: (Boolean) -> Unit = {},
++        onUsbExclusiveEnabledChange: (Boolean) -> Unit = {},
++        bitPerfectStatusDescription: String? = null,
++        usbExclusiveStatusDescription: String? = null
+     ): SettingsPageStateContent {
+         val metrics = listOf(
+             SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)),
+@@ -653,7 +659,9 @@ object SettingsPageStateBuilder {
+             SettingsMetric(text(languageMode, "audio.effects"), audioEffectsLabel(audioEffects, languageMode)),
+             SettingsMetric(text(languageMode, "replay.gain"), enabledLabel(replayGainEnabled, languageMode)),
+             SettingsMetric(text(languageMode, "playback.restore"), enabledLabel(playbackRestoreEnabled, languageMode)),
+-            SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(!concurrentPlaybackEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "audio.exclusive"), enabledLabel(audioExclusiveEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "bit.perfect"), enabledLabel(bitPerfectEnabled, languageMode)),
++            SettingsMetric(text(languageMode, "usb.exclusive"), enabledLabel(usbExclusiveEnabled, languageMode)),
+             SettingsMetric(text(languageMode, "sleep.timer"), sleepTimerLabel(remainingMs, languageMode))
+         )
+         val actions = listOf(
+@@ -710,14 +718,37 @@ object SettingsPageStateBuilder {
+             ),
+             SettingsAction(
+                 label = text(languageMode, "audio.exclusive"),
+-                onClick = Runnable { onAudioExclusiveEnabledChange(concurrentPlaybackEnabled) },
+-                description = text(languageMode, "audio.exclusive.hint"),
++                onClick = Runnable { onAudioExclusiveEnabledChange(!audioExclusiveEnabled) },
++                description = if (audioExclusiveEnabled)
++                    "鎶㈠崰鐒︾偣锛屽叾浠栧簲鐢ㄦ挱鏀炬椂鑷姩澶哄洖"
++                else
++                    "鏍囧噯琛屼负锛岀劍鐐逛涪澶辨椂鏆傚仠",
+                 style = SettingsActionStyle.Toggle,
+                 icon = EchoIconKind.Gauge,
+-                checked = !concurrentPlaybackEnabled,
++                checked = audioExclusiveEnabled,
+                 section = text(languageMode, "settings.section.behavior"),
+                 entryId = SettingsEntryId.AudioExclusive
+             ),
++            SettingsAction(
++                label = text(languageMode, "bit.perfect"),
++                onClick = Runnable { onBitPerfectEnabledChange(!bitPerfectEnabled) },
++                description = bitPerfectStatusDescription ?: text(languageMode, "bit.perfect.hint"),
++                style = SettingsActionStyle.Toggle,
++                icon = EchoIconKind.Gauge,
++                checked = bitPerfectEnabled,
++                section = text(languageMode, "settings.section.behavior"),
++                entryId = SettingsEntryId.BitPerfect
++            ),
++            SettingsAction(
++                label = text(languageMode, "usb.exclusive"),
++                onClick = Runnable { onUsbExclusiveEnabledChange(!usbExclusiveEnabled) },
++                description = usbExclusiveStatusDescription ?: text(languageMode, "usb.exclusive.hint"),
++                style = SettingsActionStyle.Toggle,
++                icon = EchoIconKind.Gauge,
++                checked = usbExclusiveEnabled,
++                section = text(languageMode, "settings.section.behavior"),
++                entryId = SettingsEntryId.UsbExclusive
++            ),
+             navigationAction(
+                 text(languageMode, "sleep.timer"),
+                 SettingsPage.SleepTimer,
+@@ -892,23 +923,6 @@ object SettingsPageStateBuilder {
+         return buildContent(text(languageMode, "page.background"), metrics, actions)
+     }
+ 
+-    fun audioExclusive(
+-        languageMode: String,
+-        enabled: Boolean,
+-        onNavigate: (SettingsPage) -> Unit,
+-        onToggle: (Boolean) -> Unit
+-    ): SettingsPageStateContent = booleanLeafPage(
+-        languageMode = languageMode,
+-        currentPage = SettingsPage.ConcurrentPlayback,
+-        titleKey = "audio.exclusive",
+-        descriptionKey = "audio.exclusive.description",
+-        enableKey = "enable.audio.exclusive",
+-        disableKey = "disable.audio.exclusive",
+-        enabled = enabled,
+-        onNavigate = onNavigate,
+-        onToggle = onToggle
+-    )
+-
+     fun nowPlayingGestures(
+         languageMode: String,
+         enabled: Boolean,
+@@ -1082,6 +1096,7 @@ object SettingsPageStateBuilder {
+         widthPercent: Int,
+         backgroundOpacityPercent: Int,
+         transparentBackground: Boolean,
++        textColorArgb: Int,
+         onNavigate: (SettingsPage) -> Unit,
+         onOpenPermission: () -> Unit,
+         onToggle: (Boolean) -> Unit,
+@@ -1089,6 +1104,7 @@ object SettingsPageStateBuilder {
+         onWidthChange: (Int) -> Unit,
+         onBackgroundOpacityChange: (Int) -> Unit,
+         onTransparentBackgroundChange: (Boolean) -> Unit,
++        onTextColorChange: (Int) -> Unit,
+         onShow: () -> Unit,
+         onUnlock: () -> Unit,
+         onReset: () -> Unit
+@@ -1202,6 +1218,25 @@ object SettingsPageStateBuilder {
+                     section = text(languageMode, "floating.lyrics.section.appearance")
+                 )
+             )
++            val colorPresets = listOf(
++                0xFFF8FBFF.toInt() to "floating.lyrics.color.white",
++                0xFF7FDBFF.toInt() to "floating.lyrics.color.cyan",
++                0xFFFF9EC4.toInt() to "floating.lyrics.color.pink",
++                0xFFFFD700.toInt() to "floating.lyrics.color.gold",
++                0xFF98FB98.toInt() to "floating.lyrics.color.green"
++            )
++            for ((color, labelKey) in colorPresets) {
++                add(
++                    SettingsAction(
++                        label = text(languageMode, labelKey),
++                        onClick = Runnable { onTextColorChange(color) },
++                        style = SettingsActionStyle.Choice,
++                        icon = EchoIconKind.Palette,
++                        checked = textColorArgb == color,
++                        section = text(languageMode, "floating.lyrics.section.text.color")
++                    )
++                )
++            }
+             add(
+                 SettingsAction(
+                     label = text(languageMode, "floating.lyrics.show"),
+@@ -1996,7 +2031,7 @@ object SettingsPageStateBuilder {
+         SettingsPage.AdvancedTheme -> EchoIconKind.Sparkle
+         SettingsPage.Accent -> EchoIconKind.Swatch
+         SettingsPage.Language -> EchoIconKind.Language
+-        SettingsPage.PlaybackGroup, SettingsPage.AudioEffects, SettingsPage.ConcurrentPlayback,
++        SettingsPage.PlaybackGroup, SettingsPage.AudioEffects,
+         SettingsPage.PlaybackSpeed -> EchoIconKind.Gauge
+         SettingsPage.AppVolume -> EchoIconKind.Volume
+         SettingsPage.LyricsGroup, SettingsPage.Lyrics, SettingsPage.StatusBarLyrics -> EchoIconKind.Lyrics

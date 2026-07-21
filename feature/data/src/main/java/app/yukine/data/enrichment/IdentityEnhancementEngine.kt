@@ -296,9 +296,13 @@ class IdentityEnhancementEngine(
                 IdentityTextNormalizer.normalizeForSearch(artist.displayName)
         }
         val avatarCandidate = autoConfirmedCandidate?.takeIf { it.avatarUrl.isNotBlank() }
-            ?: exactProfileCandidates.filter { it.avatarUrl.isNotBlank() }.singleOrNull()
+            ?: exactProfileCandidates
+                .filter { it.avatarUrl.isNotBlank() }
+                .maxByOrNull { rankedByKey.getValue(it.provider to it.providerItemId).score }
         val descriptionCandidate = autoConfirmedCandidate?.takeIf { it.description.isNotBlank() }
-            ?: exactProfileCandidates.filter { it.description.isNotBlank() }.singleOrNull()
+            ?: exactProfileCandidates
+                .filter { it.description.isNotBlank() }
+                .maxByOrNull { rankedByKey.getValue(it.provider to it.providerItemId).score }
         if (artist.avatarUrl.isBlank() && avatarCandidate != null) {
             artists.updateAvatarIfMissing(artistKey, avatarCandidate.avatarUrl, avatarCandidate.provider)
         }

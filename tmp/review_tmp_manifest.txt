@@ -1,0 +1,13 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 234feb51..f73d6750 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -16,6 +16,8 @@
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ 
++    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
++
+     <application
+         android:name=".EchoApplication"
+         android:allowBackup="false"

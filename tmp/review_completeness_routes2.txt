@@ -1,0 +1,25 @@
+diff --git a/core/model/src/main/java/app/yukine/MainRoutes.java b/core/model/src/main/java/app/yukine/MainRoutes.java
+index fca5e49b..d4470fa3 100644
+--- a/core/model/src/main/java/app/yukine/MainRoutes.java
++++ b/core/model/src/main/java/app/yukine/MainRoutes.java
+@@ -34,7 +34,6 @@ public final class MainRoutes {
+     public static final String SETTINGS_STREAMING_AUDIO_QUALITY = "settings_streaming_audio_quality";
+     public static final String SETTINGS_SHARE_STYLE = "settings_share_style";
+     public static final String SETTINGS_DOWNLOADS = "settings_downloads";
+-    public static final String SETTINGS_CONCURRENT_PLAYBACK = "settings_concurrent_playback";
+     public static final String SETTINGS_SLEEP_TIMER = "settings_sleep_timer";
+     public static final String SETTINGS_LYRICS = "settings_lyrics";
+     public static final String SETTINGS_LIBRARY = "settings_library";
+diff --git a/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt b/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
+index c80890e6..f3dd518d 100644
+--- a/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
++++ b/feature/navigation/src/main/java/app/yukine/navigation/EchoNavGraph.kt
+@@ -395,7 +395,7 @@ private fun LibraryDestination(
+         RecordingMatchDestination(recordingMatchState.value, recordingMatchStateProvider)
+         return
+     }
+-    if (route.libraryPage == LibraryPage.Overview) {
++    if (route.libraryPage == LibraryPage.Overview && route.selectedLibraryGroupKey.isBlank() && route.selectedPlaylistId < 0L) {
+         val library by libraryState.collectAsState()
+         val downloads by downloadsState.collectAsState()
+         val groups by groupsState.collectAsState()

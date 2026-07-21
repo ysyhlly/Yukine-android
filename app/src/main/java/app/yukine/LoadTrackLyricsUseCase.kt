@@ -58,7 +58,8 @@ internal class LuoxueFirstTrackLyricsOperations(
     ): List<LyricsLine> {
         val lxLines = try {
             resolver.resolveLyrics(track)?.let { lyrics ->
-                repository.parseProviderLyrics(lyrics.lyric, lyrics.translation.orEmpty())
+                val primaryText = lyrics.wordByWord?.ifBlank { null } ?: lyrics.lyric
+                repository.parseProviderLyrics(primaryText, lyrics.translation.orEmpty())
             }.orEmpty()
         } catch (error: CancellationException) {
             throw error
@@ -78,7 +79,12 @@ internal class LuoxueFirstTrackLyricsOperations(
     ): LyricsDocument {
         val lxDocument = try {
             resolver.resolveLyrics(track)?.let { lyrics ->
-                repository.parseProviderLyricsDocument(lyrics.lyric, lyrics.translation.orEmpty())
+                val primaryText = lyrics.wordByWord?.ifBlank { null } ?: lyrics.lyric
+                repository.parseProviderLyricsDocument(
+                    primaryText,
+                    lyrics.translation.orEmpty(),
+                    lyrics.romanization.orEmpty()
+                )
             } ?: LyricsDocument.empty()
         } catch (error: CancellationException) {
             throw error

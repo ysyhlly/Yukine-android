@@ -56,10 +56,20 @@ final class AudioSpecParser {
         String composer = firstNonBlank(track.composer, portable.composer);
         String releaseType = firstNonBlank(track.releaseType, portable.releaseType);
         int year = track.year > 0 ? track.year : portable.year;
+        String genre = firstNonBlank(track.genre, portable.genre);
+        int discNumber = track.discNumber > 0 ? track.discNumber : portable.discNumber;
+        int trackNumber = track.trackNumber > 0 ? track.trackNumber : portable.trackNumber;
+        int bpm = track.bpm > 0 ? track.bpm : portable.bpm;
+        String lyrics = track.lyrics.isEmpty() ? portable.lyrics : track.lyrics;
         boolean metadataChanged = !albumArtist.equals(track.albumArtist)
                 || !composer.equals(track.composer)
                 || !releaseType.equals(track.releaseType)
-                || year != track.year;
+                || year != track.year
+                || !genre.equals(track.genre)
+                || discNumber != track.discNumber
+                || trackNumber != track.trackNumber
+                || bpm != track.bpm
+                || !lyrics.equals(track.lyrics);
         if (!spec.hasAudioSpec() && !replayGain.hasValue() && identityTags.isEmpty()
                 && !metadataChanged) {
             return track;
@@ -85,7 +95,13 @@ final class AudioSpecParser {
                 albumArtist,
                 composer,
                 releaseType,
-                year
+                year,
+                track.updatedAt,
+                genre,
+                discNumber,
+                trackNumber,
+                bpm,
+                lyrics
         );
     }
 
@@ -182,6 +198,10 @@ final class AudioSpecParser {
             spec.codec = "aac";
         } else if ("oga".equals(extension)) {
             spec.codec = "ogg";
+        } else if ("dsf".equals(extension) || "dff".equals(extension)) {
+            spec.codec = "dsd";
+        } else if ("wv".equals(extension)) {
+            spec.codec = "wavpack";
         } else {
             spec.codec = extension;
         }

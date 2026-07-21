@@ -1,5 +1,8 @@
 package app.yukine.ui
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class LyricUiLine(
     val text: String,
     val active: Boolean,
@@ -10,6 +13,7 @@ data class LyricUiLine(
     val words: List<LyricUiWord> = emptyList()
 )
 
+@Immutable
 data class LyricUiWord(
     val text: String,
     val startMs: Long,
@@ -29,6 +33,13 @@ internal fun LyricUiLine.isActiveAt(positionMs: Long): Boolean =
 
 internal fun LyricUiWord.isActiveAt(positionMs: Long): Boolean =
     positionMs in startMs until endMs.coerceAtLeast(startMs + 1L)
+
+internal fun LyricUiWord.progressAt(positionMs: Long): Float =
+    when {
+        positionMs >= endMs -> 1f
+        positionMs <= startMs -> 0f
+        else -> (positionMs - startMs).toFloat() / (endMs - startMs).coerceAtLeast(1L)
+    }
 
 internal fun LyricUiWord.textBounds(lineText: String, searchFrom: Int): Pair<Int, Int>? {
     if (

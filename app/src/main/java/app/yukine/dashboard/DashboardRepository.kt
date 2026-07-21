@@ -237,7 +237,7 @@ class DashboardRepository(
         val totalDurationMs = tracks.sumOf { it.durationMs }
         val durationText = formatDuration(totalDurationMs)
         val nowMs = System.currentTimeMillis()
-        val weekRecords = records.filter { it.playedAt >= startOfWeek(nowMs) }
+        val weekRecords = records.filter { it.track != null && it.playedAt >= startOfWeek(nowMs) }
         val weekPlayCount = weekRecords.sumOf { max(1, it.playCount) }
         val weekDurationMs = weekRecords.sumOf { record ->
             record.track.durationMs * max(1, record.playCount)
@@ -305,7 +305,7 @@ class DashboardRepository(
         records: List<TrackPlayRecord>
     ): HomeDashboardUiState {
         val nowMs = System.currentTimeMillis()
-        val weekRecords = records.filter { it.playedAt >= startOfWeek(nowMs) }
+        val weekRecords = records.filter { it.track != null && it.playedAt >= startOfWeek(nowMs) }
         if (weekRecords.isEmpty()) {
             return state
         }

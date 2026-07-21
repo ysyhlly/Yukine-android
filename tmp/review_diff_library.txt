@@ -1,0 +1,97 @@
+warning: in the working copy of 'feature/library-ui/src/main/java/app/yukine/LibraryTrackMergePolicy.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/feature/library-ui/src/main/java/app/yukine/LibraryTrackMergePolicy.kt b/feature/library-ui/src/main/java/app/yukine/LibraryTrackMergePolicy.kt
+index 52615d83..f31821f7 100644
+--- a/feature/library-ui/src/main/java/app/yukine/LibraryTrackMergePolicy.kt
++++ b/feature/library-ui/src/main/java/app/yukine/LibraryTrackMergePolicy.kt
+@@ -141,12 +141,15 @@ object LibraryTrackMergePolicy {
+                 return@forEach
+             }
+             val metadata = track.mergeMetadataOrNull()
+-            if (metadata == null) {
++            if (metadata == null || identity == null) {
+                 val cluster = TrackCluster(mutableListOf(track), identity)
+                 result += cluster
+                 identity?.let { canonicalId ->
+                     clustersByCanonicalIdentity.getOrPut(canonicalId) { ArrayList() } += cluster
+                 }
++                if (metadata != null) {
++                    clustersByTitle.getOrPut(metadata.title) { ArrayList() } += cluster
++                }
+                 return@forEach
+             }
+ 
+diff --git a/feature/library-ui/src/main/java/app/yukine/TrackListStateReducer.kt b/feature/library-ui/src/main/java/app/yukine/TrackListStateReducer.kt
+index b6b9a7bc..5bc51212 100644
+--- a/feature/library-ui/src/main/java/app/yukine/TrackListStateReducer.kt
++++ b/feature/library-ui/src/main/java/app/yukine/TrackListStateReducer.kt
+@@ -73,7 +73,8 @@ class TrackListStateReducer(
+         favoriteIds: Set<Long>,
+         footerAlbums: List<TrackListAlbumCardUiState> = emptyList(),
+         context: LibraryListContext = LibraryListContext.Songs,
+-        favoritePendingIds: Set<Long> = emptySet()
++        favoritePendingIds: Set<Long> = emptySet(),
++        playCountByTrackId: Map<Long, Int> = emptyMap()
+     ) {
+         val libraryUi = viewModel.libraryUi.value
+         latestCurrentTrackId = playbackState?.currentTrack?.id
+@@ -107,7 +108,8 @@ class TrackListStateReducer(
+                 tracks,
+                 details,
+                 libraryUi,
+-                favoriteIds
++                favoriteIds,
++                playCountByTrackId
+             )
+             val visibleTracks = presented.map { it.track }
+             val visibleDetails = presented.map { it.detail }
+diff --git a/feature/library-ui/src/main/java/app/yukine/ui/HomeDashboardScreen.kt b/feature/library-ui/src/main/java/app/yukine/ui/HomeDashboardScreen.kt
+index 32d33027..51a894c0 100644
+--- a/feature/library-ui/src/main/java/app/yukine/ui/HomeDashboardScreen.kt
++++ b/feature/library-ui/src/main/java/app/yukine/ui/HomeDashboardScreen.kt
+@@ -149,7 +149,7 @@ internal data class HomePlaybackCardState(
+     val albumArtUri: Uri?,
+     val progress: Float
+ ) {
+-    fun action(actions: HomeDashboardActions): Runnable = actions.onNext
++    fun action(actions: HomeDashboardActions): Runnable = actions.onContinue
+ }
+ 
+ internal class HomePlaybackCardStabilizer(
+diff --git a/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt b/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
+index e021b3bc..897ae55c 100644
+--- a/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
++++ b/feature/library-ui/src/main/java/app/yukine/ui/LibraryInteraction.kt
+@@ -9,7 +9,8 @@ enum class LibraryMode(val routeKey: String) {
+ }
+ 
+ enum class LibrarySort {
+-    TitleAscending, TitleDescending, Artist, Album, DurationAscending, DurationDescending
++    TitleAscending, TitleDescending, Artist, Album, DurationAscending, DurationDescending,
++    DateAddedDescending, DateAddedAscending, PlayCountDescending
+ }
+ 
+ enum class LibraryGroupSort {
+@@ -65,6 +66,9 @@ data class LibraryUiLabels(
+     val sortAlbum: String = "涓撹緫",
+     val sortDurationAscending: String = "鏃堕暱鍗囧簭",
+     val sortDurationDescending: String = "鏃堕暱闄嶅簭",
++    val sortDateAddedDescending: String = "鏈€杩戝叆搴?,
++    val sortDateAddedAscending: String = "鏈€鏃╁叆搴?,
++    val sortPlayCount: String = "鎾斁娆℃暟",
+     val syncLibrary: String = "鍚屾鏇插簱",
+     val syncLibraryDescription: String = "鏇存柊 WebDAV 姝屾洸銆佹爣绛惧拰灏侀潰",
+     val syncingLibrary: String = "姝ｅ湪鍚屾鏇插簱",
+diff --git a/feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt b/feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt
+index 95cd7bd5..44de5f4c 100644
+--- a/feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt
++++ b/feature/library-ui/src/main/java/app/yukine/ui/TrackListScreen.kt
+@@ -967,6 +967,9 @@ private fun sortLabel(state: LibraryUiState, sort: LibrarySort): String = when (
+     LibrarySort.Album -> state.labels.sortAlbum
+     LibrarySort.DurationAscending -> state.labels.sortDurationAscending
+     LibrarySort.DurationDescending -> state.labels.sortDurationDescending
++    LibrarySort.DateAddedDescending -> state.labels.sortDateAddedDescending
++    LibrarySort.DateAddedAscending -> state.labels.sortDateAddedAscending
++    LibrarySort.PlayCountDescending -> state.labels.sortPlayCount
+ }
+ 
+ private fun filterLabel(state: LibraryUiState): String = filterLabel(state, state.filter)

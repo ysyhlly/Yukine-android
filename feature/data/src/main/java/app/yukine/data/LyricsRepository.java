@@ -27,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.Inflater;
 
 import app.yukine.model.LyricsLine;
 import app.yukine.model.LyricsDocument;
@@ -44,6 +45,9 @@ public final class LyricsRepository {
     }
 
     private static final Pattern LRC_TIME_PATTERN = Pattern.compile("\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?\\]");
+    private static final Pattern CREDIT_LINE_PATTERN = Pattern.compile(
+            "^(?:\u4f5c\u8bcd|\u4f5c\u8a5e|\u4f5c\u66f2|\u7f16\u66f2|\u7de8\u66f2|\u8bcd\u66f2|\u8a5e\u66f2|\u8bcd|\u8a5e|\u66f2|\u5236\u4f5c\u4eba|\u88fd\u4f5c\u4eba|\u5236\u4f5c|\u88fd\u4f5c|\u76d1\u5236|\u76e3\u88fd|\u6df7\u97f3|\u5f55\u97f3|\u9304\u97f3|\u6bcd\u5e26|\u6bcd\u5e36|\u51fa\u54c1|\u53d1\u884c|\u767c\u884c|\u4f01\u5212|\u4f01\u5283|\u7edf\u7b79|\u7d71\u7c4c|\u5409\u4ed6|\u8d1d\u65af|\u8c9d\u65af|\u9f13|\u548c\u58f0|\u548c\u8072|\u5f26\u4e50|\u5f26\u6a02|\u539f\u5531|\u6f14\u5531|\u6b4c\u624b|\u4e13\u8f91|\u5c08\u8f2f|\u66f2\u98ce|\u66f2\u98a8|OP|SP)\\s*[:\uff1a]|^(?:Lyrics?|Composed?|Arranged?|Produced?|Mixed?|Recorded?|Mastered?|Written?|Performed?|Vocals?|Guitar|Bass|Drums|Piano|Strings|Chorus|Producer|Engineer|Studio|Label|Copyright|\u2117|\u00a9)(?:\\s+by)?\\s*[:\uff1a]",
+            Pattern.CASE_INSENSITIVE);
     private static final String LRCLIB_API_ROOT = "https://lrclib.net/api";
     private static final String NETEASE_LYRIC_URL = "https://music.163.com/api/song/lyric";
     private static final String NETEASE_SEARCH_URL = "https://music.163.com/api/cloudsearch/pc";
@@ -146,7 +150,7 @@ public final class LyricsRepository {
         if (!onlineEnabled) {
             return Collections.emptyList();
         }
-        List<LyricsLine> gatewayLines = fetchGatewayLyrics(track);
+        List<LyricsLine> gatewayLines = fetchGatewayLyrics(track, neteaseProviderTrackId);
         if (!gatewayLines.isEmpty()) {
             // Gateway results are deliberately transient. Do not call finish(), because that
             // would create a provider binding which could not be recovered without the gateway.
@@ -192,14 +196,20 @@ public final class LyricsRepository {
         }
     }
 
-    private List<LyricsLine> fetchGatewayLyrics(Track track) {
+    private List<LyricsLine> fetchGatewayLyrics(Track track, String neteaseSongId) {
         if (gatewaySource == null) {
             return Collections.emptyList();
         }
         try {
-            ProviderLyrics lyrics = gatewaySource.load(track);
+            ProviderLyrics lyrics = gatewaySource.load(track, neteaseSongId);
             if (lyrics == null) {
                 return Collections.emptyList();
+            }
+            if (!lyrics.wordLyrics.isEmpty()) {
+                List<LyricsLine> wordLines = parseProviderLyrics(lyrics.wordLyrics, lyrics.translation);
+                if (!wordLines.isEmpty()) {
+                    return wordLines;
+                }
             }
             return parseProviderLyrics(lyrics.primary, lyrics.translation);
         } catch (Exception ignored) {
@@ -208,16 +218,24 @@ public final class LyricsRepository {
     }
 
     public interface GatewaySource {
-        ProviderLyrics load(Track track);
+        ProviderLyrics load(Track track, String neteaseSongId);
     }
 
     public static final class ProviderLyrics {
         public final String primary;
         public final String translation;
+        public final String wordLyrics;
+        public final String wordLyricsSource;
 
         public ProviderLyrics(String primary, String translation) {
+            this(primary, translation, "", "");
+        }
+
+        public ProviderLyrics(String primary, String translation, String wordLyrics, String wordLyricsSource) {
             this.primary = primary == null ? "" : primary;
             this.translation = translation == null ? "" : translation;
+            this.wordLyrics = wordLyrics == null ? "" : wordLyrics;
+            this.wordLyricsSource = wordLyricsSource == null ? "" : wordLyricsSource;
         }
     }
 
@@ -571,6 +589,27 @@ public final class LyricsRepository {
             return cached;
         }
         try {
+            // Try QRC (word-by-word) first
+            String qrcUrl = QQ_LYRIC_URL
+                    + "?songmid=" + encode(mid)
+                    + "&pcachetime=" + System.currentTimeMillis()
+                    + "&g_tk=5381&loginUin=0&hostUin=0&format=json"
+                    + "&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq"
+                    + "&needNewCode=0&nobase64=1&qrc=1";
+            JSONObject qrcBody = requestProviderJson(qrcUrl, "https://y.qq.com/");
+            String qrcContent = maybeDecodeBase64(qrcBody.optString("lyric", "")).trim();
+            if (!qrcContent.isEmpty()) {
+                String qrcTranslation = maybeDecodeBase64(qrcBody.optString("trans", "")).trim();
+                LyricsDocument qrcDocument = parseProviderLyricsDocument(qrcContent, qrcTranslation);
+                if (hasWordTimings(qrcDocument)) {
+                    List<LyricsLine> lines = parseProviderLyrics(qrcContent, qrcTranslation);
+                    if (!lines.isEmpty()) {
+                        resolvedDocument.set(qrcDocument);
+                        return cacheOnlineLyrics(cacheKey, lines);
+                    }
+                }
+            }
+            // Fallback to standard LRC
             String url = QQ_LYRIC_URL
                     + "?songmid=" + encode(mid)
                     + "&pcachetime=" + System.currentTimeMillis()
@@ -670,6 +709,24 @@ public final class LyricsRepository {
                 return Collections.emptyList();
             }
             rememberBinding("kugou", id + "\n" + accessKey);
+            // Try KRC (word-by-word) first
+            String krcUrl = KUGOU_LYRIC_DOWNLOAD_URL
+                    + "?ver=1&client=pc&id=" + encode(id)
+                    + "&accesskey=" + encode(accessKey)
+                    + "&fmt=krc&charset=utf8";
+            JSONObject krcBody = requestProviderJson(krcUrl, "https://www.kugou.com/");
+            String krcContent = decryptKugouKrc(krcBody.optString("content", ""));
+            if (!krcContent.isEmpty()) {
+                LyricsDocument krcDocument = documentParser.parseKrc(krcContent, "kugou");
+                if (hasWordTimings(krcDocument)) {
+                    List<LyricsLine> lines = krcDocument.primaryLegacyLines();
+                    if (!lines.isEmpty()) {
+                        resolvedDocument.set(krcDocument);
+                        return lines;
+                    }
+                }
+            }
+            // Fallback to LRC
             String downloadUrl = KUGOU_LYRIC_DOWNLOAD_URL
                     + "?ver=1&client=pc&id=" + encode(id)
                     + "&accesskey=" + encode(accessKey)
@@ -694,6 +751,24 @@ public final class LyricsRepository {
         String accessKey = parts[1].trim();
         rememberBinding("kugou", id + "\n" + accessKey);
         try {
+            // Try KRC (word-by-word) first
+            String krcUrl = KUGOU_LYRIC_DOWNLOAD_URL
+                    + "?ver=1&client=pc&id=" + encode(id)
+                    + "&accesskey=" + encode(accessKey)
+                    + "&fmt=krc&charset=utf8";
+            JSONObject krcBody = requestProviderJson(krcUrl, "https://www.kugou.com/");
+            String krcContent = decryptKugouKrc(krcBody.optString("content", ""));
+            if (!krcContent.isEmpty()) {
+                LyricsDocument krcDocument = documentParser.parseKrc(krcContent, "kugou");
+                if (hasWordTimings(krcDocument)) {
+                    List<LyricsLine> lines = krcDocument.primaryLegacyLines();
+                    if (!lines.isEmpty()) {
+                        resolvedDocument.set(krcDocument);
+                        return lines;
+                    }
+                }
+            }
+            // Fallback to LRC
             String downloadUrl = KUGOU_LYRIC_DOWNLOAD_URL
                     + "?ver=1&client=pc&id=" + encode(id)
                     + "&accesskey=" + encode(accessKey)
@@ -896,15 +971,16 @@ public final class LyricsRepository {
         if (!document.isEmpty()) {
             resolvedDocument.set(document);
         }
-        List<LyricsLine> lines = parseLrcText(clean);
+        List<LyricsLine> lines = stripLeadingCreditLines(parseLrcText(clean));
         if (lines.isEmpty()) {
             lines = document != null
-                    && ("klyric".equals(document.getFormat()) || "ttml".equals(document.getFormat()))
+                    && ("klyric".equals(document.getFormat()) || "ttml".equals(document.getFormat())
+                        || "qrc".equals(document.getFormat()) || "krc".equals(document.getFormat()))
                     ? document.primaryLegacyLines()
                     : parsePlainLyrics(clean);
         }
         if (translation != null && !translation.trim().isEmpty()) {
-            List<LyricsLine> translated = parseLrcText(translation.trim());
+            List<LyricsLine> translated = stripLeadingCreditLines(parseLrcText(translation.trim()));
             if (!translated.isEmpty()) {
                 lines = mergeTranslatedLyrics(lines, translated);
             }
@@ -913,11 +989,20 @@ public final class LyricsRepository {
     }
 
     public LyricsDocument parseProviderLyricsDocument(String primary, String translation) {
+        return parseProviderLyricsDocument(primary, translation, "");
+    }
+
+    public LyricsDocument parseProviderLyricsDocument(String primary, String translation, String romanization) {
         String clean = primary == null ? "" : primary.trim();
         if (clean.isEmpty() || isInstrumentalLyricsText(clean)) {
             return LyricsDocument.empty();
         }
-        return documentParser.parseProvider(clean, translation == null ? "" : translation, "provider");
+        return documentParser.parseProvider(
+                clean,
+                translation == null ? "" : translation,
+                romanization == null ? "" : romanization,
+                "provider"
+        );
     }
 
     private boolean isInstrumentalLyricsText(String text) {
@@ -952,7 +1037,8 @@ public final class LyricsRepository {
             String lineLyrics = lyricText(body.optJSONObject("lrc")).trim();
             String karaokeLyrics = lyricText(body.optJSONObject("klyric")).trim();
             String translation = lyricText(body.optJSONObject("tlyric")).trim();
-            LyricsDocument karaokeDocument = parseProviderLyricsDocument(karaokeLyrics, translation);
+            String romanization = lyricText(body.optJSONObject("rlyric")).trim();
+            LyricsDocument karaokeDocument = parseProviderLyricsDocument(karaokeLyrics, translation, romanization);
             String primary = hasWordTimings(karaokeDocument)
                     ? karaokeLyrics
                     : (lineLyrics.isEmpty() ? karaokeLyrics : lineLyrics);
@@ -962,6 +1048,11 @@ public final class LyricsRepository {
             List<LyricsLine> lines = parseProviderLyrics(primary, translation);
             if (hasWordTimings(karaokeDocument)) {
                 resolvedDocument.set(karaokeDocument);
+            } else if (!romanization.isEmpty()) {
+                LyricsDocument fullDocument = parseProviderLyricsDocument(primary, translation, romanization);
+                if (!fullDocument.isEmpty()) {
+                    resolvedDocument.set(fullDocument);
+                }
             }
             return cacheOnlineLyrics(cacheKey, lines);
         } catch (Exception ignored) {
@@ -1222,7 +1313,7 @@ public final class LyricsRepository {
     private JSONObject requestNeteaseLyrics(String providerTrackId) throws Exception {
         String url = NETEASE_LYRIC_URL
                 + "?id=" + encode(providerTrackId)
-                + "&lv=1&kv=1&tv=-1";
+                + "&lv=1&kv=1&tv=-1&rv=1";
         return requestNeteaseJson(url);
     }
 
@@ -1255,6 +1346,31 @@ public final class LyricsRepository {
         }
     }
 
+    private List<LyricsLine> stripLeadingCreditLines(List<LyricsLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return lines;
+        }
+        int firstNonCredit = 0;
+        while (firstNonCredit < lines.size() && isCreditLine(lines.get(firstNonCredit).text)) {
+            firstNonCredit++;
+        }
+        if (firstNonCredit == 0) {
+            return lines;
+        }
+        return new ArrayList<>(lines.subList(firstNonCredit, lines.size()));
+    }
+
+    private boolean isCreditLine(String text) {
+        if (text == null) {
+            return false;
+        }
+        String trimmed = text.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 80) {
+            return false;
+        }
+        return CREDIT_LINE_PATTERN.matcher(trimmed).find();
+    }
+
     private List<LyricsLine> mergeTranslatedLyrics(List<LyricsLine> original, List<LyricsLine> translated) {
         if (original == null || original.isEmpty()) {
             return translated == null ? Collections.emptyList() : translated;
@@ -1276,7 +1392,7 @@ public final class LyricsRepository {
 
     private String translationAt(List<LyricsLine> translated, long timeMs) {
         for (LyricsLine line : translated) {
-            if (Math.abs(line.timeMs - timeMs) <= 500L) {
+            if (Math.abs(line.timeMs - timeMs) <= 2_000L) {
                 return line.text;
             }
         }
@@ -1448,6 +1564,51 @@ public final class LyricsRepository {
             return text.isEmpty() ? raw : text;
         } catch (IllegalArgumentException ignored) {
             return raw;
+        }
+    }
+
+    /**
+     * Decrypts Kugou KRC content. The content is base64-encoded, then the payload (after a 4-byte
+     * header) is XOR'd with a fixed key and zlib-compressed.
+     */
+    private String decryptKugouKrc(String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return "";
+        }
+        try {
+            byte[] decoded = android.util.Base64.decode(content.trim(), android.util.Base64.DEFAULT);
+            if (decoded.length <= 4) {
+                return "";
+            }
+            // Skip 4-byte header, XOR with KRC key
+            byte[] krcKey = {0x40, 0x47, 0x61, 0x77, 0x5e, 0x32, 0x74, 0x47,
+                    0x51, 0x36, 0x31, 0x2d, (byte) 0xce, (byte) 0xd2};
+            int dataLength = decoded.length - 4;
+            byte[] xored = new byte[dataLength];
+            for (int i = 0; i < dataLength; i++) {
+                xored[i] = (byte) ((decoded[i + 4] & 0xFF) ^ (krcKey[i % krcKey.length] & 0xFF));
+            }
+            // Zlib inflate
+            Inflater inflater = new Inflater();
+            inflater.setInput(xored);
+            byte[] output = new byte[xored.length * 4 + 1024];
+            int totalRead = 0;
+            while (!inflater.finished()) {
+                int count = inflater.inflate(output, totalRead, output.length - totalRead);
+                if (count == 0 && inflater.needsInput()) {
+                    break;
+                }
+                totalRead += count;
+                if (totalRead >= output.length) {
+                    byte[] expanded = new byte[output.length * 2];
+                    System.arraycopy(output, 0, expanded, 0, totalRead);
+                    output = expanded;
+                }
+            }
+            inflater.end();
+            return new String(output, 0, totalRead, StandardCharsets.UTF_8).trim();
+        } catch (Exception ignored) {
+            return "";
         }
     }
 

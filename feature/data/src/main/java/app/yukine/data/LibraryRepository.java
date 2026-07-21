@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -460,6 +461,77 @@ public final class LibraryRepository {
             musicIdentityStore.pruneMissingTracks();
         });
         ingestConfirmedIdentitySources(localTrackIds(replacementTracks));
+    }
+
+    /**
+     * Incrementally replaces scan-managed tracks by computing a diff against the current database
+     * state. Only actually removed or metadata-changed tracks are written, avoiding the full
+     * delete+re-insert cost of {@link #replaceScanManagedTracks}. Queue, history, and playlist
+     * references are cleaned up for genuinely removed tracks via {@link #applyTrackDelta}.
+     */
+    public int replaceScanManagedTracksIncremental(List<Track> scannedTracks) {
+        throwIfInterrupted();
+        List<Track> replacementTracks = scannedTracks == null ? Collections.emptyList() : scannedTracks;
+        List<Track> previous = tracks(libraryDao.loadScanManagedTracks());
+        Map<String, Track> previousByPath = byDataPath(previous);
+        Map<String, Track> currentByPath = byDataPath(replacementTracks);
+
+        Set<Long> currentTrackIds = new HashSet<>();
+        for (Track t : replacementTracks) currentTrackIds.add(t.id);
+
+        ArrayList<Long> removedIds = new ArrayList<>();
+        for (Map.Entry<String, Track> entry : previousByPath.entrySet()) {
+            Track currentAtPath = currentByPath.get(entry.getKey());
+            boolean replaced = currentAtPath != null && currentAtPath.id != entry.getValue().id;
+            if ((!currentByPath.containsKey(entry.getKey()) || replaced)
+                    && !currentTrackIds.contains(entry.getValue().id)) {
+                removedIds.add(entry.getValue().id);
+            }
+        }
+
+        ArrayList<Track> upserts = new ArrayList<>();
+        for (Map.Entry<String, Track> entry : currentByPath.entrySet()) {
+            Track prev = previousByPath.get(entry.getKey());
+            if (prev == null || metadataChanged(prev, entry.getValue())) {
+                upserts.add(entry.getValue());
+            }
+        }
+
+        // Safety fallback: if the diff would remove more than half the library, something is
+        // likely wrong (e.g. permission loss). Fall back to the full replacement path.
+        if (!previous.isEmpty() && removedIds.size() > previous.size() / 2) {
+            replaceScanManagedTracks(replacementTracks);
+            return removedIds.size();
+        }
+
+        // Filter out user-excluded tracks to maintain parity with the full replacement path.
+        Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
+        if (!exclusions.isEmpty()) {
+            upserts.removeIf(t -> exclusions.contains(librarySourceKey(t)));
+        }
+
+        return applyTrackDelta(removedIds, upserts);
+    }
+
+    private static boolean metadataChanged(Track a, Track b) {
+        return a.id != b.id
+                || !Objects.equals(a.title, b.title)
+                || !Objects.equals(a.artist, b.artist)
+                || !Objects.equals(a.album, b.album)
+                || a.durationMs != b.durationMs
+                || !Objects.equals(a.albumArtist, b.albumArtist)
+                || !Objects.equals(a.composer, b.composer)
+                || a.year != b.year;
+    }
+
+    private static Map<String, Track> byDataPath(List<Track> trackList) {
+        LinkedHashMap<String, Track> map = new LinkedHashMap<>();
+        for (Track t : trackList) {
+            if (t != null && t.dataPath != null && !t.dataPath.isEmpty()) {
+                map.put(t.dataPath, t);
+            }
+        }
+        return map;
     }
 
     public int replaceTracksByDataPathPattern(String pattern, List<Track> replacements) {

@@ -30,7 +30,7 @@ internal class LibraryMutationContext(
                 onSuccess?.invoke(result)
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 gateway()?.showStatusKey(failureStatusKey)
             }
         }

@@ -32,4 +32,33 @@ class LyricTimingTest {
         assertEquals(0 to 2, first.textBounds("la la", 0))
         assertEquals(3 to 5, second.textBounds("la la", 2))
     }
+
+    @Test
+    fun wordProgressFractionAtBoundaries() {
+        val word = LyricUiWord("test", startMs = 1_000L, endMs = 2_000L)
+
+        assertEquals(0f, word.progressAt(500L), 0.001f)
+        assertEquals(0f, word.progressAt(1_000L), 0.001f)
+        assertEquals(0.5f, word.progressAt(1_500L), 0.001f)
+        assertEquals(1f, word.progressAt(2_000L), 0.001f)
+        assertEquals(1f, word.progressAt(3_000L), 0.001f)
+    }
+
+    @Test
+    fun wordProgressZeroDurationWordDoesNotCrash() {
+        val word = LyricUiWord("x", startMs = 1_000L, endMs = 1_000L)
+
+        assertEquals(1f, word.progressAt(1_000L), 0.001f)
+        assertEquals(1f, word.progressAt(1_500L), 0.001f)
+        assertEquals(0f, word.progressAt(999L), 0.001f)
+    }
+
+    @Test
+    fun wordProgressMidpointReturnsHalf() {
+        val word = LyricUiWord("abcd", startMs = 0L, endMs = 400L)
+
+        assertEquals(0.25f, word.progressAt(100L), 0.001f)
+        assertEquals(0.5f, word.progressAt(200L), 0.001f)
+        assertEquals(0.75f, word.progressAt(300L), 0.001f)
+    }
 }

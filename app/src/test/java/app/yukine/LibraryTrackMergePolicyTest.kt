@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package app.yukine
 
 import android.net.Uri
@@ -6,6 +8,13 @@ import app.yukine.model.Track
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/**
+ * Tests for [LibraryTrackMergePolicy].
+ *
+ * Note: Several tests use deprecated V4 metadata clustering methods ([LibraryTrackMergePolicy.merge],
+ * [LibraryTrackMergePolicy.snapshot]) which are retained for backward compatibility.
+ * Production code should use [LibraryTrackMergePolicy.persistedRecordingSnapshot].
+ */
 class LibraryTrackMergePolicyTest {
     @Test
     fun artistGroupingUsesStableArtistIdAndIncludesFeaturedCredit() {
@@ -268,10 +277,11 @@ class LibraryTrackMergePolicyTest {
     }
 
     @Test
-    fun libraryDataOwnerUsesMergedTracksForTheLibraryAndSearchResults() {
+    fun libraryDataOwnerUsesPersistedRecordingIdentitiesForLibraryAndSearchResults() {
         val store = LibraryViewModel().dataOwner()
-        store.bindMergeIdentityProvider { track ->
-            if (track.id == 1L || track.id == 2L) "recording:npc" else null
+        // Unified dedup: use recordingIdentitySnapshotProvider (production path)
+        store.bindRecordingIdentitySnapshotProvider {
+            mapOf(1L to 100L, 2L to 100L) // tracks 1 and 2 share recording 100
         }
         store.replaceLibrary(
             listOf(

@@ -43,7 +43,7 @@ class MetadataGatewayArtistProvider(
                 candidate.artistMbid.isNotBlank() &&
                     candidate.providerScore >= 0.95 &&
                     IdentityTextNormalizer.normalizeForSearch(candidate.displayName) == normalizedName
-            }.singleOrNull()
+            }.maxByOrNull { it.providerScore }
         } ?: return result
         val avatarUrl = runCatching { avatarLookup.forArtistMbid(preferred.artistMbid) }
             .getOrDefault("")

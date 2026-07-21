@@ -1,0 +1,112 @@
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+index 071aa7c3..1d393576 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsBackStack.kt
+@@ -24,7 +24,6 @@ object SettingsBackStack {
+             SettingsPage.AudioEffects,
+             SettingsPage.ReplayGain,
+             SettingsPage.PlaybackRestore,
+-            SettingsPage.ConcurrentPlayback,
+             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
+ 
+             SettingsPage.Library,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
+index 14a0d1f4..13c4cf72 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsControls.kt
+@@ -11,7 +11,11 @@ interface SettingsPlaybackServiceControls {
+ 
+     fun setAppVolume(volume: Float)
+ 
+-    fun setConcurrentPlaybackEnabled(enabled: Boolean)
++    fun setAudioExclusiveEnabled(enabled: Boolean)
++
++    fun setBitPerfectEnabled(enabled: Boolean)
++
++    fun setUsbExclusiveEnabled(enabled: Boolean)
+ 
+     fun applyAudioEffectSettings(settings: AudioEffectSettings)
+ 
+@@ -51,6 +55,8 @@ interface SettingsFloatingLyricsControls {
+ 
+     fun updateTransparentBackground(enabled: Boolean): Boolean = false
+ 
++    fun updateTextColor(colorArgb: Int): Boolean = false
++
+     fun show(): Boolean = false
+ 
+     fun unlock(): Boolean = false
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+index 6ed3910c..d5f6ecb9 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+@@ -20,6 +20,8 @@ enum class SettingsEntryId {
+     ReplayGain,
+     PlaybackRestore,
+     AudioExclusive,
++    BitPerfect,
++    UsbExclusive,
+     SleepTimer,
+     LibraryScan,
+     ImportAudioFiles,
+@@ -165,7 +167,9 @@ object SettingsInformationArchitecture {
+         entry(SettingsEntryId.AudioEffects, SettingsCategoryId.PlaybackAudio, "audio.effects", "audio.effects.hint", EchoIconKind.Gauge, "equalizer", "eq", "\u5747\u8861\u5668", "\u97f3\u6548"),
+         entry(SettingsEntryId.ReplayGain, SettingsCategoryId.PlaybackAudio, "replay.gain", "replay.gain.hint", EchoIconKind.Gauge, "replaygain", "normalization", "\u97f3\u91cf\u5747\u8861"),
+         entry(SettingsEntryId.PlaybackRestore, SettingsCategoryId.PlaybackAudio, "playback.restore", "playback.restore.hint", EchoIconKind.Refresh, "queue restore", "\u6062\u590d\u961f\u5217"),
+-        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "\u97f3\u9891\u7126\u70b9"),
++        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "闊抽鐒︾偣"),
++        entry(SettingsEntryId.BitPerfect, SettingsCategoryId.PlaybackAudio, "bit.perfect", "bit.perfect.hint", EchoIconKind.Gauge, "bit-perfect", "src bypass", "缁曡繃SRC", "浣嶅畬缇?),
++        entry(SettingsEntryId.UsbExclusive, SettingsCategoryId.PlaybackAudio, "usb.exclusive", "usb.exclusive.hint", EchoIconKind.Gauge, "usb dac", "usb exclusive", "USB鐙崰", "澶栫疆瑙ｇ爜"),
+         entry(SettingsEntryId.SleepTimer, SettingsCategoryId.PlaybackAudio, "sleep.timer", "sleep.timer.description", EchoIconKind.Timer, "timer", "\u5b9a\u65f6"),
+ 
+         entryWithKeywords(SettingsEntryId.LibraryScan, SettingsCategoryId.LibraryMetadata, "scan.library", icon = EchoIconKind.Sync, keywords = arrayOf("rescan", "\u626b\u63cf")),
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+index 33f8e0c1..89568e38 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+@@ -27,7 +27,6 @@ sealed class SettingsPage(
+     data object StreamingAudioQuality : SettingsPage(MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
+     data object ShareStyle : SettingsPage(MainRoutes.SETTINGS_SHARE_STYLE)
+     data object Downloads : SettingsPage(MainRoutes.SETTINGS_DOWNLOADS)
+-    data object ConcurrentPlayback : SettingsPage(MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
+     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
+     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
+     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
+@@ -60,7 +59,6 @@ sealed class SettingsPage(
+                 MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> StreamingAudioQuality
+                 MainRoutes.SETTINGS_SHARE_STYLE -> ShareStyle
+                 MainRoutes.SETTINGS_DOWNLOADS -> Downloads
+-                MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> ConcurrentPlayback
+                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
+                 MainRoutes.SETTINGS_LYRICS -> Lyrics
+                 MainRoutes.SETTINGS_LIBRARY -> Library
+@@ -98,7 +96,6 @@ sealed class SettingsPage(
+                 StreamingAudioQuality,
+                 ShareStyle,
+                 Downloads,
+-                ConcurrentPlayback,
+                 SleepTimer,
+                 Lyrics,
+                 Library,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
+index 3fb6f3e9..eff4009b 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsStatusTextFactory.kt
+@@ -24,8 +24,6 @@ object SettingsStatusTextFactory {
+                 SettingsLabelFormatter.appVolumeLabel(appVolume),
+             onlineLyricsEnabled = AppLanguage.text(language, "online.lyrics.enabled"),
+             onlineLyricsDisabled = AppLanguage.text(language, "online.lyrics.disabled"),
+-            concurrentPlaybackEnabled = AppLanguage.text(language, "concurrent.playback.enabled"),
+-            concurrentPlaybackDisabled = AppLanguage.text(language, "concurrent.playback.disabled"),
+             lyricsOffsetApplied = AppLanguage.text(language, "lyrics.offset.applied") +
+                 SettingsLabelFormatter.lyricsOffsetLabel(lyricsOffsetMs),
+             audioEffectsApplied = AppLanguage.text(language, "audio.effects.applied"),
+@@ -40,6 +38,8 @@ object SettingsStatusTextFactory {
+             playbackRestoreDisabled = AppLanguage.text(language, "playback.restore.disabled"),
+             replayGainEnabled = AppLanguage.text(language, "replay.gain.enabled"),
+             replayGainDisabled = AppLanguage.text(language, "replay.gain.disabled"),
++            audioExclusiveEnabled = AppLanguage.text(language, "audio.exclusive.enabled"),
++            audioExclusiveDisabled = AppLanguage.text(language, "audio.exclusive.disabled"),
+             shareStyleApplied = AppLanguage.text(language, "share.style.applied"),
+             pageBackgroundApplied = AppLanguage.text(language, "page.background.applied"),
+             pageBackgroundCleared = AppLanguage.text(language, "page.background.cleared")

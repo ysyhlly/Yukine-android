@@ -10,6 +10,9 @@
 - [SettingsEffectOwner.kt](file://app/src/main/java/app/yukine/SettingsEffectOwner.kt)
 - [SettingsRuntimeApplier.kt](file://app/src/main/java/app/yukine/SettingsRuntimeApplier.kt)
 - [SettingsContextProvider.kt](file://app/src/main/java/app/yukine/SettingsContextProvider.kt)
+- [SettingsRuntimeEffect.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt)
+- [SettingsMutationContext.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt)
+- [SettingsPersistenceContracts.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt)
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 - [SettingsBackStackTest.kt](file://app/src/test/java/app/yukine/SettingsBackStackTest.kt)
@@ -21,11 +24,11 @@
 </cite>
 
 ## 更新摘要
-**变更内容**   
-- 更新了页面状态构建器相关章节，反映去重系统配置选项的增强
-- 新增了播放器偏好设置的详细说明
-- 扩展了设置项验证与默认值管理的技术细节
-- 完善了配置迁移与实时生效机制的实现说明
+**所做更改**   
+- 更新了音频偏好设置架构，将原有的 concurrentPlaybackEnabled 替换为三个独立的音频专用布尔偏好：audioExclusiveEnabled、bitPerfectEnabled、usbExclusiveEnabled
+- 增强了 SettingsRuntimeApplier 以支持专用的运行时效果处理
+- 更新了设置持久化层以支持新的音频偏好存储和加载
+- 改进了设置变更的实时应用机制
 
 ## 目录
 1. [简介](#简介)
@@ -42,7 +45,7 @@
 ## 简介
 本文件为 Echo Android 应用的"设置界面模块"（feature/settings-ui）提供系统化文档。内容覆盖设置页面组织、偏好存储、动态配置、应用设置、网络源管理、主题配置等用户界面的实现要点；并深入说明设置项验证、默认值管理、配置迁移、变更实时生效机制、数据持久化与备份恢复集成方式，以及设置项扩展方法与界面定制方案。
 
-**最新更新**：模块进行了重大增强，特别是在 SettingsPageStateBuilder 中增加了与去重系统相关的配置选项和其他播放器偏好设置，显著提升了设置系统的功能性和用户体验。
+**更新** 本次更新重点反映了音频偏好设置的架构重构，将单一的并发播放控制拆分为三个专门的音频模式设置，提升了音频控制的精细度和可维护性。
 
 ## 项目结构
 feature/settings-ui 作为独立功能模块，主要职责是提供设置相关的 UI 与交互编排，并通过 DI 与应用主模块进行装配。其关键入口与绑定由 app 模块中的 SettingsFeatureBinding 负责，配合 SettingsModule 完成依赖注入与运行时适配。
@@ -61,8 +64,6 @@ F["SettingsEffectOwner<br/>效果处理者"]
 G["SettingsRuntimeApplier<br/>运行时应用器"]
 H["SettingsContextProvider<br/>上下文提供者"]
 I["SettingsPlaybackServiceControlsAdapter<br/>播放服务控件适配器"]
-J["去重系统配置<br/>DeduplicationConfig"]
-K["播放器偏好设置<br/>PlayerPreferences"]
 end
 A --> B
 B --> C
@@ -72,30 +73,31 @@ C --> F
 F --> G
 C --> H
 C --> I
-D --> J
-D --> K
 ```
 
-图表来源
+**图表来源**
 - [SettingsFeatureBinding.java](file://app/src/main/java/app/yukine/SettingsFeatureBinding.java)
 - [SettingsModule.kt](file://app/src/main/java/app/yukine/SettingsModule.kt)
 
-章节来源
+**章节来源**
 - [SettingsFeatureBinding.java](file://app/src/main/java/app/yukine/SettingsFeatureBinding.java)
 - [SettingsModule.kt](file://app/src/main/java/app/yukine/SettingsModule.kt)
 
 ## 核心组件
 - 设置视图模型（SettingsViewModel）：承载设置页面的状态与业务编排，协调页面构建、返回栈、效果执行与运行时应用。
-- 页面状态构建器（SettingsPageStateBuilder）：根据当前配置与上下文生成设置页面树与展示状态，现已增强支持去重系统配置和播放器偏好设置。
+- 页面状态构建器（SettingsPageStateBuilder）：根据当前配置与上下文生成设置页面树与展示状态。
 - 返回栈管理（SettingsBackStack）：维护设置子页面的导航历史与回退策略。
 - 效果处理者（SettingsEffectOwner）：将设置变更转化为系统级或跨模块的效果（如主题切换、播放服务控制更新）。
 - 运行时应用器（SettingsRuntimeApplier）：在内存中即时应用配置变更，确保 UI 与行为同步。
 - 上下文提供者（SettingsContextProvider）：向设置模块提供必要的运行上下文（语言、主题、权限等）。
 - 播放服务控件适配器（SettingsPlaybackServiceControlsAdapter）：桥接设置项与播放服务的可控制项。
-- 去重系统配置（DeduplicationConfig）：新增的去重算法参数和匹配策略配置。
-- 播放器偏好设置（PlayerPreferences）：新增的音频质量、缓冲策略、解码器等播放器高级选项。
 
-章节来源
+**更新** 新增了三个音频专用设置项的处理能力：
+- 音频独占模式（Audio Exclusive Mode）：控制音频焦点独占行为
+- 比特完美模式（Bit Perfect Mode）：启用无损音频输出
+- USB独占模式（USB Exclusive Mode）：专用于USB音频设备的独占访问
+
+**章节来源**
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 - [SettingsBackStackTest.kt](file://app/src/test/java/app/yukine/SettingsBackStackTest.kt)
@@ -125,10 +127,10 @@ UI->>VM : 初始化加载
 VM->>UC_LOAD : 读取偏好
 UC_LOAD-->>VM : 偏好快照
 VM->>SB : 构建页面状态
-SB-->>VM : 页面树含去重配置
+SB-->>VM : 页面树
 VM->>BE : 注册返回栈
 VM-->>UI : 渲染设置页面
-U->>UI : 修改某设置项
+U->>UI : 修改音频设置项
 UI->>VM : 提交变更
 VM->>STORE : 持久化写入
 VM->>EO : 触发效果
@@ -140,7 +142,7 @@ SB-->>VM : 新页面树
 VM-->>UI : 刷新界面
 ```
 
-图表来源
+**图表来源**
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 - [SettingsBackStackTest.kt](file://app/src/test/java/app/yukine/SettingsBackStackTest.kt)
@@ -163,7 +165,12 @@ VM-->>UI : 刷新界面
 - 测试覆盖
   - 使用单元测试验证状态流转、页面构建与返回栈行为。
 
-章节来源
+**更新** 现在支持三种独立的音频模式设置：
+- AudioExclusiveEnabled：控制音频焦点独占模式
+- BitPerfectEnabled：启用比特完美音频输出
+- UsbExclusiveEnabled：管理USB音频设备独占访问
+
+**章节来源**
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 - [SettingsBackStackTest.kt](file://app/src/test/java/app/yukine/SettingsBackStackTest.kt)
@@ -172,16 +179,16 @@ VM-->>UI : 刷新界面
 - 职责
   - 基于当前配置与上下文，生成设置页面树与展示信息。
   - 支持按分组组织设置项（应用设置、网络源管理、主题配置等）。
-- **更新**：已大幅增强，新增以下功能：
-  - 去重系统配置：支持指纹识别算法选择、相似度阈值调整、重复检测策略配置
-  - 播放器偏好设置：音频质量选择、缓冲策略、解码器优化、音量标准化等高级选项
-  - 动态配置项的条件渲染与智能排序
-  - 与返回栈协同，保证页面层级正确
 - 关键点
   - 对动态配置项进行条件渲染与排序。
   - 与返回栈协同，保证页面层级正确。
 
-**Section sources**
+**更新** 新增了对三个音频设置项的支持：
+- 音频独占模式显示：`enabledLabel(audioExclusiveEnabled, languageMode)`
+- 比特完美模式显示：`enabledLabel(bitPerfectEnabled, languageMode)`  
+- USB独占模式显示：`enabledLabel(usbExclusiveEnabled, languageMode)`
+
+**章节来源**
 - [SettingsPageStateBuilderTest.kt](file://app/src/test/java/app/yukine/SettingsPageStateBuilderTest.kt)
 
 ### 返回栈管理（SettingsBackStack）
@@ -191,7 +198,7 @@ VM-->>UI : 刷新界面
 - 关键点
   - 与页面状态构建器联动，确保返回时状态一致。
 
-章节来源
+**章节来源**
 - [SettingsBackStackTest.kt](file://app/src/test/java/app/yukine/SettingsBackStackTest.kt)
 
 ### 效果处理者（SettingsEffectOwner）
@@ -201,7 +208,12 @@ VM-->>UI : 刷新界面
 - 关键点
   - 对敏感效果（如语言、主题）进行幂等判断，避免重复应用。
 
-章节来源
+**更新** 新增了三个音频相关的运行时效果：
+- `SetAudioExclusiveEnabled`：设置音频独占模式
+- `SetBitPerfectEnabled`：设置比特完美模式
+- `SetUsbExclusiveEnabled`：设置USB独占模式
+
+**章节来源**
 - [SettingsEffectOwnerTest.kt](file://app/src/test/java/app/yukine/SettingsEffectOwnerTest.kt)
 
 ### 运行时应用器（SettingsRuntimeApplier）
@@ -211,7 +223,12 @@ VM-->>UI : 刷新界面
 - 关键点
   - 对并发变更进行合并与去抖，减少不必要的重算。
 
-章节来源
+**更新** 增强了运行时效果处理能力，专门处理新的音频设置：
+- 音频独占模式：直接调用播放服务控件的 `setAudioExclusiveEnabled()`
+- 比特完美模式：调用 `setBitPerfectEnabled()` 并处理相关状态更新
+- USB独占模式：调用 `setUsbExclusiveEnabled()` 管理USB音频设备
+
+**章节来源**
 - [SettingsRuntimeApplierTest.kt](file://app/src/test/java/app/yukine/SettingsRuntimeApplierTest.kt)
 
 ### 上下文提供者（SettingsContextProvider）
@@ -221,7 +238,7 @@ VM-->>UI : 刷新界面
 - 关键点
   - 上下文变化应触发页面重建与效果重放。
 
-章节来源
+**章节来源**
 - [SettingsContextProvider.kt](file://app/src/main/java/app/yukine/SettingsContextProvider.kt)
 
 ### 播放服务控件适配器（SettingsPlaybackServiceControlsAdapter）
@@ -231,25 +248,66 @@ VM-->>UI : 刷新界面
 - 关键点
   - 与 EffectOwner 协作，确保播放服务状态与设置一致。
 
-章节来源
+**更新** 新增了对音频专用设置的支持：
+- `setAudioExclusiveEnabled(enabled: Boolean)`：控制音频独占模式
+- `setBitPerfectEnabled(enabled: Boolean)`：启用比特完美输出
+- `setUsbExclusiveEnabled(enabled: Boolean)`：管理USB独占模式
+
+**章节来源**
 - [SettingsPlaybackServiceControlsAdapterTest.kt](file://app/src/test/java/app/yukine/SettingsPlaybackServiceControlsAdapterTest.kt)
 - [SettingsPlaybackServiceControlsAdapter.kt](file://app/src/main/java/app/yukine/SettingsPlaybackServiceControlsAdapter.kt)
 
 ### 偏好存储与用例（MainSettingsStore / LoadSettingsPreferencesUseCase / ApplySettingsPreferenceUseCase）
 - MainSettingsStore
   - 提供设置的读写接口，封装底层持久化细节。
+  - **更新** 新增三个音频专用字段：`audioExclusiveEnabled`、`bitPerfectEnabled`、`usbExclusiveEnabled`
 - LoadSettingsPreferencesUseCase
   - 负责加载偏好快照，供页面初始渲染使用。
+  - **更新** 从仓库加载新的音频设置项
 - ApplySettingsPreferenceUseCase
   - 负责将用户变更持久化，并返回应用结果。
+  - **更新** 处理新的音频设置键值映射
 - 关键点
   - 默认值管理与校验逻辑应在 UseCase 层集中实现，便于复用与测试。
   - 配置迁移可在 Store 或专用迁移器中统一处理。
 
-章节来源
+**更新** 新的音频设置默认值：
+- `audioExclusiveEnabled`: true（默认启用音频独占）
+- `bitPerfectEnabled`: false（默认禁用比特完美）
+- `usbExclusiveEnabled`: false（默认禁用USB独占）
+
+**章节来源**
 - [MainSettingsStore.kt](file://app/src/main/java/app/yukine/MainSettingsStore.kt)
 - [LoadSettingsPreferencesUseCase.kt](file://app/src/main/java/app/yukine/LoadSettingsPreferencesUseCase.kt)
 - [ApplySettingsPreferenceUseCase.kt](file://app/src/main/java/app/yukine/ApplySettingsPreferenceUseCase.kt)
+
+### 设置运行时效果（SettingsRuntimeEffect）
+**新增组件** 定义了所有支持的运行时效果类型，包括新的音频设置效果：
+- `SetAudioExclusiveEnabled(val enabled: Boolean)`：音频独占模式效果
+- `SetBitPerfectEnabled(val enabled: Boolean)`：比特完美模式效果  
+- `SetUsbExclusiveEnabled(val enabled: Boolean)`：USB独占模式效果
+
+**章节来源**
+- [SettingsRuntimeEffect.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt)
+
+### 设置变更上下文（SettingsMutationContext）
+**更新组件** 处理设置变更的完整生命周期：
+- **更新** 支持新的音频设置键值：`AudioExclusiveEnabled`、`BitPerfectEnabled`、`UsbExclusiveEnabled`
+- **更新** 自动触发相应的运行时效果
+- **更新** 保持与播放服务状态的同步
+
+**章节来源**
+- [SettingsMutationContext.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt)
+
+### 设置持久化契约（SettingsPersistenceContracts）
+**更新组件** 定义了所有设置项的键值枚举：
+- **更新** 移除了旧的 `ConcurrentPlaybackEnabled` 键
+- **新增** `AudioExclusiveEnabled`：音频独占模式键
+- **新增** `BitPerfectEnabled`：比特完美模式键
+- **新增** `UsbExclusiveEnabled`：USB独占模式键
+
+**章节来源**
+- [SettingsPersistenceContracts.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt)
 
 ## 依赖关系分析
 设置模块通过 DI 装配到应用层，核心依赖如下：
@@ -271,8 +329,6 @@ class SettingsViewModel {
 }
 class SettingsPageStateBuilder {
 +构建页面状态
-+去重系统配置
-+播放器偏好设置
 }
 class SettingsBackStack {
 +入栈/出栈
@@ -291,23 +347,24 @@ class SettingsPlaybackServiceControlsAdapter {
 }
 class MainSettingsStore {
 +读写偏好
++音频设置支持
 }
 class LoadSettingsPreferencesUseCase {
 +加载偏好
++音频设置加载
 }
 class ApplySettingsPreferenceUseCase {
 +应用偏好
++音频设置保存
 }
-class DeduplicationConfig {
-+指纹算法选择
-+相似度阈值
-+重复检测策略
+class SettingsRuntimeEffect {
++音频独占效果
++比特完美效果
++USB独占效果
 }
-class PlayerPreferences {
-+音频质量设置
-+缓冲策略
-+解码器优化
-+音量标准化
+class SettingsMutationContext {
++变更处理
++效果触发
 }
 SettingsFeatureBinding --> SettingsModule : "装配"
 SettingsModule --> SettingsViewModel : "注入"
@@ -320,11 +377,11 @@ SettingsViewModel --> SettingsPlaybackServiceControlsAdapter : "桥接"
 SettingsViewModel --> MainSettingsStore : "读写"
 SettingsViewModel --> LoadSettingsPreferencesUseCase : "加载"
 SettingsViewModel --> ApplySettingsPreferenceUseCase : "应用"
-SettingsPageStateBuilder --> DeduplicationConfig : "配置"
-SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
+SettingsRuntimeApplier --> SettingsRuntimeEffect : "处理"
+SettingsMutationContext --> SettingsRuntimeEffect : "触发"
 ```
 
-图表来源
+**图表来源**
 - [SettingsFeatureBinding.java](file://app/src/main/java/app/yukine/SettingsFeatureBinding.java)
 - [SettingsModule.kt](file://app/src/main/java/app/yukine/SettingsModule.kt)
 - [SettingsViewModelTest.kt](file://app/src/test/java/app/yukine/SettingsViewModelTest.kt)
@@ -336,8 +393,10 @@ SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
 - [MainSettingsStore.kt](file://app/src/main/java/app/yukine/MainSettingsStore.kt)
 - [LoadSettingsPreferencesUseCase.kt](file://app/src/main/java/app/yukine/LoadSettingsPreferencesUseCase.kt)
 - [ApplySettingsPreferenceUseCase.kt](file://app/src/main/java/app/yukine/ApplySettingsPreferenceUseCase.kt)
+- [SettingsRuntimeEffect.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsRuntimeEffect.kt)
+- [SettingsMutationContext.kt](file://feature/settings-ui/src/main/java/app/yukine/SettingsMutationContext.kt)
 
-章节来源
+**章节来源**
 - [SettingsFeatureBinding.java](file://app/src/main/java/app/yukine/SettingsFeatureBinding.java)
 - [SettingsModule.kt](file://app/src/main/java/app/yukine/SettingsModule.kt)
 
@@ -346,30 +405,28 @@ SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
 - 懒加载与分页：对于大型设置页面，建议按需加载子页面与分组，降低首屏渲染压力。
 - 幂等效果：对主题、语言等全局效果进行幂等判断，避免重复应用导致的抖动。
 - 异步持久化：偏好写入应异步执行，并在完成后回调 UI 刷新，避免阻塞主线程。
-- **更新**：针对新增的去重系统和播放器偏好设置，实现了专门的缓存机制和增量更新策略，确保复杂配置的快速响应。
+- **更新** 音频设置优化：新的音频设置项采用了更细粒度的控制，减少了不必要的音频路径重建。
 
 ## 故障排查指南
 - 设置未生效
   - 检查 ApplySettingsPreferenceUseCase 是否成功持久化。
   - 确认 SettingsEffectOwner 是否正确触发运行时应用。
   - 查看 SettingsRuntimeApplier 是否收到变更并应用。
+  - **新增** 检查新的音频设置效果是否正确触发：`SetAudioExclusiveEnabled`、`SetBitPerfectEnabled`、`SetUsbExclusiveEnabled`
 - 页面状态不一致
   - 验证 SettingsPageStateBuilder 是否基于最新上下文构建。
   - 检查 SettingsBackStack 是否存在重复或遗漏的页面。
 - 播放服务控件不同步
   - 确认 SettingsPlaybackServiceControlsAdapter 是否正确桥接设置项与服务端状态。
+  - **新增** 验证音频专用控件方法是否正确调用。
 - 上下文异常
   - 检查 SettingsContextProvider 提供的语言、主题等上下文是否与系统一致。
-- **新增**：去重系统配置问题
-  - 验证指纹算法参数是否在合理范围内。
-  - 检查相似度阈值设置是否影响正常匹配。
-  - 确认重复检测策略与库规模相匹配。
-- **新增**：播放器偏好设置问题
-  - 检查音频质量设置是否与设备性能兼容。
-  - 验证缓冲策略是否导致播放延迟。
-  - 确认解码器优化选项是否被设备支持。
+- **新增** 音频设置问题
+  - 检查音频独占模式的兼容性
+  - 验证比特完美模式下的音频输出质量
+  - 确认USB独占模式下的设备连接状态
 
-章节来源
+**章节来源**
 - [SettingsEffectOwnerTest.kt](file://app/src/test/java/app/yukine/SettingsEffectOwnerTest.kt)
 - [SettingsRuntimeApplierTest.kt](file://app/src/test/java/app/yukine/SettingsRuntimeApplierTest.kt)
 - [SettingsPlaybackServiceControlsAdapterTest.kt](file://app/src/test/java/app/yukine/SettingsPlaybackServiceControlsAdapterTest.kt)
@@ -377,14 +434,14 @@ SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
 ## 结论
 设置界面模块以 MVVM + Effect 为核心架构，结合页面状态构建器与返回栈管理，实现了清晰的状态流与可扩展的页面组织。通过 Store 与 UseCase 的解耦设计，设置项的验证、默认值与迁移得以集中管理；EffectOwner 与 RuntimeApplier 保证了变更的实时生效。
 
-**最新更新**：模块的重大增强显著提升了功能完整性，特别是去重系统配置和播放器偏好设置的加入，为用户提供了更精细化的控制能力。整体架构具备良好的可测试性与可维护性，适合持续扩展新的设置项与界面定制。
+**更新** 本次架构重构显著提升了音频控制的精细度，将单一的并发播放控制拆分为三个专门的音频模式设置，不仅提高了代码的可维护性，还为用户提供了更灵活的音频输出控制选项。整体架构具备良好的可测试性与可维护性，适合持续扩展新的设置项与界面定制。
 
 ## 附录：扩展与定制指南
 - 新增设置项
   - 在页面状态构建器中添加对应分组与条目。
   - 在 Store 中定义键值与默认值，在 UseCase 中实现校验与持久化。
   - 如需运行时生效，在 EffectOwner 中增加对应效果分支。
-  - **更新**：对于复杂的配置项（如去重系统、播放器偏好），建议使用专门的配置类进行管理。
+  - **更新** 参考新的音频设置实现模式，特别是 SettingsRuntimeEffect 的定义和使用。
 - 界面定制
   - 通过 ContextProvider 注入主题与语言，确保页面样式与文案一致。
   - 对复杂设置项，可使用自定义控件并通过适配器桥接到播放服务。
@@ -392,11 +449,7 @@ SettingsPageStateBuilder --> PlayerPreferences : "偏好设置"
   - 通过 DI 将设置模块与其他功能模块耦合，确保全局配置变更能广播至相关模块。
 - 备份与恢复
   - 在 Store 层提供导出/导入接口，与应用的备份恢复流程对接，确保设置数据的完整性与一致性。
-- **新增**：去重系统配置扩展
-  - 支持添加新的指纹算法实现。
-  - 可扩展相似度计算策略。
-  - 支持自定义重复检测规则。
-- **新增**：播放器偏好设置扩展
-  - 支持添加新的音频格式支持。
-  - 可扩展缓冲策略算法。
-  - 支持自定义解码器优化选项。
+- **新增** 音频设置扩展
+  - 遵循现有的音频设置模式，确保与播放服务的良好集成。
+  - 考虑音频设置的互斥关系和兼容性检查。
+  - 为新音频设置添加适当的用户反馈和错误处理。

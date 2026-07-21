@@ -58,6 +58,10 @@ class IdentityEnhancementWorker(
             jobs.requeueMissingArtistAvatarJobs(System.currentTimeMillis())
             settings.markArtistAvatarRepairScheduled()
         }
+        if (settings.needsFailedJobRecovery()) {
+            jobs.recoverFailedArtistJobs(System.currentTimeMillis())
+            settings.markFailedJobRecoveryDone()
+        }
         val authStore = LocalStreamingAuthStore(context)
         val metadataGatewayClient = MetadataGatewayClient(
             cache = cache,
@@ -102,7 +106,10 @@ class IdentityEnhancementWorker(
             albumProviders = listOf(MetadataGatewayAlbumProvider(metadataGatewayClient)),
             missingCoverWriter = RoomMissingRecordingCoverWriter(database)
         )
-        val run = runCatching { engine.runReadyJobs(Int.MAX_VALUE) }
+        val run = runCatching {
+            val onDemand = inputData.getBoolean(KEY_ON_DEMAND, false)
+            engine.runReadyJobs(if (onDemand) ON_DEMAND_JOB_LIMIT else Int.MAX_VALUE)
+        }
         run.fold(
             onSuccess = { outcome ->
                 if (outcome.retried > 0 && outcome.succeeded == 0) Result.retry() else Result.success()
@@ -117,6 +124,8 @@ class IdentityEnhancementWorker(
     private companion object {
         const val TAG = "IdentityEnhancement"
         const val MUSICBRAINZ_CONTACT = "https://github.com/ysyhlly/Yukine-android"
+        const val KEY_ON_DEMAND = "on_demand"
+        const val ON_DEMAND_JOB_LIMIT = 5
     }
 }
 
@@ -168,6 +177,17 @@ class IdentityEnhancementSettingsStore(context: Context) {
         ) { "Unable to persist artist avatar repair version" }
     }
 
+    fun needsFailedJobRecovery(): Boolean {
+        val last = preferences.getLong(KEY_LAST_FAILED_RECOVERY, 0L)
+        return System.currentTimeMillis() - last >= FAILED_RECOVERY_INTERVAL_MS
+    }
+
+    fun markFailedJobRecoveryDone() {
+        preferences.edit()
+            .putLong(KEY_LAST_FAILED_RECOVERY, System.currentTimeMillis())
+            .apply()
+    }
+
     /** Legacy compatibility for installs that already stored the old MusicBrainz-only proxy. */
     fun musicBrainzProxy(): String = normalizeMusicBrainzProxy(
         preferences.getString(KEY_MUSICBRAINZ_PROXY, "").orEmpty()
@@ -195,7 +215,9 @@ class IdentityEnhancementSettingsStore(context: Context) {
         const val KEY_GATEWAY_MODE = "metadata_gateway_mode"
         const val KEY_CUSTOM_GATEWAY = "metadata_gateway_endpoint"
         const val KEY_ARTIST_AVATAR_REPAIR_VERSION = "artist_avatar_repair_version"
-        const val ARTIST_AVATAR_REPAIR_VERSION = 2
+        const val KEY_LAST_FAILED_RECOVERY = "last_failed_job_recovery"
+        const val ARTIST_AVATAR_REPAIR_VERSION = 3
+        const val FAILED_RECOVERY_INTERVAL_MS = 24L * 60L * 60L * 1_000L
     }
 }
 

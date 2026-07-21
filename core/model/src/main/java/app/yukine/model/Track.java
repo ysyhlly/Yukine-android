@@ -33,6 +33,11 @@ public final class Track implements Parcelable {
     public final float replayGainAlbumDb;
     public final TrackIdentityTags identityTags;
     public final long updatedAt;
+    public final String genre;
+    public final int discNumber;
+    public final int trackNumber;
+    public final int bpm;
+    public final String lyrics;
 
     public Track(
             long id,
@@ -231,6 +236,41 @@ public final class Track implements Parcelable {
             int year,
             long updatedAt
     ) {
+        this(id, title, artist, album, durationMs, contentUri, dataPath, albumId, albumArtUri,
+                codec, bitrateKbps, sampleRateHz, bitsPerSample, channelCount,
+                replayGainTrackDb, replayGainAlbumDb, identityTags, albumArtist, composer, releaseType, year,
+                updatedAt, "", 0, 0, 0, "");
+    }
+
+    public Track(
+            long id,
+            String title,
+            String artist,
+            String album,
+            long durationMs,
+            Uri contentUri,
+            String dataPath,
+            long albumId,
+            Uri albumArtUri,
+            String codec,
+            int bitrateKbps,
+            int sampleRateHz,
+            int bitsPerSample,
+            int channelCount,
+            float replayGainTrackDb,
+            float replayGainAlbumDb,
+            TrackIdentityTags identityTags,
+            String albumArtist,
+            String composer,
+            String releaseType,
+            int year,
+            long updatedAt,
+            String genre,
+            int discNumber,
+            int trackNumber,
+            int bpm,
+            String lyrics
+    ) {
         this.id = id;
         this.title = clean(title, UNKNOWN_TITLE);
         this.artist = clean(artist, UNKNOWN_ARTIST);
@@ -253,6 +293,11 @@ public final class Track implements Parcelable {
         this.replayGainAlbumDb = sanitizeReplayGain(replayGainAlbumDb);
         this.identityTags = identityTags == null ? TrackIdentityTags.EMPTY : identityTags;
         this.updatedAt = Math.max(updatedAt, 0L);
+        this.genre = cleanOptional(genre);
+        this.discNumber = Math.max(discNumber, 0);
+        this.trackNumber = Math.max(trackNumber, 0);
+        this.bpm = Math.max(bpm, 0);
+        this.lyrics = lyrics == null ? "" : lyrics;
     }
 
     private Track(Parcel in) {
@@ -287,6 +332,12 @@ public final class Track implements Parcelable {
         releaseType = in.dataAvail() > 0 ? cleanOptional(in.readString()) : "";
         year = in.dataAvail() > 0 ? sanitizeYear(in.readInt()) : 0;
         updatedAt = in.dataAvail() > 0 ? Math.max(in.readLong(), 0L) : 0L;
+        genre = in.dataAvail() > 0 ? cleanOptional(in.readString()) : "";
+        discNumber = in.dataAvail() > 0 ? Math.max(in.readInt(), 0) : 0;
+        trackNumber = in.dataAvail() > 0 ? Math.max(in.readInt(), 0) : 0;
+        bpm = in.dataAvail() > 0 ? Math.max(in.readInt(), 0) : 0;
+        String lyricsValue = in.dataAvail() > 0 ? in.readString() : "";
+        lyrics = lyricsValue == null ? "" : lyricsValue;
     }
 
     public String subtitle() {
@@ -318,6 +369,26 @@ public final class Track implements Parcelable {
         return !dataPath.startsWith("stream:")
                 && !dataPath.startsWith("streaming:")
                 && !dataPath.startsWith("webdav:");
+    }
+
+    public String metadataSummary() {
+        StringBuilder builder = new StringBuilder();
+        if (!genre.isEmpty()) {
+            builder.append(genre);
+        }
+        if (discNumber > 0) {
+            appendSeparator(builder);
+            builder.append("Disc ").append(discNumber);
+        }
+        if (trackNumber > 0) {
+            appendSeparator(builder);
+            builder.append("Track ").append(trackNumber);
+        }
+        if (bpm > 0) {
+            appendSeparator(builder);
+            builder.append(bpm).append(" BPM");
+        }
+        return builder.toString();
     }
 
     public String audioSpecSummary() {
@@ -377,6 +448,11 @@ public final class Track implements Parcelable {
         dest.writeString(releaseType);
         dest.writeInt(year);
         dest.writeLong(updatedAt);
+        dest.writeString(genre);
+        dest.writeInt(discNumber);
+        dest.writeInt(trackNumber);
+        dest.writeInt(bpm);
+        dest.writeString(lyrics);
     }
 
     public static final Creator<Track> CREATOR = new Creator<Track>() {

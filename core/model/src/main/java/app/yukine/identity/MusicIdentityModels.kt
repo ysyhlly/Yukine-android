@@ -307,6 +307,11 @@ data class WorkCreditEvidence(
     val verifiedAt: Long = 0L
 )
 
+data class RecordingDuplicateCandidate(
+    val canonicalId: String,
+    val confidence: Double = 0.0
+)
+
 data class AnonymousRecordingCandidate(
     val provider: String,
     val providerItemId: String,
@@ -325,7 +330,8 @@ data class AnonymousRecordingCandidate(
     /** True only when the gateway returned this candidate for the uploaded Chromaprint. */
     val fingerprintVerified: Boolean = false,
     val variantType: RecordingVariantType = RecordingVariantType.UNKNOWN,
-    val providerScore: Double = 0.0
+    val providerScore: Double = 0.0,
+    val possibleDuplicates: List<RecordingDuplicateCandidate> = emptyList()
 )
 
 data class AnonymousProviderResult(
@@ -347,7 +353,8 @@ data class AnonymousArtistCandidate(
     val artistMbid: String = "",
     val avatarUrl: String = "",
     val providerScore: Double = 0.0,
-    val description: String = ""
+    val description: String = "",
+    val biography: String = ""
 )
 
 data class AnonymousArtistProviderResult(

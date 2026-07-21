@@ -230,6 +230,15 @@ class HomeDashboardViewModel @JvmOverloads constructor(
                 content = state.copy(streamingConnected = streamingConnected)
             )
             updatePlayback(localPlayback, latestQueueTracks, latestLanguageMode)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Dashboard rendering must never crash the app; show an empty shell instead.
+            _uiState.value = _uiState.value.copy(
+                content = HomeDashboardStateFactory.create(
+                    "zh", emptyList(), emptyList(), emptyList(), null
+                ).copy(streamingConnected = streamingConnected)
+            )
         } finally {
             _loading.value = false
         }

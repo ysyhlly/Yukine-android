@@ -1,0 +1,14 @@
+diff --git a/feature/data/src/main/java/app/yukine/data/room/TrackEntityMapper.java b/feature/data/src/main/java/app/yukine/data/room/TrackEntityMapper.java
+index 79e1baaa..c2c584be 100644
+--- a/feature/data/src/main/java/app/yukine/data/room/TrackEntityMapper.java
++++ b/feature/data/src/main/java/app/yukine/data/room/TrackEntityMapper.java
+@@ -141,7 +141,8 @@ public final class TrackEntityMapper {
+                 entity.getAlbumArtist(),
+                 entity.getComposer(),
+                 entity.getReleaseType(),
+-                entity.getYear()
++                entity.getYear(),
++                entity.getUpdatedAt()
+         );
+     }
+ 

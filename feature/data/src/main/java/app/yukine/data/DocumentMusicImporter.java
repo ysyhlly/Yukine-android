@@ -97,7 +97,12 @@ public final class DocumentMusicImporter {
         String albumArtist = "";
         String composer = "";
         String releaseType = "";
+        String genre = "";
         int year = 0;
+        int discNumber = 0;
+        int trackNumber = 0;
+        int bpm = 0;
+        String lyrics = "";
         long durationMs = 0L;
         byte[] embeddedArtwork = null;
         TrackIdentityTags identityTags = TrackIdentityTags.EMPTY;
@@ -124,6 +129,20 @@ public final class DocumentMusicImporter {
             composer = firstText(platformComposer, portable.composer);
             releaseType = portable.releaseType;
             year = platformYear > 0 ? platformYear : portable.year;
+            genre = firstText(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE),
+                    portable.genre
+            );
+            discNumber = parseIntSafe(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)
+            );
+            if (discNumber == 0) discNumber = portable.discNumber;
+            trackNumber = parseIntSafe(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+            );
+            if (trackNumber == 0) trackNumber = portable.trackNumber;
+            bpm = portable.bpm;
+            lyrics = portable.lyrics;
             embeddedArtwork = retriever.getEmbeddedPicture();
             if ((embeddedArtwork == null || embeddedArtwork.length == 0) && portable.artwork != null) {
                 embeddedArtwork = portable.artwork;
@@ -160,7 +179,13 @@ public final class DocumentMusicImporter {
                 albumArtist,
                 composer,
                 releaseType,
-                year
+                year,
+                0L,
+                genre,
+                discNumber,
+                trackNumber,
+                bpm,
+                lyrics
         );
         return audioSpecParser.enrich(track);
     }
@@ -213,7 +238,12 @@ public final class DocumentMusicImporter {
                 || lower.endsWith(".amr")
                 || lower.endsWith(".mid")
                 || lower.endsWith(".midi")
-                || lower.endsWith(".wma");
+                || lower.endsWith(".wma")
+                || lower.endsWith(".dsf")
+                || lower.endsWith(".dff")
+                || lower.endsWith(".ape")
+                || lower.endsWith(".wv")
+                || lower.endsWith(".tta");
     }
 
     private String stripExtension(String value) {
@@ -246,6 +276,17 @@ public final class DocumentMusicImporter {
     private int parseYear(String value) {
         long year = parseLong(value);
         return year >= 1000L && year <= 9999L ? (int) year : 0;
+    }
+
+    private int parseIntSafe(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Integer.parseInt(value.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private long stableDocumentId(Uri uri) {

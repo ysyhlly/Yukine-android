@@ -81,6 +81,17 @@ class RoomIdentityJobRepository(
             requeued
         })
 
+    /**
+     * Recovers FAILED artist jobs after a cooldown period, resetting them to RETRY with
+     * attemptCount=0 so they re-enter the normal retry cycle. This provides a long-tail
+     * self-healing mechanism for artists whose enrichment failed due to transient errors.
+     */
+    fun recoverFailedArtistJobs(now: Long, cooldownMs: Long = FAILED_RECOVERY_COOLDOWN_MS): Int {
+        val safeNow = now.coerceAtLeast(0L)
+        val failedBefore = (safeNow - cooldownMs).coerceAtLeast(0L)
+        return dao.recoverExpiredFailedArtistJobs(failedBefore, safeNow)
+    }
+
     private fun update(
         jobId: String,
         status: IdentityJobStatus,
@@ -121,6 +132,7 @@ class RoomIdentityJobRepository(
 
     internal companion object {
         const val STALE_RUNNING_TIMEOUT_MS = 15L * 60L * 1_000L
+        const val FAILED_RECOVERY_COOLDOWN_MS = 7L * 24L * 60L * 60L * 1_000L
         const val ARTIST_AVATAR_REPAIR_REASON = "MISSING_ARTIST_AVATAR_V2"
         val ACTIVE_JOB_STATUSES = setOf(
             IdentityJobStatus.PENDING.name,

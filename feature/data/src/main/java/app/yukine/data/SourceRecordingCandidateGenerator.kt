@@ -583,7 +583,7 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
     }
 
     internal companion object {
-        const val ALGORITHM_VERSION = 9
+        const val ALGORITHM_VERSION = 10
         const val DEFAULT_TOP_K = 20
         const val MAX_TOP_K = 20
         const val MAX_INTERNAL_EMBEDDING_CANDIDATES = 100
@@ -595,10 +595,10 @@ internal class SourceRecordingCandidateGenerator @JvmOverloads constructor(
         const val STATE_GENERATED = "GENERATED"
         const val STATE_SHADOW = "SHADOW"
         private const val FEATURE_SEPARATOR = '\u001F'
-        private const val MAX_RARE_GRAMS = 6
+        private const val MAX_RARE_GRAMS = 8
         private const val MAX_NGRAM_POSTING = 128
         private const val MAX_EXACT_TITLE_POSTING = 128
-        private const val EXACT_TITLE_DURATION_BUCKETS = 2L
+        private const val EXACT_TITLE_DURATION_BUCKETS = 3L
         private const val MIN_COARSE_POOL = 8
         private const val MAX_AUDIO_BUCKET_MATCHES = 12.0
     }

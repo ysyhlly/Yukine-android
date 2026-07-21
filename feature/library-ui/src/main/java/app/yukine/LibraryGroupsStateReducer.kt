@@ -28,6 +28,10 @@ fun interface ArtistLocalInfoSource {
     fun load(languageMode: String, artistId: String, tracks: List<Track>): ArtistInfo?
 }
 
+fun interface ArtistEnrichmentTrigger {
+    fun requestIfMissing(artistId: String)
+}
+
 data class LibraryGroupsChromeState(
     val actions: List<LibraryGroupActions>,
     val emptyText: String,
@@ -47,7 +51,8 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
     private val viewModel: LibraryViewModel,
     private val listener: Listener,
     private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() },
-    private val artistLocalInfoSource: ArtistLocalInfoSource? = null
+    private val artistLocalInfoSource: ArtistLocalInfoSource? = null,
+    private val artistEnrichmentTrigger: ArtistEnrichmentTrigger? = null
 ) {
     private val artistInfoCache = Collections.synchronizedMap(
         object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
@@ -296,6 +301,9 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         val requestSerial = ++artistInfoRequestSerial
         viewModel.viewModelScope.launch(Dispatchers.IO) {
             val info = runCatching { source.load(languageMode, stableArtistId, tracks) }.getOrNull()
+            if (info == null || info.avatarUrl == null) {
+                runCatching { artistEnrichmentTrigger?.requestIfMissing(stableArtistId) }
+            }
             uiDispatcher.dispatch(Runnable {
                 artistInfoRequests.remove(lookupKey)
                 if (info != null) artistInfoCache[lookupKey] = info

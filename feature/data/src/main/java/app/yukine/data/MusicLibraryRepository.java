@@ -1260,7 +1260,7 @@ public final class MusicLibraryRepository {
         List<Track> tracks = scanner.scan();
         throwIfRefreshInterrupted();
         reportRefreshProgress(progressListener, LibraryRefreshPhase.REPLACING, tracks.size(), startedAtNanos);
-        libraryRepository.replaceScanManagedTracks(tracks);
+        libraryRepository.replaceScanManagedTracksIncremental(tracks);
         throwIfRefreshInterrupted();
         // Persist only after the replacement transaction succeeds. If the scan or write fails,
         // the old token forces a safe retry next time.
@@ -1347,6 +1347,10 @@ public final class MusicLibraryRepository {
                 throw new java.util.concurrent.CancellationException("Audio spec parsing cancelled");
             }
             if (track == null || !track.needsAudioSpecParsing()) {
+                continue;
+            }
+            if (isEncryptedCacheFile(track.dataPath)) {
+                libraryRepository.markAudioSpecAttempt(track.id, attemptedAt);
                 continue;
             }
             TrackSourceMappingEntity source = sourceByTrack.get(track.id);
@@ -1539,10 +1543,22 @@ public final class MusicLibraryRepository {
 
     private static boolean isLocallyReadableForAudioVerification(Track track) {
         if (track == null || track.contentUri == null || Uri.EMPTY.equals(track.contentUri)) return false;
+        if (isEncryptedCacheFile(track.dataPath)) return false;
         String scheme = track.contentUri.getScheme();
         if ("content".equalsIgnoreCase(scheme) || "file".equalsIgnoreCase(scheme)) return true;
         String path = track.dataPath == null ? "" : track.dataPath.trim();
         return path.startsWith("/") || path.matches("^[A-Za-z]:[\\\\/].*");
+    }
+
+    private static boolean isEncryptedCacheFile(String dataPath) {
+        if (dataPath == null || dataPath.isEmpty()) return false;
+        String lower = dataPath.toLowerCase(java.util.Locale.ROOT);
+        int dot = lower.lastIndexOf('.');
+        if (dot < 0 || dot >= lower.length() - 1) return false;
+        String extension = lower.substring(dot + 1);
+        return "kgm".equals(extension) || "vpr".equals(extension) || "ofl".equals(extension)
+                || "qmc".equals(extension) || "mflac".equals(extension) || "mgg".equals(extension)
+                || "kgc".equals(extension) || "krc".equals(extension);
     }
 
     private static AudioFeatureEntity resetAudioEvidence(

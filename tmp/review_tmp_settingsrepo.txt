@@ -1,0 +1,43 @@
+diff --git a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+index 99915a1c..3084b34a 100644
+--- a/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
++++ b/feature/data/src/main/java/app/yukine/data/SettingsRepository.java
+@@ -33,6 +33,9 @@ public final class SettingsRepository {
+     private static final String NOW_PLAYING_GESTURES = "now_playing_gestures";
+     private static final String PLAYBACK_RESTORE_ENABLED = "playback_restore_enabled";
+     private static final String REPLAY_GAIN_ENABLED = "replay_gain_enabled";
++        private static final String AUDIO_EXCLUSIVE_ENABLED = "audio_exclusive_enabled";
++    private static final String BIT_PERFECT_ENABLED = "bit_perfect_enabled";
++    private static final String USB_EXCLUSIVE_ENABLED = "usb_exclusive_enabled";
+     private static final String DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
+     private static final String CUSTOM_BACKGROUND_BLUR_ENABLED = "custom_background_blur_enabled";
+     private static final String CUSTOM_BACKGROUND_BLUR_RADIUS_DP = "custom_background_blur_radius_dp";
+@@ -85,8 +88,6 @@ public final class SettingsRepository {
+     }
+     boolean loadOnlineLyricsEnabled() { return bool(ONLINE_LYRICS, true); }
+     void saveOnlineLyricsEnabled(boolean value) { saveBool(ONLINE_LYRICS, value); }
+-    boolean loadConcurrentPlaybackEnabled() { return bool(CONCURRENT_PLAYBACK, false); }
+-    void saveConcurrentPlaybackEnabled(boolean value) { saveBool(CONCURRENT_PLAYBACK, value); }
+     boolean loadLibraryAutoSyncEnabled() { return bool(LIBRARY_AUTO_SYNC_ENABLED, false); }
+     void saveLibraryAutoSyncEnabled(boolean value) { saveBool(LIBRARY_AUTO_SYNC_ENABLED, value); }
+     LibraryDedupMode loadLibraryDedupMode() {
+@@ -136,6 +137,19 @@ public final class SettingsRepository {
+     void savePlaybackRestoreEnabled(boolean value) { saveBool(PLAYBACK_RESTORE_ENABLED, value); }
+     boolean loadReplayGainEnabled() { return bool(REPLAY_GAIN_ENABLED, true); }
+     void saveReplayGainEnabled(boolean value) { saveBool(REPLAY_GAIN_ENABLED, value); }
++        boolean loadAudioExclusiveEnabled() {
++        // One-time migration from legacy concurrent_playback key (inverted semantics).
++        if (dao.value(CONCURRENT_PLAYBACK) != null && dao.value(AUDIO_EXCLUSIVE_ENABLED) == null) {
++            boolean legacy = bool(CONCURRENT_PLAYBACK, false);
++            saveBool(AUDIO_EXCLUSIVE_ENABLED, !legacy);
++        }
++        return bool(AUDIO_EXCLUSIVE_ENABLED, true);
++    }
++        void saveAudioExclusiveEnabled(boolean value) { saveBool(AUDIO_EXCLUSIVE_ENABLED, value); }
++    boolean loadBitPerfectEnabled() { return bool(BIT_PERFECT_ENABLED, false); }
++    void saveBitPerfectEnabled(boolean value) { saveBool(BIT_PERFECT_ENABLED, value); }
++    boolean loadUsbExclusiveEnabled() { return bool(USB_EXCLUSIVE_ENABLED, false); }
++    void saveUsbExclusiveEnabled(boolean value) { saveBool(USB_EXCLUSIVE_ENABLED, value); }
+     boolean loadDebugPromptsEnabled() { return bool(DEBUG_PROMPTS_ENABLED, false); }
+     void saveDebugPromptsEnabled(boolean value) { saveBool(DEBUG_PROMPTS_ENABLED, value); }
+     boolean loadCustomBackgroundBlurEnabled() { return bool(CUSTOM_BACKGROUND_BLUR_ENABLED, false); }

@@ -1,0 +1,18 @@
+warning: in the working copy of 'app/src/test/java/app/yukine/playback/IdentityEnhancementPlaybackGateTest.java', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/test/java/app/yukine/playback/IdentityEnhancementPlaybackGateTest.java b/app/src/test/java/app/yukine/playback/IdentityEnhancementPlaybackGateTest.java
+index f29a6aa8..193a2508 100644
+--- a/app/src/test/java/app/yukine/playback/IdentityEnhancementPlaybackGateTest.java
++++ b/app/src/test/java/app/yukine/playback/IdentityEnhancementPlaybackGateTest.java
+@@ -52,7 +52,11 @@ public final class IdentityEnhancementPlaybackGateTest {
+                 null,
+                 null,
+                 0.0f,
+-                0L
++                0L,
++                false,
++                0,
++                null,
++                false
+         );
+     }
+ }

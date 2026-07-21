@@ -406,7 +406,7 @@ class LibraryPlaylistsStateReducer(
     private fun tracksFromRecords(records: List<TrackPlayRecord>): ArrayList<Track> {
         val tracks = ArrayList<Track>()
         for (record in records) {
-            tracks.add(record.track)
+            if (record.track != null) tracks.add(record.track)
         }
         return tracks
     }

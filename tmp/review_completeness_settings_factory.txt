@@ -1,0 +1,146 @@
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+index 6ed3910c..d5f6ecb9 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsInformationArchitecture.kt
+@@ -20,6 +20,8 @@ enum class SettingsEntryId {
+     ReplayGain,
+     PlaybackRestore,
+     AudioExclusive,
++    BitPerfect,
++    UsbExclusive,
+     SleepTimer,
+     LibraryScan,
+     ImportAudioFiles,
+@@ -165,7 +167,9 @@ object SettingsInformationArchitecture {
+         entry(SettingsEntryId.AudioEffects, SettingsCategoryId.PlaybackAudio, "audio.effects", "audio.effects.hint", EchoIconKind.Gauge, "equalizer", "eq", "\u5747\u8861\u5668", "\u97f3\u6548"),
+         entry(SettingsEntryId.ReplayGain, SettingsCategoryId.PlaybackAudio, "replay.gain", "replay.gain.hint", EchoIconKind.Gauge, "replaygain", "normalization", "\u97f3\u91cf\u5747\u8861"),
+         entry(SettingsEntryId.PlaybackRestore, SettingsCategoryId.PlaybackAudio, "playback.restore", "playback.restore.hint", EchoIconKind.Refresh, "queue restore", "\u6062\u590d\u961f\u5217"),
+-        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "\u97f3\u9891\u7126\u70b9"),
++        entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "闊抽鐒︾偣"),
++        entry(SettingsEntryId.BitPerfect, SettingsCategoryId.PlaybackAudio, "bit.perfect", "bit.perfect.hint", EchoIconKind.Gauge, "bit-perfect", "src bypass", "缁曡繃SRC", "浣嶅畬缇?),
++        entry(SettingsEntryId.UsbExclusive, SettingsCategoryId.PlaybackAudio, "usb.exclusive", "usb.exclusive.hint", EchoIconKind.Gauge, "usb dac", "usb exclusive", "USB鐙崰", "澶栫疆瑙ｇ爜"),
+         entry(SettingsEntryId.SleepTimer, SettingsCategoryId.PlaybackAudio, "sleep.timer", "sleep.timer.description", EchoIconKind.Timer, "timer", "\u5b9a\u65f6"),
+ 
+         entryWithKeywords(SettingsEntryId.LibraryScan, SettingsCategoryId.LibraryMetadata, "scan.library", icon = EchoIconKind.Sync, keywords = arrayOf("rescan", "\u626b\u63cf")),
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+index 33f8e0c1..89568e38 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPage.kt
+@@ -27,7 +27,6 @@ sealed class SettingsPage(
+     data object StreamingAudioQuality : SettingsPage(MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY)
+     data object ShareStyle : SettingsPage(MainRoutes.SETTINGS_SHARE_STYLE)
+     data object Downloads : SettingsPage(MainRoutes.SETTINGS_DOWNLOADS)
+-    data object ConcurrentPlayback : SettingsPage(MainRoutes.SETTINGS_CONCURRENT_PLAYBACK)
+     data object SleepTimer : SettingsPage(MainRoutes.SETTINGS_SLEEP_TIMER)
+     data object Lyrics : SettingsPage(MainRoutes.SETTINGS_LYRICS)
+     data object Library : SettingsPage(MainRoutes.SETTINGS_LIBRARY)
+@@ -60,7 +59,6 @@ sealed class SettingsPage(
+                 MainRoutes.SETTINGS_STREAMING_AUDIO_QUALITY -> StreamingAudioQuality
+                 MainRoutes.SETTINGS_SHARE_STYLE -> ShareStyle
+                 MainRoutes.SETTINGS_DOWNLOADS -> Downloads
+-                MainRoutes.SETTINGS_CONCURRENT_PLAYBACK -> ConcurrentPlayback
+                 MainRoutes.SETTINGS_SLEEP_TIMER -> SleepTimer
+                 MainRoutes.SETTINGS_LYRICS -> Lyrics
+                 MainRoutes.SETTINGS_LIBRARY -> Library
+@@ -98,7 +96,6 @@ sealed class SettingsPage(
+                 StreamingAudioQuality,
+                 ShareStyle,
+                 Downloads,
+-                ConcurrentPlayback,
+                 SleepTimer,
+                 Lyrics,
+                 Library,
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+index fc67dffd..bfe7fc18 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPageContentFactory.kt
+@@ -64,11 +64,13 @@ internal object SettingsPageContentFactory {
+                     languageMode,
+                     preferences.playbackSpeed,
+                     preferences.appVolume,
+-                    preferences.concurrentPlaybackEnabled,
+                     preferences.audioEffectSettings,
+                     preferences.playbackRestoreEnabled,
+                     preferences.replayGainEnabled,
+-                    runtime.sleepTimerRemainingMs,
++                    audioExclusiveEnabled = preferences.audioExclusiveEnabled,
++                    bitPerfectEnabled = preferences.bitPerfectEnabled,
++                    usbExclusiveEnabled = preferences.usbExclusiveEnabled,
++                    remainingMs = runtime.sleepTimerRemainingMs,
+                     onNavigate = { nextPage -> onNavigate(nextPage) },
+                     onReplayGainEnabledChange = { enabled ->
+                         playback.setReplayGainEnabled(enabled)
+@@ -78,6 +80,12 @@ internal object SettingsPageContentFactory {
+                     },
+                     onAudioExclusiveEnabledChange = { enabled ->
+                         playback.setAudioExclusiveEnabled(enabled)
++                    },
++                    onBitPerfectEnabledChange = { enabled ->
++                        playback.setBitPerfectEnabled(enabled)
++                    },
++                    onUsbExclusiveEnabledChange = { enabled ->
++                        playback.setUsbExclusiveEnabled(enabled)
+                     }
+                 )
+             SettingsPage.LibraryGroup,
+@@ -274,13 +282,6 @@ internal object SettingsPageContentFactory {
+                     onNavigate = ::navigateSettingsPage,
+                     onApplyStyle = { style -> appearance.applyShareStyle(style) }
+                 )
+-            SettingsPage.ConcurrentPlayback ->
+-                SettingsPageStateBuilder.audioExclusive(
+-                    languageMode,
+-                    !preferences.concurrentPlaybackEnabled,
+-                    onNavigate = ::navigateSettingsPage,
+-                    onToggle = { enabled -> playback.setAudioExclusiveEnabled(enabled) }
+-                )
+             SettingsPage.SleepTimer ->
+                 SettingsPageStateBuilder.sleepTimer(
+                     languageMode,
+@@ -329,6 +330,7 @@ internal object SettingsPageContentFactory {
+                     runtime.floatingLyricsWidthPercent,
+                     runtime.floatingLyricsBackgroundOpacityPercent,
+                     runtime.floatingLyricsTransparentBackground,
++                    runtime.floatingLyricsTextColorArgb,
+                     onNavigate = ::navigateSettingsPage,
+                     onOpenPermission = { platform.openFloatingLyricsPermission() },
+                     onToggle = { enabled -> lyrics.setFloatingLyricsEnabled(enabled) },
+@@ -340,6 +342,7 @@ internal object SettingsPageContentFactory {
+                     onTransparentBackgroundChange = { value ->
+                         lyrics.setFloatingLyricsTransparentBackground(value)
+                     },
++                    onTextColorChange = { color -> lyrics.setFloatingLyricsTextColor(color) },
+                     onShow = { lyrics.showFloatingLyrics() },
+                     onUnlock = { lyrics.unlockFloatingLyrics() },
+                     onReset = { lyrics.resetFloatingLyricsLayout() }
+diff --git a/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt b/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
+index 41d76b4f..bec8954c 100644
+--- a/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
++++ b/feature/settings-ui/src/main/java/app/yukine/SettingsPersistenceContracts.kt
+@@ -9,7 +9,6 @@ enum class SettingsPreferenceKey {
+     StreamingAudioQuality,
+     RefuseAutomaticQualityDowngrade,
+     OnlineLyricsEnabled,
+-    ConcurrentPlaybackEnabled,
+     LyricsOffsetMs,
+     AudioEffectSettings,
+     StatusBarLyricsEnabled,
+@@ -18,6 +17,7 @@ enum class SettingsPreferenceKey {
+     NowPlayingGesturesEnabled,
+     PlaybackRestoreEnabled,
+     ReplayGainEnabled,
++    AudioExclusiveEnabled,
+     DebugPromptsEnabled,
+     CustomBackgroundBlurEnabled,
+     CustomBackgroundBlurRadiusDp,
+@@ -27,7 +27,9 @@ enum class SettingsPreferenceKey {
+     CompactSettingsCards,
+     HomeDashboardLayout,
+     ShareStyle,
+-    PageBackgrounds
++    PageBackgrounds,
++    BitPerfectEnabled,
++    UsbExclusiveEnabled
+ }
+ 
+ data class SettingsPreferenceUpdate(

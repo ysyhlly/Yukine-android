@@ -24,7 +24,7 @@ class LibraryDedupPolicyTest {
         assertEquals(0.92, policy.autoMergeMinimumScore, 0.0)
         assertEquals(0.08, policy.autoMergeMinimumMargin, 0.0)
         assertEquals(EmbeddingRecallMode.ON, policy.embeddingRecallMode)
-        assertEquals(IdentityScoringMode.V5_SHADOW, policy.scoringMode)
+        assertEquals(IdentityScoringMode.V5_ON, policy.scoringMode)
         assertTrue(policy.allowMissingDuration)
     }
 
@@ -37,6 +37,6 @@ class LibraryDedupPolicyTest {
         assertEquals(EmbeddingRecallMode.ON, policy.embeddingRecallMode)
         assertEquals(IdentityScoringMode.V5_ON, policy.scoringMode)
         assertTrue(policy.allowMissingDuration)
-        assertEquals(1, LibraryDedupPolicy.POLICY_VERSION)
+        assertEquals(2, LibraryDedupPolicy.POLICY_VERSION)
     }
 }

@@ -59,15 +59,22 @@ object RecordingMatchEvaluationPolicy {
                     recallEvidence
                 )
             )
-            IdentityScoringMode.V5_ON -> RecordingMatchEvaluationDecision(
-                active = RecordingMatchEvaluatorV2.evaluateV5(
+            IdentityScoringMode.V5_ON -> {
+                val v5 = RecordingMatchEvaluatorV2.evaluateV5(
                     reference,
                     candidate,
                     includeExplanation,
                     recallEvidence
-                ),
-                shadow = v4
-            )
+                )
+                // Skip shadow V4 evaluation when V5 result is definitive (clear non-match
+                // or hard conflict). Shadow is only used for audit logging.
+                val shadow = if (v5.sameRecordingProbability < 0.50 || v5.hasHardConflict) {
+                    null
+                } else {
+                    v4
+                }
+                RecordingMatchEvaluationDecision(active = v5, shadow = shadow)
+            }
         }
     }
 }

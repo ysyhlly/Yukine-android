@@ -35,7 +35,12 @@ data class TrackEntity(
     @ColumnInfo(name = "album_artist", defaultValue = "''") val albumArtist: String = "",
     @ColumnInfo(defaultValue = "''") val composer: String = "",
     @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String = "",
-    @ColumnInfo(defaultValue = "0") val year: Int = 0
+    @ColumnInfo(defaultValue = "0") val year: Int = 0,
+    @ColumnInfo(defaultValue = "''") val genre: String = "",
+    @ColumnInfo(name = "disc_number", defaultValue = "0") val discNumber: Int = 0,
+    @ColumnInfo(name = "track_number", defaultValue = "0") val trackNumber: Int = 0,
+    @ColumnInfo(defaultValue = "0") val bpm: Int = 0,
+    @ColumnInfo(defaultValue = "''") val lyrics: String = ""
 )
 
 @Entity(tableName = "play_history")
@@ -205,7 +210,12 @@ data class PlaybackQueueEntity(
     @ColumnInfo(name = "album_artist", defaultValue = "''") val albumArtist: String = "",
     @ColumnInfo(defaultValue = "''") val composer: String = "",
     @ColumnInfo(name = "release_type", defaultValue = "''") val releaseType: String = "",
-    @ColumnInfo(defaultValue = "0") val year: Int = 0
+    @ColumnInfo(defaultValue = "0") val year: Int = 0,
+    @ColumnInfo(defaultValue = "''") val genre: String = "",
+    @ColumnInfo(name = "disc_number", defaultValue = "0") val discNumber: Int = 0,
+    @ColumnInfo(name = "track_number", defaultValue = "0") val trackNumber: Int = 0,
+    @ColumnInfo(defaultValue = "0") val bpm: Int = 0,
+    @ColumnInfo(defaultValue = "''") val lyrics: String = ""
 )
 
 @Entity(

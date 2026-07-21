@@ -35,7 +35,12 @@ public final class TrackEntityMapper {
                 track.albumArtist,
                 track.composer,
                 track.releaseType,
-                track.year
+                track.year,
+                track.genre,
+                track.discNumber,
+                track.trackNumber,
+                track.bpm,
+                track.lyrics
         );
     }
 
@@ -83,7 +88,12 @@ public final class TrackEntityMapper {
                 incoming.getAlbumArtist(),
                 incoming.getComposer(),
                 incoming.getReleaseType(),
-                incoming.getYear()
+                incoming.getYear(),
+                incoming.getGenre(),
+                incoming.getDiscNumber(),
+                incoming.getTrackNumber(),
+                incoming.getBpm(),
+                incoming.getLyrics()
         );
     }
 
@@ -112,7 +122,12 @@ public final class TrackEntityMapper {
                 track.albumArtist,
                 track.composer,
                 track.releaseType,
-                track.year
+                track.year,
+                track.genre,
+                track.discNumber,
+                track.trackNumber,
+                track.bpm,
+                track.lyrics
         );
     }
 
@@ -142,7 +157,12 @@ public final class TrackEntityMapper {
                 entity.getComposer(),
                 entity.getReleaseType(),
                 entity.getYear(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getGenre(),
+                entity.getDiscNumber(),
+                entity.getTrackNumber(),
+                entity.getBpm(),
+                entity.getLyrics()
         );
     }
 
@@ -174,7 +194,13 @@ public final class TrackEntityMapper {
                 entity.getAlbumArtist(),
                 entity.getComposer(),
                 entity.getReleaseType(),
-                entity.getYear()
+                entity.getYear(),
+                0L,
+                entity.getGenre(),
+                entity.getDiscNumber(),
+                entity.getTrackNumber(),
+                entity.getBpm(),
+                entity.getLyrics()
         );
     }
 

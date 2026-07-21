@@ -7,10 +7,13 @@ import android.content.res.Configuration
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.model.LyricLine
 import app.yukine.model.LyricsLine
+import app.yukine.model.LyricsTrackRole
 import app.yukine.model.Track
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.streaming.StreamingPlaybackAdapter
@@ -35,8 +38,20 @@ data class FloatingLyricsState(
     val albumArtUri: String? = null,
     val playing: Boolean = false,
     val activeLine: String = "",
+    val activeTranslation: String = "",
+    val activeRomanization: String = "",
     val visible: Boolean = false,
-    val trackId: Long = -1L
+    val trackId: Long = -1L,
+    val activeLineWords: List<FloatingLyricWord> = emptyList(),
+    val linePositionMs: Long = 0L
+)
+
+data class FloatingLyricWord(
+    val text: String,
+    val startMs: Long,
+    val endMs: Long,
+    val startOffset: Int = 0,
+    val endOffset: Int = 0
 )
 
 /**
@@ -56,20 +71,51 @@ object FloatingLyricsPublisher {
     private data class LyricsTimeline(
         val trackId: Long = -1L,
         val lines: List<LyricsLine> = emptyList(),
-        val offsetMs: Long = 0L
+        val offsetMs: Long = 0L,
+        val wordLines: List<LyricLine> = emptyList(),
+        val translationLines: List<LyricLine> = emptyList(),
+        val romanizationLines: List<LyricLine> = emptyList()
     )
 
     @JvmStatic
     fun update(state: NowPlayingUiState, lyricsState: LyricsState?) {
         val matchingTimeline = lyricsState?.takeIf { it.trackId == state.track.trackId }
+        val wordLines = matchingTimeline?.document
+            ?.primaryOrFirstTrack()?.lines.orEmpty()
+        val visibility = lyricsState?.trackVisibility ?: LyricsTrackVisibility()
+        val translationLines = if (visibility.translation)
+            matchingTimeline?.document?.track(LyricsTrackRole.TRANSLATION)?.lines.orEmpty()
+        else emptyList()
+        val romanizationLines = if (visibility.romanization)
+            matchingTimeline?.document?.track(LyricsTrackRole.ROMANIZATION)?.lines.orEmpty()
+        else emptyList()
         updateLyricsTimeline(
             state.track.trackId,
             matchingTimeline?.lines.orEmpty(),
-            matchingTimeline?.offsetMs ?: 0L
+            matchingTimeline?.offsetMs ?: 0L,
+            wordLines,
+            translationLines,
+            romanizationLines
         )
         val timeline = lyricsTimeline
+        val positionMs = (state.progress.positionMs + timeline.offsetMs).coerceAtLeast(0L)
         val activeLine = if (timeline.trackId == state.track.trackId) {
-            activeLineAt(timeline.lines, (state.progress.positionMs + timeline.offsetMs).coerceAtLeast(0L))
+            activeLineAt(timeline.lines, positionMs)
+        } else {
+            ""
+        }
+        val activeWords = if (timeline.trackId == state.track.trackId) {
+            activeWordsAt(timeline.wordLines, positionMs)
+        } else {
+            emptyList()
+        }
+        val activeTranslation = if (timeline.trackId == state.track.trackId) {
+            closestTextAt(timeline.translationLines, positionMs)
+        } else {
+            ""
+        }
+        val activeRomanization = if (timeline.trackId == state.track.trackId) {
+            closestTextAt(timeline.romanizationLines, positionMs)
         } else {
             ""
         }
@@ -80,8 +126,12 @@ object FloatingLyricsPublisher {
                 albumArtUri = state.artwork.coverUri,
                 playing = state.progress.playing,
                 activeLine = activeLine,
+                activeTranslation = activeTranslation,
+                activeRomanization = activeRomanization,
                 visible = activeLine.isNotBlank(),
-                trackId = state.track.trackId
+                trackId = state.track.trackId,
+                activeLineWords = activeWords,
+                linePositionMs = positionMs
             )
         )
     }
@@ -141,8 +191,24 @@ object FloatingLyricsPublisher {
     @JvmStatic
     fun syncPlaybackState(track: Track, playing: Boolean, positionMs: Long) {
         val timeline = lyricsTimeline
+        val adjustedPosition = (positionMs + timeline.offsetMs).coerceAtLeast(0L)
         val activeLine = if (timeline.trackId == track.id) {
-            activeLineAt(timeline.lines, (positionMs + timeline.offsetMs).coerceAtLeast(0L))
+            activeLineAt(timeline.lines, adjustedPosition)
+        } else {
+            ""
+        }
+        val activeWords = if (timeline.trackId == track.id) {
+            activeWordsAt(timeline.wordLines, adjustedPosition)
+        } else {
+            emptyList()
+        }
+        val activeTranslation = if (timeline.trackId == track.id) {
+            closestTextAt(timeline.translationLines, adjustedPosition)
+        } else {
+            ""
+        }
+        val activeRomanization = if (timeline.trackId == track.id) {
+            closestTextAt(timeline.romanizationLines, adjustedPosition)
         } else {
             ""
         }
@@ -153,8 +219,12 @@ object FloatingLyricsPublisher {
                 albumArtUri = track.albumArtUri?.toString(),
                 playing = playing,
                 activeLine = activeLine,
+                activeTranslation = activeTranslation,
+                activeRomanization = activeRomanization,
                 visible = activeLine.isNotBlank(),
-                trackId = track.id
+                trackId = track.id,
+                activeLineWords = activeWords,
+                linePositionMs = adjustedPosition
             )
         )
     }
@@ -185,12 +255,25 @@ object FloatingLyricsPublisher {
         )
     }
 
-    private fun updateLyricsTimeline(trackId: Long, lines: List<LyricsLine>, offsetMs: Long) {
+    private fun updateLyricsTimeline(
+        trackId: Long,
+        lines: List<LyricsLine>,
+        offsetMs: Long,
+        wordLines: List<LyricLine> = emptyList(),
+        translationLines: List<LyricLine> = emptyList(),
+        romanizationLines: List<LyricLine> = emptyList()
+    ) {
         val previous = lyricsTimeline
-        if (previous.trackId == trackId && previous.offsetMs == offsetMs && previous.lines == lines) {
+        if (previous.trackId == trackId && previous.offsetMs == offsetMs &&
+            previous.lines == lines && previous.wordLines == wordLines &&
+            previous.translationLines == translationLines &&
+            previous.romanizationLines == romanizationLines) {
             return
         }
-        lyricsTimeline = LyricsTimeline(trackId, lines.toList(), offsetMs)
+        lyricsTimeline = LyricsTimeline(
+            trackId, lines.toList(), offsetMs, wordLines,
+            translationLines, romanizationLines
+        )
     }
 
     private fun clearLyricsTimeline() {
@@ -207,6 +290,25 @@ object FloatingLyricsPublisher {
             }
         }
         return active?.text ?: lines.firstOrNull()?.text.orEmpty()
+    }
+
+    private fun activeWordsAt(lines: List<LyricLine>, positionMs: Long): List<FloatingLyricWord> {
+        val activeLine = lines.lastOrNull { it.startMs <= positionMs } ?: return emptyList()
+        if (activeLine.words.isEmpty()) return emptyList()
+        return activeLine.words.map { word ->
+            FloatingLyricWord(
+                text = word.text,
+                startMs = word.startMs,
+                endMs = word.endMs,
+                startOffset = word.startOffset,
+                endOffset = word.endOffset
+            )
+        }
+    }
+
+    private fun closestTextAt(lines: List<LyricLine>, positionMs: Long): String {
+        val match = lines.minByOrNull { kotlin.math.abs(it.startMs - positionMs) } ?: return ""
+        return match.text.takeIf { kotlin.math.abs(match.startMs - positionMs) <= 2_000L }.orEmpty()
     }
 
     @JvmStatic
@@ -308,6 +410,7 @@ class FloatingLyricsService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var collectJob: Job? = null
+    private var positionTickerJob: Job? = null
     private lateinit var settingsStore: FloatingLyricsOverlaySettingsStore
     private lateinit var windowController: FloatingLyricsWindowController
     private lateinit var notificationOwner: FloatingLyricsNotificationOwner
@@ -376,6 +479,7 @@ class FloatingLyricsService : Service() {
         windowController.remove()
         overlayView = null
         collectJob?.cancel()
+        positionTickerJob?.cancel()
         scope.cancel()
         if (!disablingAfterPermissionLoss) {
             lastRuntimeStatus = FloatingLyricsRuntimeStatus.Disabled
@@ -482,10 +586,36 @@ class FloatingLyricsService : Service() {
         val view = overlayView ?: return
         view.renderPresentation(visible)
         view.bindState(state, artwork = null)
+        startPositionTicker(state)
         scope.launch {
             val artwork = artworkLoader.load(state.albumArtUri, dp(96))
             if (latestState.trackId == state.trackId && presentation is FloatingLyricsPresentation.Visible) {
                 overlayView?.bindState(latestState, artwork)
+            }
+        }
+    }
+
+    private fun startPositionTicker(state: FloatingLyricsState) {
+        positionTickerJob?.cancel()
+        if (!state.playing || state.activeLineWords.isEmpty()) {
+            return
+        }
+        val basePositionMs = state.linePositionMs
+        val anchorRealtime = SystemClock.elapsedRealtime()
+        positionTickerJob = scope.launch {
+            while (isActive) {
+                delay(50L)
+                val currentPositionMs = basePositionMs +
+                    (SystemClock.elapsedRealtime() - anchorRealtime)
+                val currentState = latestState
+                if (!currentState.playing || currentState.activeLineWords.isEmpty()) {
+                    break
+                }
+                val updatedState = currentState.copy(linePositionMs = currentPositionMs)
+                val view = overlayView ?: break
+                if (presentation is FloatingLyricsPresentation.Visible) {
+                    view.bindState(updatedState, artwork = null)
+                }
             }
         }
     }

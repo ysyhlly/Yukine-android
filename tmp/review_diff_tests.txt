@@ -1,0 +1,153 @@
+warning: in the working copy of 'app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt b/app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt
+index 9692e709..7029cce4 100644
+--- a/app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt
++++ b/app/src/test/java/app/yukine/LibraryTrackPresentationPolicyTest.kt
+@@ -55,6 +55,38 @@ class LibraryTrackPresentationPolicyTest {
+         assertEquals(listOf(1L, 2L, 3L), ids(LibrarySort.DurationDescending))
+     }
+ 
++    @Test
++    fun dateAddedSortUsesUpdatedAtField() {
++        val oldest = trackWithUpdatedAt(1L, "Old", 100L)
++        val newest = trackWithUpdatedAt(2L, "New", 300L)
++        val middle = trackWithUpdatedAt(3L, "Mid", 200L)
++        val tracks = listOf(oldest, newest, middle)
++
++        val descending = LibraryTrackPresentationPolicy.present(
++            tracks, emptyList(), LibraryUiState(sort = LibrarySort.DateAddedDescending), emptySet()
++        ).map { it.track.id }
++        assertEquals(listOf(2L, 3L, 1L), descending)
++
++        val ascending = LibraryTrackPresentationPolicy.present(
++            tracks, emptyList(), LibraryUiState(sort = LibrarySort.DateAddedAscending), emptySet()
++        ).map { it.track.id }
++        assertEquals(listOf(1L, 3L, 2L), ascending)
++    }
++
++    @Test
++    fun playCountSortUsesProvidedMap() {
++        val low = track(1L, "Low", "/music/1.mp3")
++        val high = track(2L, "High", "/music/2.mp3")
++        val mid = track(3L, "Mid", "/music/3.mp3")
++        val tracks = listOf(low, high, mid)
++        val playCounts = mapOf(1L to 2, 2L to 10, 3L to 5)
++
++        val sorted = LibraryTrackPresentationPolicy.present(
++            tracks, emptyList(), LibraryUiState(sort = LibrarySort.PlayCountDescending), emptySet(), playCounts
++        ).map { it.track.id }
++        assertEquals(listOf(2L, 3L, 1L), sorted)
++    }
++
+     private fun track(
+         id: Long,
+         title: String,
+@@ -71,4 +103,37 @@ class LibraryTrackPresentationPolicyTest {
+         Uri.parse(if (path.startsWith("stream:")) "https://example.test/$id" else "file://$path"),
+         path
+     )
++
++    @Test
++    fun streamingPrefixTracksClassifiedAsNetworkSource() {
++        val local = track(1L, "Local", "/music/local.mp3")
++        val bilibili = track(2L, "Bilibili Video", "streaming:bilibili:video:BV1TEST:cid:42")
++        val legacyStream = track(3L, "Legacy Stream", "stream:https://example.test/a.mp3")
++
++        val networkOnly = LibraryTrackPresentationPolicy.present(
++            listOf(local, bilibili, legacyStream),
++            emptyList(),
++            LibraryUiState(filter = LibraryFilter.Network, sort = LibrarySort.TitleAscending),
++            emptySet()
++        )
++        assertEquals(listOf(2L, 3L), networkOnly.map { it.track.id })
++
++        val localOnly = LibraryTrackPresentationPolicy.present(
++            listOf(local, bilibili, legacyStream),
++            emptyList(),
++            LibraryUiState(filter = LibraryFilter.Local, sort = LibrarySort.TitleAscending),
++            emptySet()
++        )
++        assertEquals(listOf(1L), localOnly.map { it.track.id })
++    }
++
++    private fun trackWithUpdatedAt(
++        id: Long,
++        title: String,
++        updatedAt: Long
++    ): Track = Track(
++        id, title, "Artist", "Album", 1_000L, Uri.EMPTY, "file:$id", 0L, null,
++        "", 0, 0, 0, 0, 0.0f, 0.0f,
++        app.yukine.model.TrackIdentityTags.EMPTY, "", "", "", 0, updatedAt
++    )
+ }
+diff --git a/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java b/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
+index 869caa59..9fbf4331 100644
+--- a/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
++++ b/app/src/test/java/app/yukine/playback/PlaybackStateSnapshotOwnerTest.java
+@@ -197,6 +197,26 @@ public class PlaybackStateSnapshotOwnerTest {
+         public float appVolume() {
+             return appVolume;
+         }
++
++        @Override
++        public boolean bitPerfectActive() {
++            return false;
++        }
++
++        @Override
++        public int outputSampleRateHz() {
++            return 0;
++        }
++
++        @Override
++        public String bitPerfectFallbackReason() {
++            return null;
++        }
++
++        @Override
++        public boolean audioExclusiveActive() {
++            return false;
++        }
+     }
+ 
+     private static final class FakeVisualizationProvider
+diff --git a/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt b/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
+index fc2aa660..23f229b4 100644
+--- a/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
++++ b/feature/playback/src/test/java/app/yukine/playback/PlaybackRuntimeStateManagerTest.kt
+@@ -116,35 +116,6 @@ class PlaybackRuntimeStateManagerTest {
+         assertEquals(1.0f, player.volume, 0.0f)
+     }
+ 
+-    @Test
+-    fun concurrentPlaybackStateCanBeManaged() {
+-        val manager = PlaybackRuntimeStateManager(FakeStateProvider())
+-
+-        manager.setConcurrentPlaybackEnabled(true)
+-        assertTrue(manager.concurrentPlaybackEnabled())
+-    }
+-
+-    @Test
+-    fun concurrentPlaybackSetterAppliesAudioFocusHandling() {
+-        val player = RecordingExoPlayer()
+-        val manager = PlaybackRuntimeStateManager(FakeStateProvider(player = player.proxy))
+-
+-        manager.setConcurrentPlaybackEnabled(true)
+-
+-        assertEquals(listOf("setAudioAttributes"), player.calls)
+-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
+-        assertEquals(false, player.handleAudioFocus)
+-
+-        player.calls.clear()
+-        manager.setConcurrentPlaybackEnabled(false)
+-
+-        assertEquals(listOf("setAudioAttributes"), player.calls)
+-        assertEquals(C.USAGE_MEDIA, player.audioAttributes?.usage)
+-        assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, player.audioAttributes?.contentType)
+-        assertEquals(true, player.handleAudioFocus)
+-    }
+-
+     @Test
+     fun replayGainSetterAppliesCurrentVolumeToPlayer() {
+         val player = RecordingExoPlayer()

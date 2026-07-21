@@ -170,7 +170,7 @@ internal class MainLibraryImportGateway(
     private val operations: LibraryImportOperations
 ) : LibraryImportGateway, LibraryRefreshProgressGateway {
     override fun loadCached(): LibraryLoadResultUi =
-        LoadLibraryUseCase(operations).cached().toUi()
+        LoadLibraryUseCase(operations).cached().toUi().copy(scanned = false)
 
     override fun refresh(): LibraryLoadResultUi =
         LoadLibraryUseCase(operations).refresh().toUi()

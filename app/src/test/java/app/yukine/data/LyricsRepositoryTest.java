@@ -72,7 +72,7 @@ public final class LyricsRepositoryTest {
                         saved.add(binding);
                     }
                 },
-                track -> {
+                (track, neteaseSongId) -> {
                     gatewayCalls[0]++;
                     return new LyricsRepository.ProviderLyrics("[00:01.00]Gateway", "");
                 }
@@ -90,7 +90,7 @@ public final class LyricsRepositoryTest {
     @Test
     public void offlineLyricsDoNotCallGateway() {
         int[] gatewayCalls = new int[]{0};
-        LyricsRepository repository = new LyricsRepository(null, track -> {
+        LyricsRepository repository = new LyricsRepository(null, (track, neteaseSongId) -> {
             gatewayCalls[0]++;
             return new LyricsRepository.ProviderLyrics("[00:01.00]Gateway", "");
         });
@@ -206,6 +206,60 @@ public final class LyricsRepositoryTest {
 
         assertEquals("260604", cache.invoke(repository, cacheKey, "260604"));
         assertEquals("260604", cached.invoke(repository, cacheKey));
+    }
+
+    @Test
+    public void gatewayWordLyricsPreferredOverSynced() {
+        LyricsRepository repository = new LyricsRepository(
+                null,
+                (track, neteaseSongId) -> new LyricsRepository.ProviderLyrics(
+                        "[00:01.00]Synced",
+                        "",
+                        "[1000,500](0,300,0)歌(300,200,0)词",
+                        "qqmusic"
+                )
+        );
+
+        List<app.yukine.model.LyricsLine> lines =
+                repository.loadForTrack(track("Song", "Artist", "Album"), true, "");
+
+        assertEquals(1, lines.size());
+        assertEquals("歌词", lines.get(0).text);
+    }
+
+    @Test
+    public void gatewayWordLyricsFallbackToSyncedOnParseFailure() {
+        LyricsRepository repository = new LyricsRepository(
+                null,
+                (track, neteaseSongId) -> new LyricsRepository.ProviderLyrics(
+                        "[00:01.00]Synced",
+                        "",
+                        "",
+                        ""
+                )
+        );
+
+        List<app.yukine.model.LyricsLine> lines =
+                repository.loadForTrack(track("Song", "Artist", "Album"), true, "");
+
+        assertEquals(1, lines.size());
+        assertEquals("Synced", lines.get(0).text);
+    }
+
+    @Test
+    public void gatewayNeteaseSongIdIsPassedToSource() {
+        String[] receivedId = new String[]{null};
+        LyricsRepository repository = new LyricsRepository(
+                null,
+                (track, neteaseSongId) -> {
+                    receivedId[0] = neteaseSongId;
+                    return new LyricsRepository.ProviderLyrics("[00:01.00]OK", "");
+                }
+        );
+
+        repository.loadForTrack(track("Song", "Artist", "Album"), true, "");
+
+        assertEquals("", receivedId[0]);
     }
 
     private static Track track(String title, String artist, String album) {

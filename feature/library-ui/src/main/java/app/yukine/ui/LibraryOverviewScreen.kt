@@ -742,10 +742,12 @@ private fun buildOverviewState(
         .take(3)
     val now = System.currentTimeMillis()
     val recentPlayedCount = library.recentRecords
+        .filter { it.track != null }
         .map { it.track.id }
         .distinct()
         .size
     val weekFavoritesCount = weekFavoriteRecords(library.recentRecords, now)
+        .filter { it.track != null }
         .map { it.track.id }
         .distinct()
         .size

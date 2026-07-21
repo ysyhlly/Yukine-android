@@ -162,9 +162,9 @@ internal class LibraryStateBinding @JvmOverloads constructor(
     }
 
     private fun publishSongs(inputs: LibraryBindingInputs, modeActions: List<TrackListModeAction>) {
-        val playCountByTrackId = inputs.library.mostPlayedRecords.associate { record ->
-            record.track.id to record.playCount
-        }
+        val playCountByTrackId = inputs.library.mostPlayedRecords
+            .filter { it.track != null }
+            .associate { record -> record.track.id to record.playCount }
         trackListReducer.reduce(
             AppLanguage.text(inputs.languageMode, "library.allSongs"),
             inputs.library.visibleTracks,

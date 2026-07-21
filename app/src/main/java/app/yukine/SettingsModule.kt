@@ -58,19 +58,22 @@ internal object SettingsModule {
                     musicLibraryRepository.saveLyricBinding(trackId, binding)
                 }
             },
-            LyricsRepository.GatewaySource { track ->
+            LyricsRepository.GatewaySource { track, neteaseSongId ->
                 val result = metadataGatewayClient.searchLyrics(
                     title = track.title,
                     artist = track.artist,
                     album = track.album,
-                    durationMs = track.durationMs
+                    durationMs = track.durationMs,
+                    neteaseSongId = neteaseSongId
                 )
                 val lyrics = result.lyrics
                     ?.takeUnless { result.allEndpointsFailed }
                     ?: return@GatewaySource null
                 LyricsRepository.ProviderLyrics(
                     lyrics.syncedLyrics.ifBlank { lyrics.plainLyrics },
-                    ""
+                    "",
+                    lyrics.wordLyrics,
+                    lyrics.wordLyricsSource
                 )
             }
         )

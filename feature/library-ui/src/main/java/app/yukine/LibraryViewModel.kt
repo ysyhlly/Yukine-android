@@ -116,7 +116,8 @@ fun interface LibraryExclusionRestoreCallback {
 data class LibraryLoadResultUi(
     val tracks: List<Track> = emptyList(),
     val favorites: Set<Long> = emptySet(),
-    val status: String = "Library updated"
+    val status: String = "Library updated",
+    val scanned: Boolean = true
 )
 
 data class LibraryAudioSpecsResultUi(

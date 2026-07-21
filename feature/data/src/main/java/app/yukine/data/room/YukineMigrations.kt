@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 33
+    const val TARGET_VERSION: Int = 34
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -25,6 +25,7 @@ object YukineMigrations {
                 normalizeV31(db)
                 normalizeV32(db)
                 normalizeV33(db)
+                normalizeV34(db)
             }
         }
     }.toTypedArray()
@@ -513,6 +514,19 @@ object YukineMigrations {
         if (!columnExists(db, table, column)) {
             db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` TEXT NOT NULL DEFAULT ''")
         }
+    }
+
+    private fun normalizeV34(db: SupportSQLiteDatabase) {
+        addTextColumn(db, "tracks", "genre")
+        addIntegerColumn(db, "tracks", "disc_number")
+        addIntegerColumn(db, "tracks", "track_number")
+        addIntegerColumn(db, "tracks", "bpm")
+        addTextColumn(db, "tracks", "lyrics")
+        addTextColumn(db, "playback_queue", "genre")
+        addIntegerColumn(db, "playback_queue", "disc_number")
+        addIntegerColumn(db, "playback_queue", "track_number")
+        addIntegerColumn(db, "playback_queue", "bpm")
+        addTextColumn(db, "playback_queue", "lyrics")
     }
 
     private fun addIntegerColumn(db: SupportSQLiteDatabase, table: String, column: String) {

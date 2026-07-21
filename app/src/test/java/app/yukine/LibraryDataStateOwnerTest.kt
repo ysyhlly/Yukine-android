@@ -128,7 +128,8 @@ class LibraryDataStateOwnerTest {
     fun searchKeepsCanonicalAliasesMergedWithTheMainLibrarySnapshot() {
         val original = track(11L, "Echo original title")
         val alias = track(12L, "Echo translated alias")
-        owner.bindMergeIdentityProvider { "recording:shared" }
+        // Unified dedup: use recordingIdentitySnapshotProvider
+        owner.bindRecordingIdentitySnapshotProvider { mapOf(11L to 100L, 12L to 100L) }
         owner.replaceLibrary(listOf(original, alias), emptySet(), null)
 
         owner.applySearch("echo")
@@ -145,7 +146,8 @@ class LibraryDataStateOwnerTest {
     fun playlistAliasSearchReusesPreparedCanonicalRepresentative() {
         val original = track(21L, "Original title")
         val alias = track(22L, "Echo translated alias")
-        owner.bindMergeIdentityProvider { "recording:shared" }
+        // Unified dedup: use recordingIdentitySnapshotProvider
+        owner.bindRecordingIdentitySnapshotProvider { mapOf(21L to 200L, 22L to 200L) }
         owner.replaceLibrary(listOf(original, alias), emptySet(), null)
         owner.applyCollections(
             LibraryCollectionsResult(selectedPlaylistTracks = listOf(alias))
@@ -168,7 +170,7 @@ class LibraryDataStateOwnerTest {
         val webDav = track(24L, "WebDAV")
         var snapshotLoads = 0
         var identities = emptyMap<Long, Long>()
-        asyncOwner.bindMergeIdentityProvider { "recording:stale-process-cache" }
+        // Unified dedup: recordingIdentitySnapshotProvider is the sole identity source
         asyncOwner.bindRecordingIdentitySnapshotProvider {
             snapshotLoads++
             identities

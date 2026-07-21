@@ -114,7 +114,8 @@ final class LibraryFeatureBinding {
         this.favoriteSyncViewModel = viewModels.getFavoriteSyncViewModel();
         this.homeDashboardViewModel.bindRepository(homeDashboardRepository);
         this.store = viewModel.dataOwner();
-        this.store.bindMergeIdentityProvider(multiSourceSync::persistedMergeIdentityFor);
+        // Unified dedup: recordingIdentitySnapshotProvider is the sole identity source.
+        // The legacy mergeIdentityProvider (V4 metadata clustering) has been removed.
         this.store.bindRecordingIdentitySnapshotProvider(repository::loadTrackRecordingIdentities);
         this.store.bindArtistIdentityProvider(track -> multiSourceSync.artistIdentitiesFor(track).stream()
                 .map(identity -> new LibraryArtistGroupIdentity(
@@ -453,7 +454,8 @@ final class LibraryFeatureBinding {
                         artistIdentityDialogController::show
                 ),
                 action -> mainHandler.post(action),
-                new RoomArtistLocalInfoSource(repository)
+                new RoomArtistLocalInfoSource(repository),
+                new ArtistEnrichmentTriggerImpl(activity)
         );
         playlistsStateReducer = new LibraryPlaylistsStateReducer(viewModel, playlistIntents);
         LibraryPlaylistSourcesLoader playlistSourcesLoader = playlists -> {
@@ -639,7 +641,7 @@ final class LibraryFeatureBinding {
         viewModel.bindImportGateway(null);
         viewModel.bindDocumentGateway(null);
         viewModel.bindPlaylistActionGateway(null);
-        store.bindMergeIdentityProvider(null);
+        store.bindRecordingIdentitySnapshotProvider(null);
         store.bindArtistIdentityProvider(null);
         if (librarySyncOwner != null) {
             librarySyncOwner.release();

@@ -57,6 +57,7 @@ import app.yukine.TrackDownloadItem
 import kotlinx.coroutines.delay
 import android.os.SystemClock
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class NowPlayingUiState(
     val pageTitle: String,
@@ -907,7 +908,7 @@ private fun rememberSmoothLyricPosition(
         if (playing) {
             val anchorRealtime = SystemClock.elapsedRealtime()
             while (true) {
-                delay(50L)
+                delay(33L)
                 smoothPositionMs = playbackPositionMs +
                     (SystemClock.elapsedRealtime() - anchorRealtime)
             }
@@ -1008,16 +1009,31 @@ private fun highlightedWords(
     var searchFrom = 0
     line.words.forEach { word ->
         val (start, end) = word.textBounds(line.text, searchFrom) ?: return@forEach
-        val current = word.isActiveAt(positionMs)
         val completed = positionMs >= word.endMs
-        builder.addStyle(
-            SpanStyle(
-                color = if (current || completed) activeColor else inactiveColor,
-                fontWeight = if (current) FontWeight.Bold else null
-            ),
-            start,
-            end
-        )
+        val current = word.isActiveAt(positionMs)
+        when {
+            completed -> {
+                builder.addStyle(SpanStyle(color = activeColor), start, end)
+            }
+            current -> {
+                val fraction = word.progressAt(positionMs)
+                val charCount = end - start
+                val filledChars = (fraction * charCount).roundToInt().coerceIn(0, charCount)
+                val splitAt = start + filledChars
+                if (splitAt > start) {
+                    builder.addStyle(
+                        SpanStyle(color = activeColor, fontWeight = FontWeight.Bold),
+                        start, splitAt
+                    )
+                }
+                if (splitAt < end) {
+                    builder.addStyle(SpanStyle(color = inactiveColor), splitAt, end)
+                }
+            }
+            else -> {
+                builder.addStyle(SpanStyle(color = inactiveColor), start, end)
+            }
+        }
         searchFrom = end
     }
     return builder.toAnnotatedString()

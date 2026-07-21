@@ -54,6 +54,13 @@ interface LibraryDao {
     )
     fun loadScanManagedTrackIds(): List<Long>
 
+    @Query(
+        "SELECT * FROM tracks WHERE data_path NOT LIKE 'document:%' " +
+            "AND data_path NOT LIKE 'stream:%' AND data_path NOT LIKE 'streaming:%' " +
+            "AND data_path NOT LIKE 'webdav:%'"
+    )
+    fun loadScanManagedTracks(): List<TrackEntity>
+
     @Query("SELECT * FROM tracks WHERE id IN (:trackIds)")
     fun loadTracksByIds(trackIds: List<Long>): List<TrackEntity>
 
@@ -869,6 +876,9 @@ interface MusicIdentityDao {
     @Query("SELECT * FROM recordings WHERE id = :recordingId LIMIT 1")
     fun recording(recordingId: Long): CanonicalRecordingEntity?
 
+    @Query("SELECT * FROM recordings WHERE id IN (:recordingIds)")
+    fun recordings(recordingIds: List<Long>): List<CanonicalRecordingEntity>
+
     @Query("SELECT id FROM recordings WHERE id IN (:recordingIds)")
     fun existingRecordingIds(recordingIds: List<Long>): List<Long>
 
@@ -1377,6 +1387,13 @@ interface MusicIdentityDao {
             "WHERE status = 'RUNNING' AND updated_at <= :staleBefore"
     )
     fun recoverStaleRunningJobs(staleBefore: Long, now: Long): Int
+
+    @Query(
+        "UPDATE identity_resolution_jobs SET status = 'RETRY', next_attempt_at = :now, " +
+            "attempt_count = 0, last_error = '', updated_at = :now " +
+            "WHERE status = 'FAILED' AND target_type = 'ARTIST' AND updated_at <= :failedBefore"
+    )
+    fun recoverExpiredFailedArtistJobs(failedBefore: Long, now: Long): Int
 
     @Query(
         "SELECT * FROM identity_resolution_jobs WHERE target_type = :targetType " +
