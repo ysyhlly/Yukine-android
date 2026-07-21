@@ -26,6 +26,8 @@ local.properties
 .claude/
 .codex/
 .codex-logs/
+.codegraph/
+.qoder/
 
 # Release signing material
 *.jks
@@ -37,8 +39,6 @@ keystore.properties
 captures/
 
 # Local smoke-test / emulator inspection artifacts
-tmp-m3u/
-echo_next_*.db
 screen-*.png
 screenshot_*.png
 window.xml
@@ -58,8 +58,10 @@ metadata-gateway/*.sqlite
 metadata-gateway/*.sqlite-shm
 metadata-gateway/*.sqlite-wal
 
-# Disposable local audits and release helper state
+# Disposable local audits, tmp and release helper state
 .tmp-chromaprint-audit/
-tmp/gh-auth/
-tmp/release-v*/
+tmp/
+tmp-m3u/
+artifacts/
+echo_next_*.db
 *.pid

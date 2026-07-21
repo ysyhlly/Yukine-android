@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: metadata_gateway
-title: 元数据网关（多运行时聚合服务）
-scope:
-    - metadata-gateway/
-source_files: []
-depends_on: []
-related_to: []
