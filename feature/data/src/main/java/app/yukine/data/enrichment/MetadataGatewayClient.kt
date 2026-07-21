@@ -36,7 +36,9 @@ data class GatewayLyrics(
     val syncedLyrics: String,
     val plainLyrics: String,
     val wordLyrics: String = "",
-    val wordLyricsSource: String = ""
+    val wordLyricsSource: String = "",
+    val romanization: String = "",
+    val translation: String = ""
 )
 
 data class GatewayLyricsSearchResult(
@@ -348,6 +350,12 @@ class MetadataGatewayClient(
             .take(MAX_WORD_LYRICS_LENGTH)
             .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
         val wordLyricsSource = item.optString("wordLyricsSource")
+        val romanization = item.optString("romanization")
+            .take(MAX_WORD_LYRICS_LENGTH)
+            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
+        val translation = item.optString("translation")
+            .take(MAX_WORD_LYRICS_LENGTH)
+            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
         if (synced.isBlank() && plain.isBlank() && wordLyrics.isBlank()) {
             return@runCatching GatewayLyricsSearchResult(null)
         }
@@ -364,7 +372,9 @@ class MetadataGatewayClient(
                 syncedLyrics = synced,
                 plainLyrics = plain,
                 wordLyrics = wordLyrics,
-                wordLyricsSource = wordLyricsSource
+                wordLyricsSource = wordLyricsSource,
+                romanization = romanization,
+                translation = translation
             )
         )
     }.getOrNull()

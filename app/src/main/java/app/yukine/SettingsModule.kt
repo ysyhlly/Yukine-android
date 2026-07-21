@@ -71,9 +71,10 @@ internal object SettingsModule {
                     ?: return@GatewaySource null
                 LyricsRepository.ProviderLyrics(
                     lyrics.syncedLyrics.ifBlank { lyrics.plainLyrics },
-                    "",
+                    lyrics.translation,
                     lyrics.wordLyrics,
-                    lyrics.wordLyricsSource
+                    lyrics.wordLyricsSource,
+                    lyrics.romanization
                 )
             }
         )

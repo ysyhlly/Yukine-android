@@ -123,6 +123,8 @@ export const canonicalLyricsSchema = z.strictObject({
   plainLyrics: z.string(),
   wordLyrics: z.string().max(524_288).optional(),
   wordLyricsSource: z.enum(["qqmusic", "kugou"]).optional(),
+  romanization: z.string().max(524_288).optional(),
+  translation: z.string().max(524_288).optional(),
   confidence: z.number().min(0).max(1),
   sources: z.array(sourceAttributionSchema)
 });

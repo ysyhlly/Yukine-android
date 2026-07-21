@@ -660,6 +660,8 @@ async function lyricsV2(
 
   let wordLyrics: string | undefined;
   let wordLyricsSource: "qqmusic" | "kugou" | undefined;
+  let romanization: string | undefined;
+  let translation: string | undefined;
   if (query.neteaseSongId) {
     const word = await fetchNeteaseWordLyrics(
       query.neteaseSongId,
@@ -670,6 +672,8 @@ async function lyricsV2(
     if (word) {
       wordLyrics = word.lyrics;
       wordLyricsSource = "qqmusic";
+      romanization = word.romanization;
+      translation = word.translation;
     }
   }
 
@@ -700,6 +704,8 @@ async function lyricsV2(
   };
   if (wordLyrics) canonical.wordLyrics = wordLyrics;
   if (wordLyricsSource) canonical.wordLyricsSource = wordLyricsSource;
+  if (romanization) canonical.romanization = romanization;
+  if (translation) canonical.translation = translation;
   context.telemetry?.recordIdentityDecision({
     entity: "lyrics",
     decision: "independent",
@@ -713,7 +719,7 @@ async function fetchNeteaseWordLyrics(
   request: GatewayRequest,
   context: GatewayContext,
   trace: RequestTrace
-): Promise<{ lyrics: string } | undefined> {
+): Promise<{ lyrics: string; romanization?: string; translation?: string } | undefined> {
   try {
     const headers = neteaseHeaders(context);
     const response = await upstream(
@@ -729,8 +735,12 @@ async function fetchNeteaseWordLyrics(
     if (number(body.code, 0) !== 200) return undefined;
     const klyric = object(body.klyric);
     const lyricContent = string(klyric.lyric).trim();
-    if (!lyricContent) return undefined;
-    return { lyrics: lyricContent };
+    const rlyric = object(body.rlyric);
+    const romanizationContent = string(rlyric.lyric).trim() || undefined;
+    const tlyric = object(body.tlyric);
+    const translationContent = string(tlyric.lyric).trim() || undefined;
+    if (!lyricContent && !romanizationContent) return undefined;
+    return { lyrics: lyricContent, romanization: romanizationContent, translation: translationContent };
   } catch {
     return undefined;
   }

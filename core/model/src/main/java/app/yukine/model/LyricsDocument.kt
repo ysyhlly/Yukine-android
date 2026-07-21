@@ -56,6 +56,10 @@ data class LyricsDocument @JvmOverloads constructor(
     fun primaryLegacyLines(): List<LyricsLine> =
         primaryOrFirstTrack()?.lines.orEmpty().map { LyricsLine(it.startMs, it.text) }
 
+    /** Returns a copy of this document with the given tracks list. Java-friendly alternative to copy(). */
+    fun withTracks(newTracks: List<LyricsTrack>): LyricsDocument =
+        LyricsDocument(sourceName, format, title, artist, album, newTracks)
+
     companion object {
         @JvmStatic
         fun empty(): LyricsDocument = LyricsDocument()

@@ -32,6 +32,7 @@ import java.util.zip.Inflater;
 import app.yukine.model.LyricsLine;
 import app.yukine.model.LyricsDocument;
 import app.yukine.model.LyricsTrack;
+import app.yukine.model.LyricsTrackRole;
 import app.yukine.model.LyricWord;
 import app.yukine.model.Track;
 import app.yukine.identity.LyricSourceBinding;
@@ -187,13 +188,79 @@ public final class LyricsRepository {
         try {
             List<LyricsLine> legacyLines = loadForTrack(track, onlineEnabled, neteaseProviderTrackId);
             LyricsDocument document = resolvedDocument.get();
-            if (document != null && !document.isEmpty()) {
-                return document;
+            if (document == null || document.isEmpty()) {
+                document = LyricsDocument.fromLegacy(legacyLines, "", "legacy");
             }
-            return LyricsDocument.fromLegacy(legacyLines, "", "legacy");
+            if (onlineEnabled && needsEnhancement(document)) {
+                LyricsDocument enhanced = fetchNeteaseEnhancedDocument(track);
+                if (!enhanced.isEmpty()) {
+                    document = mergeEnhanced(document, enhanced);
+                }
+            }
+            return document;
         } finally {
             resolvedDocument.remove();
         }
+    }
+
+    public LyricsDocument fetchNeteaseEnhancedDocument(Track track) {
+        if (track == null) {
+            return LyricsDocument.empty();
+        }
+        try {
+            String providerTrackId = firstNeteaseSearchTrackId(track);
+            if (providerTrackId.isEmpty()) {
+                return LyricsDocument.empty();
+            }
+            fetchNeteaseLyrics(providerTrackId);
+            LyricsDocument doc = resolvedDocument.get();
+            return (doc != null && !doc.isEmpty()) ? doc : LyricsDocument.empty();
+        } catch (Exception ignored) {
+            return LyricsDocument.empty();
+        }
+    }
+
+    private boolean needsEnhancement(LyricsDocument document) {
+        if (document == null || document.isEmpty()) {
+            return false;
+        }
+        boolean hasWords = hasWordTimings(document);
+        boolean hasRoman = document.track(LyricsTrackRole.ROMANIZATION) != null;
+        return !hasWords || !hasRoman;
+    }
+
+    private LyricsDocument mergeEnhanced(LyricsDocument base, LyricsDocument enhanced) {
+        LyricsDocument result = base;
+        if (hasWordTimings(enhanced) && !hasWordTimings(base)) {
+            LyricsTrack enhancedPrimary = enhanced.primaryOrFirstTrack();
+            if (enhancedPrimary != null) {
+                List<LyricsTrack> tracks = new ArrayList<>();
+                tracks.add(enhancedPrimary);
+                for (LyricsTrack t : base.getTracks()) {
+                    if (t.getRole() != LyricsTrackRole.PRIMARY) {
+                        tracks.add(t);
+                    }
+                }
+                result = base.withTracks(tracks);
+            }
+        }
+        if (result.track(LyricsTrackRole.ROMANIZATION) == null) {
+            LyricsTrack romanTrack = enhanced.track(LyricsTrackRole.ROMANIZATION);
+            if (romanTrack != null) {
+                List<LyricsTrack> tracks = new ArrayList<>(result.getTracks());
+                tracks.add(romanTrack);
+                result = result.withTracks(tracks);
+            }
+        }
+        if (result.track(LyricsTrackRole.TRANSLATION) == null) {
+            LyricsTrack transTrack = enhanced.track(LyricsTrackRole.TRANSLATION);
+            if (transTrack != null) {
+                List<LyricsTrack> tracks = new ArrayList<>(result.getTracks());
+                tracks.add(transTrack);
+                result = result.withTracks(tracks);
+            }
+        }
+        return result;
     }
 
     private List<LyricsLine> fetchGatewayLyrics(Track track, String neteaseSongId) {
@@ -206,9 +273,21 @@ public final class LyricsRepository {
                 return Collections.emptyList();
             }
             if (!lyrics.wordLyrics.isEmpty()) {
+                LyricsDocument wordDocument = parseProviderLyricsDocument(
+                        lyrics.wordLyrics, lyrics.translation, lyrics.romanization);
+                if (hasWordTimings(wordDocument)) {
+                    resolvedDocument.set(wordDocument);
+                }
                 List<LyricsLine> wordLines = parseProviderLyrics(lyrics.wordLyrics, lyrics.translation);
                 if (!wordLines.isEmpty()) {
                     return wordLines;
+                }
+            }
+            if (!lyrics.romanization.isEmpty()) {
+                LyricsDocument romanDocument = parseProviderLyricsDocument(
+                        lyrics.primary, lyrics.translation, lyrics.romanization);
+                if (!romanDocument.isEmpty()) {
+                    resolvedDocument.set(romanDocument);
                 }
             }
             return parseProviderLyrics(lyrics.primary, lyrics.translation);
@@ -226,16 +305,22 @@ public final class LyricsRepository {
         public final String translation;
         public final String wordLyrics;
         public final String wordLyricsSource;
+        public final String romanization;
 
         public ProviderLyrics(String primary, String translation) {
-            this(primary, translation, "", "");
+            this(primary, translation, "", "", "");
         }
 
         public ProviderLyrics(String primary, String translation, String wordLyrics, String wordLyricsSource) {
+            this(primary, translation, wordLyrics, wordLyricsSource, "");
+        }
+
+        public ProviderLyrics(String primary, String translation, String wordLyrics, String wordLyricsSource, String romanization) {
             this.primary = primary == null ? "" : primary;
             this.translation = translation == null ? "" : translation;
             this.wordLyrics = wordLyrics == null ? "" : wordLyrics;
             this.wordLyricsSource = wordLyricsSource == null ? "" : wordLyricsSource;
+            this.romanization = romanization == null ? "" : romanization;
         }
     }
 
