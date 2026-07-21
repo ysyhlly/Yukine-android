@@ -132,6 +132,7 @@ internal class NavigationFeatureBinding(
             trackDownloadController = trackDownloadManager,
             realtimeBeatProvider = playbackConnection::realtimeBeat,
             realtimeBandsProvider = playbackConnection::realtimeBands,
+            realtimeTransientProvider = playbackConnection::realtimeTransientBeat,
             visualMotionEnabled = true
         ),
         library = LibraryNavBinding(

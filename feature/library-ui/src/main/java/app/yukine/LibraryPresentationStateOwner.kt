@@ -93,6 +93,7 @@ class LibraryPresentationStateOwner internal constructor(
             LibraryAction.ImportFiles -> gateway()?.importFiles()
             LibraryAction.SyncLibrary -> gateway()?.syncWebDavLibrary()
             is LibraryAction.SetAutoSyncEnabled -> gateway()?.setAutomaticSyncEnabled(action.enabled)
+            LibraryAction.OpenDedupCenter -> gateway()?.openDedupCenter()
         }
     }
 
@@ -105,6 +106,12 @@ class LibraryPresentationStateOwner internal constructor(
     fun updateAutoSyncEnabled(enabled: Boolean) {
         if (uiState.value.autoSyncEnabled == enabled) return
         uiState.value = uiState.value.copy(autoSyncEnabled = enabled)
+        publishInteractionState()
+    }
+
+    fun updateDedupCandidateCount(count: Int) {
+        if (uiState.value.dedupCandidateCount == count) return
+        uiState.value = uiState.value.copy(dedupCandidateCount = count)
         publishInteractionState()
     }
 

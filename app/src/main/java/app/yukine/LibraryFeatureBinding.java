@@ -416,7 +416,11 @@ final class LibraryFeatureBinding {
                 tracks -> fileDeleteLauncher.request(tracks, navigation.selectedPlaylistId()),
                 downloadRequestController::downloadTracks,
                 () -> librarySyncOwner.syncNow(),
-                librarySyncOwner::setAutoSyncEnabled
+                librarySyncOwner::setAutoSyncEnabled,
+                () -> {
+                    navigation.navigateToTab(app.yukine.navigation.SettingsTab.INSTANCE, false);
+                    navigation.getRouteController().setSettingsPage(SettingsPage.DuplicateCandidates.INSTANCE);
+                }
         ));
     }
 
@@ -583,6 +587,7 @@ final class LibraryFeatureBinding {
 
     void loadLibrary(boolean allowCachedFirst) {
         importOwner.loadLibrary(allowCachedFirst);
+        refreshDedupCandidateCount();
     }
 
     void cancelLibraryLoad() {
@@ -591,6 +596,14 @@ final class LibraryFeatureBinding {
 
     void replaceLibrary(List<Track> tracks, Set<Long> favorites, String status) {
         importOwner.replaceLibrary(tracks, favorites, status);
+        refreshDedupCandidateCount();
+    }
+
+    private void refreshDedupCandidateCount() {
+        executors.io(() -> {
+            int count = repository.loadDuplicateCandidates(1, 0).getTotal();
+            mainHandler.post(() -> viewModel.presentationOwner().updateDedupCandidateCount(count));
+        });
     }
 
     void importAudioUris(List<android.net.Uri> uris) {

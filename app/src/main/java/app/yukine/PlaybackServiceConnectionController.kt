@@ -132,6 +132,8 @@ internal class PlaybackServiceConnectionController(
 
     fun realtimeBands(): FloatArray = service?.realtimeBands() ?: FloatArray(0)
 
+    fun realtimeTransientBeat(): Float = service?.realtimeTransientBeat() ?: 0f
+
     fun setAppVisible(visible: Boolean) {
         appVisible = visible
         service?.setAppVisible(visible)

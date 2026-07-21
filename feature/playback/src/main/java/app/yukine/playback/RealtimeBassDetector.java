@@ -4,11 +4,27 @@ import java.util.function.LongSupplier;
 
 final class RealtimeBassDetector {
     static final int REALTIME_BAND_COUNT = 24;
-    private static final long BEAT_HOLD_MS = 34L;
+    private static final long BEAT_HOLD_MS = 26L;
+    private static final long TRANSIENT_HOLD_MS = 15L;
     private static final float SILENCE_GATE = 0.0065f;
 
+    /**
+     * Inverse Harman target curve compensation (linear gains) for each of the 24 display bands.
+     * Most music is mastered to the Harman target (bass-heavy, treble-rolled-off). Applying the
+     * inverse flattens that tilt so the displayed spectrum appears perceptually neutral/flat.
+     * Approximate mapping: bands 0-2 sub(20-80Hz), 3-6 bass(80-300Hz), 7-11 mid(300-1.2kHz),
+     * 12-17 presence(1.2k-5kHz), 18-23 treble(5k-20kHz).
+     */
+    private static final float[] HARMAN_COMPENSATION = {
+            0.53f, 0.55f, 0.57f,   // sub 20-80Hz: -5.5dB (remove bass boost)
+            0.63f, 0.67f, 0.71f, 0.75f, // bass 80-300Hz: -4.0..-2.5dB
+            0.84f, 0.89f, 0.94f, 0.97f, 1.00f, // mid 300-1.2kHz: -1.5..0dB
+            0.97f, 0.94f, 0.91f, 0.87f, 0.84f, 0.87f, // presence 1.2k-5kHz: -0.5..-1.5dB
+            1.00f, 1.06f, 1.12f, 1.19f, 1.27f, 1.41f  // treble 5k-20kHz: 0..+3dB (restore air)
+    };
+
     private static final RealtimeFrame EMPTY_FRAME = new RealtimeFrame(
-            0f, 0f, 0f, 0f, 0f, 0f, 0f, 0L, Long.MIN_VALUE
+            0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0L, Long.MIN_VALUE
     );
 
     private final LongSupplier clock;
@@ -32,6 +48,8 @@ final class RealtimeBassDetector {
     private float presenceEnergy;
     private float highEnergy;
     private float previousMono;
+    private float kickFastPrev;
+    private float transientImpulse;
 
     RealtimeBassDetector() {
         this(System::currentTimeMillis);
@@ -75,6 +93,8 @@ final class RealtimeBassDetector {
         float localPresence = presenceEnergy * 0.91f;
         float localHigh = highEnergy * 0.93f;
         float localPreviousMono = previousMono;
+        float localKickFastPrev = kickFastPrev;
+        float localTransient = transientImpulse * 0.06f;
         for (int frame = 0; frame < frames; frame += step) {
             int base = start + frame * bytesPerFrame;
             float mono = 0f;
@@ -100,6 +120,14 @@ final class RealtimeBassDetector {
             float fastAttack = kick > kickFast ? 0.72f : 0.42f;
             kickFast += (kick - kickFast) * fastAttack;
             kickSlow += (kick - kickSlow) * (kick > kickSlow ? 0.018f : 0.006f);
+            // Transient impulse: first-order difference of kickFast
+            float kickDelta = kickFast - localKickFastPrev;
+            localKickFastPrev = kickFast;
+            if (kickDelta > 0f) {
+                localTransient = Math.max(localTransient, clamp01(kickDelta * 0.92f * 8.0f));
+            } else {
+                localTransient *= 0.06f;
+            }
             float onset = kickFast - kickSlow * 1.42f - SILENCE_GATE;
             if (onset > 0f) {
                 float shaped = 1f - (1f - clamp01(onset * 12.0f)) * (1f - clamp01(onset * 12.0f));
@@ -107,12 +135,12 @@ final class RealtimeBassDetector {
             } else {
                 localBeat *= 0.90f;
             }
-            localSub = follow(localSub, Math.abs(lowPass) * 5.4f, 0.42f, 0.052f);
-            localKick = follow(localKick, kick * 7.4f, 0.68f, 0.078f);
-            localBody = follow(localBody, body * 4.8f, 0.46f, 0.062f);
-            localMid = follow(localMid, mid * 4.2f, 0.38f, 0.052f);
-            localPresence = follow(localPresence, (mid + high * 0.48f) * 3.6f, 0.32f, 0.046f);
-            localHigh = follow(localHigh, high * 3.4f, 0.28f, 0.040f);
+            localSub = follow(localSub, Math.abs(lowPass) * 5.4f, 0.42f, 0.068f);
+            localKick = follow(localKick, kick * 7.4f, 0.68f, 0.098f);
+            localBody = follow(localBody, body * 4.8f, 0.46f, 0.080f);
+            localMid = follow(localMid, mid * 4.2f, 0.38f, 0.068f);
+            localPresence = follow(localPresence, (mid + high * 0.48f) * 3.6f, 0.32f, 0.060f);
+            localHigh = follow(localHigh, high * 3.4f, 0.28f, 0.052f);
         }
         // A control-thread reset/configure may happen while one audio buffer is being
         // analyzed. Discard that obsolete result; the next audio buffer starts cleanly.
@@ -120,6 +148,7 @@ final class RealtimeBassDetector {
             return;
         }
         outputBeat = clamp01(Math.max(outputBeat * 0.58f, localBeat));
+        transientImpulse = clamp01(localTransient);
         subEnergy = clamp01(localSub);
         kickEnergy = clamp01(localKick);
         bodyEnergy = clamp01(localBody);
@@ -127,6 +156,7 @@ final class RealtimeBassDetector {
         presenceEnergy = clamp01(localPresence);
         highEnergy = clamp01(localHigh);
         previousMono = localPreviousMono;
+        kickFastPrev = localKickFastPrev;
         realtimeFrame = new RealtimeFrame(
                 outputBeat,
                 subEnergy,
@@ -135,6 +165,7 @@ final class RealtimeBassDetector {
                 midEnergy,
                 presenceEnergy,
                 highEnergy,
+                transientImpulse,
                 clock.getAsLong(),
                 generation
         );
@@ -148,10 +179,30 @@ final class RealtimeBassDetector {
         long elapsed = elapsedSince(frame.updatedAtMs);
         float beat = frame.beat;
         if (elapsed > BEAT_HOLD_MS) {
-            float decay = Math.max(0f, 1f - (elapsed - BEAT_HOLD_MS) / 105f);
+            float decay = Math.max(0f, 1f - (elapsed - BEAT_HOLD_MS) / 78f);
             beat *= decay;
         }
-        return beat < 0.015f ? 0f : beat;
+        float transientContrib = frame.transientImpulse * 1.4f;
+        if (elapsed > TRANSIENT_HOLD_MS) {
+            float tDecay = Math.max(0f, 1f - (elapsed - TRANSIENT_HOLD_MS) / 45f);
+            transientContrib *= tDecay;
+        }
+        float result = Math.max(beat, transientContrib);
+        return result < 0.015f ? 0f : result;
+    }
+
+    float transientBeat() {
+        RealtimeFrame frame = realtimeFrame;
+        if (frame.generation != resetGeneration) {
+            return 0f;
+        }
+        long elapsed = elapsedSince(frame.updatedAtMs);
+        float value = frame.transientImpulse;
+        if (elapsed > TRANSIENT_HOLD_MS) {
+            float decay = Math.max(0f, 1f - (elapsed - TRANSIENT_HOLD_MS) / 60f);
+            value *= decay;
+        }
+        return value < 0.015f ? 0f : value;
     }
 
     float[] bands() {
@@ -160,7 +211,7 @@ final class RealtimeBassDetector {
             return new float[REALTIME_BAND_COUNT];
         }
         long elapsed = elapsedSince(frame.updatedAtMs);
-        float decay = elapsed <= BEAT_HOLD_MS ? 1f : Math.max(0f, 1f - (elapsed - BEAT_HOLD_MS) / 280f);
+        float decay = elapsed <= BEAT_HOLD_MS ? 1f : Math.max(0f, 1f - (elapsed - BEAT_HOLD_MS) / 210f);
         float[] result = new float[REALTIME_BAND_COUNT];
         for (int index = 0; index < REALTIME_BAND_COUNT; index++) {
             float position = index / (float) (REALTIME_BAND_COUNT - 1);
@@ -178,7 +229,7 @@ final class RealtimeBassDetector {
             }
             float ripple = 0.82f + 0.18f * (float) Math.sin(position * Math.PI * 4.0 + elapsed * 0.022);
             float shaped = (float) Math.pow(clamp01(value * 0.95f), 0.72f);
-            result[index] = clamp01(shaped * ripple * decay);
+            result[index] = clamp01(shaped * ripple * decay * HARMAN_COMPENSATION[index]);
         }
         return result;
     }
@@ -186,7 +237,7 @@ final class RealtimeBassDetector {
     private synchronized void requestResetLocked() {
         resetGeneration++;
         realtimeFrame = new RealtimeFrame(
-                0f, 0f, 0f, 0f, 0f, 0f, 0f, 0L, resetGeneration
+                0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0L, resetGeneration
         );
     }
 
@@ -210,6 +261,8 @@ final class RealtimeBassDetector {
         presenceEnergy = 0f;
         highEnergy = 0f;
         previousMono = 0f;
+        kickFastPrev = 0f;
+        transientImpulse = 0f;
     }
 
     private static float follow(float current, float target, float attack, float decay) {
@@ -247,6 +300,7 @@ final class RealtimeBassDetector {
         final float midEnergy;
         final float presenceEnergy;
         final float highEnergy;
+        final float transientImpulse;
         final long updatedAtMs;
         final long generation;
 
@@ -258,6 +312,7 @@ final class RealtimeBassDetector {
                 float midEnergy,
                 float presenceEnergy,
                 float highEnergy,
+                float transientImpulse,
                 long updatedAtMs,
                 long generation
         ) {
@@ -268,6 +323,7 @@ final class RealtimeBassDetector {
             this.midEnergy = midEnergy;
             this.presenceEnergy = presenceEnergy;
             this.highEnergy = highEnergy;
+            this.transientImpulse = transientImpulse;
             this.updatedAtMs = updatedAtMs;
             this.generation = generation;
         }

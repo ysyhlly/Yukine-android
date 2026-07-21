@@ -1370,6 +1370,10 @@ final class PlaybackServiceRuntime
         return playbackRealtimeVisualizationOwner == null ? new float[0] : playbackRealtimeVisualizationOwner.bands();
     }
 
+    public float realtimeTransientBeat() {
+        return playbackRealtimeVisualizationOwner == null ? 0f : playbackRealtimeVisualizationOwner.transientBeat();
+    }
+
     public void setShuffleEnabled(boolean enabled) {
         if (playbackModeSettingsStore != null) {
             playbackModeSettingsStore.setShuffleEnabled(playbackRuntimeStateManager, enabled);

@@ -108,6 +108,8 @@ class MainPlaybackServiceHostTest {
 
         override fun realtimeBands(): FloatArray = FloatArray(0)
 
+        override fun realtimeTransientBeat(): Float = 0f
+
         override fun snapshot(): PlaybackStateSnapshot? = null
 
         override fun queueSnapshot(): List<Track> = emptyList()

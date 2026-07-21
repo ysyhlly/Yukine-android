@@ -456,6 +456,14 @@ private fun LibraryGroupFilterBar(
             selected = true,
             onClick = onSortClick
         )
+        if (state.dedupCandidateCount > 0) {
+            GroupControlChip(
+                label = state.labels.dedup + " · " + state.dedupCandidateCount,
+                selected = false
+            ) {
+                actionHandler.onAction(LibraryAction.OpenDedupCenter)
+            }
+        }
     }
 }
 

@@ -226,7 +226,31 @@ public final class LyricsRepository {
         }
         boolean hasWords = hasWordTimings(document);
         boolean hasRoman = document.track(LyricsTrackRole.ROMANIZATION) != null;
-        return !hasWords || !hasRoman;
+        if (!hasWords) {
+            return true;
+        }
+        // Only seek romanization enhancement if primary text contains Japanese kana,
+        // avoiding unnecessary network calls for Chinese/English songs.
+        return !hasRoman && hasJapaneseContent(document);
+    }
+
+    private boolean hasJapaneseContent(LyricsDocument document) {
+        LyricsTrack primary = document.primaryOrFirstTrack();
+        if (primary == null) {
+            return false;
+        }
+        for (app.yukine.model.LyricLine line : primary.getLines()) {
+            String text = line.getText();
+            int limit = Math.min(text.length(), 80);
+            for (int i = 0; i < limit; i++) {
+                char c = text.charAt(i);
+                // Hiragana U+3040–U+309F, Katakana U+30A0–U+30FF
+                if ((c >= 0x3040 && c <= 0x309F) || (c >= 0x30A0 && c <= 0x30FF)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private LyricsDocument mergeEnhanced(LyricsDocument base, LyricsDocument enhanced) {
@@ -275,20 +299,24 @@ public final class LyricsRepository {
             if (!lyrics.wordLyrics.isEmpty()) {
                 LyricsDocument wordDocument = parseProviderLyricsDocument(
                         lyrics.wordLyrics, lyrics.translation, lyrics.romanization);
-                if (hasWordTimings(wordDocument)) {
-                    resolvedDocument.set(wordDocument);
-                }
                 List<LyricsLine> wordLines = parseProviderLyrics(lyrics.wordLyrics, lyrics.translation);
                 if (!wordLines.isEmpty()) {
+                    // Restore AFTER parseProviderLyrics which overwrites resolvedDocument
+                    if (hasWordTimings(wordDocument) || !lyrics.romanization.isEmpty()) {
+                        resolvedDocument.set(wordDocument);
+                    }
                     return wordLines;
                 }
             }
             if (!lyrics.romanization.isEmpty()) {
                 LyricsDocument romanDocument = parseProviderLyricsDocument(
                         lyrics.primary, lyrics.translation, lyrics.romanization);
+                List<LyricsLine> primaryLines = parseProviderLyrics(lyrics.primary, lyrics.translation);
+                // Restore AFTER parseProviderLyrics which overwrites resolvedDocument
                 if (!romanDocument.isEmpty()) {
                     resolvedDocument.set(romanDocument);
                 }
+                return primaryLines;
             }
             return parseProviderLyrics(lyrics.primary, lyrics.translation);
         } catch (Exception ignored) {
@@ -807,6 +835,8 @@ public final class LyricsRepository {
                     List<LyricsLine> lines = krcDocument.primaryLegacyLines();
                     if (!lines.isEmpty()) {
                         resolvedDocument.set(krcDocument);
+                        // Populate binding-based cache for fetchKugouLyricsByBinding reuse
+                        cacheOnlineLyrics("kugou\n" + id + "\n" + accessKey, lines);
                         return lines;
                     }
                 }
@@ -835,6 +865,11 @@ public final class LyricsRepository {
         String id = parts[0].trim();
         String accessKey = parts[1].trim();
         rememberBinding("kugou", id + "\n" + accessKey);
+        String cacheKey = "kugou\n" + id + "\n" + accessKey;
+        List<LyricsLine> cached = cachedOnlineLyrics(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
         try {
             // Try KRC (word-by-word) first
             String krcUrl = KUGOU_LYRIC_DOWNLOAD_URL
@@ -849,7 +884,7 @@ public final class LyricsRepository {
                     List<LyricsLine> lines = krcDocument.primaryLegacyLines();
                     if (!lines.isEmpty()) {
                         resolvedDocument.set(krcDocument);
-                        return lines;
+                        return cacheOnlineLyrics(cacheKey, lines);
                     }
                 }
             }
@@ -859,7 +894,8 @@ public final class LyricsRepository {
                     + "&accesskey=" + encode(accessKey)
                     + "&fmt=lrc&charset=utf8";
             JSONObject body = requestProviderJson(downloadUrl, "https://www.kugou.com/");
-            return parseProviderLyrics(maybeDecodeBase64(body.optString("content", "")).trim(), "");
+            return cacheOnlineLyrics(cacheKey,
+                    parseProviderLyrics(maybeDecodeBase64(body.optString("content", "")).trim(), ""));
         } catch (Exception ignored) {
             return Collections.emptyList();
         }

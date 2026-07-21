@@ -12,6 +12,10 @@ final class PlaybackRealtimeVisualizationOwner
         float beat();
 
         float[] bands();
+
+        default float transientBeat() {
+            return 0f;
+        }
     }
 
     private final PlaybackStateProvider playbackStateProvider;
@@ -41,6 +45,11 @@ final class PlaybackRealtimeVisualizationOwner
                     public float[] bands() {
                         return realtimeBassDetector.bands();
                     }
+
+                    @Override
+                    public float transientBeat() {
+                        return realtimeBassDetector.transientBeat();
+                    }
                 }
         );
     }
@@ -56,6 +65,10 @@ final class PlaybackRealtimeVisualizationOwner
         }
         float[] bands = realtimeDataProvider.bands();
         return bands == null ? EMPTY_BANDS : bands;
+    }
+
+    float transientBeat() {
+        return canReadRealtimeData() ? realtimeDataProvider.transientBeat() : 0f;
     }
 
     private boolean canReadRealtimeData() {

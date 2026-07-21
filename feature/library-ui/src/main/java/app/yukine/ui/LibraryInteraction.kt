@@ -34,6 +34,7 @@ data class LibraryUiState(
     val selectedGroupKeys: Set<String> = emptySet(),
     val operationInProgress: Boolean = false,
     val autoSyncEnabled: Boolean = false,
+    val dedupCandidateCount: Int = 0,
     val message: String = "",
     val labels: LibraryUiLabels = LibraryUiLabels()
 ) {
@@ -106,7 +107,8 @@ data class LibraryUiLabels(
     val smartRecentAddedEmpty: String = "扫描或导入歌曲后，会出现在这里",
     val smartRecentPlayedEmpty: String = "暂无最近播放",
     val smartWeekFavoritesEmpty: String = "本周播放喜欢的歌曲后，会出现在这里",
-    val smartLongUnplayedEmpty: String = "最近所有歌都听过啦，真棒"
+    val smartLongUnplayedEmpty: String = "最近所有歌都听过啦，真棒",
+    val dedup: String = "去重"
 )
 
 sealed interface LibraryAction {
@@ -129,6 +131,7 @@ sealed interface LibraryAction {
     data object ImportFiles : LibraryAction
     data object SyncLibrary : LibraryAction
     data class SetAutoSyncEnabled(val enabled: Boolean) : LibraryAction
+    data object OpenDedupCenter : LibraryAction
 }
 
 fun interface LibraryActionHandler {

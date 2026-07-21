@@ -8,3 +8,5 @@ export const NETEASE_ARTIST_INTRODUCTION_API =
 export const NETEASE_SONG_LYRIC_API = "https://music.163.com/api/song/lyric";
 export const LRCLIB_API = "https://lrclib.net/api";
 export const QQMUSIC_SINGER_API = "https://u.y.qq.com/cgi-bin/musicu.fcg";
+export const QQMUSIC_SEARCH_API = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
+export const QQMUSIC_LYRIC_API = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg";

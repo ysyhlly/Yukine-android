@@ -230,7 +230,7 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
                 offsetMs = lyricsState?.offsetMs ?: 0L,
                 primaryVisible = lyricsState?.trackVisibility?.primary ?: true,
                 translationVisible = lyricsState?.trackVisibility?.translation ?: true,
-                romanizationVisible = lyricsState?.trackVisibility?.romanization ?: false
+                romanizationVisible = lyricsState?.trackVisibility?.romanization ?: true
             ),
             labels = NowPlayingLabelsState(
                 errorMessage = overlay.error.message.takeIf { it.isNotBlank() }

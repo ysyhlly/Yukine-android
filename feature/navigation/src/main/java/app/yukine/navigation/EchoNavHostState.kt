@@ -44,6 +44,7 @@ data class PlayerNavBinding(
     val trackDownloadController: TrackDownloadController? = null,
     val realtimeBeatProvider: () -> Float = { 0f },
     val realtimeBandsProvider: () -> FloatArray = { EmptyRealtimeBands },
+    val realtimeTransientProvider: () -> Float = { 0f },
     val visualMotionEnabled: Boolean = true
 )
 

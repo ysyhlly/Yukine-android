@@ -61,7 +61,7 @@ import kotlinx.coroutines.flow.map
 import kotlin.math.max
 
 private val EmptyRealtimeBands = FloatArray(0)
-private const val RealtimeVisualPollMs = 33L
+private const val RealtimeVisualPollMs = 16L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +88,9 @@ fun EchoNavGraph(
     var realtimeBands by remember(hostState) {
         mutableStateOf(EmptyRealtimeBands)
     }
+    var realtimeTransient by remember(hostState) {
+        mutableStateOf(0f)
+    }
     val realtimeVisualsActive = hostState.player.visualMotionEnabled &&
         playbackState.playing &&
         realtimeVisualsVisible(selectedTab, route.networkPage)
@@ -99,16 +102,23 @@ fun EchoNavGraph(
             if (!realtimeBands.contentEquals(EmptyRealtimeBands)) {
                 realtimeBands = EmptyRealtimeBands
             }
+            if (realtimeTransient != 0f) {
+                realtimeTransient = 0f
+            }
             return@LaunchedEffect
         }
         while (true) {
             val nextBeat = hostState.player.realtimeBeatProvider().coerceIn(0f, 1f)
             val nextBands = hostState.player.realtimeBandsProvider()
+            val nextTransient = hostState.player.realtimeTransientProvider().coerceIn(0f, 1f)
             if (realtimeBeat != nextBeat) {
                 realtimeBeat = nextBeat
             }
             if (!realtimeBands.contentEquals(nextBands)) {
                 realtimeBands = if (nextBands.isEmpty()) EmptyRealtimeBands else nextBands
+            }
+            if (realtimeTransient != nextTransient) {
+                realtimeTransient = nextTransient
             }
             delay(RealtimeVisualPollMs)
         }
@@ -124,6 +134,7 @@ fun EchoNavGraph(
         playing = playbackState.playing,
         realtimeBeat = max(playbackState.realtimeBeat, realtimeBeat),
         realtimeBands = realtimeBands,
+        realtimeTransient = realtimeTransient,
         visualMotionEnabled = hostState.player.visualMotionEnabled
     )
     val nowBarState by hostState.player.nowPlayingStateProvider.nowBarState.collectAsState()

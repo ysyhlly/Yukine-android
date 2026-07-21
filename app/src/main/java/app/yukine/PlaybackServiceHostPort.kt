@@ -20,6 +20,8 @@ interface PlaybackServiceHostPort : PlaybackCommands, SettingsPlaybackServicePor
 
     fun realtimeBands(): FloatArray
 
+    fun realtimeTransientBeat(): Float
+
     fun queueSize(): Int
 
     fun queueTrackAt(index: Int): Track?

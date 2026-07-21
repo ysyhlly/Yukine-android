@@ -6,6 +6,8 @@ import {
   NETEASE_ARTIST_INTRODUCTION_API,
   NETEASE_SEARCH_API,
   NETEASE_SONG_LYRIC_API,
+  QQMUSIC_LYRIC_API,
+  QQMUSIC_SEARCH_API,
   QQMUSIC_SINGER_API,
   WIKIDATA_API
 } from "./endpoints.js";
@@ -80,7 +82,8 @@ export function neteaseSongLyricRequest(songId: string): string {
     id: songId,
     lv: "1",
     kv: "1",
-    tv: "-1"
+    tv: "-1",
+    rv: "1"
   });
   return `${NETEASE_SONG_LYRIC_API}?${query}`;
 }
@@ -113,4 +116,35 @@ export function qqMusicSingerDetailRequest(singerMID: string): string {
     }
   });
   return `${QQMUSIC_SINGER_API}?data=${encodeURIComponent(body)}`;
+}
+
+export function qqMusicSongSearchRequest(title: string, artist?: string): string {
+  const keyword = artist ? `${title} ${artist}` : title;
+  const query = new URLSearchParams({
+    format: "json",
+    w: keyword,
+    p: "1",
+    n: "5",
+    cr: "1"
+  });
+  return `${QQMUSIC_SEARCH_API}?${query}`;
+}
+
+export function qqMusicSongLyricRequest(songMid: string): string {
+  const query = new URLSearchParams({
+    songmid: songMid,
+    pcachetime: String(Date.now()),
+    g_tk: "5381",
+    loginUin: "0",
+    hostUin: "0",
+    format: "json",
+    inCharset: "utf8",
+    outCharset: "utf-8",
+    notice: "0",
+    platform: "yqq",
+    needNewCode: "0",
+    nobase64: "1",
+    qrc: "1"
+  });
+  return `${QQMUSIC_LYRIC_API}?${query}`;
 }

@@ -70,6 +70,7 @@ interface LibraryGateway {
     fun setAutomaticSyncEnabled(enabled: Boolean) = Unit
     fun requestDeleteTracks(tracks: List<Track>) = Unit
     fun downloadTracks(tracks: List<Track>) = Unit
+    fun openDedupCenter() = Unit
 }
 
 fun interface LibraryPlaylistTrackLoader {

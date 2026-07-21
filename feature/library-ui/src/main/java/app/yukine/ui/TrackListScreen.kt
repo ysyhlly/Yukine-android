@@ -689,6 +689,14 @@ private fun LibraryFilterBar(
             selected = true,
             onClick = onSortClick
         )
+        if (state.dedupCandidateCount > 0) {
+            LibraryControlChip(
+                label = state.labels.dedup + " · " + state.dedupCandidateCount,
+                selected = false
+            ) {
+                actionHandler.onAction(LibraryAction.OpenDedupCenter)
+            }
+        }
     }
 }
 

@@ -34,7 +34,8 @@ internal class MainLibraryGateway(
     private val deleteRequester: DeleteRequester = DeleteRequester { },
     private val tracksDownloader: TracksDownloader = TracksDownloader { },
     private val librarySynchronizer: LibrarySynchronizer = LibrarySynchronizer { },
-    private val automaticSyncSetter: AutomaticSyncSetter = AutomaticSyncSetter { }
+    private val automaticSyncSetter: AutomaticSyncSetter = AutomaticSyncSetter { },
+    private val dedupCenterOpener: DedupCenterOpener = DedupCenterOpener { }
 ) : LibraryGateway {
     fun interface TrackListPlayer {
         fun playTrackList(tracks: List<Track>, index: Int)
@@ -78,6 +79,10 @@ internal class MainLibraryGateway(
 
     fun interface AutomaticSyncSetter {
         fun setEnabled(enabled: Boolean)
+    }
+
+    fun interface DedupCenterOpener {
+        fun open()
     }
 
     override fun playTrackList(tracks: List<Track>, index: Int) {
@@ -155,5 +160,9 @@ internal class MainLibraryGateway(
 
     override fun downloadTracks(tracks: List<Track>) {
         tracksDownloader.download(tracks)
+    }
+
+    override fun openDedupCenter() {
+        dedupCenterOpener.open()
     }
 }

@@ -5,6 +5,7 @@ import app.yukine.data.LyricsRepository
 import app.yukine.model.LyricsDocument
 import app.yukine.model.LyricsLine
 import app.yukine.model.Track
+import app.yukine.streaming.LuoxueScriptLyrics
 import app.yukine.streaming.LuoxueTrackMetadataResolver
 import kotlinx.coroutines.CancellationException
 
@@ -51,13 +52,31 @@ internal class LuoxueFirstTrackLyricsOperations(
     private val repository: LyricsRepository,
     private val fallback: TrackLyricsOperations
 ) : TrackLyricsOperations {
+    /** Caches the last LX resolve result to avoid duplicate script execution when both
+     *  [loadForTrack] and [loadDocumentForTrack] are called for the same track. */
+    private var cachedTrackId: Long = -1L
+    private var cachedLyrics: LuoxueScriptLyrics? = null
+    private var cacheConsumed: Boolean = false
+
+    private suspend fun resolveLyricsCached(track: Track): LuoxueScriptLyrics? {
+        if (track.id == cachedTrackId && !cacheConsumed) {
+            cacheConsumed = true
+            return cachedLyrics
+        }
+        val result = resolver.resolveLyrics(track)
+        cachedTrackId = track.id
+        cachedLyrics = result
+        cacheConsumed = false
+        return result
+    }
+
     override suspend fun loadForTrack(
         track: Track,
         onlineEnabled: Boolean,
         neteaseProviderTrackId: String
     ): List<LyricsLine> {
         val lxLines = try {
-            resolver.resolveLyrics(track)?.let { lyrics ->
+            resolveLyricsCached(track)?.let { lyrics ->
                 val primaryText = lyrics.wordByWord?.ifBlank { null } ?: lyrics.lyric
                 repository.parseProviderLyrics(primaryText, lyrics.translation.orEmpty())
             }.orEmpty()
@@ -78,7 +97,7 @@ internal class LuoxueFirstTrackLyricsOperations(
         neteaseProviderTrackId: String
     ): LyricsDocument {
         val lxDocument = try {
-            resolver.resolveLyrics(track)?.let { lyrics ->
+            resolveLyricsCached(track)?.let { lyrics ->
                 val primaryText = lyrics.wordByWord?.ifBlank { null } ?: lyrics.lyric
                 repository.parseProviderLyricsDocument(
                     primaryText,

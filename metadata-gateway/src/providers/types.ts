@@ -20,7 +20,8 @@ export type ProviderCapability =
   | "recording-search"
   | "artist-search"
   | "artist-enrichment"
-  | "lyrics-search";
+  | "lyrics-search"
+  | "lyrics-enrichment";
 
 export interface ProviderSearchContext {
   request: GatewayRequest;

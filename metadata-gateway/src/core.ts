@@ -676,6 +676,20 @@ async function lyricsV2(
       translation = word.translation;
     }
   }
+  if (!wordLyrics) {
+    const qqWord = await fetchQqMusicWordLyrics(
+      query.title,
+      query.artist,
+      request,
+      context,
+      trace
+    );
+    if (qqWord) {
+      wordLyrics = qqWord.lyrics;
+      wordLyricsSource = "qqmusic";
+      translation = translation || qqWord.translation;
+    }
+  }
 
   const canonical: Record<string, unknown> = {
     canonicalId: `lyrics:${encodeURIComponent(string(rawLyrics.provider))}:${encodeURIComponent(id)}`,
@@ -741,6 +755,50 @@ async function fetchNeteaseWordLyrics(
     const translationContent = string(tlyric.lyric).trim() || undefined;
     if (!lyricContent && !romanizationContent) return undefined;
     return { lyrics: lyricContent, romanization: romanizationContent, translation: translationContent };
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchQqMusicWordLyrics(
+  title: string,
+  artist: string | undefined,
+  request: GatewayRequest,
+  context: GatewayContext,
+  trace: RequestTrace
+): Promise<{ lyrics: string; translation?: string } | undefined> {
+  try {
+    const headers = qqMusicHeaders(context);
+    const searchResponse = await upstream(
+      "qqmusic",
+      { operation: "song-search", title, artist },
+      headers,
+      request,
+      context,
+      trace
+    );
+    if (searchResponse.kind !== "success") return undefined;
+    const searchBody = object(searchResponse.data);
+    const data = object(searchBody.data);
+    const songList = array(object(data.song), "list");
+    if (!songList.length) return undefined;
+    const first = object(songList[0]);
+    const songMid = string(first.songmid).trim();
+    if (!songMid) return undefined;
+    const lyricResponse = await upstream(
+      "qqmusic",
+      { operation: "song-lyric", songMid },
+      headers,
+      request,
+      context,
+      trace
+    );
+    if (lyricResponse.kind !== "success") return undefined;
+    const lyricBody = object(lyricResponse.data);
+    const qrcContent = string(lyricBody.lyric).trim();
+    if (!qrcContent) return undefined;
+    const translationContent = string(lyricBody.trans).trim() || undefined;
+    return { lyrics: qrcContent, translation: translationContent };
   } catch {
     return undefined;
   }
@@ -1229,6 +1287,14 @@ function neteaseHeaders(context: GatewayContext): Record<string, string> {
     ...upstreamHeaders(context),
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     Referer: "https://music.163.com/"
+  };
+}
+
+function qqMusicHeaders(context: GatewayContext): Record<string, string> {
+  return {
+    ...upstreamHeaders(context),
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    Referer: "https://y.qq.com/"
   };
 }
 

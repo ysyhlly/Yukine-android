@@ -125,9 +125,7 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                     finalizeDeleted(deleted + confirmed, failed + remaining, skipped)
                 }
             } else {
-                completionHandler.onCompleted(
-                    LibraryDeletionResult(deleted, failed, skipped + media, cancelled = true)
-                )
+                finalizeDeleted(deleted, failed + media, skipped)
             }
         }
     }
@@ -236,11 +234,24 @@ internal class LibraryFileDeleteLauncher @JvmOverloads constructor(
                     LibraryDeletionResult(emptyList(), deleted)
                 }
             }
+            val remoteFinalized = if (skipped.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        useCase.finalizeDeletedFiles(skipped)
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        LibraryDeletionResult(emptyList(), skipped)
+                    }
+                }
+            } else {
+                LibraryDeletionResult(emptyList(), skipped)
+            }
             completionHandler.onCompleted(
                 LibraryDeletionResult(
-                    removed = finalized.removed,
-                    failed = failed + finalized.failed,
-                    skipped = skipped
+                    removed = finalized.removed + remoteFinalized.removed,
+                    failed = failed + finalized.failed + remoteFinalized.failed,
+                    skipped = emptyList()
                 )
             )
         }
