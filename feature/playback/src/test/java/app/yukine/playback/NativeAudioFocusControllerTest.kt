@@ -224,6 +224,20 @@ class NativeAudioFocusControllerTest {
     }
 
     @Test
+    fun releaseKeepsUnrelatedHandlerCallbacks() {
+        controller.setMode(NativeAudioFocusController.Mode.EXCLUSIVE)
+        shadowOf(audioManager).setNextFocusRequestResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        controller.acquire()
+        var unrelatedCallbackRan = false
+        handler.postDelayed({ unrelatedCallbackRan = true }, 100L)
+
+        controller.release()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100L))
+
+        assertTrue(unrelatedCallbackRan)
+    }
+
+    @Test
     fun counteractSkippedWhenStateIdle() {
         controller.setMode(NativeAudioFocusController.Mode.EXCLUSIVE)
         shadowOf(audioManager).setNextFocusRequestResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)

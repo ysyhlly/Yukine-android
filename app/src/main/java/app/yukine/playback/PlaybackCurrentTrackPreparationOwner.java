@@ -129,6 +129,10 @@ final class PlaybackCurrentTrackPreparationOwner {
     }
 
     PreparedTrack prepareCurrentTrack(Track track) {
+        return prepareCurrentTrack(track, -1L);
+    }
+
+    PreparedTrack prepareCurrentTrack(Track track, long explicitStartPositionMs) {
         PlaybackMediaSourceProvider.PlaybackPreparation preparation = playbackPreparationProvider == null
                 ? null
                 : playbackPreparationProvider.apply(track);
@@ -150,7 +154,9 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
         return PreparedTrack.playable(
                 preparedTrack,
-                queuePreparationController.restoredPositionFor(preparedTrack),
+                explicitStartPositionMs >= 0L
+                        ? explicitStartPositionMs
+                        : queuePreparationController.restoredPositionFor(preparedTrack),
                 mediaSourceResolver
         );
     }

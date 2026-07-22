@@ -144,7 +144,6 @@ class NativeAudioFocusController(
         }
         deferredCounteraction?.let { handler.removeCallbacks(it) }
         deferredCounteraction = null
-        handler.removeCallbacksAndMessages(null)
         abandonSystemFocus()
         updateFocusState(FocusState.IDLE)
     }

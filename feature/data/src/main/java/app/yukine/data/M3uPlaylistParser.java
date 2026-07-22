@@ -105,7 +105,7 @@ public final class M3uPlaylistParser {
     }
 
     private static String extInfTitle(String line) {
-        int comma = line.lastIndexOf(',');
+        int comma = line.indexOf(',');
         if (comma < 0 || comma >= line.length() - 1) {
             return "";
         }

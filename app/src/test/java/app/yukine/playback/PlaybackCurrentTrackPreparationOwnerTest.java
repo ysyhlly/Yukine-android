@@ -119,6 +119,27 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     }
 
     @Test
+    public void explicitPositionOverridesStoredResumePositionDuringPlayerRebuild() {
+        List<String> events = new ArrayList<>();
+        Track track = track(5L, Uri.parse("file:///music/local.flac"));
+        PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
+                requested -> preparation(requested, null, true, null),
+                requested -> null,
+                new FakeQueuePreparationController(events, 1200L),
+                new FakeRuntimeStateController(events),
+                () -> events.add("publish"),
+                ignored -> {
+                }
+        );
+
+        PlaybackCurrentTrackPreparationOwner.PreparedTrack prepared =
+                owner.prepareCurrentTrack(track, 6400L);
+
+        assertEquals(6400L, prepared.startPositionMs());
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
     public void mediaSourceProviderFactoryFallsBackWhenProviderIsMissing() {
         List<String> events = new ArrayList<>();
         Track track = track(4L, Uri.parse("file:///music/local.flac"));

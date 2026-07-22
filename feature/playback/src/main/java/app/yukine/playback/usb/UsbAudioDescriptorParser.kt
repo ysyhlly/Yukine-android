@@ -5,7 +5,7 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 
 /**
  * Parses USB Audio Class descriptors to find a suitable Audio Streaming endpoint
@@ -22,8 +22,7 @@ internal object UsbAudioDescriptorParser {
     // USB Audio Class subclass codes
     private const val USB_SUBCLASS_AUDIO_STREAMING = 0x02
 
-    // UAC2 control selectors
-    private const val UAC2_CS_SAMPLE_FREQ_CONTROL = 0x01
+    private const val CS_SAMPLE_FREQ_CONTROL = 0x01
 
     // USB Audio Class 2.0 request codes
     private const val UAC2_SET_CUR = 0x01
@@ -54,7 +53,7 @@ internal object UsbAudioDescriptorParser {
                 preferredBitDepth
             )
             if (config != null) {
-                Log.d(TAG, "Found audio stream config: $config")
+                DiagnosticLog.d(TAG, "Found audio stream config: $config")
                 return config
             }
             // Remember the streaming interface even if no endpoints on alt 0.
@@ -67,7 +66,7 @@ internal object UsbAudioDescriptorParser {
         // No endpoints found on alt 0 — return a config based on the streaming interface
         // with estimated parameters. The endpoint will be discovered after selecting alt 1.
         if (streamingInterface != null) {
-            Log.d(TAG, "Audio streaming interface #${streamingInterface.id} found but no " +
+            DiagnosticLog.d(TAG, "Audio streaming interface #${streamingInterface.id} found but no " +
                 "endpoints on alt 0 (endpoints likely on alt 1). Using estimated config.")
             return UsbAudioStreamConfig(
                 endpointAddress = 0, // Will be discovered after alt setting selection
@@ -80,7 +79,7 @@ internal object UsbAudioDescriptorParser {
             )
         }
 
-        Log.w(TAG, "No suitable audio streaming interface found on device: ${device.productName}")
+        DiagnosticLog.w(TAG, "No suitable audio streaming interface found on device: ${device.productName}")
         return null
     }
 
@@ -127,7 +126,9 @@ internal object UsbAudioDescriptorParser {
             channelCount = channelCount,
             interfaceNumber = usbInterface.id,
             alternateSetting = usbInterface.alternateSetting,
-            feedbackEndpointAddress = feedbackEndpoint?.address ?: 0
+            feedbackEndpointAddress = feedbackEndpoint?.address ?: 0,
+            endpointType = ep.type,
+            interval = ep.interval
         )
     }
 
@@ -145,29 +146,41 @@ internal object UsbAudioDescriptorParser {
         sampleRateHz: Int
     ): Boolean {
         return try {
-            // UAC2 SET_CUR for sample rate control
-            // bmRequestType: 0x21 (Host-to-device, Class, Interface)
-            // bRequest: SET_CUR (0x01)
-            // wValue: (CS << 8) | CUR (0x0100 for sample freq)
-            // wIndex: (interface << 8) | entity_id (simplified)
-            val data = byteArrayOf(
-                (sampleRateHz and 0xFF).toByte(),
-                ((sampleRateHz shr 8) and 0xFF).toByte(),
-                ((sampleRateHz shr 16) and 0xFF).toByte(),
-                ((sampleRateHz shr 24) and 0xFF).toByte()
-            )
+            val uac2 = config.audioClassVersion >= 2
+            if (uac2 && config.clockSourceEntityId <= 0) {
+                DiagnosticLog.w(TAG, "UAC2 clock source was not resolved; refusing guessed entity control")
+                return false
+            }
+            val data = if (uac2) {
+                byteArrayOf(
+                    (sampleRateHz and 0xFF).toByte(),
+                    ((sampleRateHz shr 8) and 0xFF).toByte(),
+                    ((sampleRateHz shr 16) and 0xFF).toByte(),
+                    ((sampleRateHz shr 24) and 0xFF).toByte()
+                )
+            } else {
+                byteArrayOf(
+                    (sampleRateHz and 0xFF).toByte(),
+                    ((sampleRateHz shr 8) and 0xFF).toByte(),
+                    ((sampleRateHz shr 16) and 0xFF).toByte()
+                )
+            }
             val result = connection.controlTransfer(
-                0x21, // bmRequestType
+                if (uac2) 0x21 else 0x22,
                 UAC2_SET_CUR, // bRequest
-                (UAC2_CS_SAMPLE_FREQ_CONTROL shl 8), // wValue
-                config.interfaceNumber, // wIndex
+                (CS_SAMPLE_FREQ_CONTROL shl 8),
+                if (uac2) {
+                    (config.clockSourceEntityId shl 8) or (config.interfaceNumber and 0xff)
+                } else {
+                    config.endpointAddress and 0xff
+                },
                 data,
                 data.size,
                 1000 // timeout ms
             )
             result >= 0
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to set sample rate: ${e.message}")
+            DiagnosticLog.w(TAG, "Failed to set sample rate: ${e.message}")
             false
         }
     }

@@ -8,8 +8,15 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.metadata.MetadataOutput
+import androidx.media3.exoplayer.text.TextOutput
+import androidx.media3.exoplayer.video.VideoRendererEventListener
+import android.os.Handler
+import app.yukine.playback.dsd.DsdRenderer
 import app.yukine.playback.usb.UsbExclusiveAudioSink
 
 /**
@@ -42,6 +49,28 @@ internal class PlaybackPlayerFactory(
 
     fun createPlayer(): ExoPlayer {
         val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun createRenderers(
+                eventHandler: Handler,
+                videoRendererEventListener: VideoRendererEventListener,
+                audioRendererEventListener: AudioRendererEventListener,
+                textRendererOutput: TextOutput,
+                metadataRendererOutput: MetadataOutput
+            ): Array<Renderer> {
+                val defaults = super.createRenderers(
+                    eventHandler,
+                    videoRendererEventListener,
+                    audioRendererEventListener,
+                    textRendererOutput,
+                    metadataRendererOutput
+                )
+                val dsdSink = usbAudioSink
+                return if (audioOutputMode == AudioOutputMode.USB_EXCLUSIVE && dsdSink != null) {
+                    arrayOf(DsdRenderer(dsdSink), *defaults)
+                } else {
+                    defaults
+                }
+            }
+
             override fun buildAudioSink(
                 context: Context,
                 enableFloatOutput: Boolean,

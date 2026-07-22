@@ -4,6 +4,7 @@ import app.yukine.streaming.StreamingQualityPreference
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
+import app.yukine.playback.AudioOutputSnapshot
 import app.yukine.identity.LibraryDedupMode
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
@@ -62,6 +63,7 @@ data class SettingsPreferencesSnapshot(
     val bitPerfectEnabled: Boolean = false,
     val usbExclusiveEnabled: Boolean = false,
     val debugPromptsEnabled: Boolean = false,
+    val checkUpdateEnabled: Boolean = true,
     val customBackgroundBlurEnabled: Boolean = false,
     val customBackgroundBlurRadiusDp: Float = app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP,
     val glassBlurEnabled: Boolean = false,
@@ -85,6 +87,8 @@ data class RuntimeSettingsStatus(
     val floatingLyricsTransparentBackground: Boolean = false,
     val floatingLyricsTextColorArgb: Int = 0xFFF8FBFF.toInt(),
     val playbackServiceConnected: Boolean = false,
+    val audioExclusiveActive: Boolean = false,
+    val audioOutput: AudioOutputSnapshot = AudioOutputSnapshot.idle(),
     val sleepTimerRemainingMs: Long = 0L,
     val lyricsOffsetMs: Long = 0L,
     val onlineLyricsEnabled: Boolean = false,

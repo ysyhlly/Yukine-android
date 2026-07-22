@@ -68,7 +68,9 @@ enum class SettingsEntryId {
     NotificationPermission,
     AppVersion,
     Community,
-    DebugPrompts
+    DebugPrompts,
+    DiagnosticsExport,
+    CheckUpdate
 }
 
 enum class SettingsIssueId {
@@ -220,7 +222,9 @@ object SettingsInformationArchitecture {
         entryWithKeywords(SettingsEntryId.NotificationPermission, SettingsCategoryId.SystemPrivacyHelp, "notification.permission", icon = EchoIconKind.Permission, keywords = arrayOf("notification", "permission", "\u901a\u77e5", "\u6743\u9650")),
         entryWithKeywords(SettingsEntryId.AppVersion, SettingsCategoryId.SystemPrivacyHelp, "version", icon = EchoIconKind.Info, keywords = arrayOf("about", "build", "\u7248\u672c")),
         entry(SettingsEntryId.Community, SettingsCategoryId.SystemPrivacyHelp, "qq.group", "qq.group.hint", EchoIconKind.Network, "community", "feedback", "qq", "\u793e\u533a", "\u53cd\u9988"),
-        entry(SettingsEntryId.DebugPrompts, SettingsCategoryId.SystemPrivacyHelp, "debug.prompts", "debug.prompts.hint", EchoIconKind.Settings, "diagnostics", "developer", "\u8c03\u8bd5", "\u8bca\u65ad")
+        entry(SettingsEntryId.DebugPrompts, SettingsCategoryId.SystemPrivacyHelp, "debug.prompts", "debug.prompts.hint", EchoIconKind.Settings, "diagnostics", "developer", "\u8c03\u8bd5", "\u8bca\u65ad"),
+        entry(SettingsEntryId.DiagnosticsExport, SettingsCategoryId.SystemPrivacyHelp, "diagnostics.export", "diagnostics.export.hint", EchoIconKind.Upload, "diagnostics", "logs", "crash", "export", "\u8bca\u65ad", "\u65e5\u5fd7", "\u5d29\u6e83", "\u5bfc\u51fa"),
+        entry(SettingsEntryId.CheckUpdate, SettingsCategoryId.SystemPrivacyHelp, "check.update", "check.update.hint", EchoIconKind.Sync, "update", "github", "release", "\u66f4\u65b0", "\u68c0\u67e5\u66f4\u65b0", "\u5347\u7ea7")
     )
 
     fun searchEntries(

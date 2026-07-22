@@ -5,7 +5,7 @@ import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
 import android.os.Build
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.playback.AudioEffectSettings
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.annotation.OptIn
@@ -47,7 +47,7 @@ internal class PlaybackAudioEffectManager(
         val sessionId = try {
             player.audioSessionId
         } catch (error: IllegalStateException) {
-            Log.w(logTag, "Unable to read audio session for effects", error)
+            DiagnosticLog.w(logTag, "Unable to read audio session for effects", error)
             return
         }
         if (sessionId == 0) {
@@ -57,7 +57,7 @@ internal class PlaybackAudioEffectManager(
             equalizer = Equalizer(0, sessionId)
             applyEqualizerSettings(settings)
         } catch (error: RuntimeException) {
-            Log.w(logTag, "Equalizer unavailable", error)
+            DiagnosticLog.w(logTag, "Equalizer unavailable", error)
             equalizer = null
         }
         try {
@@ -65,7 +65,7 @@ internal class PlaybackAudioEffectManager(
             bassBoost?.setStrength(settings.bassBoostStrength)
             bassBoost?.setEnabled(settings.bassBoostStrength > 0)
         } catch (error: RuntimeException) {
-            Log.w(logTag, "BassBoost unavailable", error)
+            DiagnosticLog.w(logTag, "BassBoost unavailable", error)
             bassBoost = null
         }
         try {
@@ -73,7 +73,7 @@ internal class PlaybackAudioEffectManager(
             virtualizer?.setStrength(settings.virtualizerStrength)
             virtualizer?.setEnabled(settings.virtualizerStrength > 0)
         } catch (error: RuntimeException) {
-            Log.w(logTag, "Virtualizer unavailable", error)
+            DiagnosticLog.w(logTag, "Virtualizer unavailable", error)
             virtualizer = null
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -82,7 +82,7 @@ internal class PlaybackAudioEffectManager(
                 loudnessEnhancer?.setTargetGain(settings.loudnessGainMb)
                 loudnessEnhancer?.setEnabled(settings.loudnessGainMb != 0)
             } catch (error: RuntimeException) {
-                Log.w(logTag, "LoudnessEnhancer unavailable", error)
+                DiagnosticLog.w(logTag, "LoudnessEnhancer unavailable", error)
                 loudnessEnhancer = null
             }
         }
@@ -104,6 +104,7 @@ internal class PlaybackAudioEffectManager(
         val presetCount = currentEqualizer.numberOfPresets
         if (settings.preset >= 0 && settings.preset < presetCount) {
             currentEqualizer.usePreset(settings.preset.toShort())
+            currentEqualizer.setEnabled(settings.enabled)
             return
         }
         val bands = currentEqualizer.numberOfBands

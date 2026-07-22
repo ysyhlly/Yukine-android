@@ -18,7 +18,11 @@ interface LuoxueTrackMetadataResolver {
 
 class LocalLuoxueTrackMetadataResolver(
     private val sourceStore: LuoxueSourceStore,
-    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient()
+    private val client: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
+        scriptRuntime = QuickJsLuoxueScriptRuntime(
+            sourceQuarantine = disablingLuoxueSourceQuarantine(sourceStore)
+        )
+    )
 ) : LuoxueTrackMetadataResolver {
     override suspend fun resolveLyrics(track: Track?): LuoxueScriptLyrics? = withContext(Dispatchers.IO) {
         val request = requestFor(track) ?: return@withContext null

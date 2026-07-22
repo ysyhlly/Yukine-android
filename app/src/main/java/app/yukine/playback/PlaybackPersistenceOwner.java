@@ -1,7 +1,7 @@
 package app.yukine.playback;
 
 import android.os.Handler;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -348,7 +348,7 @@ final class PlaybackPersistenceOwner {
                 pendingCacheMutations.clear();
             }
         } catch (RuntimeException error) {
-            Log.e(TAG, "Unable to load playback persistence; keeping safe defaults", error);
+            DiagnosticLog.e(TAG, "Unable to load playback persistence; keeping safe defaults", error);
         } finally {
             ArrayList<Runnable> callbacks;
             synchronized (this) {
@@ -375,11 +375,11 @@ final class PlaybackPersistenceOwner {
                 try {
                     operation.run();
                 } catch (RuntimeException error) {
-                    Log.w(TAG, "Playback persistence operation failed", error);
+                    DiagnosticLog.w(TAG, "Playback persistence operation failed", error);
                 }
             });
         } catch (RejectedExecutionException error) {
-            Log.w(TAG, "Playback persistence executor rejected an operation", error);
+            DiagnosticLog.w(TAG, "Playback persistence executor rejected an operation", error);
         }
     }
 
@@ -388,16 +388,16 @@ final class PlaybackPersistenceOwner {
         try {
             barrier = databaseExecutor.submit(() -> { });
         } catch (RejectedExecutionException error) {
-            Log.w(TAG, "Unable to schedule playback persistence flush", error);
+            DiagnosticLog.w(TAG, "Unable to schedule playback persistence flush", error);
             return;
         }
         try {
             barrier.get(SHUTDOWN_FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
-            Log.w(TAG, "Interrupted while flushing playback persistence", error);
+            DiagnosticLog.w(TAG, "Interrupted while flushing playback persistence", error);
         } catch (ExecutionException | TimeoutException error) {
-            Log.w(TAG, "Unable to flush playback persistence before shutdown", error);
+            DiagnosticLog.w(TAG, "Unable to flush playback persistence before shutdown", error);
         }
     }
 

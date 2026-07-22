@@ -1,7 +1,7 @@
 package app.yukine
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -69,7 +69,7 @@ object StreamingSessionMaintenanceScheduler {
                 request
             )
         }.onFailure { error ->
-            Log.w(TAG, "Unable to schedule streaming session maintenance", error)
+            DiagnosticLog.w(TAG, "Unable to schedule streaming session maintenance", error)
         }
     }
 }

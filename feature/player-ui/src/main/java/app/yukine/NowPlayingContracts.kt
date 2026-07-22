@@ -82,7 +82,10 @@ data class NowPlayingModesState(
     val repeatMode: RepeatModeUi = RepeatModeUi.All
 )
 
-data class NowPlayingLabelsState(val errorMessage: String? = null)
+data class NowPlayingLabelsState(
+    val errorMessage: String? = null,
+    val resumeLyricsFollow: String = ""
+)
 
 data class NowPlayingArtworkState(val coverUri: String? = null)
 

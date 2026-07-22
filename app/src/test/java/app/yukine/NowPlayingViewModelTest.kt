@@ -273,6 +273,8 @@ class NowPlayingViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(250L, state.lyrics.offsetMs)
         assertSame(firstRows, state.lyrics.lines)
+        assertSame(firstRows, state.overlayState.lyrics.lines)
+        assertEquals(250L, state.overlayState.lyrics.offsetMs)
         assertEquals(listOf(0 to 2, 3 to 5), state.lyrics.lines.single().words.map {
             it.startOffset to it.endOffset
         })

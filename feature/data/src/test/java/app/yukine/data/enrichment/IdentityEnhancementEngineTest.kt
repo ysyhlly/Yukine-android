@@ -132,6 +132,11 @@ class IdentityEnhancementEngineTest {
         assertEquals("recording-mbid", updated.musicBrainzRecordingId)
         assertEquals("acoust-result", updated.acoustId)
         assertEquals(1, recordings.confirmedSources(recording.recordingId).size)
+        val identifiers = database.musicIdentityDao().identifiers(recording.recordingId)
+        assertTrue(identifiers.isNotEmpty())
+        identifiers.forEach { identifier ->
+            assertEquals(1.0, identifier.confidence, 0.0)
+        }
     }
 
     @Test

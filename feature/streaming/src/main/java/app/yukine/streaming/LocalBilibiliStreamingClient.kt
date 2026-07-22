@@ -297,13 +297,14 @@ class LocalBilibiliStreamingClient(
         request: StreamingPlaylistRequest,
         target: BilibiliTarget.Favorite
     ): StreamingPlaylistDetail {
+        val effectivePageSize = request.pageSize.coerceIn(1, 40)
         val data = apiData(
             getApi(
                 "/x/v3/fav/resource/list",
                 mapOf(
                     "media_id" to target.mediaId.toString(),
                     "pn" to request.page.toString(),
-                    "ps" to request.pageSize.coerceIn(1, 40).toString(),
+                    "ps" to effectivePageSize.toString(),
                     "platform" to "web"
                 ),
                 requiresAuth = true
@@ -332,8 +333,8 @@ class LocalBilibiliStreamingClient(
             tracks = tracks,
             total = total,
             page = request.page,
-            pageSize = request.pageSize,
-            hasMore = data.optBoolean("has_more", request.page * request.pageSize < total)
+            pageSize = effectivePageSize,
+            hasMore = data.optBoolean("has_more", request.page * effectivePageSize < total)
         )
     }
 

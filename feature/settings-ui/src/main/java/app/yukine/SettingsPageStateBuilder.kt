@@ -167,9 +167,13 @@ object SettingsPageStateBuilder {
         audioPermissionGranted: Boolean,
         notificationPermissionGranted: Boolean,
         debugPromptsEnabled: Boolean,
+        checkUpdateEnabled: Boolean,
         onNavigate: (SettingsPage) -> Unit,
         onRequestNeededPermissions: () -> Unit,
-        onDebugPromptsEnabledChange: (Boolean) -> Unit
+        onDebugPromptsEnabledChange: (Boolean) -> Unit,
+        onExportDiagnostics: () -> Unit,
+        onCheckUpdateEnabledChange: (Boolean) -> Unit,
+        onCheckUpdateNow: () -> Unit
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "version"), appVersionName),
@@ -232,6 +236,39 @@ object SettingsPageStateBuilder {
                     checked = debugPromptsEnabled,
                     section = text(languageMode, "settings.section.diagnostics"),
                     entryId = SettingsEntryId.DebugPrompts
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "diagnostics.export"),
+                    onClick = Runnable(onExportDiagnostics),
+                    description = text(languageMode, "diagnostics.export.hint"),
+                    style = SettingsActionStyle.Navigation,
+                    icon = EchoIconKind.Upload,
+                    section = text(languageMode, "settings.section.diagnostics"),
+                    entryId = SettingsEntryId.DiagnosticsExport
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "check.update"),
+                    onClick = Runnable { onCheckUpdateEnabledChange(!checkUpdateEnabled) },
+                    description = text(languageMode, "check.update.hint"),
+                    style = SettingsActionStyle.Toggle,
+                    checked = checkUpdateEnabled,
+                    section = text(languageMode, "settings.section.update"),
+                    entryId = SettingsEntryId.CheckUpdate
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "check.update.now"),
+                    onClick = Runnable(onCheckUpdateNow),
+                    description = text(languageMode, "check.update.now.hint"),
+                    style = SettingsActionStyle.Navigation,
+                    icon = EchoIconKind.Sync,
+                    section = text(languageMode, "settings.section.update"),
+                    entryId = SettingsEntryId.CheckUpdate
                 )
             )
         }
@@ -650,6 +687,7 @@ object SettingsPageStateBuilder {
         onAudioExclusiveEnabledChange: (Boolean) -> Unit = {},
         onBitPerfectEnabledChange: (Boolean) -> Unit = {},
         onUsbExclusiveEnabledChange: (Boolean) -> Unit = {},
+        audioExclusiveStatusDescription: String? = null,
         bitPerfectStatusDescription: String? = null,
         usbExclusiveStatusDescription: String? = null
     ): SettingsPageStateContent {
@@ -719,10 +757,10 @@ object SettingsPageStateBuilder {
             SettingsAction(
                 label = text(languageMode, "audio.exclusive"),
                 onClick = Runnable { onAudioExclusiveEnabledChange(!audioExclusiveEnabled) },
-                description = if (audioExclusiveEnabled)
-                    text(languageMode, "audio.exclusive.active.description")
-                else
-                    text(languageMode, "audio.exclusive.hint"),
+                description = audioExclusiveStatusDescription ?: if (audioExclusiveEnabled)
+                        text(languageMode, "audio.exclusive.active.description")
+                    else
+                        text(languageMode, "audio.exclusive.hint"),
                 style = SettingsActionStyle.Toggle,
                 icon = EchoIconKind.Gauge,
                 checked = audioExclusiveEnabled,

@@ -71,7 +71,8 @@ data class NowBarModesState(
 data class NowBarLyricsState(
     val title: String = "",
     val status: String = "",
-    val lines: List<LyricUiLine> = emptyList()
+    val lines: List<LyricUiLine> = emptyList(),
+    val offsetMs: Long = 0L
 )
 
 @Immutable

@@ -422,6 +422,28 @@ class PlaybackLyricsManagerTest {
     }
 
     @Test
+    fun notificationLyricTextReturnsEmptyForSameTitleWithDifferentTrackId() {
+        FloatingLyricsPublisher.clear()
+        FloatingLyricsPublisher.update(
+            trackId = 2L,
+            trackTitle = "Track 1",
+            artist = "Artist",
+            albumArtUri = null,
+            playing = true,
+            activeLine = "wrong track lyric",
+            lyrics = emptyList(),
+            lyricsOffsetMs = 0L
+        )
+        val manager = PlaybackLyricsManager(
+            ApplicationProvider.getApplicationContext<Context>(),
+            FakeStateProvider(),
+            FakeNotificationBridge()
+        )
+
+        assertEquals("", manager.notificationLyricText(track()))
+    }
+
+    @Test
     fun notificationLyricTextReturnsEmptyWhenStatusBarLyricsDisabled() {
         FloatingLyricsPublisher.clear()
         FloatingLyricsPublisher.update("Track 1", "Artist", null, true, "first line")

@@ -3,7 +3,7 @@ package app.yukine
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.model.Track
 
 internal fun interface TrackShareActivityStarter {
@@ -79,7 +79,7 @@ internal class TrackShareLauncher @JvmOverloads constructor(
             activityStarter.startActivity(Intent.createChooser(send, "分享到"))
             statusSink.setStatus("已打开分享面板：${track.title}")
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to share track", error)
+            DiagnosticLog.w(TAG, "Unable to share track", error)
             statusSink.showFeedback("无法打开分享面板")
         }
     }

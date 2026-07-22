@@ -41,7 +41,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.SSLException;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.xml.sax.SAXException;
 
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
@@ -281,10 +284,8 @@ public final class WebDavClient {
                 throw new IllegalStateException("WebDAV returned an HTML page but no audio files or folders were found. Check URL, account, port, and reverse proxy path."
                         + responseHint(connection.getContentType(), responseBody));
             }
-            try (InputStream input = new ByteArrayInputStream(responseBody)) {
-                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                factory.setNamespaceAware(true);
-                Document document = factory.newDocumentBuilder().parse(input);
+            try {
+                Document document = parseDirectoryDocument(responseBody);
                 return parseEntries(source, directoryUrl, document);
             } catch (Exception error) {
                 throw new IllegalStateException("WebDAV directory XML parse failed: " + cleanMessage(error)
@@ -366,15 +367,50 @@ public final class WebDavClient {
                 .replace("&gt;", ">");
     }
 
+    private static final int MAX_RESPONSE_BODY_BYTES = 50 * 1024 * 1024;
+
+    static Document parseDirectoryDocument(byte[] responseBody) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        builder.setEntityResolver((publicId, systemId) -> {
+            throw new SAXException("External XML entities are disabled");
+        });
+        try (InputStream input = new ByteArrayInputStream(responseBody)) {
+            return builder.parse(input);
+        }
+    }
+
     private byte[] readResponseBody(HttpURLConnection connection, boolean success) throws Exception {
         InputStream stream = success ? connection.getInputStream() : connection.getErrorStream();
         if (stream == null) {
             return new byte[0];
         }
-        try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        return readLimitedResponseBody(stream, MAX_RESPONSE_BODY_BYTES);
+    }
+
+    static byte[] readLimitedResponseBody(InputStream stream, int maxBytes) throws Exception {
+        if (stream == null) {
+            return new byte[0];
+        }
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes must be non-negative");
+        }
+        try (InputStream input = stream;
+             ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(8192, maxBytes))) {
             byte[] buffer = new byte[8192];
             int read;
+            int totalRead = 0;
             while ((read = input.read(buffer)) >= 0) {
+                if (read > maxBytes - totalRead) {
+                    throw new IllegalStateException("WebDAV response body exceeds " + maxBytes + " bytes");
+                }
+                totalRead += read;
                 output.write(buffer, 0, read);
             }
             return output.toByteArray();

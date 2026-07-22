@@ -76,7 +76,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "audioExclusive", "bitPerfect", "usbExclusive", "debugPrompts", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "audioExclusive", "bitPerfect", "usbExclusive", "debugPrompts", "checkUpdateEnabled", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -208,6 +208,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadDebugPromptsEnabled(): Boolean {
             events.add("debugPrompts")
             return debugPromptsEnabled
+        }
+
+        override fun loadCheckUpdateEnabled(): Boolean {
+            events.add("checkUpdateEnabled")
+            return true
         }
 
         override fun loadCustomBackgroundBlurEnabled(): Boolean {

@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,10 +45,10 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
                         appContext.startService(serviceIntent);
                     }
                 } catch (RuntimeException error) {
-                    Log.w(TAG, "System blocked playback restore service startup", error);
+                    DiagnosticLog.w(TAG, "System blocked playback restore service startup", error);
                 }
             } catch (RuntimeException error) {
-                Log.w(TAG, "Playback restore was skipped after a repository failure", error);
+                DiagnosticLog.w(TAG, "Playback restore was skipped after a repository failure", error);
             } finally {
                 pendingResult.finish();
                 restoreExecutor.shutdown();

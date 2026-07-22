@@ -49,6 +49,12 @@ flowchart LR
 
 Service 关闭顺序固定为：停止状态发布 → 持久化队列和位置 → 清理通知 → 解绑 MediaSession → 释放 Player → 关闭 executor。相关行为由 Service runtime/owner 测试保护。
 
+### 音频输出边界
+
+音频焦点、Bit-Perfect 策略和 USB DAC 传输是三个独立设置。`PlaybackAudioOutputCoordinator` 是输出决策与实际状态的唯一 owner；`AudioOutputSnapshot` 报告真实 transport、phase、格式、typed fallback 和 USB 指标。USB 请求在 native 会话完成前只能是 `NEGOTIATING`，不得由系统 `AudioTrack` 的隐藏回退伪装成 `USB_* / ACTIVE`。
+
+USB Java/Kotlin 层只负责设备枚举、授权、`UsbDeviceConnection` 和 FD 生命周期。`:feature:playback` 内动态链接的 libusb 会话负责接口 claim/release、alternate setting、UAC1/UAC2 采样率控制、异步 ISO transfer ring、feedback 与逐包完成状态。PCM sink、DoP renderer 和 DSD extractor 共用这一状态出口；Native DSD 仅允许命中已验证 VID/PID profile，未验证 XMOS reference 保持门控。
+
 ## 状态所有权
 
 | 状态 | 唯一可变 owner | 只读消费者 |

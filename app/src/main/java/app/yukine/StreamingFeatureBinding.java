@@ -2,7 +2,7 @@ package app.yukine;
 
 import android.content.Intent;
 import android.os.Handler;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import androidx.activity.ComponentActivity;
 
@@ -518,7 +518,7 @@ final class StreamingFeatureBinding {
     private void logHeartbeatSeedMiss(HeartbeatRecommendationSeedRequest request) {
         if (request != null && request.getSeedMissingMessage() != null
                 && !request.getSeedMissingMessage().isEmpty()) {
-            Log.w(TAG, request.getSeedMissingMessage());
+            DiagnosticLog.w(TAG, request.getSeedMissingMessage());
         }
     }
 

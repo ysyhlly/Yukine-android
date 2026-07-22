@@ -59,7 +59,10 @@ object CrashLogger {
             append(stack)
         }
 
-        File(dir, "$PREFIX$timestamp.log").writeText(content)
+        File(dir, "$PREFIX$timestamp.log").writeText(
+            DiagnosticRedactor.redact(content),
+            Charsets.UTF_8
+        )
         pruneOldLogs(dir)
     }
 

@@ -348,14 +348,14 @@ class MetadataGatewayClient(
         val plain = item.optString("plainLyrics")
         val wordLyrics = item.optString("wordLyrics")
             .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
+            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
         val wordLyricsSource = item.optString("wordLyricsSource")
         val romanization = item.optString("romanization")
             .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
+            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
         val translation = item.optString("translation")
             .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length < MAX_WORD_LYRICS_LENGTH } ?: ""
+            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
         if (synced.isBlank() && plain.isBlank() && wordLyrics.isBlank()) {
             return@runCatching GatewayLyricsSearchResult(null)
         }

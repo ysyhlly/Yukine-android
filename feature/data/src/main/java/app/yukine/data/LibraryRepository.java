@@ -1,7 +1,7 @@
 package app.yukine.data;
 
 import android.net.Uri;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -978,12 +978,12 @@ public final class LibraryRepository {
             return;
         }
         if (!ProviderRolePolicy.canPersistCanonicalSource(provider)) {
-            Log.d(TAG, "Ignoring resolver-only provider identity provider=" + provider);
+            DiagnosticLog.d(TAG, "Ignoring resolver-only provider identity provider=" + provider);
             return;
         }
         long recordingId = musicIdentityStore.recordingIdForTrack(track.id);
         if (recordingId <= 0L) {
-            Log.w(TAG, "Skipping streaming match without canonical recording trackId=" + track.id);
+            DiagnosticLog.w(TAG, "Skipping streaming match without canonical recording trackId=" + track.id);
             return;
         }
         String cleanProvider = provider.trim().toLowerCase(java.util.Locale.ROOT);
@@ -1100,7 +1100,7 @@ public final class LibraryRepository {
         legacyMatchComparisons.incrementAndGet();
         if (!current.isEmpty() && !legacy.isEmpty() && !current.equals(legacy)) {
             legacyMatchDivergences.incrementAndGet();
-            Log.w(TAG, "Streaming match divergence provider=" + provider
+            DiagnosticLog.w(TAG, "Streaming match divergence provider=" + provider
                     + " trackId=" + trackId
                     + " currentHash=" + Integer.toHexString(current.hashCode())
                     + " legacyHash=" + Integer.toHexString(legacy.hashCode()));
@@ -1533,7 +1533,7 @@ public final class LibraryRepository {
                 String value = contentSignatureProvider.apply(track);
                 signature = value == null ? "" : value.trim();
             } catch (RuntimeException error) {
-                Log.w(TAG, "Unable to compute content signature for track " + track.id, error);
+                DiagnosticLog.w(TAG, "Unable to compute content signature for track " + track.id, error);
                 signature = "";
             }
             if (!signature.isEmpty()) {

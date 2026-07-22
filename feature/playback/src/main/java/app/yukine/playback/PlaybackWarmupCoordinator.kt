@@ -8,7 +8,7 @@ internal class PlaybackWarmupCoordinator @JvmOverloads constructor(
     private val scheduleVisualizationCache: Consumer<Track>,
     private val scheduleCachedFingerprint: Consumer<Track> = Consumer {}
 ) {
-    private var released = false
+    @Volatile private var released = false
 
     fun warmup(track: Track?) {
         if (released || track == null) {

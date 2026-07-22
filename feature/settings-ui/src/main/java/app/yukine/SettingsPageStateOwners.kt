@@ -58,6 +58,17 @@ class AppearanceSettingsStateOwner internal constructor(private val context: Set
         context.save(SettingsPreferenceKey.DebugPromptsEnabled, enabled)
     }
 
+    fun setCheckUpdateEnabled(enabled: Boolean) {
+        context.updatePreferences { it.copy(checkUpdateEnabled = enabled) }
+        context.emitStatus(
+            AppLanguage.text(
+                context.state().preferences.languageMode,
+                if (enabled) "check.update.enabled" else "check.update.disabled"
+            )
+        )
+        context.save(SettingsPreferenceKey.CheckUpdateEnabled, enabled)
+    }
+
     fun setGlassBlurEnabled(enabled: Boolean) {
         context.updatePreferences { it.copy(glassBlurEnabled = enabled) }
         context.save(SettingsPreferenceKey.GlassBlurEnabled, enabled)
@@ -396,6 +407,8 @@ class PlatformSettingsStateOwner internal constructor(private val context: Setti
     fun openFloatingLyricsPermission() = context.emit(SettingsEffect.OpenFloatingLyricsPermission)
     fun exportBackup() = context.emit(SettingsEffect.ExportBackup)
     fun importBackup() = context.emit(SettingsEffect.ImportBackup)
+    fun exportDiagnostics() = context.emit(SettingsEffect.ExportDiagnostics)
+    fun checkGitHubUpdate() = context.emit(SettingsEffect.CheckGitHubUpdate)
 }
 
 private fun normalizePlaybackSpeed(speed: Float): Float =

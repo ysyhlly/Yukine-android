@@ -32,9 +32,11 @@ sealed interface SettingsEffect {
     data class ChoosePageBackground(val page: String) : SettingsEffect
     data object ExportBackup : SettingsEffect
     data object ImportBackup : SettingsEffect
+    data object ExportDiagnostics : SettingsEffect
     data class ApplyStreamingGatewayEndpoint(val endpoint: String) : SettingsEffect
     data class SetKugouExperimentalSyncEnabled(val enabled: Boolean) : SettingsEffect
     data object EditMusicBrainzProxy : SettingsEffect
     data class RestoreHiddenLibraryItem(val sourceKey: String) : SettingsEffect
     data object RestoreAllHiddenLibraryItems : SettingsEffect
+    data object CheckGitHubUpdate : SettingsEffect
 }

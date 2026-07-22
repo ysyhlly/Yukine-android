@@ -1,19 +1,20 @@
 package app.yukine
 
 import android.app.Application
-import android.util.Log
 import app.yukine.backup.BackupManager
 import app.yukine.diagnostics.CrashLogger
+import app.yukine.diagnostics.DiagnosticLog
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class EchoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        if (!BackupManager.applyPendingRestore(this)) {
-            Log.e("EchoApplication", "Pending backup restore could not be applied safely")
-        }
+        DiagnosticLog.install(this)
         CrashLogger.install(this)
+        if (!BackupManager.applyPendingRestore(this)) {
+            DiagnosticLog.e("EchoApplication", "Pending backup restore could not be applied safely")
+        }
         StreamingSessionMaintenanceScheduler.schedule(this)
         FavoriteSyncBackgroundScheduler.restore(this)
         KugouPlaylistSyncScheduler.schedule(this)

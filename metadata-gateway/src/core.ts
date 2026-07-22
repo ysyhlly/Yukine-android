@@ -659,7 +659,7 @@ async function lyricsV2(
   const confidence = match === "exact_metadata" ? 1 : 0.8;
 
   let wordLyrics: string | undefined;
-  let wordLyricsSource: "qqmusic" | "kugou" | undefined;
+  let wordLyricsSource: "netease" | "qqmusic" | "kugou" | undefined;
   let romanization: string | undefined;
   let translation: string | undefined;
   if (query.neteaseSongId) {
@@ -671,7 +671,7 @@ async function lyricsV2(
     );
     if (word) {
       wordLyrics = word.lyrics;
-      wordLyricsSource = "qqmusic";
+      wordLyricsSource = "netease";
       romanization = word.romanization;
       translation = word.translation;
     }

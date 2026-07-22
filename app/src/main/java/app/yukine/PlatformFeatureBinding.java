@@ -33,6 +33,7 @@ final class PlatformFeatureBinding {
     private LibraryFileDeleteLauncher libraryFileDeleteLauncher;
     private DocumentPickerController documentPickerController;
     private BackupRestoreLauncher backupRestoreLauncher;
+    private DiagnosticExportLauncher diagnosticExportLauncher;
     private DownloadRequestController downloadRequestController;
     private DownloadDirectoryOwner downloadDirectoryOwner;
     private LuoxueSourceImportController luoxueSourceImportController;
@@ -120,6 +121,10 @@ final class PlatformFeatureBinding {
         return backupRestoreLauncher;
     }
 
+    DiagnosticExportLauncher diagnosticExportLauncher() {
+        return diagnosticExportLauncher;
+    }
+
     DownloadRequestController downloadRequestController() {
         return downloadRequestController;
     }
@@ -200,6 +205,14 @@ final class PlatformFeatureBinding {
                 library.deletionCompletionOwner()
         );
         backupRestoreLauncher = new BackupRestoreLauncher(
+                activity,
+                statusKey -> {
+                    statusMessageController.setStatusKey(statusKey);
+                    return kotlin.Unit.INSTANCE;
+                },
+                this::languageMode
+        );
+        diagnosticExportLauncher = new DiagnosticExportLauncher(
                 activity,
                 statusKey -> {
                     statusMessageController.setStatusKey(statusKey);

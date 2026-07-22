@@ -24,6 +24,62 @@ public final class PlaybackStateSnapshot {
     public final int outputSampleRateHz;
     public final String bitPerfectFallbackReason;
     public final boolean audioExclusiveActive;
+    public final AudioOutputSnapshot audioOutput;
+
+    public PlaybackStateSnapshot(
+            Track currentTrack,
+            int currentIndex,
+            int queueSize,
+            long positionMs,
+            long durationMs,
+            boolean playing,
+            boolean preparing,
+            String errorMessage,
+            boolean shuffleEnabled,
+            int repeatMode,
+            float playbackSpeed,
+            float appVolume,
+            long sleepTimerRemainingMs,
+            PlaybackWaveformSnapshot waveform,
+            PlaybackSpectrumSnapshot spectrum,
+            float realtimeBeat,
+            long queueRevision,
+            boolean bitPerfectActive,
+            int outputSampleRateHz,
+            String bitPerfectFallbackReason,
+            boolean audioExclusiveActive,
+            AudioOutputSnapshot audioOutput
+    ) {
+        this.currentTrack = currentTrack;
+        this.currentIndex = currentIndex;
+        this.queueSize = Math.max(queueSize, 0);
+        this.queueRevision = Math.max(queueRevision, 0L);
+        this.positionMs = Math.max(positionMs, 0L);
+        this.durationMs = Math.max(durationMs, 0L);
+        this.playing = playing;
+        this.preparing = preparing;
+        this.errorMessage = errorMessage == null ? "" : errorMessage;
+        this.shuffleEnabled = shuffleEnabled;
+        this.repeatMode = repeatMode;
+        this.playbackSpeed = playbackSpeed <= 0f ? 1.0f : playbackSpeed;
+        this.appVolume = Math.max(0.0f, Math.min(appVolume, 1.0f));
+        this.sleepTimerRemainingMs = Math.max(sleepTimerRemainingMs, 0L);
+        this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
+        this.spectrum = spectrum == null ? PlaybackSpectrumSnapshot.empty() : spectrum;
+        this.realtimeBeat = Math.max(0f, Math.min(realtimeBeat, 1f));
+        this.audioOutput = audioOutput == null ? AudioOutputSnapshot.idle() : audioOutput;
+        boolean hasTypedAudioState = this.audioOutput.phase != AudioOutputPhase.IDLE;
+        this.bitPerfectActive = bitPerfectActive
+                && (!hasTypedAudioState || this.audioOutput.phase == AudioOutputPhase.ACTIVE);
+        this.outputSampleRateHz = hasTypedAudioState && this.audioOutput.sampleRateHz > 0
+                ? this.audioOutput.sampleRateHz
+                : Math.max(outputSampleRateHz, 0);
+        this.bitPerfectFallbackReason = hasTypedAudioState
+                && this.audioOutput.fallbackReason != AudioFallbackReason.NONE
+                ? this.audioOutput.fallbackReason.name()
+                : bitPerfectFallbackReason;
+        this.audioExclusiveActive = audioExclusiveActive;
+    }
 
     public PlaybackStateSnapshot(
             Track currentTrack,
@@ -48,27 +104,30 @@ public final class PlaybackStateSnapshot {
             String bitPerfectFallbackReason,
             boolean audioExclusiveActive
     ) {
-        this.currentTrack = currentTrack;
-        this.currentIndex = currentIndex;
-        this.queueSize = Math.max(queueSize, 0);
-        this.queueRevision = Math.max(queueRevision, 0L);
-        this.positionMs = Math.max(positionMs, 0L);
-        this.durationMs = Math.max(durationMs, 0L);
-        this.playing = playing;
-        this.preparing = preparing;
-        this.errorMessage = errorMessage == null ? "" : errorMessage;
-        this.shuffleEnabled = shuffleEnabled;
-        this.repeatMode = repeatMode;
-        this.playbackSpeed = playbackSpeed <= 0f ? 1.0f : playbackSpeed;
-        this.appVolume = Math.max(0.0f, Math.min(appVolume, 1.0f));
-        this.sleepTimerRemainingMs = Math.max(sleepTimerRemainingMs, 0L);
-        this.waveform = waveform == null ? PlaybackWaveformSnapshot.empty() : waveform;
-        this.spectrum = spectrum == null ? PlaybackSpectrumSnapshot.empty() : spectrum;
-        this.realtimeBeat = Math.max(0f, Math.min(realtimeBeat, 1f));
-        this.bitPerfectActive = bitPerfectActive;
-        this.outputSampleRateHz = Math.max(outputSampleRateHz, 0);
-        this.bitPerfectFallbackReason = bitPerfectFallbackReason;
-        this.audioExclusiveActive = audioExclusiveActive;
+        this(
+                currentTrack,
+                currentIndex,
+                queueSize,
+                positionMs,
+                durationMs,
+                playing,
+                preparing,
+                errorMessage,
+                shuffleEnabled,
+                repeatMode,
+                playbackSpeed,
+                appVolume,
+                sleepTimerRemainingMs,
+                waveform,
+                spectrum,
+                realtimeBeat,
+                queueRevision,
+                bitPerfectActive,
+                outputSampleRateHz,
+                bitPerfectFallbackReason,
+                audioExclusiveActive,
+                AudioOutputSnapshot.idle()
+        );
     }
 
     public PlaybackStateSnapshot(

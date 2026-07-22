@@ -37,6 +37,8 @@ final class PlaybackStateSnapshotOwner {
         String bitPerfectFallbackReason();
 
         boolean audioExclusiveActive();
+
+        AudioOutputSnapshot audioOutput();
     }
 
     interface RuntimeStateManagerProvider {
@@ -150,6 +152,11 @@ final class PlaybackStateSnapshotOwner {
                 return false;
             }
 
+            @Override
+            public AudioOutputSnapshot audioOutput() {
+                return AudioOutputSnapshot.idle();
+            }
+
             private PlaybackRuntimeStateManager runtimeStateManager() {
                 return runtimeStateManagerProvider == null ? null : runtimeStateManagerProvider.runtimeStateManager();
             }
@@ -240,7 +247,8 @@ final class PlaybackStateSnapshotOwner {
                 runtimeStateProvider != null && runtimeStateProvider.bitPerfectActive(),
                 runtimeStateProvider == null ? 0 : runtimeStateProvider.outputSampleRateHz(),
                 runtimeStateProvider == null ? null : runtimeStateProvider.bitPerfectFallbackReason(),
-                runtimeStateProvider != null && runtimeStateProvider.audioExclusiveActive()
+                runtimeStateProvider != null && runtimeStateProvider.audioExclusiveActive(),
+                runtimeStateProvider == null ? AudioOutputSnapshot.idle() : runtimeStateProvider.audioOutput()
         );
     }
 }

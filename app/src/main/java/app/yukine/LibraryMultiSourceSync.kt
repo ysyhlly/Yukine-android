@@ -1,6 +1,6 @@
 package app.yukine
 
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.identity.MusicIdentityDiagnostics
 import app.yukine.model.Track
@@ -531,7 +531,7 @@ internal class LibraryMultiSourceSyncCoordinator(
 
     private fun logDiagnostics() {
         runCatching {
-            Log.d(
+            DiagnosticLog.d(
                 DIAGNOSTIC_TAG,
                 "$DIAGNOSTIC_OPERATION ${diagnostics.snapshot(DIAGNOSTIC_OPERATION).compactSummary()}"
             )

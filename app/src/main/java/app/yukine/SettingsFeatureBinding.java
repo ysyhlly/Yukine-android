@@ -73,6 +73,7 @@ final class SettingsFeatureBinding {
             DocumentPickerController documentPickerController,
             LuoxueSourceImportDialogController luoxueSourceImportDialogController,
             BackupRestoreLauncher backupRestoreLauncher,
+            DiagnosticExportLauncher diagnosticExportLauncher,
             NavigationViewModel navigationViewModel,
             StreamingGatewaySettingsStore streamingGatewaySettingsStore,
             LuoxueSourceStore luoxueSourceStore,
@@ -115,7 +116,13 @@ final class SettingsFeatureBinding {
                         statusMessages::setStatus,
                         navigation.getRouteController()::setSettingsPage,
                         navigation::navigateToNetworkTabPage,
-                        () -> navigation.navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true)
+                        () -> navigation.navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true),
+                        () -> new GitHubUpdateChecker(
+                                activity,
+                                java.util.concurrent.Executors.newSingleThreadExecutor(),
+                                mainHandler,
+                                this::languageMode
+                        ).check()
                 ),
                 new SettingsLibraryEffectActions(
                         permissionController::requestNeededPermissions,
@@ -198,7 +205,8 @@ final class SettingsFeatureBinding {
                 new SettingsFileEffectActions(
                         backgroundImagePickerController::open,
                         backupRestoreLauncher::exportBackup,
-                        backupRestoreLauncher::importBackup
+                        backupRestoreLauncher::importBackup,
+                        diagnosticExportLauncher::showOptions
                 ),
                 new SettingsStreamingEffectActions(
                         streaming::applyEndpoint,

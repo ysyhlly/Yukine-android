@@ -157,6 +157,10 @@ class ApplySettingsPreferenceUseCaseTest {
             events.add("debugPrompts:$enabled")
         }
 
+        override fun saveCheckUpdateEnabled(enabled: Boolean) {
+            events.add("checkUpdateEnabled:$enabled")
+        }
+
         override fun saveCustomBackgroundBlurEnabled(enabled: Boolean) {
             events.add("customBackgroundBlurEnabled:$enabled")
         }

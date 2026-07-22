@@ -86,4 +86,27 @@ class LuoxueSourceStoreTest {
             store.remove(second.id)
         }
     }
+
+    @Test
+    fun incompatibleSourceQuarantinePersistsWithoutDeletingTheImportedScript() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = LuoxueSourceStore(context)
+        val source = LuoxueImportedSource(
+            id = "quarantine-${UUID.randomUUID()}",
+            name = "Incompatible source",
+            script = "globalThis.lx = globalThis.lx || {}"
+        )
+
+        try {
+            assertEquals(1, store.saveAll(listOf(source)))
+
+            disablingLuoxueSourceQuarantine(store).quarantine(source, "missing request handler")
+
+            val restored = LuoxueSourceStore(context).load().first { it.id == source.id }
+            assertFalse(restored.enabled)
+            assertEquals(source.script, restored.script)
+        } finally {
+            store.remove(source.id)
+        }
+    }
 }

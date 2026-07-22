@@ -1,6 +1,7 @@
 package app.yukine.playback;
 
 import android.net.wifi.WifiManager;
+import android.os.Build;
 
 import app.yukine.playback.manager.PlaybackWifiLockManager;
 
@@ -19,6 +20,12 @@ final class PlaybackWifiLockOwner implements PlaybackWifiLockManager.Lock {
         return new PlaybackWifiLockOwner(
                 wifiLock == null ? null : new AndroidWifiLockOperations(wifiLock)
         );
+    }
+
+    static int preferredModeForSdk(int sdkInt) {
+        return sdkInt >= Build.VERSION_CODES.Q
+                ? WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                : WifiManager.WIFI_MODE_FULL;
     }
 
     PlaybackWifiLockOwner(WifiLockOperations wifiLockOperations) {

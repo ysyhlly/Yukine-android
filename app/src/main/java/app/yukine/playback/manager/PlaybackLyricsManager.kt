@@ -131,7 +131,7 @@ internal class PlaybackLyricsManager(
             return ""
         }
         val state = FloatingLyricsPublisher.snapshot()
-        if (track.title != state.trackTitle) {
+        if (!floatingLyricsTrackMatches(state, track)) {
             return ""
         }
         val activeLine = state.activeLine

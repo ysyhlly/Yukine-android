@@ -6,6 +6,7 @@ import app.yukine.model.LyricsDocument
 import app.yukine.model.LyricsLine
 import app.yukine.model.LyricsTrackRole
 import app.yukine.model.Track
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -282,15 +283,21 @@ class LyricsViewModel @JvmOverloads constructor(
             )
         }
         val loadJob = viewModelScope.launch {
-            val loadedDocument = withContext(ioDispatcher) {
-                val loader = lyricsLoader
-                when (loader) {
-                    is RichLyricsLoader -> loader.loadDocument(track, requestOnline, providerTrackId)
-                    null -> LyricsDocument.empty()
-                    else -> LyricsDocument.fromLegacy(
-                        loader.load(track, requestOnline, providerTrackId)
-                    )
+            val loadedDocument = try {
+                withContext(ioDispatcher) {
+                    val loader = lyricsLoader
+                    when (loader) {
+                        is RichLyricsLoader -> loader.loadDocument(track, requestOnline, providerTrackId)
+                        null -> LyricsDocument.empty()
+                        else -> LyricsDocument.fromLegacy(
+                            loader.load(track, requestOnline, providerTrackId)
+                        )
+                    }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                LyricsDocument.empty()
             }
             val loadedLines = loadedDocument.primaryLegacyLines()
             if (token != requestToken || _state.value.trackId != requestedTrackId) {

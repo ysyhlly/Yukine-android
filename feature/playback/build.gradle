@@ -8,6 +8,16 @@ android {
 
     defaultConfig {
         minSdk 23
+
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17 -O2"
+            }
+        }
     }
 
     compileOptions {
@@ -23,6 +33,13 @@ android {
     testOptions {
         unitTests {
             returnDefaultValues = true
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
         }
     }
 }

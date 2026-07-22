@@ -103,6 +103,17 @@ internal fun interface LuoxueScriptHttpClient {
     fun execute(request: LuoxueScriptHttpRequest): LuoxueScriptHttpResponse
 }
 
+/** Persists isolation of an imported source whose script cannot initialize against this host. */
+internal fun interface LuoxueSourceQuarantine {
+    fun quarantine(source: LuoxueImportedSource, reason: String)
+}
+
+internal fun disablingLuoxueSourceQuarantine(
+    sourceStore: LuoxueSourceStoreManager?
+): LuoxueSourceQuarantine = LuoxueSourceQuarantine { source, _ ->
+    sourceStore?.setEnabled(source.id, false)
+}
+
 /**
  * Executes the small HTTP surface exposed to LX scripts. It deliberately exposes no Android API,
  * cookies, local files, or private-network targets to imported script code.
@@ -227,7 +238,8 @@ private class ByteArrayOutputStreamLimited(
  * imported code away from the UI and playback-service lifecycles.
  */
 internal class QuickJsLuoxueScriptRuntime(
-    private val httpClient: LuoxueScriptHttpClient = DefaultLuoxueScriptHttpClient()
+    private val httpClient: LuoxueScriptHttpClient = DefaultLuoxueScriptHttpClient(),
+    private val sourceQuarantine: LuoxueSourceQuarantine = LuoxueSourceQuarantine { _, _ -> }
 ) : LuoxueScriptRuntime {
     /**
      * quickjs-kt completes bound async functions from its own coroutines. Cancelling the caller
@@ -381,6 +393,8 @@ internal class QuickJsLuoxueScriptRuntime(
         actionInfo: JSONObject
     ): String {
         val quickJs = QuickJs.create(Dispatchers.IO)
+        var sourceEvaluationStarted = false
+        var sourceContractValidated = false
         return try {
             quickJs.memoryLimit = MAX_MEMORY_BYTES
             quickJs.maxStackSize = MAX_STACK_BYTES
@@ -398,17 +412,34 @@ internal class QuickJsLuoxueScriptRuntime(
             }
             val sourceName = safeScriptSourceName(source)
             quickJs.evaluate<Any?>(bootstrap(source), sourceName)
+            sourceEvaluationStarted = true
             quickJs.evaluate<Any?>(source.script, sourceName)
             awaitSourceInitialization(quickJs)
-            validateInitializedSource(quickJs, source, sourceKey, action)
+            validateHostContract(quickJs)
+            sourceContractValidated = true
+            validateSourceCapability(quickJs, source, sourceKey, action)
             quickJs.evaluate<String>(
                 invocation(sourceKey, action, actionInfo),
                 source.origin.ifBlank { "lx-source.js" }
             )
             awaitActionResult(quickJs)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: StreamingGatewayException) {
+            quarantineIncompatibleSource(
+                source,
+                error,
+                sourceEvaluationStarted,
+                sourceContractValidated
+            )
             throw error
         } catch (error: Throwable) {
+            quarantineIncompatibleSource(
+                source,
+                error,
+                sourceEvaluationStarted,
+                sourceContractValidated
+            )
             throw StreamingGatewayException(
                 "LX 音源「${source.name}」${action} 解析失败：${error.message ?: "未知错误"}",
                 cause = error,
@@ -417,6 +448,18 @@ internal class QuickJsLuoxueScriptRuntime(
             )
         } finally {
             quickJs.close()
+        }
+    }
+
+    private fun quarantineIncompatibleSource(
+        source: LuoxueImportedSource,
+        error: Throwable,
+        sourceEvaluationStarted: Boolean,
+        sourceContractValidated: Boolean
+    ) {
+        if (!sourceEvaluationStarted || sourceContractValidated) return
+        runCatching {
+            sourceQuarantine.quarantine(source, error.message ?: "LX 音源初始化失败")
         }
     }
 
@@ -438,12 +481,7 @@ internal class QuickJsLuoxueScriptRuntime(
         throw IllegalStateException("LX 音源异步初始化超时")
     }
 
-    private suspend fun validateInitializedSource(
-        quickJs: QuickJs,
-        source: LuoxueImportedSource,
-        sourceKey: String,
-        action: String
-    ) {
+    private suspend fun validateHostContract(quickJs: QuickJs) {
         val hasHandler = quickJs.evaluate<Boolean>(
             "typeof globalThis.__yukineLxRequestHandler === 'function'"
         )
@@ -454,6 +492,15 @@ internal class QuickJsLuoxueScriptRuntime(
         if (initJson.isBlank()) {
             throw IllegalStateException("LX 音源未发送 inited 事件")
         }
+    }
+
+    private suspend fun validateSourceCapability(
+        quickJs: QuickJs,
+        source: LuoxueImportedSource,
+        sourceKey: String,
+        action: String
+    ) {
+        val initJson = quickJs.evaluate<String>("globalThis.__yukineLxInit || ''")
         val sources = runCatching {
             JSONObject(initJson).optJSONObject("sources")
         }.getOrNull()
@@ -802,8 +849,8 @@ internal class QuickJsLuoxueScriptRuntime(
     private companion object {
         private const val SCRIPT_TIMEOUT_MS = 12_000L
         private const val SOURCE_INIT_TIMEOUT_MS = 8_000L
-        private const val SOURCE_INIT_POLL_MS = 25L
-        private const val ACTION_POLL_MS = 25L
+        private const val SOURCE_INIT_POLL_MS = 50L
+        private const val ACTION_POLL_MS = 50L
         private const val CANCEL_CLEANUP_TIMEOUT_MS = 2_000L
         private const val DEFAULT_HTTP_TIMEOUT_MS = 10_000
         private const val MIN_HTTP_TIMEOUT_MS = 1_000

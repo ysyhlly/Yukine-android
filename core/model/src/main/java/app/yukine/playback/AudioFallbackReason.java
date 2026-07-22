@@ -1,0 +1,20 @@
+package app.yukine.playback;
+
+/** Stable, localizable reasons why the requested output could not be activated. */
+public enum AudioFallbackReason {
+    NONE,
+    NO_USB_DEVICE,
+    USB_PERMISSION_DENIED,
+    NATIVE_LIBRARY_UNAVAILABLE,
+    NO_COMPATIBLE_ENDPOINT,
+    CLOCK_NEGOTIATION_FAILED,
+    TRANSFER_FAILED,
+    DEVICE_DETACHED,
+    NATIVE_DSD_PROFILE_MISSING,
+    DOP_UNSUPPORTED,
+    FORMAT_UNSUPPORTED,
+    REMOTE_DSD_NOT_CACHED,
+    DST_UNSUPPORTED,
+    OFFLOAD_UNAVAILABLE,
+    OFFLOAD_FAILED
+}

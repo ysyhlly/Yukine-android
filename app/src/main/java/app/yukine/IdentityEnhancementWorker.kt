@@ -1,7 +1,7 @@
 package app.yukine
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -50,7 +50,7 @@ class IdentityEnhancementWorker(
         if (settings.mode() == MetadataGatewayMode.OFFLINE) return@withContext Result.success()
         val metadataEndpoint = settings.effectiveGatewayEndpoint()
         if (metadataEndpoint.isBlank()) {
-            Log.i(TAG, "Metadata gateway is not configured; identity enhancement remains offline")
+            DiagnosticLog.i(TAG, "Metadata gateway is not configured; identity enhancement remains offline")
             return@withContext Result.success()
         }
         val jobs = RoomIdentityJobRepository(database)
@@ -115,7 +115,7 @@ class IdentityEnhancementWorker(
                 if (outcome.retried > 0 && outcome.succeeded == 0) Result.retry() else Result.success()
             },
             onFailure = { error ->
-                Log.w(TAG, "Identity enhancement run failed", error)
+                DiagnosticLog.w(TAG, "Identity enhancement run failed", error)
                 Result.retry()
             }
         )
@@ -253,6 +253,6 @@ object IdentityEnhancementScheduler {
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
                     .build()
             )
-        }.onFailure { error -> Log.w(TAG, "Unable to schedule identity enhancement", error) }
+        }.onFailure { error -> DiagnosticLog.w(TAG, "Unable to schedule identity enhancement", error) }
     }
 }

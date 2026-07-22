@@ -187,6 +187,7 @@ internal class MainActivityComposition @Inject constructor(
             platform.documentPickerController(),
             platform.luoxueSourceImportDialogController(),
             platform.backupRestoreLauncher(),
+            platform.diagnosticExportLauncher(),
             viewModels.navigationViewModel,
             deps.streamingGatewaySettingsStore,
             deps.luoxueSourceStore,

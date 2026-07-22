@@ -67,6 +67,7 @@ internal class PlaybackSleepTimerManager @JvmOverloads constructor(
         if (remainingMs <= 0L) {
             endsAtMs = 0L
             actions.pausePlayback()
+            actions.publishState()
             return
         }
         actions.publishState()

@@ -1,7 +1,7 @@
 package app.yukine
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -165,7 +165,7 @@ object KugouPlaylistSyncScheduler {
                     .build()
             )
         }.onFailure { error ->
-            Log.w(TAG, "Unable to schedule Kugou playlist sync", error)
+            DiagnosticLog.w(TAG, "Unable to schedule Kugou playlist sync", error)
         }
     }
 }

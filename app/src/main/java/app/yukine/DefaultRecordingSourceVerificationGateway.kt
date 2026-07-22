@@ -3,7 +3,6 @@ package app.yukine
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.util.Base64
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.data.RecordingSourceVerification
 import app.yukine.data.RecordingSourceVerificationGateway
@@ -14,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -28,13 +28,15 @@ class DefaultRecordingSourceVerificationGateway @Inject constructor(
 ) : RecordingSourceVerificationGateway {
     override suspend fun verify(source: TrackSourceMapping): RecordingSourceVerification =
         withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 when (source.provider.trim().lowercase()) {
                     "local", "document" -> verifyLocal(source)
                     "webdav" -> verifyWebDav(source)
                     else -> verifyStreaming(source)
                 }
-            }.getOrElse { error ->
+            } catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
                 RecordingSourceVerification(
                     success = false,
                     failureReason = error.safeFailureReason()
@@ -90,15 +92,7 @@ class DefaultRecordingSourceVerificationGateway @Inject constructor(
         val remote = requireNotNull(musicLibraryRepository.loadRemoteSource(remoteSourceId)) {
             "WebDAV account unavailable"
         }
-        val headers = buildMap {
-            if (remote.username.isNotBlank()) {
-                val credential = Base64.encodeToString(
-                    "${remote.username}:${remote.password}".toByteArray(Charsets.UTF_8),
-                    Base64.NO_WRAP
-                )
-                put("Authorization", "Basic $credential")
-            }
-        }
+        val headers = webDavAuthorizationHeaders(url, remote.username, remote.password)
         val probe = RecordingHttpProbe.probe(url, headers)
         return RecordingSourceVerification(
             success = true,
@@ -161,10 +155,26 @@ class DefaultRecordingSourceVerificationGateway @Inject constructor(
             "Invalid WebDAV source",
             "Invalid WebDAV URL",
             "WebDAV account unavailable",
+            "WebDAV authentication requires HTTPS",
             "Unsupported provider",
             "Empty response"
         )
     }
+}
+
+internal fun webDavAuthorizationHeaders(
+    url: String,
+    username: String,
+    password: String
+): Map<String, String> {
+    if (username.isBlank()) return emptyMap()
+    require(URL(url).protocol.equals("https", ignoreCase = true)) {
+        "WebDAV authentication requires HTTPS"
+    }
+    val credential = Base64.getEncoder().encodeToString(
+        "$username:$password".toByteArray(Charsets.UTF_8)
+    )
+    return mapOf("Authorization" to "Basic $credential")
 }
 
 internal data class RecordingProbeResult(val codec: String)

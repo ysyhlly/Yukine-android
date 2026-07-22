@@ -1,38 +1,42 @@
 package app.yukine.playback.usb
 
-import android.hardware.usb.UsbDeviceConnection
 import android.os.HandlerThread
 import android.os.Handler
 import android.os.Process
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Dedicated writer thread that transfers PCM audio data to a USB DAC via bulk transfer.
+ * Dedicated writer thread that transfers PCM audio data to a USB DAC.
  *
  * @param config USB audio stream configuration.
- * @param endpoint The USB endpoint to write to.
+ * @param transport Endpoint-type-specific USB transport.
  * @param onError Callback invoked when a fatal USB write error occurs.
  */
 internal class UsbPcmWriter(
     private val config: UsbAudioStreamConfig,
-    private val endpoint: android.hardware.usb.UsbEndpoint,
-    private val onError: () -> Unit
+    private val transport: UsbPcmTransport,
+    private val onError: (String) -> Unit,
+    private val onMetrics: (UsbPcmWriterMetrics) -> Unit = {}
 ) {
     companion object {
         private const val TAG = "UsbPcmWriter"
         private const val QUEUE_CAPACITY = 64
-        private const val BULK_TIMEOUT_MS = 200
+        private const val STOP_JOIN_TIMEOUT_MS = 1_500L
+        private const val PAUSED_POLL_INTERVAL_MS = 10L
     }
 
     private val bufferQueue = ArrayBlockingQueue<ByteArray>(QUEUE_CAPACITY)
     private val running = AtomicBoolean(false)
+    private val playbackEnabled = AtomicBoolean(true)
     private val framesWritten = AtomicLong(0)
+    private val queueFullCount = AtomicLong(0)
+    private val underrunCount = AtomicLong(0)
+    private val closed = AtomicBoolean(false)
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
-    private var connection: UsbDeviceConnection? = null
 
     /** Total audio frames successfully written to the USB endpoint. */
     val totalFramesWritten: Long get() = framesWritten.get()
@@ -47,11 +51,10 @@ internal class UsbPcmWriter(
     /**
      * Starts the writer thread and begins consuming buffers.
      *
-     * @param usbConnection Open USB device connection.
      */
-    fun start(usbConnection: UsbDeviceConnection) {
+    fun start() {
         if (running.getAndSet(true)) return
-        connection = usbConnection
+        closed.set(false)
         framesWritten.set(0)
         bufferQueue.clear()
 
@@ -60,20 +63,30 @@ internal class UsbPcmWriter(
         thread = ht
         handler = Handler(ht.looper)
         handler?.post(::writeLoop)
-        Log.d(TAG, "USB PCM writer started, endpoint=0x${Integer.toHexString(config.endpointAddress)}")
+        DiagnosticLog.d(TAG, "USB PCM writer started, endpoint=0x${Integer.toHexString(config.endpointAddress)}")
     }
 
     /**
      * Stops the writer thread and releases resources.
      */
     fun stop() {
-        if (!running.getAndSet(false)) return
+        running.set(false)
+        if (thread == null && closed.get()) return
         bufferQueue.clear()
-        thread?.quitSafely()
+        transport.cancel()
+        val writerThread = thread
+        writerThread?.quitSafely()
+        if (writerThread != null && writerThread !== Thread.currentThread()) {
+            try {
+                writerThread.join(STOP_JOIN_TIMEOUT_MS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
+        if (closed.compareAndSet(false, true)) transport.close()
         thread = null
         handler = null
-        connection = null
-        Log.d(TAG, "USB PCM writer stopped, totalFrames=${framesWritten.get()}")
+        DiagnosticLog.d(TAG, "USB PCM writer stopped, totalFrames=${framesWritten.get()}")
     }
 
     /**
@@ -84,7 +97,13 @@ internal class UsbPcmWriter(
      */
     fun queueBuffer(pcmData: ByteArray): Boolean {
         if (!running.get()) return false
-        return bufferQueue.offer(pcmData)
+        val queued = bufferQueue.offer(pcmData)
+        if (!queued) queueFullCount.incrementAndGet()
+        // A full non-blocking sink is retried by Media3 in a tight render loop. Publishing a
+        // metrics object on every rejected retry creates severe allocation/GC pressure. The
+        // writer thread publishes the updated queueFullCount on its next completed transfer.
+        if (queued) publishMetrics()
+        return queued
     }
 
     /**
@@ -93,6 +112,7 @@ internal class UsbPcmWriter(
     fun resetPosition() {
         framesWritten.set(0)
         bufferQueue.clear()
+        transport.reset()
     }
 
     /**
@@ -100,41 +120,89 @@ internal class UsbPcmWriter(
      */
     fun queuedBufferCount(): Int = bufferQueue.size
 
+    /** Allows Media3 to prebuffer while paused without sending audio to the DAC. */
+    fun setPlaybackEnabled(enabled: Boolean) {
+        playbackEnabled.set(enabled)
+    }
+
     private fun writeLoop() {
-        val conn = connection ?: return
-        val maxPacket = config.maxPacketSize
         val bytesPerFrame = config.bytesPerFrame
+        var receivedAudio = false
+        var starving = false
 
         while (running.get()) {
+            if (!playbackEnabled.get()) {
+                try {
+                    Thread.sleep(PAUSED_POLL_INTERVAL_MS)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                continue
+            }
             val buffer = try {
                 bufferQueue.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS)
             } catch (_: InterruptedException) {
                 break
-            } ?: continue
-
-            var offset = 0
-            while (offset < buffer.size && running.get()) {
-                val packetSize = minOf(maxPacket, buffer.size - offset)
-                val packet = buffer.copyOfRange(offset, offset + packetSize)
-                val written = try {
-                    conn.bulkTransfer(endpoint, packet, packetSize, BULK_TIMEOUT_MS)
-                } catch (e: Exception) {
-                    Log.e(TAG, "USB bulk transfer exception: ${e.message}")
-                    -1
-                }
-
-                if (written < 0) {
-                    Log.e(TAG, "USB bulk transfer failed (device disconnected?)")
-                    running.set(false)
-                    onError()
-                    return
-                }
-
-                offset += written
-                if (bytesPerFrame > 0) {
-                    framesWritten.addAndGet((written / bytesPerFrame).toLong())
-                }
             }
+            if (buffer == null) {
+                if (receivedAudio && !starving) {
+                    starving = true
+                    underrunCount.incrementAndGet()
+                    publishMetrics()
+                }
+                continue
+            }
+            receivedAudio = true
+            starving = false
+
+            val written = try {
+                transport.write(buffer)
+            } catch (e: Exception) {
+                DiagnosticLog.e(TAG, "USB transfer exception: ${e.message}")
+                -1
+            }
+
+            if (written != buffer.size) {
+                DiagnosticLog.e(TAG, "USB transfer failed (device disconnected or rejected stream)")
+                running.set(false)
+                publishMetrics()
+                onError(transport.metrics().lastError.ifBlank { "USB transfer failed" })
+                return
+            }
+
+            if (bytesPerFrame > 0) {
+                framesWritten.addAndGet((written / bytesPerFrame).toLong())
+            }
+            publishMetrics()
         }
     }
+
+    private fun publishMetrics() {
+        val transfer = transport.metrics()
+        onMetrics(
+            UsbPcmWriterMetrics(
+                queueDepth = bufferQueue.size,
+                submittedPackets = transfer.submittedPackets,
+                completedPackets = transfer.completedPackets,
+                failedPackets = transfer.failedPackets,
+                queueFullCount = queueFullCount.get(),
+                underruns = underrunCount.get(),
+                framesWritten = framesWritten.get(),
+                feedbackRateHz = transfer.feedbackRateHz,
+                lastError = transfer.lastError
+            )
+        )
+    }
 }
+
+internal data class UsbPcmWriterMetrics(
+    val queueDepth: Int = 0,
+    val submittedPackets: Long = 0,
+    val completedPackets: Long = 0,
+    val failedPackets: Long = 0,
+    val queueFullCount: Long = 0,
+    val underruns: Long = 0,
+    val framesWritten: Long = 0,
+    val feedbackRateHz: Double = 0.0,
+    val lastError: String = ""
+)

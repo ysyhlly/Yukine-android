@@ -102,7 +102,9 @@ class SettingsViewModelTest {
         viewModel.library.loadLibrary()
 
         assertEquals(SettingsUiState(), viewModel.uiState.value)
-        assertEquals(SettingsState(), viewModel.state.value)
+        assertEquals(SettingsPage.Home, viewModel.state.value.page)
+        assertEquals(SettingsPreferencesSnapshot(), viewModel.state.value.preferences)
+        assertEquals(emptyList<SettingsAction>(), viewModel.state.value.actions)
         assertEquals(listOf(SettingsEffect.LoadLibrary), viewModel.drainEffects())
     }
 
@@ -879,6 +881,7 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.BitPerfectEnabled -> "bitPerfect:${update.value}"
                 SettingsPreferenceKey.UsbExclusiveEnabled -> "usbExclusive:${update.value}"
                 SettingsPreferenceKey.DebugPromptsEnabled -> "debugPrompts:${update.value}"
+                SettingsPreferenceKey.CheckUpdateEnabled -> "checkUpdate:${update.value}"
                 SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
                     "customBackgroundBlurEnabled:${update.value}"
                 SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->

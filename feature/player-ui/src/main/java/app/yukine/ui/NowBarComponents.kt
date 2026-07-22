@@ -77,8 +77,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -305,7 +303,14 @@ private fun DockedPlaybackIndicator(icon: EchoIconKind) {
 
 @Composable
 internal fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
-    val activeLineData = state.lyrics.lines.firstOrNull { it.active }
+    val positionMs = rememberSmoothLyricPosition(
+        trackId = state.track.trackId,
+        playbackPositionMs = state.progress.positionMs,
+        playing = state.progress.playing,
+        offsetMs = state.lyrics.offsetMs
+    )
+    val activeIndex = activeLyricIndex(state.lyrics.lines, positionMs)
+    val activeLineData = state.lyrics.lines.getOrNull(activeIndex)
         ?: state.lyrics.lines.firstOrNull()
     val activeLine = activeLineData?.text
         ?: state.lyrics.status
@@ -316,11 +321,6 @@ internal fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
     val p = EchoTheme.colors()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    val displayText = if (activeLineData != null && activeLineData.words.isNotEmpty()) {
-        buildNowBarHighlightedWords(activeLineData, state.progress.positionMs, p.accent, p.muted)
-    } else {
-        AnnotatedString(activeLine.replace('\n', ' '))
-    }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -337,44 +337,23 @@ internal fun MiniLyricsStrip(state: NowBarState, compactProgress: Float) {
         color = p.accentSoft.copy(alpha = 0.32f)
     ) {
         Box(contentAlignment = Alignment.CenterStart) {
-            Text(
-                text = displayText,
+            KaraokeLyricText(
+                line = activeLineData?.copy(
+                    text = activeLine.replace('\n', ' '),
+                    active = activeIndex >= 0
+                ) ?: LyricUiLine(activeLine.replace('\n', ' '), active = false),
+                positionMs = positionMs,
+                activeColor = if (activeIndex >= 0) p.accent else p.muted,
+                inactiveColor = p.muted,
                 style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
-                color = p.accent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 9.dp)
+                textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 9.dp)
             )
         }
-    }
-}
-
-private fun buildNowBarHighlightedWords(
-    line: LyricUiLine,
-    positionMs: Long,
-    activeColor: Color,
-    inactiveColor: Color
-): AnnotatedString = buildAnnotatedString {
-    var searchFrom = 0
-    line.words.forEach { word ->
-        val (start, end) = word.textBounds(line.text, searchFrom) ?: return@forEach
-        val completed = positionMs >= word.endMs
-        val current = word.isActiveAt(positionMs)
-        val color = if (completed || current) activeColor else inactiveColor
-        val weight = if (current) FontWeight.Bold else null
-        append(AnnotatedString(
-            text = line.text.substring(start, end),
-            spanStyles = listOf(
-                AnnotatedString.Range(
-                    SpanStyle(color = color, fontWeight = weight),
-                    0, end - start
-                )
-            )
-        ))
-        searchFrom = end
-    }
-    if (searchFrom < line.text.length) {
-        append(line.text.substring(searchFrom))
     }
 }
 

@@ -170,6 +170,41 @@ class StreamingRepositoryTest {
     }
 
     @Test
+    fun searchSkipsCacheWriteWhenCacheIsDisabled() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 2_000L }
+        val repository = StreamingRepository(
+            gateway = FakeStreamingGateway(searchResult = searchResult("remote-track")),
+            cache = cache
+        )
+
+        repository.search(
+            provider = StreamingProviderName.NETEASE,
+            query = "echo",
+            useCache = false
+        )
+
+        assertTrue(dao.searches.isEmpty())
+    }
+
+    @Test
+    fun searchDoesNotCacheEmptyGatewayResult() = runTest {
+        val dao = FakeStreamingCacheDao()
+        val cache = StreamingCacheRepository(dao) { 2_000L }
+        val repository = StreamingRepository(
+            gateway = FakeStreamingGateway(),
+            cache = cache
+        )
+
+        repository.search(
+            provider = StreamingProviderName.NETEASE,
+            query = "missing"
+        )
+
+        assertTrue(dao.searches.isEmpty())
+    }
+
+    @Test
     fun resolvePlaybackUsesAndWritesCache() = runTest {
         val dao = FakeStreamingCacheDao()
         val cache = StreamingCacheRepository(dao) { 3_000L }

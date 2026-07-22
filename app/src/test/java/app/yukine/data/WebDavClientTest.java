@@ -3,6 +3,7 @@ package app.yukine.data;
 import org.junit.Test;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Constructor;
@@ -25,8 +26,37 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThrows;
 
 public final class WebDavClientTest {
+    @Test
+    public void directoryXmlRejectsExternalEntities() {
+        byte[] maliciousXml = ("<?xml version=\"1.0\"?>"
+                + "<!DOCTYPE d:multistatus [<!ENTITY xxe SYSTEM \"file:///system/build.prop\">]>"
+                + "<d:multistatus xmlns:d=\"DAV:\"><d:response>&xxe;</d:response></d:multistatus>")
+                .getBytes(StandardCharsets.UTF_8);
+
+        assertThrows(Exception.class, () -> WebDavClient.parseDirectoryDocument(maliciousXml));
+    }
+
+    @Test
+    public void responseBodyLimitAcceptsExactSizeAndRejectsNextByte() throws Exception {
+        byte[] exact = new byte[8];
+        byte[] oversized = new byte[9];
+
+        assertArrayEquals(
+                exact,
+                WebDavClient.readLimitedResponseBody(new ByteArrayInputStream(exact), exact.length)
+        );
+        assertThrows(
+                IllegalStateException.class,
+                () -> WebDavClient.readLimitedResponseBody(
+                        new ByteArrayInputStream(oversized),
+                        exact.length
+                )
+        );
+    }
+
     @Test
     public void directoryUrlJoinsBaseAndRootWithSingleSlash() throws Exception {
         RemoteSource source = new RemoteSource(

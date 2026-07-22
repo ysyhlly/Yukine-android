@@ -78,6 +78,10 @@ class TrackDownloadManager internal constructor(
 
     init {
         restoreRecords()
+        val minCustomId = synchronized(records) { records.keys.filter { it < 0L }.minOrNull() }
+        if (minCustomId != null) {
+            customIdCounter.set(minCustomId - 1L)
+        }
     }
 
     override fun enqueue(track: Track, quality: StreamingAudioQuality): TrackDownloadResult {

@@ -90,6 +90,21 @@ class LyricsViewModelTest {
     }
 
     @Test
+    fun loadFailurePublishesTerminalNotFoundState() = runTest {
+        val viewModel = LyricsViewModel(dispatcher)
+        viewModel.configure(
+            LyricsLoader { _, _, _ -> throw IllegalStateException("loader failed") },
+            onlineEnabled = true,
+            offsetMs = 0L
+        )
+
+        viewModel.load(track(11L), "").join()
+
+        assertEquals(LyricsStatusKind.NOT_FOUND, viewModel.state.value.statusKind)
+        assertTrue(viewModel.lines().isEmpty())
+    }
+
+    @Test
     fun slowOnlineLoadRemainsInProgressUntilResultArrives() = runTest {
         val result = CompletableDeferred<List<LyricsLine>>()
         val viewModel = LyricsViewModel(dispatcher)

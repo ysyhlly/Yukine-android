@@ -169,6 +169,54 @@ class QuickJsLuoxueScriptRuntimeTest {
     }
 
     @Test
+    fun incompatibleImportedSourceIsQuarantinedAfterInitializationFailure() = runBlocking {
+        val quarantined = mutableListOf<String>()
+        val runtime = QuickJsLuoxueScriptRuntime(
+            httpClient = RecordingHttpClient(),
+            sourceQuarantine = LuoxueSourceQuarantine { source, _ -> quarantined += source.id }
+        )
+        val source = LuoxueImportedSource(
+            id = "missing-request-handler",
+            name = "不兼容音源",
+            sourceKinds = listOf("kw"),
+            script = "globalThis.lx.send(globalThis.lx.EVENT_NAMES.inited, { sources: { kw: {} } })"
+        )
+
+        val error = runCatching {
+            runtime.resolveMusicUrl(source, "kw", mapOf("rid" to "1"), "128k")
+        }.exceptionOrNull()
+
+        assertTrue(error?.message.orEmpty().contains("未注册 request 处理器"))
+        assertEquals(listOf(source.id), quarantined)
+    }
+
+    @Test
+    fun unsupportedOptionalActionDoesNotQuarantineCompatibleSource() = runBlocking {
+        val quarantined = mutableListOf<String>()
+        val runtime = QuickJsLuoxueScriptRuntime(
+            httpClient = RecordingHttpClient(),
+            sourceQuarantine = LuoxueSourceQuarantine { source, _ -> quarantined += source.id }
+        )
+        val source = LuoxueImportedSource(
+            id = "playback-only",
+            name = "仅播放音源",
+            sourceKinds = listOf("kw"),
+            script = """
+                const { EVENT_NAMES, on, send } = globalThis.lx
+                on(EVENT_NAMES.request, () => Promise.resolve('https://media.example.test/song.mp3'))
+                send(EVENT_NAMES.inited, { sources: { kw: { actions: ['musicUrl'] } } })
+            """.trimIndent()
+        )
+
+        val error = runCatching {
+            runtime.resolveLyrics(source, "kw", mapOf("rid" to "1"))
+        }.exceptionOrNull()
+
+        assertTrue(error?.message.orEmpty().contains("不支持 lyric"))
+        assertTrue(quarantined.isEmpty())
+    }
+
+    @Test
     fun unwrapsDoubleEncodedNestedPlaybackUrl() = runBlocking {
         val runtime = QuickJsLuoxueScriptRuntime(RecordingHttpClient())
         val script = """

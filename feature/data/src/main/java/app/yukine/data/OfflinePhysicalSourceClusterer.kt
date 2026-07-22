@@ -1,6 +1,6 @@
 package app.yukine.data
 
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.data.room.CanonicalRecordingEntity
 import app.yukine.data.room.SourceMatchFeatureEntity
 import app.yukine.data.room.SourceRecordingCandidateEntity
@@ -1038,7 +1038,7 @@ class SourceIdentityIngestor @JvmOverloads constructor(
 
     private fun logDiagnostics() {
         runCatching {
-            Log.d(TAG, "$OPERATION ${diagnostics.snapshot(OPERATION).compactSummary()}")
+            DiagnosticLog.d(TAG, "$OPERATION ${diagnostics.snapshot(OPERATION).compactSummary()}")
         }
     }
 

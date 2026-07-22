@@ -14,7 +14,8 @@ class SettingsEffectOwnerTest {
                 Consumer { calls += "status:$it" },
                 Consumer { calls += "page:${it.route}" },
                 Consumer { calls += "network:$it" },
-                Runnable { calls += "downloads" }
+                Runnable { calls += "downloads" },
+                Runnable { calls += "check-update" }
             ),
             SettingsLibraryEffectActions(
                 Runnable { calls += "permissions" },
@@ -37,7 +38,8 @@ class SettingsEffectOwnerTest {
             SettingsFileEffectActions(
                 Consumer { calls += "background:$it" },
                 Runnable { calls += "backup-export" },
-                Runnable { calls += "backup-import" }
+                Runnable { calls += "backup-import" },
+                Runnable { calls += "diagnostics-export" }
             ),
             SettingsStreamingEffectActions(
                 Consumer { calls += "gateway:$it" },
@@ -67,8 +69,10 @@ class SettingsEffectOwnerTest {
             SettingsEffect.ChoosePageBackground(PageBackgrounds.PAGE_SETTINGS),
             SettingsEffect.ExportBackup,
             SettingsEffect.ImportBackup,
+            SettingsEffect.ExportDiagnostics,
             SettingsEffect.ApplyStreamingGatewayEndpoint("http://127.0.0.1:43990"),
-            SettingsEffect.EditMusicBrainzProxy
+            SettingsEffect.EditMusicBrainzProxy,
+            SettingsEffect.CheckGitHubUpdate
         ).forEach(owner::onEffect)
 
         assertEquals(
@@ -94,8 +98,10 @@ class SettingsEffectOwnerTest {
                 "background:${PageBackgrounds.PAGE_SETTINGS}",
                 "backup-export",
                 "backup-import",
+                "diagnostics-export",
                 "gateway:http://127.0.0.1:43990",
-                "musicbrainz-proxy"
+                "musicbrainz-proxy",
+                "check-update"
             ),
             calls
         )

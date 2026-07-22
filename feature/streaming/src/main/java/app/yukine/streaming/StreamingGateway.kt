@@ -253,23 +253,27 @@ class RemoteStreamingGateway(
     private val webCookieSessionSource: StreamingWebCookieSessionSource = NoopStreamingWebCookieSessionSource,
     private val localNeteaseClient: LocalNeteaseStreamingClient = LocalNeteaseStreamingClient(localAuthStore),
     private val localQqMusicClient: LocalQqMusicStreamingClient = LocalQqMusicStreamingClient(localAuthStore),
-    private val localLuoxueClient: LocalLuoxueStreamingClient = LocalLuoxueStreamingClient(
-        neteaseClient = localNeteaseClient,
-        qqMusicClient = localQqMusicClient
-    ),
+    private val localLuoxueClient: LocalLuoxueStreamingClient? = null,
     private val luoxueSourceStore: LuoxueSourceStore? = null,
     private val localBilibiliClient: LocalBilibiliStreamingClient = LocalBilibiliStreamingClient(localAuthStore),
     private val kugouExperimentalSyncStore: KugouExperimentalSyncStore? = null
 ) : StreamingGateway {
-    private var consecutiveGatewayFailures = 0
-    private var circuitOpenUntilMs = 0L
-    private var rateLimitedUntilMs = 0L
+    private val consecutiveGatewayFailures = java.util.concurrent.atomic.AtomicInteger(0)
+    private val circuitOpenUntilMs = java.util.concurrent.atomic.AtomicLong(0L)
+    private val rateLimitedUntilMs = java.util.concurrent.atomic.AtomicLong(0L)
     private val sessionMaintenanceLocks = ConcurrentHashMap<StreamingProviderName, Mutex>()
+    private val effectiveLocalLuoxueClient = localLuoxueClient ?: LocalLuoxueStreamingClient(
+        neteaseClient = localNeteaseClient,
+        qqMusicClient = localQqMusicClient,
+        scriptRuntime = QuickJsLuoxueScriptRuntime(
+            sourceQuarantine = disablingLuoxueSourceQuarantine(luoxueSourceStore)
+        )
+    )
     private val localProviders = LocalStreamingProviderRegistry(
         localAuthStore,
         localNeteaseClient,
         localQqMusicClient,
-        localLuoxueClient,
+        effectiveLocalLuoxueClient,
         luoxueSourceStore,
         localBilibiliClient,
         kugouExperimentalSyncStore = kugouExperimentalSyncStore
@@ -1161,18 +1165,18 @@ class RemoteStreamingGateway(
 
     private fun request(method: String, path: String, body: String?): String {
         val now = clockMs()
-        if (now < rateLimitedUntilMs) {
+        if (now < rateLimitedUntilMs.get()) {
             throw StreamingGatewayException(
-                "Streaming gateway is rate limited until $rateLimitedUntilMs",
+                "Streaming gateway is rate limited until ${rateLimitedUntilMs.get()}",
                 code = StreamingErrorCode.RATE_LIMITED,
-                retryAfterMs = rateLimitedUntilMs - now
+                retryAfterMs = rateLimitedUntilMs.get() - now
             )
         }
-        if (now < circuitOpenUntilMs) {
+        if (now < circuitOpenUntilMs.get()) {
             throw StreamingGatewayException(
-                "Streaming gateway circuit breaker is open until $circuitOpenUntilMs",
+                "Streaming gateway circuit breaker is open until ${circuitOpenUntilMs.get()}",
                 code = StreamingErrorCode.GATEWAY_UNAVAILABLE,
-                retryAfterMs = circuitOpenUntilMs - now
+                retryAfterMs = circuitOpenUntilMs.get() - now
             )
         }
         var attempt = 0
@@ -1230,7 +1234,7 @@ class RemoteStreamingGateway(
                 val retryAfterMs = retryAfterMs(connection.getHeaderField("Retry-After"))
                 if (code == 429) {
                     val waitMs = retryAfterMs ?: retryDelayMs.coerceAtLeast(0L)
-                    rateLimitedUntilMs = clockMs() + waitMs
+                    rateLimitedUntilMs.set(clockMs() + waitMs)
                     recordGatewayFailure()
                 } else if (code >= 500) {
                     recordGatewayFailure()
@@ -1267,14 +1271,14 @@ class RemoteStreamingGateway(
     }
 
     private fun recordGatewaySuccess() {
-        consecutiveGatewayFailures = 0
-        circuitOpenUntilMs = 0L
+        consecutiveGatewayFailures.set(0)
+        circuitOpenUntilMs.set(0L)
     }
 
     private fun recordGatewayFailure() {
-        consecutiveGatewayFailures += 1
-        if (consecutiveGatewayFailures >= circuitBreakerThreshold.coerceAtLeast(1)) {
-            circuitOpenUntilMs = clockMs() + circuitOpenMs.coerceAtLeast(0L)
+        val failures = consecutiveGatewayFailures.incrementAndGet()
+        if (failures >= circuitBreakerThreshold.coerceAtLeast(1)) {
+            circuitOpenUntilMs.set(clockMs() + circuitOpenMs.coerceAtLeast(0L))
         }
     }
 

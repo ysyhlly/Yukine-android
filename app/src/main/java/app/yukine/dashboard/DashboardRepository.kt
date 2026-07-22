@@ -1,7 +1,7 @@
 package app.yukine.dashboard
 
 import android.net.Uri
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.HomeDashboardStateFactory
 import app.yukine.LibraryGrouping
 import app.yukine.HomeDashboardRepository
@@ -134,7 +134,7 @@ class DashboardRepository(
 
     private fun safeLogDebug(message: String) {
         try {
-            Log.d(TAG, message)
+            DiagnosticLog.d(TAG, message)
         } catch (_: RuntimeException) {
             // Android Log is not available in plain JVM unit tests.
         }
@@ -142,7 +142,7 @@ class DashboardRepository(
 
     private fun safeLogWarn(message: String, throwable: Throwable) {
         try {
-            Log.w(TAG, message, throwable)
+            DiagnosticLog.w(TAG, message, throwable)
         } catch (_: RuntimeException) {
             // Android Log is not available in plain JVM unit tests.
         }
@@ -248,7 +248,7 @@ class DashboardRepository(
             state = HomeDashboardUiState(
                 title = "Yukine",
                 subtitle = "${tracks.size} 首歌曲 - $durationText",
-                heroTitle = "No thoughts, just PCM.",
+                heroTitle = HomeDashboardStateFactory.dailySlogan(),
                 heroSubtitle = continueTrack?.let { "接上 ${it.artist} 的「${it.title}」，或者从最近入库里挑一张封面开始。" }
                     ?: "接上最近播放，或者从最近入库里挑一张封面开始。",
                 continueTitle = continueTrack?.title ?: "准备播放",

@@ -37,6 +37,7 @@ public final class SettingsRepository {
     private static final String BIT_PERFECT_ENABLED = "bit_perfect_enabled";
     private static final String USB_EXCLUSIVE_ENABLED = "usb_exclusive_enabled";
     private static final String DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
+    private static final String CHECK_UPDATE_ENABLED = "check_update_enabled";
     private static final String CUSTOM_BACKGROUND_BLUR_ENABLED = "custom_background_blur_enabled";
     private static final String CUSTOM_BACKGROUND_BLUR_RADIUS_DP = "custom_background_blur_radius_dp";
     private static final String GLASS_BLUR_ENABLED = "glass_blur_enabled";
@@ -152,6 +153,8 @@ public final class SettingsRepository {
     void saveUsbExclusiveEnabled(boolean value) { saveBool(USB_EXCLUSIVE_ENABLED, value); }
     boolean loadDebugPromptsEnabled() { return bool(DEBUG_PROMPTS_ENABLED, false); }
     void saveDebugPromptsEnabled(boolean value) { saveBool(DEBUG_PROMPTS_ENABLED, value); }
+    boolean loadCheckUpdateEnabled() { return bool(CHECK_UPDATE_ENABLED, true); }
+    void saveCheckUpdateEnabled(boolean value) { saveBool(CHECK_UPDATE_ENABLED, value); }
     boolean loadCustomBackgroundBlurEnabled() { return bool(CUSTOM_BACKGROUND_BLUR_ENABLED, false); }
     float loadCustomBackgroundBlurRadiusDp() {
         return normalizeCustomBackgroundBlurRadius(floatValue(CUSTOM_BACKGROUND_BLUR_RADIUS_DP, 24f));

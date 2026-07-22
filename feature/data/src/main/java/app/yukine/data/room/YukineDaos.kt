@@ -12,6 +12,11 @@ import androidx.room.Upsert
 import app.yukine.streaming.PlaybackSourceSelectionEvaluator
 import app.yukine.streaming.PlaybackSourceSelectionFeatures
 
+data class PlaylistRecordingTrackRow(
+    @ColumnInfo(name = "recording_id") val recordingId: Long,
+    @Embedded val track: TrackEntity
+)
+
 @Dao
 interface LibraryDao {
     @Query(
@@ -264,7 +269,8 @@ interface PlaylistDao {
     fun removeLegacyPlaylistRecordingSources(playlistId: Long, recordingId: Long): Int
 
     @Query(
-        "SELECT t.* FROM playlist_recording_items pri JOIN tracks t ON t.id = COALESCE((" +
+        "SELECT pri.recording_id AS recording_id, t.* FROM playlist_recording_items pri " +
+            "JOIN tracks t ON t.id = COALESCE((" +
             "SELECT s.local_track_id FROM track_sources s JOIN recordings r ON r.id = s.recording_id " +
             "WHERE s.recording_id = pri.recording_id AND s.local_track_id IS NOT NULL AND s.playable = 1 " +
             "ORDER BY CASE WHEN s.source_id = r.active_source_id THEN 1000 WHEN s.provider = 'local' THEN 600 " +
@@ -274,7 +280,7 @@ interface PlaylistDao {
             "s.quality_score DESC, s.source_id LIMIT 1), pri.representative_track_id) " +
             "WHERE pri.playlist_id = :playlistId ORDER BY pri.sort_key, pri.added_at, pri.recording_id"
     )
-    fun playlistRecordingTracks(playlistId: Long): List<TrackEntity>
+    fun playlistRecordingTracks(playlistId: Long): List<PlaylistRecordingTrackRow>
 
     @Query("DELETE FROM playlist_tracks WHERE playlist_id = :playlistId AND track_id = :trackId")
     fun removePlaylistTrack(playlistId: Long, trackId: Long): Int

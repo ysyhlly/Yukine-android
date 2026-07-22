@@ -1,7 +1,7 @@
 package app.yukine.playback;
 
 import android.os.Process;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -96,7 +96,7 @@ final class PlaybackTaskScheduler implements Executor {
     }
 
     private static void logTaskFailure(Priority priority, RuntimeException exception) {
-        Log.w(TAG, "Playback task failed: " + priority, exception);
+        DiagnosticLog.w(TAG, "Playback task failed: " + priority, exception);
     }
 
     interface ErrorSink {

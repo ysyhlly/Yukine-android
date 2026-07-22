@@ -159,6 +159,7 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.BitPerfectEnabled to preferences.bitPerfectEnabled,
         SettingsPreferenceKey.UsbExclusiveEnabled to preferences.usbExclusiveEnabled,
         SettingsPreferenceKey.DebugPromptsEnabled to preferences.debugPromptsEnabled,
+        SettingsPreferenceKey.CheckUpdateEnabled to preferences.checkUpdateEnabled,
         SettingsPreferenceKey.CustomBackgroundBlurEnabled to preferences.customBackgroundBlurEnabled,
         SettingsPreferenceKey.CustomBackgroundBlurRadiusDp to preferences.customBackgroundBlurRadiusDp,
         SettingsPreferenceKey.GlassBlurEnabled to preferences.glassBlurEnabled,
@@ -193,6 +194,7 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.BitPerfectEnabled -> state.preferences.bitPerfectEnabled
             SettingsPreferenceKey.UsbExclusiveEnabled -> state.preferences.usbExclusiveEnabled
             SettingsPreferenceKey.DebugPromptsEnabled -> state.preferences.debugPromptsEnabled
+            SettingsPreferenceKey.CheckUpdateEnabled -> state.preferences.checkUpdateEnabled
             SettingsPreferenceKey.CustomBackgroundBlurEnabled -> state.preferences.customBackgroundBlurEnabled
             SettingsPreferenceKey.CustomBackgroundBlurRadiusDp -> state.preferences.customBackgroundBlurRadiusDp
             SettingsPreferenceKey.GlassBlurEnabled -> state.preferences.glassBlurEnabled
@@ -250,6 +252,8 @@ internal class SettingsMutationContext(
                 preferences = preferences.copy(usbExclusiveEnabled = value as Boolean)
             SettingsPreferenceKey.DebugPromptsEnabled ->
                 preferences = preferences.copy(debugPromptsEnabled = value as Boolean)
+            SettingsPreferenceKey.CheckUpdateEnabled ->
+                preferences = preferences.copy(checkUpdateEnabled = value as Boolean)
             SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
                 preferences = preferences.copy(customBackgroundBlurEnabled = value as Boolean)
             SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->

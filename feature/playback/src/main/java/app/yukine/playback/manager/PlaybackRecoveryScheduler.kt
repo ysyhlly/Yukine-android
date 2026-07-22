@@ -18,9 +18,9 @@ internal class PlaybackRecoveryScheduler(
         fun prepareCurrent(playWhenReady: Boolean)
     }
 
-    private var generation = 0
-    private var pendingMainTask: Runnable? = null
-    private var released = false
+    @Volatile private var generation = 0
+    @Volatile private var pendingMainTask: Runnable? = null
+    @Volatile private var released = false
 
     fun scheduleCurrentPlaybackRecovery(playWhenReady: Boolean) {
         if (released) {

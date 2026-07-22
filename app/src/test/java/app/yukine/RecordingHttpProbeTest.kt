@@ -10,9 +10,35 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class RecordingHttpProbeTest {
+    @Test
+    fun rejectsBasicAuthenticationOverPlainHttp() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            webDavAuthorizationHeaders("http://example.test/audio.flac", "listener", "secret")
+        }
+
+        assertEquals("WebDAV authentication requires HTTPS", error.message)
+    }
+
+    @Test
+    fun permitsUnauthenticatedPlainHttp() {
+        assertEquals(
+            emptyMap<String, String>(),
+            webDavAuthorizationHeaders("http://example.test/audio.flac", "", "")
+        )
+    }
+
+    @Test
+    fun buildsBasicAuthenticationForHttps() {
+        assertEquals(
+            mapOf("Authorization" to "Basic bGlzdGVuZXI6c2VjcmV0"),
+            webDavAuthorizationHeaders("https://example.test/audio.flac", "listener", "secret")
+        )
+    }
+
     @Test
     fun keepsHeadersOnSameOriginRedirect() {
         val receivedHeader = AtomicReference<String?>()

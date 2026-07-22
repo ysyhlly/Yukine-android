@@ -203,6 +203,13 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
         )
         val track = snapshot.currentTrack
         val sameTrack = previous.track.trackId == overlay.track.trackId
+        val richRows = richLyricRows(lyricsState)
+        val richOverlay = overlay.copy(
+            lyrics = overlay.lyrics.copy(
+                lines = richRows,
+                offsetMs = lyricsState?.offsetMs ?: 0L
+            )
+        )
         _uiState.value = NowPlayingUiState(
             track = NowPlayingTrackState(
                 title = track?.title ?: overlay.track.title,
@@ -226,17 +233,18 @@ class NowPlayingViewModel : ViewModel(), NowPlayingScreenStateProvider {
             lyrics = LyricsUiState(
                 title = overlay.lyrics.title,
                 status = overlay.lyrics.status,
-                lines = richLyricRows(lyricsState),
+                lines = richRows,
                 offsetMs = lyricsState?.offsetMs ?: 0L,
                 primaryVisible = lyricsState?.trackVisibility?.primary ?: true,
                 translationVisible = lyricsState?.trackVisibility?.translation ?: true,
                 romanizationVisible = lyricsState?.trackVisibility?.romanization ?: true
             ),
             labels = NowPlayingLabelsState(
-                errorMessage = overlay.error.message.takeIf { it.isNotBlank() }
+                errorMessage = overlay.error.message.takeIf { it.isNotBlank() },
+                resumeLyricsFollow = AppLanguage.text(languageMode, "lyrics.follow.current")
             ),
             artwork = NowPlayingArtworkState(track?.albumArtUri?.toString()),
-            overlayState = overlay
+            overlayState = richOverlay
         )
         stateObserver?.onStateChanged(_uiState.value, lyricsState ?: LyricsState())
         resolveMissingLuoxueArtwork(track)

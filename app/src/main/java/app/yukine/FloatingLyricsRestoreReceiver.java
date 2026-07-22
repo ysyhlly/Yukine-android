@@ -3,7 +3,7 @@ package app.yukine;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,10 +37,10 @@ public final class FloatingLyricsRestoreReceiver extends BroadcastReceiver {
                     return;
                 }
                 if (!FloatingLyricsService.start(appContext)) {
-                    Log.w(TAG, "System blocked floating lyrics startup after boot");
+                    DiagnosticLog.w(TAG, "System blocked floating lyrics startup after boot");
                 }
             } catch (RuntimeException error) {
-                Log.w(TAG, "Floating lyrics restore was skipped", error);
+                DiagnosticLog.w(TAG, "Floating lyrics restore was skipped", error);
             } finally {
                 pendingResult.finish();
                 executor.shutdown();

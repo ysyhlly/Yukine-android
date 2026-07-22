@@ -24,6 +24,7 @@ internal interface SettingsPreferenceOperations {
     fun saveBitPerfectEnabled(enabled: Boolean)
     fun saveUsbExclusiveEnabled(enabled: Boolean)
     fun saveDebugPromptsEnabled(enabled: Boolean)
+    fun saveCheckUpdateEnabled(enabled: Boolean)
     fun saveCustomBackgroundBlurEnabled(enabled: Boolean)
     fun saveCustomBackgroundBlurRadiusDp(radiusDp: Float)
     fun saveGlassBlurEnabled(enabled: Boolean)
@@ -92,6 +93,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
     override fun saveDebugPromptsEnabled(enabled: Boolean) =
         repository.saveDebugPromptsEnabled(enabled)
 
+    override fun saveCheckUpdateEnabled(enabled: Boolean) =
+        repository.saveCheckUpdateEnabled(enabled)
+
     override fun saveCustomBackgroundBlurEnabled(enabled: Boolean) =
         repository.saveCustomBackgroundBlurEnabled(enabled)
 
@@ -155,6 +159,8 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.saveUsbExclusiveEnabled(update.value as Boolean)
                 SettingsPreferenceKey.DebugPromptsEnabled ->
                     operations.saveDebugPromptsEnabled(update.value as Boolean)
+                SettingsPreferenceKey.CheckUpdateEnabled ->
+                    operations.saveCheckUpdateEnabled(update.value as Boolean)
                 SettingsPreferenceKey.CustomBackgroundBlurEnabled ->
                     operations.saveCustomBackgroundBlurEnabled(update.value as Boolean)
                 SettingsPreferenceKey.CustomBackgroundBlurRadiusDp ->

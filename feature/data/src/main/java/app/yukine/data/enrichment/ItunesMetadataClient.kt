@@ -48,7 +48,7 @@ class ItunesMetadataClient(
                     ENDPOINT,
                     fromCache = true,
                     staleCache = true,
-                    allEndpointsFailed = true
+                    allEndpointsFailed = false
                 )
             }
         }

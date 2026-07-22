@@ -9,7 +9,8 @@ internal data class SettingsNavigationEffectActions(
     val showStatus: Consumer<String>,
     val navigatePage: Consumer<SettingsPage>,
     val openNetworkPage: Consumer<NetworkPage>,
-    val openDownloads: Runnable
+    val openDownloads: Runnable,
+    val checkGitHubUpdate: Runnable = Runnable {}
 )
 
 internal data class SettingsLibraryEffectActions @JvmOverloads constructor(
@@ -41,7 +42,8 @@ internal data class SettingsPlaybackEffectActions @JvmOverloads constructor(
 internal data class SettingsFileEffectActions(
     val choosePageBackground: Consumer<String>,
     val exportBackup: Runnable,
-    val importBackup: Runnable
+    val importBackup: Runnable,
+    val exportDiagnostics: Runnable
 )
 
 internal data class SettingsStreamingEffectActions(
@@ -93,11 +95,13 @@ internal class SettingsEffectOwner(
             is SettingsEffect.ChoosePageBackground -> files.choosePageBackground.accept(effect.page)
             SettingsEffect.ExportBackup -> files.exportBackup.run()
             SettingsEffect.ImportBackup -> files.importBackup.run()
+            SettingsEffect.ExportDiagnostics -> files.exportDiagnostics.run()
             is SettingsEffect.ApplyStreamingGatewayEndpoint ->
                 streaming.applyGatewayEndpoint.accept(effect.endpoint)
             is SettingsEffect.SetKugouExperimentalSyncEnabled ->
                 streaming.setKugouExperimentalSyncEnabled.accept(effect.enabled)
             SettingsEffect.EditMusicBrainzProxy -> streaming.editMusicBrainzProxy.run()
+            SettingsEffect.CheckGitHubUpdate -> navigation.checkGitHubUpdate.run()
         }
     }
 }

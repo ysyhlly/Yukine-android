@@ -16,7 +16,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.service.PlaybackServiceActions
@@ -253,7 +253,7 @@ class LiveLyricsNotificationService : Service() {
             }
             true
         } catch (error: RuntimeException) {
-            Log.e(LOG_TAG, "Unable to promote live lyrics notification", error)
+            DiagnosticLog.e(LOG_TAG, "Unable to promote live lyrics notification", error)
             false
         }
 

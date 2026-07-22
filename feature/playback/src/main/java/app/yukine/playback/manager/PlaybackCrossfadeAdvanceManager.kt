@@ -81,8 +81,16 @@ internal class PlaybackCrossfadeAdvanceManager @JvmOverloads constructor(
     }
 
     fun cancel() {
+        cancel(restoreVolume = true)
+    }
+
+    private fun cancel(restoreVolume: Boolean) {
+        val hadActiveFade = activeFadeRunnable != null
         cancelActiveRunnable()
         actions.setFadeOutAdvancing(false)
+        if (restoreVolume && hadActiveFade) {
+            actions.applyAppVolume()
+        }
     }
 
     fun release() {
@@ -90,7 +98,7 @@ internal class PlaybackCrossfadeAdvanceManager @JvmOverloads constructor(
             return
         }
         released = true
-        cancel()
+        cancel(restoreVolume = false)
     }
 
     private fun finish(applyVolume: Boolean) {

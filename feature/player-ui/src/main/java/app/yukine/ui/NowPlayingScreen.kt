@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
@@ -43,9 +45,10 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,10 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.core.designsystem.R
 import app.yukine.TrackDownloadItem
-import kotlinx.coroutines.delay
-import android.os.SystemClock
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 data class NowPlayingUiState(
     val pageTitle: String,
@@ -95,7 +95,8 @@ data class NowPlayingUiState(
     val onPrimaryVisibleChange: (Boolean) -> Unit = {},
     val onTranslationVisibleChange: (Boolean) -> Unit = {},
     val onRomanizationVisibleChange: (Boolean) -> Unit = {},
-    val lyricsOffsetMs: Long = 0L
+    val lyricsOffsetMs: Long = 0L,
+    val resumeLyricsFollowLabel: String = "回到当前歌词"
 )
 
 data class NowPlayingSourceOption(
@@ -147,6 +148,7 @@ fun NowPlayingScreen(
                 title = state.title,
                 subtitle = state.subtitle,
                 albumArtUri = state.albumArtUri,
+                resumeLyricsFollowLabel = state.resumeLyricsFollowLabel,
                 onLyricSeek = seekFromLyric,
                 onExit = { onImmersiveChanged(false) }
             )
@@ -175,6 +177,7 @@ private fun ImmersiveLyricsView(
     title: String,
     subtitle: String,
     albumArtUri: Uri?,
+    resumeLyricsFollowLabel: String,
     onLyricSeek: (Long) -> Unit,
     onExit: () -> Unit
 ) {
@@ -186,12 +189,8 @@ private fun ImmersiveLyricsView(
         playing = playing,
         offsetMs = offsetMs
     )
-    val activeIndex = lyrics.indexOfFirst { line -> line.isActiveAt(positionMs) }
-    androidx.compose.runtime.LaunchedEffect(activeIndex) {
-        if (activeIndex >= 0) {
-            listState.scrollToItem(activeIndex, scrollOffset = -200)
-        }
-    }
+    val activeIndex = activeLyricIndex(lyrics, positionMs)
+    val follow = rememberLyricsFollowHandle(trackId, activeIndex, listState)
     Box(modifier = Modifier.fillMaxSize()) {
         if (albumArtUri != null) {
             AsyncArtwork(
@@ -243,23 +242,39 @@ private fun ImmersiveLyricsView(
                 )
             }
             Spacer(Modifier.height(32.dp))
-            LazyColumn(
-                state = listState,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(vertical = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .weight(1f)
             ) {
-                itemsIndexed(
-                    items = lyrics,
-                    key = { index, line -> "imm-$index:${line.text.hashCode()}" }
-                ) { _, line ->
-                    ImmersiveLyricRow(
-                        line = line.copy(active = line.isActiveAt(positionMs)),
-                        positionMs = positionMs,
-                        onSeek = onLyricSeek
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    itemsIndexed(
+                        items = lyrics,
+                        key = { index, line -> "imm-$index:${line.text.hashCode()}" }
+                    ) { index, line ->
+                        ImmersiveLyricRow(
+                            line = line.copy(active = index == activeIndex),
+                            positionMs = positionMs,
+                            onSeek = { lyricMs ->
+                                follow.resume()
+                                onLyricSeek(lyricMs)
+                            }
+                        )
+                    }
+                }
+                if (!follow.following) {
+                    ResumeLyricsFollowButton(
+                        label = resumeLyricsFollowLabel,
+                        onClick = follow.resume,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp)
                     )
                 }
             }
@@ -282,6 +297,8 @@ private fun ImmersiveLyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long
             shape = EchoShapes.small,
             color = Color.Transparent,
             modifier = Modifier
+                .testTag(if (line.active) "lyrics-current-line" else "lyrics-line-${line.timeMs}")
+                .semantics { selected = line.active }
                 .combinedClickable(
                     onClick = { onSeek(line.timeMs) },
                     onLongClick = { copyText(line.text) }
@@ -455,6 +472,7 @@ private fun NowPlayingNormalView(
                 onPrimaryVisibleChange = state.onPrimaryVisibleChange,
                 onTranslationVisibleChange = state.onTranslationVisibleChange,
                 onRomanizationVisibleChange = state.onRomanizationVisibleChange,
+                resumeLyricsFollowLabel = state.resumeLyricsFollowLabel,
                 onLyricSeek = onLyricSeek
             )
         }
@@ -795,6 +813,7 @@ private fun LyricsPanel(
     onPrimaryVisibleChange: (Boolean) -> Unit,
     onTranslationVisibleChange: (Boolean) -> Unit,
     onRomanizationVisibleChange: (Boolean) -> Unit,
+    resumeLyricsFollowLabel: String,
     onLyricSeek: (Long) -> Unit
 ) {
     val p = EchoTheme.colors()
@@ -805,6 +824,8 @@ private fun LyricsPanel(
         playing = playing,
         offsetMs = offsetMs
     )
+    val activeIndex = activeLyricIndex(lines, positionMs)
+    val follow = rememberLyricsFollowHandle(trackId, activeIndex, listState)
     EchoGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
@@ -871,50 +892,44 @@ private fun LyricsPanel(
                     )
                 }
             } else {
-                LazyColumn(
-                    state = listState,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(EchoMobileLayoutMetrics.lyricsListHeight),
-                    contentPadding = PaddingValues(vertical = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .height(EchoMobileLayoutMetrics.lyricsListHeight)
                 ) {
-                    itemsIndexed(
-                        items = lines,
-                        key = { index, line -> "$index:${line.text.hashCode()}" }
-                    ) { _, line ->
-                        LyricRow(
-                            line = line.copy(active = line.isActiveAt(positionMs)),
-                            positionMs = positionMs,
-                            onSeek = onLyricSeek
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        itemsIndexed(
+                            items = lines,
+                            key = { index, line -> "$index:${line.text.hashCode()}" }
+                        ) { index, line ->
+                            LyricRow(
+                                line = line.copy(active = index == activeIndex),
+                                positionMs = positionMs,
+                                onSeek = { lyricMs ->
+                                    follow.resume()
+                                    onLyricSeek(lyricMs)
+                                }
+                            )
+                        }
+                    }
+                    if (!follow.following) {
+                        ResumeLyricsFollowButton(
+                            label = resumeLyricsFollowLabel,
+                            onClick = follow.resume,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 8.dp)
                         )
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun rememberSmoothLyricPosition(
-    trackId: Long,
-    playbackPositionMs: Long,
-    playing: Boolean,
-    offsetMs: Long
-): Long {
-    var smoothPositionMs by remember(trackId) { mutableStateOf(playbackPositionMs) }
-    LaunchedEffect(trackId, playbackPositionMs, playing) {
-        smoothPositionMs = playbackPositionMs
-        if (playing) {
-            val anchorRealtime = SystemClock.elapsedRealtime()
-            while (true) {
-                delay(33L)
-                smoothPositionMs = playbackPositionMs +
-                    (SystemClock.elapsedRealtime() - anchorRealtime)
-            }
-        }
-    }
-    return adjustedLyricPositionMs(smoothPositionMs, offsetMs)
 }
 
 @Composable
@@ -926,6 +941,8 @@ private fun LyricRow(line: LyricUiLine, positionMs: Long, onSeek: (Long) -> Unit
         color = if (line.active) p.accentSoft else Color.Transparent,
         modifier = Modifier
             .fillMaxWidth()
+            .testTag(if (line.active) "lyrics-current-line" else "lyrics-line-${line.timeMs}")
+            .semantics { selected = line.active }
             .combinedClickable(
                 onClick = { onSeek(line.timeMs) },
                 onLongClick = { copyText(line.text) }
@@ -967,13 +984,16 @@ private fun LayeredLyricText(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(
-            text = highlightedWords(line, positionMs, primaryColor, p.muted),
+        KaraokeLyricText(
+            line = line,
+            positionMs = positionMs,
+            activeColor = primaryColor,
+            inactiveColor = p.muted,
             style = primaryStyle,
-            color = primaryColor,
             textAlign = TextAlign.Center,
             maxLines = 4,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
         )
         if (line.translation.isNotBlank()) {
             Text(
@@ -998,45 +1018,62 @@ private fun LayeredLyricText(
     }
 }
 
-private fun highlightedWords(
-    line: LyricUiLine,
-    positionMs: Long,
-    activeColor: Color,
-    inactiveColor: Color
-): AnnotatedString {
-    if (!line.active || line.words.isEmpty()) return AnnotatedString(line.text)
-    val builder = AnnotatedString.Builder(line.text)
-    var searchFrom = 0
-    line.words.forEach { word ->
-        val (start, end) = word.textBounds(line.text, searchFrom) ?: return@forEach
-        val completed = positionMs >= word.endMs
-        val current = word.isActiveAt(positionMs)
-        when {
-            completed -> {
-                builder.addStyle(SpanStyle(color = activeColor), start, end)
-            }
-            current -> {
-                val fraction = word.progressAt(positionMs)
-                val charCount = end - start
-                val filledChars = (fraction * charCount).roundToInt().coerceIn(0, charCount)
-                val splitAt = start + filledChars
-                if (splitAt > start) {
-                    builder.addStyle(
-                        SpanStyle(color = activeColor, fontWeight = FontWeight.Bold),
-                        start, splitAt
-                    )
-                }
-                if (splitAt < end) {
-                    builder.addStyle(SpanStyle(color = inactiveColor), splitAt, end)
-                }
-            }
-            else -> {
-                builder.addStyle(SpanStyle(color = inactiveColor), start, end)
-            }
-        }
-        searchFrom = end
+@Composable
+private fun rememberLyricsFollowHandle(
+    trackId: Long,
+    activeIndex: Int,
+    listState: LazyListState
+): LyricsFollowHandle {
+    var state by remember(trackId) { mutableStateOf(LyricsFollowState()) }
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragged) {
+        if (dragged) state = state.pauseForUserScroll()
     }
-    return builder.toAnnotatedString()
+    LaunchedEffect(trackId, activeIndex, state.following) {
+        if (state.following && activeIndex >= 0) {
+            listState.animateScrollToCenteredItem(activeIndex)
+        }
+    }
+    return LyricsFollowHandle(state.following) { state = state.resume() }
+}
+
+private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
+    val viewportHeight = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
+    val visibleItems = layoutInfo.visibleItemsInfo
+    val estimatedItemHeight = visibleItems.firstOrNull { it.index == index }?.size
+        ?: visibleItems.map { it.size }.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        ?: 0
+    val centeredOffset = -((viewportHeight - estimatedItemHeight) / 2).coerceAtLeast(0)
+    animateScrollToItem(index, centeredOffset)
+}
+
+private data class LyricsFollowHandle(
+    val following: Boolean,
+    val resume: () -> Unit
+)
+
+@Composable
+private fun ResumeLyricsFollowButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val p = EchoTheme.colors()
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .testTag("lyrics-follow-current")
+            .semantics { contentDescription = label },
+        shape = EchoShapes.pill,
+        color = p.accentSoft
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            style = EchoTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = p.accent
+        )
+    }
 }
 
 @Composable

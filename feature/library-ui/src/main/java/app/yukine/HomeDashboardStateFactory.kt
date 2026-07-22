@@ -19,6 +19,52 @@ object HomeDashboardStateFactory {
     private const val DAY_MS = 24L * 60L * 60L * 1000L
     private const val HEATMAP_WEEKS = 12
 
+    /** 「今日回声」标语池 —— 每天轮换一条，与音乐相关。 */
+    private val echoSlogans = listOf(
+        "今天想听点什么？",
+        "每一段旋律，都是时间的回声。",
+        "按下播放，让世界安静三秒。",
+        "音符落下的地方，就是归处。",
+        "耳机里藏着另一个宇宙。",
+        "把心跳调成 BPM 的形状。",
+        "今天的你，适合哪一首歌？",
+        "旋律是记忆最忠实的容器。",
+        "让节拍替你说话。",
+        "一首歌的时间，刚好够想通一件事。",
+        "声波抵达的地方，情绪有了着落。",
+        "用一首歌，给今天打个结。",
+        "频率对了，世界就安静了。",
+        "每个和弦都是一封未寄出的信。",
+        "低音是心跳，高音是呼吸。",
+        "把日子过成一张专辑。",
+        "前奏响起，烦恼静音。",
+        "音乐是耳朵的旅行。",
+        "今天的空气里，有旋律的味道。",
+        "一段副歌，足以撑起整个下午。",
+        "让回声替你把今天记住。",
+        "泛音散开的时候，时间变慢了。",
+        "歌单是心情的化石。",
+        "按下随机，把选择交给命运。",
+        "每首歌都在等一个对的时刻。",
+        "混响是空间的记忆。",
+        "节奏是身体最诚实的语言。",
+        "戴上耳机，世界是背景音。",
+        "采样一段雨声，混进今晚的歌。",
+        "渐强的人生，不需要跳过前奏。",
+        "切歌是犹豫，单曲循环是笃定。",
+        "声场打开的时候，房间变大了。",
+        "用 EQ 调出属于自己的频率。",
+        "间奏是留给呼吸的空白。",
+        "音乐不停，今天就不算结束。"
+    )
+
+    /** 根据当天日期确定性地选取一条标语（同一天内不会变化）。 */
+    @JvmStatic
+    fun dailySlogan(nowMs: Long = System.currentTimeMillis()): String {
+        val dayIndex = (nowMs / DAY_MS).toInt()
+        return echoSlogans[dayIndex % echoSlogans.size]
+    }
+
     @JvmStatic
     fun create(
         languageMode: String,
@@ -69,7 +115,7 @@ object HomeDashboardStateFactory {
         return HomeDashboardUiState(
             title = "YUKINE",
             subtitle = librarySubtitle(activeTracks.size, totalDurationMs),
-            heroTitle = "今天想听点什么？",
+            heroTitle = dailySlogan(nowMs),
             heroSubtitle = buildHeroSubtitle(continueTrack),
             continueTitle = continueTrack?.title ?: "准备播放",
             continueSubtitle = continueTrack?.subtitle() ?: "添加音乐后开始聆听",

@@ -7,7 +7,7 @@ import android.content.pm.ServiceInfo;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import androidx.annotation.OptIn;
 import androidx.media3.common.util.UnstableApi;
@@ -122,7 +122,7 @@ public final class EchoPlaybackService extends MediaLibraryService {
             }
             return true;
         } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to start playback foreground notification", error);
+            DiagnosticLog.w(TAG, "Unable to start playback foreground notification", error);
             return false;
         }
     }

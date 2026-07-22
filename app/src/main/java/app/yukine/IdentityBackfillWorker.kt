@@ -1,7 +1,7 @@
 package app.yukine
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -66,7 +66,7 @@ class IdentityBackfillWorker(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            Log.w(TAG, "Canonical identity backfill failed", error)
+            DiagnosticLog.w(TAG, "Canonical identity backfill failed", error)
             val message = error.message?.trim().orEmpty()
                 .ifBlank { error.javaClass.simpleName }
                 .take(MAX_ERROR_LENGTH)
@@ -166,7 +166,7 @@ object IdentityBackfillScheduler {
             }
         }.getOrElse { error ->
             val message = error.identityBackfillMessage()
-            Log.w("IdentityBackfill", "Unable to query existing backfill", error)
+            DiagnosticLog.w("IdentityBackfill", "Unable to query existing backfill", error)
             store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
             IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
         }
@@ -222,7 +222,7 @@ object IdentityBackfillScheduler {
             IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.ENQUEUED)
         }.getOrElse { error ->
             val message = error.identityBackfillMessage()
-            Log.w("IdentityBackfill", "Unable to schedule backfill", error)
+            DiagnosticLog.w("IdentityBackfill", "Unable to schedule backfill", error)
             store.updateRuntimeState(IdentityBackfillRuntimeState.FAILED, message)
             IdentityBackfillScheduleResult(IdentityBackfillScheduleKind.FAILED, message)
         }

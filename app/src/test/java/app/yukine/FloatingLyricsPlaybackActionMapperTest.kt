@@ -9,7 +9,7 @@ class FloatingLyricsPlaybackActionMapperTest {
     @Test
     fun playPauseUsesTheExistingPlaybackServiceActions() {
         assertEquals(
-            PlaybackServiceActions.PLAY,
+            PlaybackServiceActions.RESTORE_AND_PLAY,
             FloatingLyricsPlaybackActionMapper.serviceAction(
                 FloatingLyricsOverlayAction.PlayPause,
                 playing = false

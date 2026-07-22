@@ -39,6 +39,7 @@ internal class SettingsContextProvider(
         )
         val kugouSync = kugouExperimentalSyncStore.status(kugouAuth.connected)
         val duplicateCandidates = repository.loadDuplicateCandidates(50, 0)
+        val playbackSnapshot = playbackSnapshotProvider.playbackSnapshot.value
         return RuntimeSettingsStatus(
             appVersionName = BuildConfig.VERSION_NAME,
             audioPermissionGranted = permissionController.hasAudioPermission(),
@@ -53,7 +54,9 @@ internal class SettingsContextProvider(
                 floatingLyricsSettings.transparentBackground,
             floatingLyricsTextColorArgb = floatingLyricsSettings.textColorArgb,
             playbackServiceConnected = playbackConnectionController.isBound(),
-            sleepTimerRemainingMs = playbackSnapshotProvider.playbackSnapshot.value.sleepTimerRemainingMs,
+            audioExclusiveActive = playbackSnapshot.audioExclusiveActive,
+            audioOutput = playbackSnapshot.audioOutput,
+            sleepTimerRemainingMs = playbackSnapshot.sleepTimerRemainingMs,
             lyricsOffsetMs = lyricsViewModel?.offsetMs() ?: 0L,
             onlineLyricsEnabled = lyricsViewModel?.onlineEnabled() == true,
             librarySongCount = allTracks.size,

@@ -54,6 +54,34 @@ class PlaybackCrossfadeAdvanceManagerTest {
         assertEquals(listOf(pending), scheduler.removed)
         assertEquals(emptyList<Float>(), actions.volumes)
         assertEquals(0, actions.skipNextCalls)
+        assertEquals(0, actions.applyVolumeCalls)
+        assertFalse(state.fadeOutAdvancing)
+    }
+
+    @Test
+    fun cancelRestoresAppVolumeAfterFadeStarted() {
+        val scheduler = FakeScheduler()
+        val state = FakeState()
+        val actions = FakeActions(state)
+        var now = 0L
+        val manager = PlaybackCrossfadeAdvanceManager(
+            scheduler,
+            state,
+            actions,
+            LongSupplier { now },
+            fadeOutMs = 700L,
+            fadeStepMs = 70L
+        )
+
+        assertTrue(manager.startFadeOutThenNext())
+        now = 350L
+        val fade = scheduler.posted.single()
+        fade.run()
+        manager.cancel()
+
+        assertEquals(listOf(0.5f), actions.volumes)
+        assertEquals(listOf(fade), scheduler.removed)
+        assertEquals(1, actions.applyVolumeCalls)
         assertFalse(state.fadeOutAdvancing)
     }
 

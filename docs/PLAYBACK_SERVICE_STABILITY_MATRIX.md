@@ -260,6 +260,20 @@ adb devices
 | 音频混音 | 关闭“音频独占”。 | Echo 播放中再播放其他媒体 App。 | Echo 不主动请求焦点；允许与其他媒体同时播放，与设置说明一致。 | 录屏。 |  |
 | 来电/通话 | 可模拟来电或使用真实测试机。 | 播放中接入通话，结束后返回。 | 通话期间播放行为符合系统预期；结束后可手动或自动恢复。 | 录屏、logcat。 |  |
 
+### 3.1 USB Audio / DSD 矩阵
+
+| 场景 | 设备/格式 | 通过标准 | 证据 | 结果 |
+| --- | --- | --- | --- | --- |
+| UAC1 Full Speed PCM | 16/24-bit，44.1/48/96 kHz | `USB_PCM / ACTIVE` 与 DAC 面板一致；10 分钟 0 underrun、0 packet error。 | 描述符、AudioOutputSnapshot、logcat。 |  |
+| UAC1 High Speed PCM | 24/32-bit，44.1–192 kHz | 分数包长累计帧数正确；seek 误差 ≤100 ms。 | packet/frame 指标、录屏。 |  |
+| UAC2 async feedback | 显式 feedback DAC | feedback Hz 非零且稳定；队列不持续增减；10 分钟 0 underrun。 | feedback/queue depth 日志。 |  |
+| UAC2 high-bandwidth | wMaxPacketSize 2–3 transactions | high-bandwidth 位解析与提交包长一致；0 packet/URB error。 | 描述符、逐包状态。 |  |
+| DSF/DFF DoP | 双声道 DSD64/128/256/512 | `USB_DOP / ACTIVE`；marker 05/FA 交替；DAC 面板倍率一致；不经过 DSP。 | DAC 面板、snapshot、DoP fixture。 |  |
+| XMOS Native DSD512 | 已验证精确 VID/PID profile | 仅 profile 命中时报告 `USB_NATIVE_DSD`；连续 30 分钟 0 underrun/error。 | profile、DAC 面板、30 分钟日志。 |  |
+| 非白名单 DAC | 支持 DoP 的未知 DAC | 不声明 Native DSD；回退 DoP，否则 typed `DOP_UNSUPPORTED`。 | snapshot、设置页原因。 |  |
+| 拔出/重连 | 任一 USB DAC | detach 后 2 秒内离开 USB；重连后 5 秒内重新协商；无扬声器泄漏。 | 时间戳 logcat、录屏。 |  |
+| 远程 DSD | 未完整缓存 WebDAV/HTTP | 不边播边传，明确提示先完整下载。 | 设置/错误提示截图。 |  |
+
 ## 4. 恢复与异常矩阵
 
 | 场景 | 准备 | 步骤 | 通过标准 | 证据 | 结果 |

@@ -41,10 +41,11 @@ final class Mp3MetadataParser {
                 int extSize;
                 if (version >= 4) {
                     extSize = syncsafe(prefix, frameStart);
+                    frameStart += extSize;
                 } else {
                     extSize = readBigEndianInt(prefix, frameStart);
+                    frameStart += 4 + extSize;
                 }
-                frameStart += extSize;
             }
             parseFrames(prefix, frameStart, tagEnd, version, flags, result);
         }

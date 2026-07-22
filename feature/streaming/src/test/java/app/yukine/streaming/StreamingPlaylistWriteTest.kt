@@ -36,7 +36,8 @@ class StreamingPlaylistWriteTest {
     fun qqMirrorPlaylistUsesIncrementalDiffRenameAndReorder() = runTest {
         val gateway = RecordingPlaylistGateway(
             existingTitle = "旧名称",
-            existingTracks = listOf(track("old"), track("keep"))
+            existingTracks = listOf(track("old"), track("keep")),
+            responsePageSize = 1
         )
         val repository = StreamingRepository(gateway)
         val importer = StreamingPlaylistImporter(repository)
@@ -55,11 +56,13 @@ class StreamingPlaylistWriteTest {
         assertEquals(listOf("keep", "new"), gateway.reordered.single())
         assertEquals(listOf("unused-mirror"), gateway.deleted)
         assertEquals(0, gateway.clearOrRebuildCalls)
+        assertTrue(gateway.requestedPages.contains(2))
     }
 
     private class RecordingPlaylistGateway(
         private val existingTitle: String = "镜像收藏",
-        existingTracks: List<StreamingTrack> = emptyList()
+        existingTracks: List<StreamingTrack> = emptyList(),
+        private val responsePageSize: Int = Int.MAX_VALUE
     ) : StreamingGateway by RegistryStreamingGateway(StreamingProviderRegistry()) {
         private val currentTracks = existingTracks.toMutableList()
         val added = mutableListOf<List<String>>()
@@ -67,6 +70,7 @@ class StreamingPlaylistWriteTest {
         val renamed = mutableListOf<String>()
         val reordered = mutableListOf<List<String>>()
         val deleted = mutableListOf<String>()
+        val requestedPages = mutableListOf<Int>()
         var clearOrRebuildCalls = 0
 
         override suspend fun providerCapabilities(): List<StreamingProviderCapability> = listOf(
@@ -97,12 +101,22 @@ class StreamingPlaylistWriteTest {
         override suspend fun createUserPlaylist(provider: StreamingProviderName, title: String) =
             StreamingPlaylist(provider, "qq-playlist", title)
 
-        override suspend fun playlist(request: StreamingPlaylistRequest) = StreamingPlaylistDetail(
-            provider = request.provider,
-            providerPlaylistId = request.providerPlaylistId,
-            playlist = StreamingPlaylist(request.provider, request.providerPlaylistId, existingTitle),
-            tracks = currentTracks.toList()
-        )
+        override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail {
+            requestedPages += request.page
+            val pageSize = minOf(request.pageSize, responsePageSize)
+            val offset = (request.page - 1) * pageSize
+            val tracks = currentTracks.drop(offset).take(pageSize)
+            return StreamingPlaylistDetail(
+                provider = request.provider,
+                providerPlaylistId = request.providerPlaylistId,
+                playlist = StreamingPlaylist(request.provider, request.providerPlaylistId, existingTitle),
+                tracks = tracks,
+                total = currentTracks.size,
+                page = request.page,
+                pageSize = pageSize,
+                hasMore = offset + tracks.size < currentTracks.size
+            )
+        }
 
         override suspend fun renameUserPlaylist(
             provider: StreamingProviderName,

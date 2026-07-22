@@ -121,6 +121,29 @@ class PlaylistRepositoryTest {
         assertEquals(2, database.playlistDao().playlistTrackRows(playlist).size)
     }
 
+    @Test
+    fun missingEarlierCanonicalTrackDoesNotShiftRecordingPairing() {
+        val first = identifiedTrack(
+            51L,
+            "/music/first.flac",
+            "123e4567-e89b-12d3-a456-426614174051"
+        )
+        val second = identifiedTrack(
+            52L,
+            "/music/second.flac",
+            "123e4567-e89b-12d3-a456-426614174052"
+        )
+        val library = LibraryRepository(database)
+        library.upsertTracks(listOf(first, second))
+        val playlist = repository.create("Missing canonical source")
+        assertTrue(repository.addTrack(playlist, first.id))
+        assertTrue(repository.addTrack(playlist, second.id))
+
+        library.deleteTrack(first.id)
+
+        assertEquals(listOf(second.id), repository.loadTracks(playlist).map { it.id })
+    }
+
     private fun track(id: Long, dataPath: String) = Track(
         id,
         "Track $id",

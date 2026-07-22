@@ -361,10 +361,10 @@ final class Mp4MetadataParser {
         if (offset + 4 > data.length) {
             return false;
         }
-        return data[offset] == type.charAt(0)
-                && data[offset + 1] == type.charAt(1)
-                && data[offset + 2] == type.charAt(2)
-                && data[offset + 3] == type.charAt(3);
+        return (data[offset] & 0xff) == type.charAt(0)
+                && (data[offset + 1] & 0xff) == type.charAt(1)
+                && (data[offset + 2] & 0xff) == type.charAt(2)
+                && (data[offset + 3] & 0xff) == type.charAt(3);
     }
 
     private static String atomTypeName(byte[] data, int offset) {

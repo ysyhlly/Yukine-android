@@ -95,7 +95,7 @@ class StreamingPlaylistImporter(
         desiredTracks: List<StreamingTrack>
     ) {
         if (!ProviderRolePolicy.canSyncPlaylists(provider.wireName)) return
-        val existing = repository.playlist(provider, providerPlaylistId, pageSize = 2_000, useCache = false)
+        val existing = loadFullPlaylist(provider, providerPlaylistId)
         val existingIds = existing.tracks.map { it.providerTrackId }
         val desiredIds = desiredTracks.map { it.providerTrackId }.filter { it.isNotBlank() }.distinct()
         if (existing.playlist?.title != title) repository.renameUserPlaylist(provider, providerPlaylistId, title)
@@ -103,24 +103,16 @@ class StreamingPlaylistImporter(
         val remove = existingIds.filterNot(desiredIds::contains)
         add.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
             repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, true)
-            val confirmed = repository.playlist(
-                provider,
-                providerPlaylistId,
-                pageSize = 2_000,
-                useCache = false
-            ).tracks.map { it.providerTrackId }.toSet()
+            val confirmed = loadFullPlaylist(provider, providerPlaylistId)
+                .tracks.map { it.providerTrackId }.toSet()
             check(batch.all(confirmed::contains)) {
                 "Remote playlist did not confirm an added track batch"
             }
         }
         remove.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
             repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, false)
-            val confirmed = repository.playlist(
-                provider,
-                providerPlaylistId,
-                pageSize = 2_000,
-                useCache = false
-            ).tracks.map { it.providerTrackId }.toSet()
+            val confirmed = loadFullPlaylist(provider, providerPlaylistId)
+                .tracks.map { it.providerTrackId }.toSet()
             check(batch.none(confirmed::contains)) {
                 "Remote playlist did not confirm a removed track batch"
             }
@@ -130,8 +122,41 @@ class StreamingPlaylistImporter(
         }
     }
 
+    private suspend fun loadFullPlaylist(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): StreamingPlaylistDetail {
+        val tracksById = LinkedHashMap<String, StreamingTrack>()
+        var firstPage: StreamingPlaylistDetail? = null
+        for (page in 1..MAX_PLAYLIST_PAGES) {
+            val detail = repository.playlist(
+                provider = provider,
+                providerPlaylistId = providerPlaylistId,
+                page = page,
+                pageSize = PLAYLIST_PAGE_SIZE,
+                useCache = false
+            )
+            if (firstPage == null) firstPage = detail
+            val previousCount = tracksById.size
+            detail.tracks.forEach { track ->
+                if (track.providerTrackId.isNotBlank()) {
+                    tracksById.putIfAbsent(track.providerTrackId, track)
+                }
+            }
+            if (!detail.hasMore) {
+                return requireNotNull(firstPage).copy(tracks = tracksById.values.toList())
+            }
+            check(detail.tracks.isNotEmpty() && tracksById.size > previousCount) {
+                "Remote playlist pagination made no progress"
+            }
+        }
+        error("Remote playlist pagination exceeded $MAX_PLAYLIST_PAGES pages")
+    }
+
     private companion object {
         const val PLAYLIST_WRITE_BATCH_SIZE = 50
+        const val PLAYLIST_PAGE_SIZE = 2_000
+        const val MAX_PLAYLIST_PAGES = 100
     }
 
     private fun buildSearchQuery(track: Track): String {

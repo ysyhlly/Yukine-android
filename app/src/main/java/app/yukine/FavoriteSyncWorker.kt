@@ -1,7 +1,7 @@
 package app.yukine
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -74,7 +74,7 @@ class FavoriteSyncWorker(
             runner.runOnce()
             Result.success()
         } catch (error: Throwable) {
-            Log.w(TAG, "Background favorite synchronization failed", error)
+            DiagnosticLog.w(TAG, "Background favorite synchronization failed", error)
             Result.retry()
         }
     }
@@ -103,7 +103,7 @@ internal object FavoriteSyncBackgroundScheduler {
     fun update(context: Context, preferences: FavoriteSyncPreferences) {
         val workManager = runCatching { WorkManager.getInstance(context.applicationContext) }
             .getOrElse {
-                Log.w(TAG, "WorkManager is unavailable", it)
+                DiagnosticLog.w(TAG, "WorkManager is unavailable", it)
                 return
             }
         val schedule = favoriteSyncScheduleSpec(preferences)

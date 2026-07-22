@@ -120,6 +120,9 @@ class SettingsPageStateBuilderTest {
         val navigated = mutableListOf<SettingsPage>()
         var permissionsRequested = false
         var debugPromptsEnabled = false
+        var checkUpdateEnabled = true
+        var checkUpdateNowRequested = false
+        var diagnosticsExportRequested = false
 
         val content = SettingsPageStateBuilder.aboutGroup(
             languageMode = AppLanguage.MODE_ENGLISH,
@@ -127,29 +130,44 @@ class SettingsPageStateBuilderTest {
             audioPermissionGranted = false,
             notificationPermissionGranted = true,
             debugPromptsEnabled = false,
+            checkUpdateEnabled = true,
             onNavigate = { page -> navigated += page },
             onRequestNeededPermissions = { permissionsRequested = true },
-            onDebugPromptsEnabledChange = { debugPromptsEnabled = it }
+            onDebugPromptsEnabledChange = { debugPromptsEnabled = it },
+            onExportDiagnostics = { diagnosticsExportRequested = true },
+            onCheckUpdateEnabledChange = { checkUpdateEnabled = it },
+            onCheckUpdateNow = { checkUpdateNowRequested = true }
         )
 
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "settings.group.about"), content.uiState.title)
         assertEquals(3, content.uiState.metrics.size)
-        assertEquals(4, content.actions.size)
+        assertEquals(7, content.actions.size)
         assertTrue(content.actions[0].isBack)
         assertEquals(SettingsEntryId.AudioPermission, content.actions[1].entryId)
         assertEquals("1013122077", content.actions[2].value)
         assertEquals(app.yukine.feature.settingsui.R.drawable.qq_group_qr, content.actions[2].imageDialog?.imageResId)
         assertEquals(SettingsActionStyle.Toggle, content.actions[3].style)
         assertEquals(false, content.actions[3].checked)
+        assertEquals(SettingsEntryId.DiagnosticsExport, content.actions[4].entryId)
+        assertEquals(SettingsActionStyle.Navigation, content.actions[4].style)
+        assertEquals(SettingsActionStyle.Toggle, content.actions[5].style)
+        assertEquals(true, content.actions[5].checked)
+        assertEquals(SettingsActionStyle.Navigation, content.actions[6].style)
 
         content.actions[0].onClick.run()
         content.actions[1].onClick.run()
         content.actions[2].onClick.run()
         content.actions[3].onClick.run()
+        content.actions[4].onClick.run()
+        content.actions[5].onClick.run()
+        content.actions[6].onClick.run()
 
         assertEquals(listOf(SettingsPage.Home), navigated)
         assertEquals(true, permissionsRequested)
         assertEquals(true, debugPromptsEnabled)
+        assertEquals(true, diagnosticsExportRequested)
+        assertEquals(false, checkUpdateEnabled)
+        assertEquals(true, checkUpdateNowRequested)
     }
 
     @Test

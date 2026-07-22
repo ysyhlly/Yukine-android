@@ -2,7 +2,7 @@ package app.yukine.data;
 
 import android.content.Context;
 import android.net.Uri;
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -565,6 +565,14 @@ public final class MusicLibraryRepository {
 
     public void saveDebugPromptsEnabled(boolean enabled) {
         settingsRepository.saveDebugPromptsEnabled(enabled);
+    }
+
+    public boolean loadCheckUpdateEnabled() {
+        return settingsRepository.loadCheckUpdateEnabled();
+    }
+
+    public void saveCheckUpdateEnabled(boolean enabled) {
+        settingsRepository.saveCheckUpdateEnabled(enabled);
     }
 
     public boolean loadCustomBackgroundBlurEnabled() {
@@ -1281,7 +1289,7 @@ public final class MusicLibraryRepository {
         if (listener != null) {
             listener.onProgress(new LibraryRefreshProgress(phase, trackCount, elapsedMs));
         }
-        Log.i(
+        DiagnosticLog.i(
                 TAG,
                 "Device library refresh phase=" + phase
                         + " tracks=" + trackCount
@@ -1291,7 +1299,7 @@ public final class MusicLibraryRepository {
 
     private static void reportRefreshCompleted(int trackCount, long startedAtNanos, boolean reusedCachedRows) {
         long elapsedMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
-        Log.i(
+        DiagnosticLog.i(
                 TAG,
                 "Device library refresh completed tracks=" + trackCount
                         + " reusedCachedRows=" + reusedCachedRows

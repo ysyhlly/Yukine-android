@@ -1,5 +1,7 @@
 package app.yukine.playback;
 
+import android.net.wifi.WifiManager;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -7,6 +9,15 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public class PlaybackWifiLockOwnerTest {
+    @Test
+    public void lowLatencyModeIsOnlyUsedFromAndroidQ() {
+        assertEquals(WifiManager.WIFI_MODE_FULL, PlaybackWifiLockOwner.preferredModeForSdk(28));
+        assertEquals(
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
+                PlaybackWifiLockOwner.preferredModeForSdk(29)
+        );
+    }
+
     @Test
     public void delegatesWifiLockLifecycleActions() {
         FakeWifiLockOperations operations = new FakeWifiLockOperations();

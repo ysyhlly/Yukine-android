@@ -1,5 +1,9 @@
 package app.yukine
 
+import app.yukine.playback.AudioFallbackReason
+import app.yukine.playback.AudioOutputPhase
+import app.yukine.playback.AudioOutputSnapshot
+
 /** Pure page-to-content mapping; feature mutations stay in focused settings owners. */
 internal object SettingsPageContentFactory {
     fun build(
@@ -86,7 +90,22 @@ internal object SettingsPageContentFactory {
                     },
                     onUsbExclusiveEnabledChange = { enabled ->
                         playback.setUsbExclusiveEnabled(enabled)
-                    }
+                    },
+                    audioExclusiveStatusDescription = focusStatusDescription(
+                        languageMode,
+                        preferences.audioExclusiveEnabled,
+                        runtime.audioExclusiveActive
+                    ),
+                    bitPerfectStatusDescription = outputStatusDescription(
+                        languageMode,
+                        preferences.bitPerfectEnabled,
+                        runtime.audioOutput
+                    ),
+                    usbExclusiveStatusDescription = outputStatusDescription(
+                        languageMode,
+                        preferences.usbExclusiveEnabled,
+                        runtime.audioOutput
+                    )
                 )
             SettingsPage.LibraryGroup,
             SettingsPage.Library ->
@@ -172,11 +191,17 @@ internal object SettingsPageContentFactory {
                     runtime.audioPermissionGranted,
                     runtime.notificationPermissionGranted,
                     preferences.debugPromptsEnabled,
+                    preferences.checkUpdateEnabled,
                     onNavigate = ::navigateSettingsPage,
                     onRequestNeededPermissions = { platform.requestNeededPermissions() },
                     onDebugPromptsEnabledChange = { enabled ->
                         appearance.setDebugPromptsEnabled(enabled)
-                    }
+                    },
+                    onExportDiagnostics = { platform.exportDiagnostics() },
+                    onCheckUpdateEnabledChange = { enabled ->
+                        appearance.setCheckUpdateEnabled(enabled)
+                    },
+                    onCheckUpdateNow = { platform.checkGitHubUpdate() }
                 )
             SettingsPage.Downloads ->
                 SettingsPageStateBuilder.storageGroup(
@@ -366,7 +391,59 @@ internal object SettingsPageContentFactory {
                     onRequestNeededPermissions = { platform.requestNeededPermissions() },
                     onOpenOverlayPermission = { platform.openFloatingLyricsPermission() }
                 )
+    }
+    }
+
+    private fun focusStatusDescription(languageMode: String, requested: Boolean, active: Boolean): String {
+        return if (AppLanguage.isChinese(languageMode)) {
+            "请求：${if (requested) "开启" else "关闭"}；实际：${if (active) "已取得独占音频焦点" else "协作音频焦点"}"
+        } else {
+            "Requested: ${if (requested) "on" else "off"}; actual: ${if (active) "exclusive audio focus" else "cooperative audio focus"}"
         }
     }
 
+    private fun outputStatusDescription(
+        languageMode: String,
+        requested: Boolean,
+        snapshot: AudioOutputSnapshot
+    ): String {
+        val reason = localizedFallbackReason(languageMode, snapshot.fallbackReason)
+        val format = when {
+            snapshot.dsdRate > 0 -> "DSD${snapshot.dsdRate}"
+            snapshot.sampleRateHz > 0 -> "${snapshot.sampleRateHz} Hz"
+            else -> ""
+        }
+        val actual = listOf(snapshot.transport.name, snapshot.phase.name, format)
+            .filter(String::isNotBlank)
+            .joinToString(" · ")
+        return if (AppLanguage.isChinese(languageMode)) {
+            "请求：${if (requested) "开启" else "关闭"}；实际：$actual" +
+                if (reason.isBlank()) "" else "；原因：$reason"
+        } else {
+            "Requested: ${if (requested) "on" else "off"}; actual: $actual" +
+                if (reason.isBlank()) "" else "; reason: $reason"
+        }
+    }
+
+    private fun localizedFallbackReason(languageMode: String, reason: AudioFallbackReason): String {
+        if (reason == AudioFallbackReason.NONE) return ""
+        if (!AppLanguage.isChinese(languageMode)) return reason.name.lowercase().replace('_', ' ')
+        return when (reason) {
+            AudioFallbackReason.NO_USB_DEVICE -> "未连接 USB 音频设备"
+            AudioFallbackReason.USB_PERMISSION_DENIED -> "USB 权限被拒绝"
+            AudioFallbackReason.NATIVE_LIBRARY_UNAVAILABLE -> "原生 USB 传输库不可用"
+            AudioFallbackReason.NO_COMPATIBLE_ENDPOINT -> "无兼容音频端点"
+            AudioFallbackReason.CLOCK_NEGOTIATION_FAILED -> "时钟或采样率协商失败"
+            AudioFallbackReason.TRANSFER_FAILED -> "USB 传输失败"
+            AudioFallbackReason.DEVICE_DETACHED -> "设备已断开"
+            AudioFallbackReason.NATIVE_DSD_PROFILE_MISSING -> "缺少 Native DSD 设备配置"
+            AudioFallbackReason.DOP_UNSUPPORTED -> "设备不支持 DoP"
+            AudioFallbackReason.FORMAT_UNSUPPORTED -> "格式不受支持"
+            AudioFallbackReason.REMOTE_DSD_NOT_CACHED -> "远程 DSD 需先完整下载"
+            AudioFallbackReason.DST_UNSUPPORTED -> "首版不支持 DST 压缩"
+            AudioFallbackReason.OFFLOAD_UNAVAILABLE -> "硬件 Offload 不可用"
+            AudioFallbackReason.OFFLOAD_FAILED -> "硬件 Offload 失败"
+            AudioFallbackReason.NONE -> ""
+        }
+    }
 }

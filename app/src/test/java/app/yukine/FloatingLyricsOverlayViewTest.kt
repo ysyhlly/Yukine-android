@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import androidx.test.core.app.ApplicationProvider
+import app.yukine.ui.KaraokeHighlightPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -122,6 +123,30 @@ class FloatingLyricsOverlayViewTest {
 
         assertEquals(View.GONE, overlay.translationView.visibility)
         assertEquals(View.GONE, overlay.romanizationView.visibility)
+    }
+
+    @Test
+    fun bindStatePublishesContinuousWordProgressToKaraokeView() {
+        val overlay = FloatingLyricsOverlayView(
+            context,
+            FloatingLyricsOverlaySettings()
+        ) { }
+
+        overlay.bindState(
+            FloatingLyricsState(
+                activeLine = "hello",
+                activeLineWords = listOf(
+                    FloatingLyricWord("hello", 1_000L, 2_000L, 0, 5)
+                ),
+                linePositionMs = 1_500L,
+                visible = true
+            ),
+            artwork = null
+        )
+
+        val range = overlay.lyricsView.highlightFrame.ranges.single()
+        assertEquals(KaraokeHighlightPhase.CURRENT, range.phase)
+        assertEquals(0.5f, range.progress, 0.001f)
     }
 
     private fun descendants(root: View): Sequence<View> = sequence {

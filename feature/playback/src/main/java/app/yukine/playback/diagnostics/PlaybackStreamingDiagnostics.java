@@ -1,6 +1,6 @@
 package app.yukine.playback.diagnostics;
 
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -465,17 +465,17 @@ public final class PlaybackStreamingDiagnostics {
 
     private static void logDebug(String message) {
         try {
-            Log.d(TAG, message);
+            DiagnosticLog.d(TAG, message);
         } catch (RuntimeException ignored) {
-            // Local JVM tests do not provide android.util.Log.
+            // Local JVM tests do not provide android.util.DiagnosticLog.
         }
     }
 
     private static void logWarning(String message, Throwable error) {
         try {
-            Log.w(TAG, message, error);
+            DiagnosticLog.w(TAG, message, error);
         } catch (RuntimeException ignored) {
-            // Local JVM tests do not provide android.util.Log.
+            // Local JVM tests do not provide android.util.DiagnosticLog.
         }
     }
 

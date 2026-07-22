@@ -5,7 +5,7 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -113,7 +113,7 @@ internal class FloatingLyricsWindowController(
             try {
                 windowManager?.removeView(view)
             } catch (error: RuntimeException) {
-                Log.w(TAG, "Unable to remove floating lyrics window", error)
+                DiagnosticLog.w(TAG, "Unable to remove floating lyrics window", error)
             }
         }
         clearReferences()
@@ -237,7 +237,7 @@ internal class FloatingLyricsWindowController(
         Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
     private fun reportFailure(message: String, error: Throwable) {
-        Log.w(TAG, message, error)
+        DiagnosticLog.w(TAG, message, error)
         onFailure(error)
     }
 

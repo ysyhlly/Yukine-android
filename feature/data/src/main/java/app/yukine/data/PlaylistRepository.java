@@ -16,6 +16,7 @@ import app.yukine.data.room.PlaylistEntity;
 import app.yukine.data.room.PlaylistRow;
 import app.yukine.data.room.PlaylistTrackEntity;
 import app.yukine.data.room.PlaylistRecordingItemEntity;
+import app.yukine.data.room.PlaylistRecordingTrackRow;
 import app.yukine.data.room.MusicIdentityDao;
 import app.yukine.data.room.TrackSourceMappingEntity;
 import app.yukine.data.room.TrackEntity;
@@ -284,19 +285,22 @@ public final class PlaylistRepository {
     }
 
     public List<Track> loadTracks(long playlistId) {
-        List<TrackEntity> canonicalTracks = dao.playlistRecordingTracks(playlistId);
+        List<PlaylistRecordingTrackRow> canonicalRows = dao.playlistRecordingTracks(playlistId);
         List<PlaylistRecordingItemEntity> canonicalItems = dao.playlistRecordingRows(playlistId);
         List<TrackEntity> legacyTracks = dao.playlistTracks(playlistId);
         List<TrackEntity> rows;
-        if (canonicalTracks.isEmpty()) {
+        if (canonicalRows.isEmpty()) {
             rows = legacyTracks;
         } else if (legacyTracks.isEmpty()) {
+            ArrayList<TrackEntity> canonicalTracks = new ArrayList<>(canonicalRows.size());
+            for (PlaylistRecordingTrackRow canonicalRow : canonicalRows) {
+                canonicalTracks.add(canonicalRow.getTrack());
+            }
             rows = canonicalTracks;
         } else {
             Map<Long, TrackEntity> canonicalByRecording = new HashMap<>();
-            int paired = Math.min(canonicalItems.size(), canonicalTracks.size());
-            for (int index = 0; index < paired; index++) {
-                canonicalByRecording.put(canonicalItems.get(index).getRecordingId(), canonicalTracks.get(index));
+            for (PlaylistRecordingTrackRow canonicalRow : canonicalRows) {
+                canonicalByRecording.put(canonicalRow.getRecordingId(), canonicalRow.getTrack());
             }
             Map<Long, TrackSourceMappingEntity> sourceByTrack = new HashMap<>();
             ArrayList<Long> legacyIds = new ArrayList<>(legacyTracks.size());

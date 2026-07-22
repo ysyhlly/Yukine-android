@@ -2,7 +2,7 @@ package app.yukine.playback
 
 import android.content.Context
 import android.os.Handler
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.fingerprint.ChromaprintSegmentAnalyzer
 import app.yukine.model.Track
@@ -124,7 +124,7 @@ internal class PlaybackCachedFingerprintOwner private constructor(
                 repository.refreshAudioVerifiedMatches(listOf(track.id))
                 true
             } catch (error: RuntimeException) {
-                Log.d(TAG, "Cached WebDAV fingerprint skipped", error)
+                DiagnosticLog.d(TAG, "Cached WebDAV fingerprint skipped", error)
                 false
             } finally {
                 cachedPrefix.delete()

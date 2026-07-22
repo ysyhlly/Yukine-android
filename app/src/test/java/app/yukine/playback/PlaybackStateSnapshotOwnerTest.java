@@ -6,6 +6,7 @@ import static org.junit.Assert.assertSame;
 import android.net.Uri;
 
 import app.yukine.model.Track;
+import app.yukine.playback.AudioOutputSnapshot;
 import app.yukine.playback.manager.PlaybackQueueManager;
 import org.junit.Test;
 
@@ -216,6 +217,11 @@ public class PlaybackStateSnapshotOwnerTest {
         @Override
         public boolean audioExclusiveActive() {
             return false;
+        }
+
+        @Override
+        public AudioOutputSnapshot audioOutput() {
+            return AudioOutputSnapshot.idle();
         }
     }
 

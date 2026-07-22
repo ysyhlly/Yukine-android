@@ -2,13 +2,14 @@ package app.yukine
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.text.Spannable
-import android.text.SpannableString
+import android.text.Layout
 import android.text.TextUtils
-import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -20,7 +21,13 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import app.yukine.ui.KaraokeHighlightFrame
+import app.yukine.ui.KaraokeHighlightPhase
+import app.yukine.ui.KaraokeWordTiming
+import app.yukine.ui.karaokeHighlightFrame
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 internal class FloatingLyricsOverlayView(
@@ -51,7 +58,7 @@ internal class FloatingLyricsOverlayView(
         isFocusable = true
     }
 
-    val lyricsView: TextView = TextView(context).apply {
+    val lyricsView: KaraokeTextView = KaraokeTextView(context).apply {
         gravity = Gravity.CENTER
         maxLines = 2
         ellipsize = TextUtils.TruncateAt.END
@@ -176,11 +183,20 @@ internal class FloatingLyricsOverlayView(
         state: FloatingLyricsState,
         artwork: Bitmap?
     ) {
-        if (state.activeLineWords.isNotEmpty()) {
-            lyricsView.text = buildKaraokeSpannable(state)
-        } else if (lyricsView.text?.toString() != state.activeLine) {
-            lyricsView.text = state.activeLine
-        }
+        val frame = karaokeHighlightFrame(
+            text = state.activeLine,
+            words = state.activeLineWords.map { word ->
+                KaraokeWordTiming(
+                    text = word.text,
+                    startMs = word.startMs,
+                    endMs = word.endMs,
+                    startOffset = word.startOffset,
+                    endOffset = word.endOffset
+                )
+            },
+            positionMs = state.linePositionMs
+        )
+        lyricsView.bindKaraoke(frame, settings.textColorArgb, ACCENT)
         titleView.text = state.trackTitle.ifBlank {
             context.getString(R.string.floating_lyrics_unknown_track)
         }
@@ -214,58 +230,6 @@ internal class FloatingLyricsOverlayView(
         }
     }
 
-    private fun buildKaraokeSpannable(state: FloatingLyricsState): SpannableString {
-        val text = state.activeLine
-        val spannable = SpannableString(text)
-        val positionMs = state.linePositionMs
-        val baseColor = settings.textColorArgb
-        val accentColor = ACCENT
-        var searchFrom = 0
-        for (word in state.activeLineWords) {
-            val start = word.startOffset.coerceAtLeast(searchFrom)
-            val end = word.endOffset.coerceAtMost(text.length)
-            if (end <= start) continue
-            when {
-                positionMs >= word.endMs -> {
-                    spannable.setSpan(
-                        ForegroundColorSpan(accentColor),
-                        start, end,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
-                positionMs in word.startMs until word.endMs -> {
-                    val fraction = (positionMs - word.startMs).toFloat() /
-                        (word.endMs - word.startMs).coerceAtLeast(1L)
-                    val filled = (fraction * (end - start)).roundToInt().coerceIn(0, end - start)
-                    val splitAt = start + filled
-                    if (splitAt > start) {
-                        spannable.setSpan(
-                            ForegroundColorSpan(accentColor),
-                            start, splitAt,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        )
-                    }
-                    if (splitAt < end) {
-                        spannable.setSpan(
-                            ForegroundColorSpan(baseColor),
-                            splitAt, end,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        )
-                    }
-                }
-                else -> {
-                    spannable.setSpan(
-                        ForegroundColorSpan(baseColor),
-                        start, end,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
-            }
-            searchFrom = end
-        }
-        return spannable
-    }
-
     private var lastBackgroundAlpha = -1
 
     fun applySettings(next: FloatingLyricsOverlaySettings) {
@@ -273,7 +237,7 @@ internal class FloatingLyricsOverlayView(
         if (lyricsView.textSize != settings.textSizeSp.toFloat()) {
             lyricsView.textSize = settings.textSizeSp.toFloat()
         }
-        lyricsView.setTextColor(settings.textColorArgb)
+        lyricsView.updateKaraokeColors(settings.textColorArgb, ACCENT)
         val secondarySizeSp = (settings.textSizeSp - 2).coerceAtLeast(11).toFloat()
         romanizationView.textSize = secondarySizeSp
         translationView.textSize = secondarySizeSp
@@ -571,3 +535,136 @@ internal class FloatingLyricsOverlayView(
         const val ACCENT = 0xFF2F6E91.toInt()
     }
 }
+
+internal class KaraokeTextView(context: Context) : TextView(context) {
+    internal var highlightFrame: KaraokeHighlightFrame = KaraokeHighlightFrame("", emptyList())
+        private set
+    private var baseColor: Int = Color.WHITE
+    private var accentColor: Int = Color.WHITE
+
+    fun bindKaraoke(frame: KaraokeHighlightFrame, baseColor: Int, accentColor: Int) {
+        highlightFrame = frame
+        this.baseColor = baseColor
+        this.accentColor = accentColor
+        if (text?.toString() != frame.text) text = frame.text
+        invalidate()
+    }
+
+    fun updateKaraokeColors(baseColor: Int, accentColor: Int) {
+        this.baseColor = baseColor
+        this.accentColor = accentColor
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val originalColor = paint.color
+        paint.color = baseColor
+        super.onDraw(canvas)
+
+        val textLayout = layout
+        if (textLayout != null && highlightFrame.ranges.any {
+                it.phase == KaraokeHighlightPhase.COMPLETED ||
+                    (it.phase == KaraokeHighlightPhase.CURRENT && it.progress > 0f)
+            }) {
+            val activePath = buildActivePath(textLayout, highlightFrame)
+            activePath.offset(
+                (compoundPaddingLeft - scrollX).toFloat(),
+                (extendedPaddingTop - scrollY).toFloat()
+            )
+            paint.color = accentColor
+            val checkpoint = canvas.save()
+            canvas.clipPath(activePath)
+            super.onDraw(canvas)
+            canvas.restoreToCount(checkpoint)
+        }
+        paint.color = originalColor
+    }
+
+    private fun buildActivePath(textLayout: Layout, frame: KaraokeHighlightFrame): Path {
+        val path = Path()
+        frame.ranges.forEach { range ->
+            val start = range.start.coerceIn(0, frame.text.length)
+            val end = range.end.coerceIn(start, frame.text.length)
+            if (end <= start) return@forEach
+            when (range.phase) {
+                KaraokeHighlightPhase.COMPLETED -> {
+                    val selection = Path()
+                    textLayout.getSelectionPath(start, end, selection)
+                    path.addPath(selection)
+                }
+                KaraokeHighlightPhase.CURRENT -> addPartialRange(
+                    path,
+                    textLayout,
+                    start,
+                    end,
+                    range.progress
+                )
+                KaraokeHighlightPhase.UPCOMING -> Unit
+            }
+        }
+        return path
+    }
+
+    private fun addPartialRange(
+        path: Path,
+        textLayout: Layout,
+        start: Int,
+        end: Int,
+        progress: Float
+    ) {
+        if (progress <= 0f) return
+        if (progress >= 1f) {
+            val selection = Path()
+            textLayout.getSelectionPath(start, end, selection)
+            path.addPath(selection)
+            return
+        }
+        val segments = buildList {
+            val firstLine = textLayout.getLineForOffset(start)
+            val lastLine = textLayout.getLineForOffset((end - 1).coerceAtLeast(start))
+            for (lineIndex in firstLine..lastLine) {
+                val segmentStart = max(start, textLayout.getLineStart(lineIndex))
+                val segmentEnd = min(end, textLayout.getLineVisibleEnd(lineIndex))
+                if (segmentEnd <= segmentStart) continue
+                val startX = textLayout.getPrimaryHorizontal(segmentStart)
+                val endX = textLayout.getPrimaryHorizontal(segmentEnd)
+                add(
+                    FloatingVisualSegment(
+                        left = min(startX, endX),
+                        right = max(startX, endX),
+                        top = textLayout.getLineTop(lineIndex).toFloat(),
+                        bottom = textLayout.getLineBottom(lineIndex).toFloat(),
+                        rightToLeft = textLayout.isRtlCharAt(segmentStart)
+                    )
+                )
+            }
+        }
+        val totalWidth = segments.sumOf { abs(it.right - it.left).toDouble() }.toFloat()
+        var remaining = totalWidth * progress.coerceIn(0f, 1f)
+        segments.forEach { segment ->
+            if (remaining <= 0f) return@forEach
+            val width = abs(segment.right - segment.left)
+            val filled = min(width, remaining)
+            if (segment.rightToLeft) {
+                path.addRect(
+                    RectF(segment.right - filled, segment.top, segment.right, segment.bottom),
+                    Path.Direction.CW
+                )
+            } else {
+                path.addRect(
+                    RectF(segment.left, segment.top, segment.left + filled, segment.bottom),
+                    Path.Direction.CW
+                )
+            }
+            remaining -= filled
+        }
+    }
+}
+
+private data class FloatingVisualSegment(
+    val left: Float,
+    val right: Float,
+    val top: Float,
+    val bottom: Float,
+    val rightToLeft: Boolean
+)

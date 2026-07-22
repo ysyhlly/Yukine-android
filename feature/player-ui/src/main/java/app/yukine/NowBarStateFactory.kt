@@ -91,7 +91,8 @@ object NowBarStateFactory {
                 ),
                 lyrics = NowBarLyricsState(
                     title = AppLanguage.text(languageMode, "lyrics"),
-                    status = lyricsStatus
+                    status = lyricsStatus,
+                    offsetMs = lyricsOffsetMs
                 ),
                 labels = labels,
                 artwork = NowBarArtworkState(),
@@ -129,7 +130,8 @@ object NowBarStateFactory {
             lyrics = NowBarLyricsState(
                 title = AppLanguage.text(languageMode, "lyrics"),
                 status = lyricsStatus,
-                lines = lyricRows
+                lines = lyricRows,
+                offsetMs = lyricsOffsetMs
             ),
             labels = labels,
             artwork = NowBarArtworkState(track.albumArtUri),

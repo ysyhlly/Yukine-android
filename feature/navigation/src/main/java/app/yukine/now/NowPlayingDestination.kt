@@ -100,6 +100,7 @@ fun NowPlayingDestination(
             primaryVisible = uiState.lyrics.primaryVisible,
             translationVisible = uiState.lyrics.translationVisible,
             romanizationVisible = uiState.lyrics.romanizationVisible,
+            resumeLyricsFollowLabel = uiState.labels.resumeLyricsFollow,
             onShare = Runnable { onEvent(NowPlayingEvent.ShareCurrentTrack) },
             onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) },
             onImportLyrics = Runnable { onEvent(NowPlayingEvent.ImportCurrentLyrics) },

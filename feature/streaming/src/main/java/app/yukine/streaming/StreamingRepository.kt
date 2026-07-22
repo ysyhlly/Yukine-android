@@ -1,7 +1,7 @@
 package app.yukine.streaming
 
 import android.content.Context
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.model.Track
 import app.yukine.streaming.cache.StreamingCachePolicy
 import app.yukine.streaming.cache.StreamingCacheRepository
@@ -124,7 +124,7 @@ class StreamingRepository(
             }
             recordGatewayCall("search", provider) {
                 gateway.search(request).also { result ->
-                    if (useCache || result.tracks.isNotEmpty() || result.unifiedItems.isNotEmpty()) {
+                    if (useCache && (result.tracks.isNotEmpty() || result.unifiedItems.isNotEmpty())) {
                         cache?.saveSearch(
                             request,
                             StreamingGatewayJson.searchResultJson(result),
@@ -1111,15 +1111,15 @@ class StreamingRepository(
     }
 
     private fun logDebug(message: String) {
-        runCatching { Log.d(TAG, message) }
+        runCatching { DiagnosticLog.d(TAG, message) }
     }
 
     private fun logWarning(message: String, error: Throwable? = null) {
         runCatching {
             if (error == null) {
-                Log.w(TAG, message)
+                DiagnosticLog.w(TAG, message)
             } else {
-                Log.w(TAG, message, error)
+                DiagnosticLog.w(TAG, message, error)
             }
         }
     }

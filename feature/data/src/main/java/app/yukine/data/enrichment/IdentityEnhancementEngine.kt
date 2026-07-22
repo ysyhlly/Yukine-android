@@ -643,8 +643,8 @@ class IdentityEnhancementEngine(
                     identifierValue = value,
                     source = candidate.provider,
                     confidence = if (candidate.fingerprintVerified) {
-                        candidate.providerScore.coerceIn(0.0, 1.0)
-                    } else 1.0,
+                        1.0
+                    } else candidate.providerScore.coerceIn(0.0, 1.0),
                     verifiedAt = verifiedAt
                 )
             )

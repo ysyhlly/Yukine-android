@@ -24,6 +24,7 @@ internal data class LoadedSettingsPreferences(
     val bitPerfectEnabled: Boolean,
     val usbExclusiveEnabled: Boolean,
     val debugPromptsEnabled: Boolean,
+    val checkUpdateEnabled: Boolean,
     val customBackgroundBlurEnabled: Boolean,
     val customBackgroundBlurRadiusDp: Float,
     val glassBlurEnabled: Boolean,
@@ -54,6 +55,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadBitPerfectEnabled(): Boolean
     fun loadUsbExclusiveEnabled(): Boolean
     fun loadDebugPromptsEnabled(): Boolean
+    fun loadCheckUpdateEnabled(): Boolean
     fun loadCustomBackgroundBlurEnabled(): Boolean
     fun loadCustomBackgroundBlurRadiusDp(): Float
     fun loadGlassBlurEnabled(): Boolean
@@ -115,6 +117,9 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadDebugPromptsEnabled(): Boolean =
         repository.loadDebugPromptsEnabled()
+
+    override fun loadCheckUpdateEnabled(): Boolean =
+        repository.loadCheckUpdateEnabled()
 
     override fun loadCustomBackgroundBlurEnabled(): Boolean =
         repository.loadCustomBackgroundBlurEnabled()
@@ -178,6 +183,7 @@ internal class LoadSettingsPreferencesUseCase(
             bitPerfectEnabled = operations.loadBitPerfectEnabled(),
             usbExclusiveEnabled = operations.loadUsbExclusiveEnabled(),
             debugPromptsEnabled = operations.loadDebugPromptsEnabled(),
+            checkUpdateEnabled = operations.loadCheckUpdateEnabled(),
             customBackgroundBlurEnabled = operations.loadCustomBackgroundBlurEnabled(),
             customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
                 operations.loadCustomBackgroundBlurRadiusDp()

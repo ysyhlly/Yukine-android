@@ -3,7 +3,7 @@ package app.yukine.playback.manager
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -23,6 +23,8 @@ import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 import app.yukine.model.RemoteSource
 import app.yukine.playback.PlaybackCachedMediaReader
+import app.yukine.playback.AudioFallbackReason
+import app.yukine.playback.dsd.DsdExtractorsFactory
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import app.yukine.streaming.StreamingProviderName
 import java.io.File
@@ -54,13 +56,38 @@ internal class PlaybackMediaSourceProvider(
         val httpFactory = httpDataSourceFactory(headersForTrack(track))
         val upstreamFactory = DefaultDataSource.Factory(context, httpFactory)
         if (!isHttpTrack(track)) {
-            return DefaultMediaSourceFactory(upstreamFactory)
+            return DefaultMediaSourceFactory(upstreamFactory, DsdExtractorsFactory())
         }
         val cacheFactory = CacheDataSource.Factory()
             .setCache(audioCache())
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        return DefaultMediaSourceFactory(cacheFactory)
+        return DefaultMediaSourceFactory(cacheFactory, DsdExtractorsFactory())
+    }
+
+    fun dsdPlaybackBlockReason(
+        track: Track,
+        bitPerfectRequested: Boolean,
+        usbExclusiveRequested: Boolean
+    ): AudioFallbackReason? {
+        if (!isDsdTrack(track)) return null
+        if (!bitPerfectRequested || !usbExclusiveRequested) {
+            return AudioFallbackReason.FORMAT_UNSUPPORTED
+        }
+        if (!isHttpTrack(track)) return null
+        val cacheKey = mediaCacheKeyForTrack(track)
+        val contentLength = contentLengthForCacheKey(cacheKey)
+        val cachedBytes = continuousCachedBytes(cacheKey)
+        return if (contentLength <= 0L || cachedBytes < contentLength) {
+            AudioFallbackReason.REMOTE_DSD_NOT_CACHED
+        } else {
+            null
+        }
+    }
+
+    private fun isDsdTrack(track: Track): Boolean {
+        val path = (track.contentUri?.toString() ?: track.dataPath).lowercase()
+        return path.substringBefore('?').endsWith(".dsf") || path.substringBefore('?').endsWith(".dff")
     }
 
     fun cacheDataSourceForTrack(track: Track): CacheDataSource {
@@ -228,7 +255,7 @@ internal class PlaybackMediaSourceProvider(
         try {
             shared.cache.release()
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to release audio cache", error)
+            DiagnosticLog.w(TAG, "Unable to release audio cache", error)
         }
     }
 
@@ -236,7 +263,7 @@ internal class PlaybackMediaSourceProvider(
         return try {
             SimpleCache(cacheDir, LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES))
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Audio cache corrupted; clearing and rebuilding", error)
+            DiagnosticLog.w(TAG, "Audio cache corrupted; clearing and rebuilding", error)
             deleteRecursively(cacheDir)
             SimpleCache(cacheDir, LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_MAX_BYTES))
         }

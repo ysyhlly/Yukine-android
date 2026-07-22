@@ -9,7 +9,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.LyricLine
 import app.yukine.model.LyricsLine
@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 data class FloatingLyricsState(
     val trackTitle: String = "",
@@ -99,23 +100,26 @@ object FloatingLyricsPublisher {
         )
         val timeline = lyricsTimeline
         val positionMs = (state.progress.positionMs + timeline.offsetMs).coerceAtLeast(0L)
+        val activeRichLine = activeRichLineAt(timeline.wordLines, positionMs)
         val activeLine = if (timeline.trackId == state.track.trackId) {
-            activeLineAt(timeline.lines, positionMs)
+            activeRichLine?.text ?: activeLineAt(timeline.lines, positionMs)
         } else {
             ""
         }
         val activeWords = if (timeline.trackId == state.track.trackId) {
-            activeWordsAt(timeline.wordLines, positionMs)
+            activeWords(activeRichLine)
         } else {
             emptyList()
         }
         val activeTranslation = if (timeline.trackId == state.track.trackId) {
-            closestTextAt(timeline.translationLines, positionMs)
+            activeRichLine?.let { alignedTextAt(timeline.translationLines, it.startMs) }
+                ?: textAtOrBefore(timeline.translationLines, positionMs)
         } else {
             ""
         }
         val activeRomanization = if (timeline.trackId == state.track.trackId) {
-            closestTextAt(timeline.romanizationLines, positionMs)
+            activeRichLine?.let { alignedTextAt(timeline.romanizationLines, it.startMs) }
+                ?: textAtOrBefore(timeline.romanizationLines, positionMs)
         } else {
             ""
         }
@@ -192,23 +196,26 @@ object FloatingLyricsPublisher {
     fun syncPlaybackState(track: Track, playing: Boolean, positionMs: Long) {
         val timeline = lyricsTimeline
         val adjustedPosition = (positionMs + timeline.offsetMs).coerceAtLeast(0L)
+        val activeRichLine = activeRichLineAt(timeline.wordLines, adjustedPosition)
         val activeLine = if (timeline.trackId == track.id) {
-            activeLineAt(timeline.lines, adjustedPosition)
+            activeRichLine?.text ?: activeLineAt(timeline.lines, adjustedPosition)
         } else {
             ""
         }
         val activeWords = if (timeline.trackId == track.id) {
-            activeWordsAt(timeline.wordLines, adjustedPosition)
+            activeWords(activeRichLine)
         } else {
             emptyList()
         }
         val activeTranslation = if (timeline.trackId == track.id) {
-            closestTextAt(timeline.translationLines, adjustedPosition)
+            activeRichLine?.let { alignedTextAt(timeline.translationLines, it.startMs) }
+                ?: textAtOrBefore(timeline.translationLines, adjustedPosition)
         } else {
             ""
         }
         val activeRomanization = if (timeline.trackId == track.id) {
-            closestTextAt(timeline.romanizationLines, adjustedPosition)
+            activeRichLine?.let { alignedTextAt(timeline.romanizationLines, it.startMs) }
+                ?: textAtOrBefore(timeline.romanizationLines, adjustedPosition)
         } else {
             ""
         }
@@ -281,19 +288,39 @@ object FloatingLyricsPublisher {
     }
 
     private fun activeLineAt(lines: List<LyricsLine>, positionMs: Long): String {
-        var active: LyricsLine? = null
-        for (line in lines) {
-            if (line.timeMs <= positionMs) {
-                active = line
+        var low = 0
+        var high = lines.lastIndex
+        var result = -1
+        while (low <= high) {
+            val middle = (low + high).ushr(1)
+            if (lines[middle].timeMs <= positionMs) {
+                result = middle
+                low = middle + 1
             } else {
-                break
+                high = middle - 1
             }
         }
-        return active?.text ?: lines.firstOrNull()?.text.orEmpty()
+        return lines.getOrNull(result)?.text ?: lines.firstOrNull()?.text.orEmpty()
     }
 
-    private fun activeWordsAt(lines: List<LyricLine>, positionMs: Long): List<FloatingLyricWord> {
-        val activeLine = lines.lastOrNull { it.startMs <= positionMs } ?: return emptyList()
+    private fun activeRichLineAt(lines: List<LyricLine>, positionMs: Long): LyricLine? {
+        var low = 0
+        var high = lines.lastIndex
+        var result = -1
+        while (low <= high) {
+            val middle = (low + high).ushr(1)
+            if (lines[middle].startMs <= positionMs) {
+                result = middle
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        return lines.getOrNull(result)
+    }
+
+    private fun activeWords(activeLine: LyricLine?): List<FloatingLyricWord> {
+        activeLine ?: return emptyList()
         if (activeLine.words.isEmpty()) return emptyList()
         return activeLine.words.map { word ->
             FloatingLyricWord(
@@ -306,9 +333,32 @@ object FloatingLyricsPublisher {
         }
     }
 
-    private fun closestTextAt(lines: List<LyricLine>, positionMs: Long): String {
-        val match = lines.minByOrNull { kotlin.math.abs(it.startMs - positionMs) } ?: return ""
-        return match.text.takeIf { kotlin.math.abs(match.startMs - positionMs) <= 2_000L }.orEmpty()
+    internal fun textAtOrBefore(lines: List<LyricLine>, positionMs: Long): String {
+        var low = 0
+        var high = lines.lastIndex
+        var result = -1
+        while (low <= high) {
+            val middle = (low + high).ushr(1)
+            if (lines[middle].startMs <= positionMs) {
+                result = middle
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        return lines.getOrNull(result)?.text.orEmpty()
+    }
+
+    internal fun alignedTextAt(
+        lines: List<LyricLine>,
+        primaryStartMs: Long,
+        toleranceMs: Long = 2_000L
+    ): String {
+        val match = lines.minWithOrNull(
+            compareBy<LyricLine> { abs(it.startMs - primaryStartMs) }
+                .thenBy { if (it.startMs <= primaryStartMs) 0 else 1 }
+        ) ?: return ""
+        return match.text.takeIf { abs(match.startMs - primaryStartMs) <= toleranceMs }.orEmpty()
     }
 
     @JvmStatic
@@ -377,7 +427,7 @@ class FloatingLyricsService : Service() {
                 }
                 true
             } catch (error: RuntimeException) {
-                Log.w(TAG, "Unable to start floating lyrics service", error)
+                DiagnosticLog.w(TAG, "Unable to start floating lyrics service", error)
                 lastRuntimeStatus = FloatingLyricsRuntimeStatus.Failed
                 false
             }
@@ -500,7 +550,7 @@ class FloatingLyricsService : Service() {
         }
         true
     } catch (error: RuntimeException) {
-        Log.w(TAG, "Unable to enter foreground", error)
+        DiagnosticLog.w(TAG, "Unable to enter foreground", error)
         false
     }
 
@@ -541,10 +591,12 @@ class FloatingLyricsService : Service() {
         }
         when (val current = presentation) {
             FloatingLyricsPresentation.WaitingForLyrics -> {
+                positionTickerJob?.cancel()
                 removeOverlay()
                 lastRuntimeStatus = FloatingLyricsRuntimeStatus.Waiting
             }
             FloatingLyricsPresentation.HiddenByUser -> {
+                positionTickerJob?.cancel()
                 removeOverlay()
                 lastRuntimeStatus = FloatingLyricsRuntimeStatus.Hidden
             }
@@ -560,13 +612,13 @@ class FloatingLyricsService : Service() {
         try {
             notificationOwner.notify(presentation)
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to update floating lyrics notification", error)
+            DiagnosticLog.w(TAG, "Unable to update floating lyrics notification", error)
         }
     }
 
     private fun ensureOverlay(visible: FloatingLyricsPresentation.Visible): Boolean {
         if (windowController.hasTooManyFailures()) {
-            Log.w(TAG, "Too many consecutive window failures, stopping service")
+            DiagnosticLog.w(TAG, "Too many consecutive window failures, stopping service")
             stopSelf()
             return false
         }
@@ -608,7 +660,8 @@ class FloatingLyricsService : Service() {
                 val currentPositionMs = basePositionMs +
                     (SystemClock.elapsedRealtime() - anchorRealtime)
                 val currentState = latestState
-                if (!currentState.playing || currentState.activeLineWords.isEmpty()) {
+                if (!currentState.playing || currentState.activeLineWords.isEmpty() ||
+                    presentation !is FloatingLyricsPresentation.Visible) {
                     break
                 }
                 val updatedState = currentState.copy(linePositionMs = currentPositionMs)
@@ -701,7 +754,7 @@ class FloatingLyricsService : Service() {
         try {
             notificationOwner.notify(presentation)
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to update floating lyrics notification", error)
+            DiagnosticLog.w(TAG, "Unable to update floating lyrics notification", error)
         }
     }
 
@@ -719,7 +772,7 @@ class FloatingLyricsService : Service() {
                 startService(intent)
             }
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to dispatch playback action $action", error)
+            DiagnosticLog.w(TAG, "Unable to dispatch playback action $action", error)
         }
     }
 
@@ -728,7 +781,7 @@ class FloatingLyricsService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(EXTRA_OPEN_SETTINGS, true)
         runCatching { startActivity(intent) }
-            .onFailure { Log.w(TAG, "Unable to open floating lyrics settings", it) }
+            .onFailure { DiagnosticLog.w(TAG, "Unable to open floating lyrics settings", it) }
     }
 
     private fun handleWindowFailure(error: Throwable) {
@@ -749,7 +802,7 @@ class FloatingLyricsService : Service() {
                 runCatching {
                     MusicLibraryRepository(this@FloatingLyricsService, StreamingPlaybackAdapter)
                         .saveFloatingLyricsEnabled(false)
-                }.onFailure { Log.w(TAG, "Unable to disable floating lyrics preference", it) }
+                }.onFailure { DiagnosticLog.w(TAG, "Unable to disable floating lyrics preference", it) }
             }
             stopSelf()
         }

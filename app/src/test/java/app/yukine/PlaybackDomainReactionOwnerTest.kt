@@ -43,6 +43,20 @@ class PlaybackDomainReactionOwnerTest {
     }
 
     @Test
+    fun busyMainHandlerKeepsOnlyTheLatestBufferingSnapshot() {
+        val actions = RecordingActions()
+        val owner = owner(actions)
+        val current = track(8L)
+
+        owner.onPlaybackBuffering(snapshot(track = current, positionMs = 1_000L, queueSize = 1))
+        owner.onPlaybackBuffering(snapshot(track = current, positionMs = 2_000L, queueSize = 1))
+        owner.onPlaybackBuffering(snapshot(track = current, positionMs = 3_000L, queueSize = 1))
+        idleMain()
+
+        assertEquals(listOf("buffering:3000"), actions.calls)
+    }
+
+    @Test
     fun resolvedStreamingPlaybackErrorRefreshesUrlAndSuppressesStaleError() {
         val actions = RecordingActions(resolveStreamingResult = true)
         val owner = owner(actions)

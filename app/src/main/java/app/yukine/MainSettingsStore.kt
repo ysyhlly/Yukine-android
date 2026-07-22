@@ -24,6 +24,7 @@ internal class MainSettingsStore {
     private var bitPerfectEnabled: Boolean = false
     private var usbExclusiveEnabled: Boolean = false
     private var debugPromptsEnabled: Boolean = false
+    private var checkUpdateEnabled: Boolean = true
     private var customBackgroundBlurEnabled: Boolean = false
     private var customBackgroundBlurRadiusDp: Float =
         app.yukine.ui.EchoBackgroundBlurDefaults.DEFAULT_RADIUS_DP
@@ -54,6 +55,7 @@ internal class MainSettingsStore {
         bitPerfectEnabled = preferences.bitPerfectEnabled
         usbExclusiveEnabled = preferences.usbExclusiveEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
+        checkUpdateEnabled = preferences.checkUpdateEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
         customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
             preferences.customBackgroundBlurRadiusDp
@@ -88,6 +90,7 @@ internal class MainSettingsStore {
         bitPerfectEnabled = preferences.bitPerfectEnabled
         usbExclusiveEnabled = preferences.usbExclusiveEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
+        checkUpdateEnabled = preferences.checkUpdateEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
         customBackgroundBlurRadiusDp = app.yukine.ui.EchoBackgroundBlurDefaults.normalizeRadius(
             preferences.customBackgroundBlurRadiusDp
@@ -121,6 +124,7 @@ internal class MainSettingsStore {
             bitPerfectEnabled = bitPerfectEnabled,
             usbExclusiveEnabled = usbExclusiveEnabled,
             debugPromptsEnabled = debugPromptsEnabled,
+            checkUpdateEnabled = checkUpdateEnabled,
             customBackgroundBlurEnabled = customBackgroundBlurEnabled,
             customBackgroundBlurRadiusDp = customBackgroundBlurRadiusDp,
             glassBlurEnabled = glassBlurEnabled,
@@ -188,6 +192,10 @@ internal class MainSettingsStore {
 
     fun debugPromptsEnabled(): Boolean {
         return debugPromptsEnabled
+    }
+
+    fun checkUpdateEnabled(): Boolean {
+        return checkUpdateEnabled
     }
 
     fun customBackgroundBlurEnabled(): Boolean = customBackgroundBlurEnabled
@@ -267,6 +275,10 @@ internal class MainSettingsStore {
 
     fun setDebugPromptsEnabled(enabled: Boolean) {
         this.debugPromptsEnabled = enabled
+    }
+
+    fun setCheckUpdateEnabled(enabled: Boolean) {
+        this.checkUpdateEnabled = enabled
     }
 
     fun setCustomBackgroundBlurEnabled(enabled: Boolean) {

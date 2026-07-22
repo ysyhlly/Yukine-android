@@ -8,7 +8,7 @@ internal object FloatingLyricsPlaybackActionMapper {
         playing: Boolean
     ): String? = when (action) {
         FloatingLyricsOverlayAction.PlayPause ->
-            if (playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.PLAY
+            if (playing) PlaybackServiceActions.PAUSE else PlaybackServiceActions.RESTORE_AND_PLAY
         FloatingLyricsOverlayAction.Previous -> PlaybackServiceActions.PREVIOUS
         FloatingLyricsOverlayAction.Next -> PlaybackServiceActions.NEXT
         else -> null

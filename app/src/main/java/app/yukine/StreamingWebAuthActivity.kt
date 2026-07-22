@@ -10,7 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import app.yukine.diagnostics.DiagnosticLog
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
@@ -340,7 +340,7 @@ class StreamingWebAuthActivity : Activity() {
             extraCandidates = listOfNotNull(lastProviderUrl, intent.getStringExtra(EXTRA_URL))
         )
         if (logOnly) {
-            Log.d(TAG, "Streaming auth cookie is ${if (header == null) "not ready" else "ready"} for provider=$provider")
+            DiagnosticLog.d(TAG, "Streaming auth cookie is ${if (header == null) "not ready" else "ready"} for provider=$provider")
         }
         return header
     }

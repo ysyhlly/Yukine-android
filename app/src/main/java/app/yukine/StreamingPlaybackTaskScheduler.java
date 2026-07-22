@@ -1,6 +1,6 @@
 package app.yukine;
 
-import android.util.Log;
+import app.yukine.diagnostics.DiagnosticLog;
 
 import java.util.PriorityQueue;
 import java.util.Queue;
@@ -157,7 +157,7 @@ final class StreamingPlaybackTaskScheduler implements StreamingPlaybackTaskQueue
     }
 
     private static void logTaskFailure(Priority priority, RuntimeException exception) {
-        Log.w(TAG, "Streaming playback task failed: " + priority, exception);
+        DiagnosticLog.w(TAG, "Streaming playback task failed: " + priority, exception);
     }
 
     private static final class ScheduledTask implements Comparable<ScheduledTask> {

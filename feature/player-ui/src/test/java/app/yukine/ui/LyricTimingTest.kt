@@ -61,4 +61,25 @@ class LyricTimingTest {
         assertEquals(0.5f, word.progressAt(200L), 0.001f)
         assertEquals(0.75f, word.progressAt(300L), 0.001f)
     }
+
+    @Test
+    fun activeLineUsesLatestStartAtOrBeforePosition() {
+        val lines = listOf(
+            LyricUiLine("first", false, timeMs = 1_000L),
+            LyricUiLine("second", false, timeMs = 2_000L),
+            LyricUiLine("third", false, timeMs = 5_000L)
+        )
+
+        assertEquals(-1, activeLyricIndex(lines, 999L))
+        assertEquals(0, activeLyricIndex(lines, 1_999L))
+        assertEquals(1, activeLyricIndex(lines, 4_999L))
+        assertEquals(2, activeLyricIndex(lines, 8_000L))
+    }
+
+    @Test
+    fun followStatePausesForUserAndResumesForSeekOrTrackChange() {
+        val paused = LyricsFollowState().pauseForUserScroll()
+        assertFalse(paused.following)
+        assertTrue(paused.resume().following)
+    }
 }

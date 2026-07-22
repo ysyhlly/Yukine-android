@@ -29,7 +29,8 @@ enum class SettingsPreferenceKey {
     ShareStyle,
     PageBackgrounds,
     BitPerfectEnabled,
-    UsbExclusiveEnabled
+    UsbExclusiveEnabled,
+    CheckUpdateEnabled
 }
 
 data class SettingsPreferenceUpdate(

@@ -59,6 +59,9 @@ internal class PlaybackDomainReactionOwner(
     private val stateDispatchLock = Any()
     private var pendingStateSnapshot: PlaybackStateSnapshot? = null
     private var stateDispatchPosted = false
+    private val bufferingDispatchLock = Any()
+    private var pendingBufferingSnapshot: PlaybackStateSnapshot? = null
+    private var bufferingDispatchPosted = false
     private val stateDispatch = Runnable {
         val snapshot = synchronized(stateDispatchLock) {
             pendingStateSnapshot.also {
@@ -67,6 +70,15 @@ internal class PlaybackDomainReactionOwner(
             }
         }
         snapshot?.let(::handlePlaybackState)
+    }
+    private val bufferingDispatch = Runnable {
+        val snapshot = synchronized(bufferingDispatchLock) {
+            pendingBufferingSnapshot.also {
+                pendingBufferingSnapshot = null
+                bufferingDispatchPosted = false
+            }
+        }
+        snapshot?.let(streamingBufferingRecoveryHandler::recover)
     }
 
     override fun onPlaybackStateChanged(snapshot: PlaybackStateSnapshot) {
@@ -88,8 +100,20 @@ internal class PlaybackDomainReactionOwner(
     }
 
     override fun onPlaybackBuffering(snapshot: PlaybackStateSnapshot) {
-        mainHandler.post {
-            streamingBufferingRecoveryHandler.recover(snapshot)
+        val shouldPost = synchronized(bufferingDispatchLock) {
+            pendingBufferingSnapshot = snapshot
+            if (bufferingDispatchPosted) {
+                false
+            } else {
+                bufferingDispatchPosted = true
+                true
+            }
+        }
+        if (shouldPost && !mainHandler.post(bufferingDispatch)) {
+            synchronized(bufferingDispatchLock) {
+                pendingBufferingSnapshot = null
+                bufferingDispatchPosted = false
+            }
         }
     }
 
