@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,7 +53,9 @@ data class QueueTrackUiState(
     val duration: String,
     val albumArtUri: Uri?,
     val current: Boolean,
-    val favorite: Boolean
+    val favorite: Boolean,
+    val playbackEnabled: Boolean = true,
+    val supportLabel: String? = null
 )
 
 data class QueueTrackActions(
@@ -273,8 +276,9 @@ private fun QueueTrackRow(
         label = "queueRowBg"
     )
     Surface(
-        onClick = { actions.onPlay.run() },
+        onClick = { if (track.playbackEnabled) actions.onPlay.run() },
         modifier = modifier
+            .semantics { track.supportLabel?.let { stateDescription = it } }
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
@@ -309,6 +313,15 @@ private fun QueueTrackRow(
                             color = p.muted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    track.supportLabel?.let { label ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            label,
+                            style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                            color = p.accent,
+                            maxLines = 1
                         )
                     }
                 }

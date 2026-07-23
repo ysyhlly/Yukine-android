@@ -672,11 +672,17 @@ public final class AppLanguage {
         put("importing.audio.files", "Importing audio files", "\u6b63\u5728\u5bfc\u5165\u97f3\u9891\u6587\u4ef6");
         put("importing.audio.folder", "Importing audio folder", "\u6b63\u5728\u5bfc\u5165\u97f3\u9891\u6587\u4ef6\u5939");
         put("no.audio.files.selected", "No audio files selected", "\u672a\u9009\u62e9\u97f3\u9891\u6587\u4ef6");
+        put("local.audio.import.success", "Imported %d audio files", "\u5df2\u5bfc\u5165 %d \u9996\u97f3\u9891");
+        put("local.audio.import.partial", "Imported %d, skipped %d", "\u5df2\u5bfc\u5165 %d \u9996\uff0c\u8df3\u8fc7 %d \u4e2a");
+        put("local.audio.summary.separator", ", ", "\u3001");
+        put("local.audio.summary.details.separator", ": ", "\uff1a");
+        put("local.audio.unsupported", "Unsupported format", "\u4e0d\u652f\u6301\u683c\u5f0f");
         put("no.tracks.to.play", "No tracks to play", "\u6ca1\u6709\u53ef\u64ad\u653e\u7684\u66f2\u76ee");
         put("queue.not.connected", "Queue is not ready", "\u961f\u5217\u6682\u672a\u5c31\u7eea");
         put("playback.service.not.connected", "Playback is not ready", "\u64ad\u653e\u670d\u52a1\u6682\u672a\u5c31\u7eea");
         put("playback.error.title", "Playback failed", "\u64ad\u653e\u5931\u8d25");
         put("playback.error.unable.to.play", "Unable to play this track.", "\u65e0\u6cd5\u64ad\u653e\u8fd9\u9996\u6b4c\u66f2\u3002");
+        put("playback.error.format.unsupported", "This audio format is not supported.", "\u6682\u4e0d\u652f\u6301\u8be5\u97f3\u9891\u683c\u5f0f\u3002");
         put("playback.error.not.ready", "Playback is not ready.", "\u64ad\u653e\u5c1a\u672a\u5c31\u7eea\u3002");
         put("playback.error.streaming.not.resolved", "Streaming track is still resolving. Tap the track again to play.", "\u6d41\u5a92\u4f53\u6b4c\u66f2\u5c1a\u672a\u89e3\u6790\uff0c\u8bf7\u91cd\u65b0\u70b9\u51fb\u6b4c\u66f2\u64ad\u653e\u3002");
         put("playback.error.unable.to.open", "Unable to open this track.", "\u65e0\u6cd5\u6253\u5f00\u8fd9\u9996\u6b4c\u66f2\u3002");

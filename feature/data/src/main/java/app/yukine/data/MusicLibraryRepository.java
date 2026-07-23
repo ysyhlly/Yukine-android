@@ -21,6 +21,8 @@ import java.util.Map;
 import app.yukine.model.Playlist;
 import app.yukine.model.PlaylistImportResult;
 import app.yukine.model.PlaybackQueueState;
+import app.yukine.model.LocalAudioImportSummary;
+import app.yukine.model.LocalAudioIngestResult;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
@@ -1264,7 +1266,7 @@ public final class MusicLibraryRepository {
     }
 
     public List<Track> refreshFromDevice() {
-        return refreshFromDevice(null);
+        return refreshFromDeviceResult(null).tracks();
     }
 
     /**
@@ -1273,6 +1275,16 @@ public final class MusicLibraryRepository {
      * creating high-frequency UI updates for large libraries.
      */
     public List<Track> refreshFromDevice(LibraryRefreshProgressListener progressListener) {
+        return refreshFromDeviceResult(progressListener).tracks();
+    }
+
+    public LocalAudioIngestResult refreshFromDeviceResult() {
+        return refreshFromDeviceResult(null);
+    }
+
+    public LocalAudioIngestResult refreshFromDeviceResult(
+            LibraryRefreshProgressListener progressListener
+    ) {
         final long startedAtNanos = System.nanoTime();
         reportRefreshProgress(progressListener, LibraryRefreshPhase.CHECKING, -1, startedAtNanos);
         throwIfRefreshInterrupted();
@@ -1283,10 +1295,11 @@ public final class MusicLibraryRepository {
             reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, -1, startedAtNanos);
             List<Track> cachedTracks = libraryRepository.loadTracks();
             reportRefreshCompleted(cachedTracks.size(), startedAtNanos, true);
-            return cachedTracks;
+            return new LocalAudioIngestResult(cachedTracks, LocalAudioImportSummary.EMPTY);
         }
         reportRefreshProgress(progressListener, LibraryRefreshPhase.SCANNING, -1, startedAtNanos);
-        List<Track> tracks = scanner.scan();
+        LocalAudioIngestResult scanned = scanner.scan();
+        List<Track> tracks = scanned.tracks();
         throwIfRefreshInterrupted();
         reportRefreshProgress(progressListener, LibraryRefreshPhase.REPLACING, tracks.size(), startedAtNanos);
         // Keep opening the library bounded: physical-source identity clustering can take minutes
@@ -1300,7 +1313,7 @@ public final class MusicLibraryRepository {
         reportRefreshProgress(progressListener, LibraryRefreshPhase.RELOADING, tracks.size(), startedAtNanos);
         List<Track> refreshedTracks = libraryRepository.loadTracks();
         reportRefreshCompleted(refreshedTracks.size(), startedAtNanos, false);
-        return refreshedTracks;
+        return new LocalAudioIngestResult(refreshedTracks, scanned.summary());
     }
 
     private static void reportRefreshProgress(
@@ -1337,16 +1350,16 @@ public final class MusicLibraryRepository {
         }
     }
 
-    public List<Track> importAudioUris(List<Uri> uris) {
-        List<Track> tracks = documentImporter.importAudioUris(uris);
-        libraryRepository.upsertTracks(tracks);
-        return tracks;
+    public LocalAudioIngestResult importAudioUris(List<Uri> uris) {
+        LocalAudioIngestResult result = documentImporter.importAudioUris(uris);
+        libraryRepository.upsertTracks(result.tracks());
+        return result;
     }
 
-    public List<Track> importAudioTree(Uri treeUri) {
-        List<Track> tracks = documentImporter.importAudioTree(treeUri);
-        libraryRepository.upsertTracks(tracks);
-        return tracks;
+    public LocalAudioIngestResult importAudioTree(Uri treeUri) {
+        LocalAudioIngestResult result = documentImporter.importAudioTree(treeUri);
+        libraryRepository.upsertTracks(result.tracks());
+        return result;
     }
 
     public int parseMissingAudioSpecs() {

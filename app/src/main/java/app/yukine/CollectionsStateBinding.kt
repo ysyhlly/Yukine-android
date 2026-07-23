@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.model.Playlist
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.model.TrackPlayRecord
 import app.yukine.navigation.CollectionsTab
@@ -262,7 +263,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             text(languageMode, "play.favorites"),
             null,
             currentTrack,
-            favoriteIds
+            favoriteIds,
+            languageMode
         )
         addCollectionTrackSection(
             trackSections,
@@ -275,7 +277,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             text(languageMode, "play.recent"),
             recordDetails(recentRecords, showPlayCount = false, languageMode),
             currentTrack,
-            favoriteIds
+            favoriteIds,
+            languageMode
         )
         addCollectionTrackSection(
             trackSections,
@@ -288,7 +291,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             text(languageMode, "play.most.played"),
             recordDetails(mostPlayedRecords, showPlayCount = true, languageMode),
             currentTrack,
-            favoriteIds
+            favoriteIds,
+            languageMode
         )
         addCollectionTrackSection(
             trackSections,
@@ -301,7 +305,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             text(languageMode, "play.recently.added"),
             null,
             currentTrack,
-            favoriteIds
+            favoriteIds,
+            languageMode
         )
         addCollectionTrackSection(
             trackSections,
@@ -314,7 +319,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             text(languageMode, "play.long.unplayed"),
             null,
             currentTrack,
-            favoriteIds
+            favoriteIds,
+            languageMode
         )
 
         val playlistRows = ArrayList<PlaylistRowUiState>()
@@ -328,7 +334,7 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         val selectedPlaylistTrackActions = ArrayList<PlaylistTrackActions>()
         if (selectedPlaylistId >= 0L && selectedPlaylistTracks.isNotEmpty()) {
             addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "play.playlist"), EchoIconKind.Play, Runnable {
-                listener.playTrackList(selectedPlaylistTracks, 0)
+                playFirstSupported(selectedPlaylistTracks)
             })
             addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "download.playlist"), EchoIconKind.Download, Runnable {
                 listener.downloadTracks(selectedPlaylistTracks)
@@ -345,7 +351,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 selectedPlaylistId,
                 selectedPlaylistTracks,
                 currentTrack,
-                favoriteIds
+                favoriteIds,
+                languageMode
             )
         }
         // Sync button for streaming-linked playlists (even if empty)
@@ -452,7 +459,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         playActionLabel: String,
         details: List<String>?,
         currentTrack: Track?,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        languageMode: String
     ) {
         val rows = ArrayList<TrackRowUiState>()
         val rowActions = ArrayList<TrackRowActions>()
@@ -466,12 +474,13 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                     favoriteIds,
                     if (details != null && index < details.size) details[index] else "",
                     true,
-                    rowKeys[index]
+                    rowKeys[index],
+                    unsupportedFormatLabel = text(languageMode, "local.audio.unsupported")
                 )
             )
             rowActions.add(
                 TrackRowActions(
-                    Runnable { listener.playTrackList(tracks, index) },
+                    Runnable { playSupportedAt(tracks, index) },
                     Runnable { listener.toggleFavorite(track) },
                     Runnable { listener.showAddToPlaylist(track) },
                     Runnable { listener.downloadTrack(track) }
@@ -480,7 +489,7 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         }
         sections.add(CollectionTrackSectionUiState(key, title, emptyText, emptyDescription, playActionLabel, rows))
         sectionActions.add(CollectionTrackSectionActions(Runnable {
-            listener.playTrackList(tracks, 0)
+            playFirstSupported(tracks)
         }, rowActions))
     }
 
@@ -599,7 +608,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         playlistIdForRows: Long,
         selectedPlaylistTracks: List<Track>,
         currentTrack: Track?,
-        favoriteIds: Set<Long>
+        favoriteIds: Set<Long>,
+        languageMode: String
     ) {
         val rowKeys = TrackRowKeyPolicy.occurrenceKeys(selectedPlaylistTracks)
         for (index in selectedPlaylistTracks.indices) {
@@ -611,12 +621,13 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                     currentTrack,
                     favoriteIds,
                     index > 0,
-                    index < selectedPlaylistTracks.size - 1
+                    index < selectedPlaylistTracks.size - 1,
+                    text(languageMode, "local.audio.unsupported")
                 )
             )
             actions.add(
                 PlaylistTrackActions(
-                    Runnable { listener.playTrackList(selectedPlaylistTracks, index) },
+                    Runnable { playSupportedAt(selectedPlaylistTracks, index) },
                     Runnable { listener.toggleFavorite(track) },
                     Runnable { listener.downloadTrack(track) },
                     Runnable { listener.moveSelectedPlaylistTrack(playlistIdForRows, track, index, -1) },
@@ -625,6 +636,18 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 )
             )
         }
+    }
+
+    private fun playFirstSupported(tracks: List<Track>) {
+        val playable = tracks.filter(LocalAudioFormatPolicy::isPlaybackAllowed)
+        if (playable.isNotEmpty()) listener.playTrackList(playable, 0)
+    }
+
+    private fun playSupportedAt(tracks: List<Track>, sourceIndex: Int) {
+        if (sourceIndex !in tracks.indices || !LocalAudioFormatPolicy.isPlaybackAllowed(tracks[sourceIndex])) return
+        val playableIndices = tracks.indices.filter { LocalAudioFormatPolicy.isPlaybackAllowed(tracks[it]) }
+        val targetIndex = playableIndices.indexOf(sourceIndex)
+        if (targetIndex >= 0) listener.playTrackList(playableIndices.map(tracks::get), targetIndex)
     }
 
     private fun tracksFromRecords(records: List<TrackPlayRecord>): ArrayList<Track> {

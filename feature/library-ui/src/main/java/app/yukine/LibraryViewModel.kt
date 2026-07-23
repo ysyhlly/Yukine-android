@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.model.Playlist
+import app.yukine.model.LocalAudioImportSummary
 import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
@@ -118,7 +119,8 @@ data class LibraryLoadResultUi(
     val tracks: List<Track> = emptyList(),
     val favorites: Set<Long> = emptySet(),
     val status: String = "Library updated",
-    val scanned: Boolean = true
+    val scanned: Boolean = true,
+    val importSummary: LocalAudioImportSummary = LocalAudioImportSummary.EMPTY
 )
 
 data class LibraryAudioSpecsResultUi(

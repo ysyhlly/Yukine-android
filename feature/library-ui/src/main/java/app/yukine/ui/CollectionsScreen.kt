@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -515,8 +516,9 @@ private fun CollectionTrackRow(track: TrackRowUiState, actions: TrackRowActions,
         label = "collectionTrackBg"
     )
     Surface(
-        onClick = { actions.onPlay.run() },
+        onClick = { if (track.playbackEnabled) actions.onPlay.run() },
         modifier = modifier
+            .semantics { track.supportLabel?.let { stateDescription = it } }
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
@@ -542,6 +544,9 @@ private fun CollectionTrackRow(track: TrackRowUiState, actions: TrackRowActions,
                 Text(track.subtitle, style = EchoTypography.caption, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (track.detail.isNotBlank()) {
                     Text(track.detail, style = EchoTypography.small, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                track.supportLabel?.let {
+                    Text(it, style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold), color = p.accent, maxLines = 1)
                 }
             }
             Text(track.duration, style = EchoTypography.small, color = p.muted, modifier = Modifier.padding(horizontal = 6.dp))
@@ -591,8 +596,9 @@ private fun CollectionPlaylistTrackRow(track: PlaylistTrackUiState, actions: Pla
         label = "collectionPlaylistTrackBg"
     )
     Surface(
-        onClick = { actions.onPlay.run() },
+        onClick = { if (track.playbackEnabled) actions.onPlay.run() },
         modifier = modifier
+            .semantics { track.supportLabel?.let { stateDescription = it } }
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
@@ -617,6 +623,9 @@ private fun CollectionPlaylistTrackRow(track: PlaylistTrackUiState, actions: Pla
                 Column(modifier = Modifier.weight(1f)) {
                     Text(track.title, style = EchoTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = if (track.current) p.accent else p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(track.subtitle, style = EchoTypography.caption, color = p.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    track.supportLabel?.let {
+                        Text(it, style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold), color = p.accent, maxLines = 1)
+                    }
                 }
                 Text(track.duration, style = EchoTypography.small, color = p.muted, modifier = Modifier.padding(horizontal = 6.dp))
             }

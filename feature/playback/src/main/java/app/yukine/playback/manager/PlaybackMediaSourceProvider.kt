@@ -20,6 +20,7 @@ import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.common.ApplicationNetworkClient
 import app.yukine.common.InsecureTlsSupport
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
 import app.yukine.model.RemoteSource
@@ -460,9 +461,13 @@ internal class PlaybackMediaSourceProvider(
 
         @JvmStatic
         fun unplayableMessageForTrack(track: Track?): String? {
-            if (track == null || hasPlayableMediaUri(track)) {
+            if (track == null) {
                 return null
             }
+            if (!LocalAudioFormatPolicy.isPlaybackAllowed(track)) {
+                return "This audio format is not supported."
+            }
+            if (hasPlayableMediaUri(track)) return null
             return if (StreamingDataPathMetadata.isStreamingTrack(track.dataPath)) {
                 "Streaming track is not resolved yet. Tap the track again to play."
             } else {

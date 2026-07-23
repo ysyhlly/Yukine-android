@@ -578,6 +578,47 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun knownUnsupportedLegacyTrackFailsPreflightBeforeMediaSourceCreation() {
+        val track = Track(
+            8L,
+            "Legacy WMA",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("file:///music/legacy.wma"),
+            "/music/legacy.wma",
+            0L,
+            null,
+            "wma",
+            0,
+            0,
+            0,
+            0
+        )
+
+        assertEquals(
+            "This audio format is not supported.",
+            PlaybackMediaSourceProvider.unplayableMessageForTrack(track)
+        )
+        assertFalse(provider(FakeStreamingPlaybackHeaderStore()).prepareTrackForPlayback(track).playable)
+    }
+
+    @Test
+    fun dsdTrackIsNotBlockedByGenericFormatPreflight() {
+        val track = Track(
+            9L,
+            "DSD",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("file:///music/album.dsf"),
+            "/music/album.dsf"
+        )
+
+        assertNull(PlaybackMediaSourceProvider.unplayableMessageForTrack(track))
+    }
+
+    @Test
     fun emptyLocalUriReturnsGenericOpenError() {
         val track = Track(7L, "Local", "Artist", "Album", 180_000L, Uri.EMPTY, "local")
 

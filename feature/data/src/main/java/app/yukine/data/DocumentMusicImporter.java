@@ -13,9 +13,11 @@ import java.security.NoSuchAlgorithmException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import app.yukine.common.EmbeddedArtwork;
+import app.yukine.model.LocalAudioDecision;
+import app.yukine.model.LocalAudioImportSummary;
+import app.yukine.model.LocalAudioIngestResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackIdentityTags;
 import app.yukine.model.TrackIdentity;
@@ -26,32 +28,44 @@ public final class DocumentMusicImporter {
     private final Context context;
     private final AudioSpecParser audioSpecParser;
     private final PortableAudioMetadataReader portableMetadataReader;
+    private final LocalAudioCandidateProbe candidateProbe;
 
     public DocumentMusicImporter(Context context) {
+        this(context, new LocalAudioCandidateProbe(context));
+    }
+
+    DocumentMusicImporter(Context context, LocalAudioCandidateProbe candidateProbe) {
         this.context = context.getApplicationContext();
         this.audioSpecParser = new AudioSpecParser(this.context);
         this.portableMetadataReader = new PortableAudioMetadataReader(this.context);
+        this.candidateProbe = candidateProbe;
     }
 
-    public List<Track> importAudioUris(List<Uri> uris) {
+    public LocalAudioIngestResult importAudioUris(List<Uri> uris) {
         ArrayList<Track> tracks = new ArrayList<>();
+        LocalAudioImportSummary.Builder summary = new LocalAudioImportSummary.Builder();
         for (Uri uri : uris) {
-            Track track = trackFromUri(uri, displayName(uri), mimeType(uri));
-            if (track != null) {
-                tracks.add(track);
-            }
+            String name = displayName(uri);
+            appendCandidate(uri, name, mimeType(uri), tracks, summary);
         }
-        return tracks;
+        return new LocalAudioIngestResult(tracks, summary.build());
     }
 
-    public List<Track> importAudioTree(Uri treeUri) {
+    public LocalAudioIngestResult importAudioTree(Uri treeUri) {
         ArrayList<Track> tracks = new ArrayList<>();
+        LocalAudioImportSummary.Builder summary = new LocalAudioImportSummary.Builder();
         String rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri);
-        collectTreeTracks(treeUri, rootDocumentId, 0, tracks);
-        return tracks;
+        collectTreeTracks(treeUri, rootDocumentId, 0, tracks, summary);
+        return new LocalAudioIngestResult(tracks, summary.build());
     }
 
-    private void collectTreeTracks(Uri treeUri, String documentId, int depth, List<Track> tracks) {
+    private void collectTreeTracks(
+            Uri treeUri,
+            String documentId,
+            int depth,
+            List<Track> tracks,
+            LocalAudioImportSummary.Builder summary
+    ) {
         if (depth > MAX_TREE_DEPTH) {
             return;
         }
@@ -73,24 +87,36 @@ public final class DocumentMusicImporter {
                 String name = cursor.getString(nameColumn);
                 String mimeType = cursor.getString(mimeColumn);
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
-                    collectTreeTracks(treeUri, childId, depth + 1, tracks);
+                    collectTreeTracks(treeUri, childId, depth + 1, tracks, summary);
                     continue;
                 }
                 Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId);
-                Track track = trackFromUri(documentUri, name, mimeType);
-                if (track != null) {
-                    tracks.add(track);
-                }
+                appendCandidate(documentUri, name, mimeType, tracks, summary);
             }
         } catch (SecurityException | IllegalArgumentException ignored) {
             // Some providers expose partial trees or revoke individual children.
         }
     }
 
-    private Track trackFromUri(Uri uri, String displayName, String mimeType) {
-        if (uri == null || !isLikelyAudio(displayName, mimeType)) {
-            return null;
+    private void appendCandidate(
+            Uri uri,
+            String displayName,
+            String mimeType,
+            List<Track> tracks,
+            LocalAudioImportSummary.Builder summary
+    ) {
+        LocalAudioDecision decision = candidateProbe.probe(uri, displayName, mimeType);
+        summary.record(decision);
+        if (decision.shouldImport()) {
+            tracks.add(trackFromUri(uri, displayName, decision));
         }
+    }
+
+    private Track trackFromUri(
+            Uri uri,
+            String displayName,
+            LocalAudioDecision formatDecision
+    ) {
         String title = stripExtension(displayName);
         String artist = "未知艺人";
         String album = "导入音频";
@@ -168,7 +194,7 @@ public final class DocumentMusicImporter {
                 "document:" + uri.toString(),
                 0L,
                 EmbeddedArtwork.uriFor(uri, embeddedArtwork),
-                "",
+                formatDecision.format().canonicalCodec(),
                 0,
                 0,
                 0,
@@ -218,32 +244,6 @@ public final class DocumentMusicImporter {
         } catch (SecurityException ignored) {
             return null;
         }
-    }
-
-    private boolean isLikelyAudio(String displayName, String mimeType) {
-        if (mimeType != null && mimeType.toLowerCase(Locale.ROOT).startsWith("audio/")) {
-            return true;
-        }
-        if (displayName == null) {
-            return false;
-        }
-        String lower = displayName.toLowerCase(Locale.ROOT);
-        return lower.endsWith(".mp3")
-                || lower.endsWith(".flac")
-                || lower.endsWith(".m4a")
-                || lower.endsWith(".aac")
-                || lower.endsWith(".wav")
-                || lower.endsWith(".ogg")
-                || lower.endsWith(".opus")
-                || lower.endsWith(".amr")
-                || lower.endsWith(".mid")
-                || lower.endsWith(".midi")
-                || lower.endsWith(".wma")
-                || lower.endsWith(".dsf")
-                || lower.endsWith(".dff")
-                || lower.endsWith(".ape")
-                || lower.endsWith(".wv")
-                || lower.endsWith(".tta");
     }
 
     private String stripExtension(String value) {

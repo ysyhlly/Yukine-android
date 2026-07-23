@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.yukine.AppLanguage
 import app.yukine.QueueDestinationState
 import app.yukine.QueueDestinationStateProvider
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackReadModel
 import app.yukine.playback.PlaybackConnectionState
@@ -144,6 +145,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                 track,
                 currentTrack,
                 favoriteIds,
+                languageMode,
                 isCurrent = currentQueueIndex?.let { it == index }
                     ?: (currentTrack != null && currentTrack.id == track.id)
             )
@@ -164,6 +166,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                                 track,
                                 currentTrack,
                                 favoriteIds,
+                                languageMode,
                                 isCurrent = currentQueueIndex?.let { it == index }
                                     ?: (currentTrack != null && currentTrack.id == track.id)
                             )
@@ -214,7 +217,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
 
     override fun onPlayAt(index: Int) {
         val tracks = boundTracks
-        if (index in tracks.indices) {
+        if (index in tracks.indices && LocalAudioFormatPolicy.isPlaybackAllowed(tracks[index])) {
             emit(QueueIntent.PlayAt(tracks, index))
         }
     }
@@ -253,6 +256,7 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         track: Track,
         currentTrack: Track?,
         favoriteIds: Set<Long>,
+        languageMode: String,
         isCurrent: Boolean
     ) = QueueTrackUiState(
         key = keyFactory.keyFor(index),
@@ -263,7 +267,13 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         duration = Track.formatDuration(track.durationMs),
         albumArtUri = track.albumArtUri,
         current = isCurrent,
-        favorite = favoriteIds.contains(track.id)
+        favorite = favoriteIds.contains(track.id),
+        playbackEnabled = LocalAudioFormatPolicy.isPlaybackAllowed(track),
+        supportLabel = if (LocalAudioFormatPolicy.isPlaybackAllowed(track)) {
+            null
+        } else {
+            AppLanguage.text(languageMode, "local.audio.unsupported")
+        }
     )
 
     private class QueueRowKeyFactory(private val tracks: List<Track>) {

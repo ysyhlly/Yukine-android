@@ -142,6 +142,54 @@ class TrackListStateReducerTest {
     }
 
     @Test
+    fun unsupportedRowDoesNotPlayAndSupportedTargetUsesFilteredQueueIndex() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val controller = TrackListStateReducer(viewModel, listener)
+        val tracks = listOf(
+            localTrack(1L, "/music/one.mp3", "mp3"),
+            localTrack(2L, "/music/legacy.wma", "wma"),
+            localTrack(3L, "/music/three.flac", "flac")
+        )
+
+        controller.reduce(
+            "Songs", tracks, true, emptyList(), false,
+            emptyList(), emptyList(), "",
+            listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
+            TrackListLabels(), null, emptySet()
+        )
+        viewModel.trackList.value.actions[1].onPlay.run()
+        viewModel.trackList.value.actions[2].onPlay.run()
+
+        assertEquals(false, viewModel.trackList.value.rows[1].playbackEnabled)
+        assertEquals(listOf("play:2:1"), listener.playCalls)
+    }
+
+    @Test
+    fun playAllFiltersUnsupportedLegacyRows() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val controller = TrackListStateReducer(viewModel, listener)
+        val tracks = listOf(
+            localTrack(1L, "/music/one.mp3", "mp3"),
+            localTrack(2L, "/music/legacy.ape", "ape")
+        )
+
+        controller.reduce(
+            "Songs", tracks, true, emptyList(), false,
+            emptyList(), emptyList(), "",
+            listOf(TrackListModeAction("Songs", "songs", true, Runnable { })),
+            TrackListLabels(), null, emptySet()
+        )
+        viewModel.trackList.value.headerActions
+            .first { it.kind == TrackListHeaderActionKind.PlayAll }
+            .onClick
+            .run()
+
+        assertEquals(listOf("play:1:0"), listener.playCalls)
+    }
+
+    @Test
     fun favoriteOnlyChangeReusesUnchangedRowsAndExistingActions() {
         val viewModel = LibraryViewModel()
         val controller = TrackListStateReducer(viewModel, FakeListener())
@@ -241,6 +289,23 @@ class TrackListStateReducerTest {
     private fun track(id: Long): Track {
         return Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")
     }
+
+    private fun localTrack(id: Long, path: String, codec: String): Track = Track(
+        id,
+        "Track $id",
+        "Artist",
+        "Album",
+        1_000L,
+        Uri.EMPTY,
+        path,
+        0L,
+        null,
+        codec,
+        0,
+        0,
+        0,
+        0
+    )
 
     private class FakeListener : TrackListStateReducer.Listener {
         val playCalls = ArrayList<String>()

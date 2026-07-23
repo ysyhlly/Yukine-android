@@ -1,7 +1,9 @@
 package app.yukine
 
 import android.net.Uri
+import app.yukine.model.LocalAudioImportSummary
 import app.yukine.model.Track
+import java.util.Locale
 
 /** Owns the complete library scan/import-to-state publication pipeline. */
 internal class LibraryImportOwner @JvmOverloads constructor(
@@ -58,9 +60,16 @@ internal class LibraryImportOwner @JvmOverloads constructor(
             allowCachedFirst,
             canScan,
             { result ->
-                replaceLibrary(result.tracks, result.favorites, result.status, result.scanned) {
+                val status = importResultStatus(result.importSummary, result.status)
+                replaceLibrary(result.tracks, result.favorites, status, result.scanned) {
                     if (canScan && !allowCachedFirst) {
-                        statusSink.setStatus(libraryScanResultStatus(result.tracks.size))
+                        statusSink.setStatus(
+                            if (result.importSummary.isEmpty) {
+                                libraryScanResultStatus(result.tracks.size)
+                            } else {
+                                status
+                            }
+                        )
                     }
                     onboardingScanObserver.onLibraryScanResult(canScan)
                 }
@@ -83,14 +92,22 @@ internal class LibraryImportOwner @JvmOverloads constructor(
         }
         statusSink.setStatus(text("importing.audio.files"))
         viewModel.loading.importAudioUrisJava(uris) { result ->
-            replaceLibrary(result.tracks, result.favorites, result.status)
+            replaceLibrary(
+                result.tracks,
+                result.favorites,
+                importResultStatus(result.importSummary, result.status)
+            )
         }
     }
 
     fun importAudioFolder(treeUri: Uri) {
         statusSink.setStatus(text("importing.audio.folder"))
         viewModel.loading.importAudioTreeJava(treeUri) { result ->
-            replaceLibrary(result.tracks, result.favorites, result.status)
+            replaceLibrary(
+                result.tracks,
+                result.favorites,
+                importResultStatus(result.importSummary, result.status)
+            )
         }
     }
 
@@ -166,6 +183,36 @@ internal class LibraryImportOwner @JvmOverloads constructor(
             return text("no.music")
         }
         return text("library.scan.found.prefix") + trackCount + text("library.scan.found.suffix")
+    }
+
+    private fun importResultStatus(summary: LocalAudioImportSummary, fallback: String): String {
+        if (summary.isEmpty) {
+            return if (fallback == "Library updated") text("library.updated") else fallback
+        }
+        if (summary.skippedCount() <= 0) {
+            return String.format(
+                Locale.ROOT,
+                text("local.audio.import.success"),
+                summary.importedCount()
+            )
+        }
+        val formats = summary.skippedFormatCounts()
+            .entries
+            .take(3)
+            .joinToString(text("local.audio.summary.separator")) { (format, count) ->
+                "$format\u00d7$count"
+            }
+        val base = String.format(
+            Locale.ROOT,
+            text("local.audio.import.partial"),
+            summary.importedCount(),
+            summary.skippedCount()
+        )
+        return if (formats.isEmpty()) {
+            base
+        } else {
+            base + text("local.audio.summary.details.separator") + formats
+        }
     }
 
     private fun text(key: String): String = AppLanguage.text(languageModeSource.languageMode(), key)

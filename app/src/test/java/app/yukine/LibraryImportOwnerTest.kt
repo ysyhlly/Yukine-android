@@ -2,6 +2,8 @@ package app.yukine
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import app.yukine.model.LocalAudioImportSummary
+import app.yukine.model.LocalAudioSkipReason
 import app.yukine.model.Track
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -61,6 +63,25 @@ class LibraryImportOwnerTest {
                 AppLanguage.text(AppLanguage.MODE_ENGLISH, "library.scan.found.suffix"),
             fixture.statuses.last()
         )
+    }
+
+    @Test
+    fun audioImportPublishesAggregatedSkipSummaryWithoutPaths() = runTest {
+        val summary = LocalAudioImportSummary(
+            2,
+            3,
+            linkedMapOf("WMA" to 2, "APE" to 1),
+            mapOf(LocalAudioSkipReason.UNSUPPORTED_FORMAT to 3)
+        )
+        val gateway = FakeImportGateway(
+            imported = LibraryLoadResultUi(importSummary = summary)
+        )
+        val fixture = fixture(gateway, StandardTestDispatcher(testScheduler))
+
+        fixture.owner.importAudioUris(listOf(Uri.EMPTY))
+        advanceUntilIdle()
+
+        assertEquals("Imported 2, skipped 3: WMA\u00d72, APE\u00d71", fixture.statuses.last())
     }
 
     @Test

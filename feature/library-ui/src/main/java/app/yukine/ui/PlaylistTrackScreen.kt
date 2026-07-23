@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,7 +42,9 @@ data class PlaylistTrackUiState(
     val current: Boolean,
     val favorite: Boolean,
     val canMoveUp: Boolean,
-    val canMoveDown: Boolean
+    val canMoveDown: Boolean,
+    val playbackEnabled: Boolean = true,
+    val supportLabel: String? = null
 )
 
 data class PlaylistTrackActions(
@@ -101,8 +104,9 @@ private fun PlaylistTrackRow(
         label = "playlistRowBg"
     )
     Surface(
-        onClick = { actions.onPlay.run() },
+        onClick = { if (track.playbackEnabled) actions.onPlay.run() },
         modifier = modifier
+            .semantics { track.supportLabel?.let { stateDescription = it } }
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium),
         shape = EchoShapes.medium,
@@ -137,6 +141,15 @@ private fun PlaylistTrackRow(
                             color = p.muted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    track.supportLabel?.let { label ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            label,
+                            style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                            color = p.accent,
+                            maxLines = 1
                         )
                     }
                 }

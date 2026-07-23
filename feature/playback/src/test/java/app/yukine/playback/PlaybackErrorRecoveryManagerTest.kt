@@ -1,6 +1,7 @@
 package app.yukine.playback
 
 import android.net.Uri
+import androidx.media3.common.PlaybackException
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackErrorRecoveryManager
 import org.junit.Assert.assertEquals
@@ -182,6 +183,32 @@ class PlaybackErrorRecoveryManagerTest {
         assertTrue(actions.calls.contains("error:Unable to play this track."))
         assertTrue(actions.calls.contains("publish"))
         assertEquals(0, actions.calls.count { it == "skip" })
+    }
+
+    @Test
+    fun mapsMedia3FormatErrorsAndPreservesMessageWhileSkipping() {
+        val error = PlaybackException(
+            "unsupported",
+            null,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+        )
+        val scheduler = FakeScheduler()
+        val actions = FakeActions(
+            track = track(4L, "content://local/legacy.wma"),
+            canSkipFailedTrack = true
+        )
+        val manager = PlaybackErrorRecoveryManager(scheduler, actions, httpTrackPredicate())
+
+        manager.onPlayerError(error)
+
+        assertEquals(
+            AudioFallbackReason.FORMAT_UNSUPPORTED,
+            PlaybackErrorRecoveryManager.fallbackReasonFor(error)
+        )
+        assertEquals(
+            listOf("error:This audio format is not supported.", "skip"),
+            actions.calls
+        )
     }
 
     private class FakeScheduler : PlaybackErrorRecoveryManager.RetryScheduler {

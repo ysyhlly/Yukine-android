@@ -2,13 +2,16 @@ package app.yukine
 
 import android.net.Uri
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.model.LocalAudioImportSummary
+import app.yukine.model.LocalAudioIngestResult
 import app.yukine.model.PlaylistImportResult
 import app.yukine.model.StreamImportResult
 import app.yukine.model.Track
 
 internal data class LibraryLoadResult(
     val tracks: List<Track>,
-    val favorites: Set<Long>
+    val favorites: Set<Long>,
+    val importSummary: LocalAudioImportSummary = LocalAudioImportSummary.EMPTY
 )
 
 internal data class AudioSpecsParseResult(
@@ -46,9 +49,17 @@ internal interface LibraryRefreshProgressOperations {
     fun refreshFromDevice(onProgress: (LibraryRefreshProgress) -> Unit): List<Track>
 }
 
+/** Structured local-audio ingest capability; legacy test doubles can keep the original interface. */
+internal interface LibraryAudioIngestOperations {
+    fun refreshFromDeviceWithResult(): LocalAudioIngestResult
+    fun refreshFromDeviceWithResult(onProgress: (LibraryRefreshProgress) -> Unit): LocalAudioIngestResult
+    fun importAudioUrisWithResult(uris: List<Uri>): LocalAudioIngestResult
+    fun importAudioTreeWithResult(treeUri: Uri): LocalAudioIngestResult
+}
+
 internal class MusicLibraryImportOperations(
     private val repository: MusicLibraryRepository
-) : LibraryImportOperations, LibraryRefreshProgressOperations {
+) : LibraryImportOperations, LibraryRefreshProgressOperations, LibraryAudioIngestOperations {
     override fun loadCachedTracks(): List<Track> = repository.loadCachedTracks()
 
     override fun loadFavoriteIds(): Set<Long> = repository.loadFavoriteIds()
@@ -58,13 +69,27 @@ internal class MusicLibraryImportOperations(
     override fun refreshFromDevice(onProgress: (LibraryRefreshProgress) -> Unit): List<Track> =
         repository.refreshFromDevice(LibraryRefreshProgressListener(onProgress))
 
+    override fun refreshFromDeviceWithResult(): LocalAudioIngestResult =
+        repository.refreshFromDeviceResult()
+
+    override fun refreshFromDeviceWithResult(
+        onProgress: (LibraryRefreshProgress) -> Unit
+    ): LocalAudioIngestResult =
+        repository.refreshFromDeviceResult(LibraryRefreshProgressListener(onProgress))
+
     override fun importAudioUris(uris: List<Uri>) {
         repository.importAudioUris(uris)
     }
 
+    override fun importAudioUrisWithResult(uris: List<Uri>): LocalAudioIngestResult =
+        repository.importAudioUris(uris)
+
     override fun importAudioTree(treeUri: Uri) {
         repository.importAudioTree(treeUri)
     }
+
+    override fun importAudioTreeWithResult(treeUri: Uri): LocalAudioIngestResult =
+        repository.importAudioTree(treeUri)
 
     override fun parseMissingAudioSpecs(): Int = repository.parseMissingAudioSpecs()
 
@@ -84,10 +109,25 @@ internal class LoadLibraryUseCase(
     fun cached(): LibraryLoadResult =
         LibraryLoadResult(operations.loadCachedTracks(), operations.loadFavoriteIds())
 
-    fun refresh(): LibraryLoadResult =
-        LibraryLoadResult(operations.refreshFromDevice(), operations.loadFavoriteIds())
+    fun refresh(): LibraryLoadResult {
+        val result = (operations as? LibraryAudioIngestOperations)?.refreshFromDeviceWithResult()
+        return if (result == null) {
+            LibraryLoadResult(operations.refreshFromDevice(), operations.loadFavoriteIds())
+        } else {
+            LibraryLoadResult(result.tracks(), operations.loadFavoriteIds(), result.summary())
+        }
+    }
 
     fun refresh(onProgress: (LibraryRefreshProgress) -> Unit): LibraryLoadResult {
+        val structured = (operations as? LibraryAudioIngestOperations)
+            ?.refreshFromDeviceWithResult(onProgress)
+        if (structured != null) {
+            return LibraryLoadResult(
+                structured.tracks(),
+                operations.loadFavoriteIds(),
+                structured.summary()
+            )
+        }
         val tracks = (operations as? LibraryRefreshProgressOperations)
             ?.refreshFromDevice(onProgress)
             ?: operations.refreshFromDevice()
@@ -99,8 +139,12 @@ internal class ImportAudioUrisUseCase(
     private val operations: LibraryImportOperations
 ) {
     fun execute(uris: List<Uri>): LibraryLoadResult {
-        operations.importAudioUris(uris)
-        return operations.cachedSnapshot()
+        val result = (operations as? LibraryAudioIngestOperations)?.importAudioUrisWithResult(uris)
+        if (result == null) {
+            operations.importAudioUris(uris)
+            return operations.cachedSnapshot()
+        }
+        return operations.cachedSnapshot(result.summary())
     }
 }
 
@@ -108,8 +152,12 @@ internal class ImportAudioTreeUseCase(
     private val operations: LibraryImportOperations
 ) {
     fun execute(treeUri: Uri): LibraryLoadResult {
-        operations.importAudioTree(treeUri)
-        return operations.cachedSnapshot()
+        val result = (operations as? LibraryAudioIngestOperations)?.importAudioTreeWithResult(treeUri)
+        if (result == null) {
+            operations.importAudioTree(treeUri)
+            return operations.cachedSnapshot()
+        }
+        return operations.cachedSnapshot(result.summary())
     }
 }
 
@@ -163,8 +211,10 @@ internal class LoadPlaylistExportTracksUseCase(
     }
 }
 
-private fun LibraryImportOperations.cachedSnapshot(): LibraryLoadResult =
-    LibraryLoadResult(loadCachedTracks(), loadFavoriteIds())
+private fun LibraryImportOperations.cachedSnapshot(
+    importSummary: LocalAudioImportSummary = LocalAudioImportSummary.EMPTY
+): LibraryLoadResult =
+    LibraryLoadResult(loadCachedTracks(), loadFavoriteIds(), importSummary)
 
 internal class MainLibraryImportGateway(
     private val operations: LibraryImportOperations
@@ -194,5 +244,10 @@ internal class MainLibraryImportGateway(
     }
 
     private fun LibraryLoadResult.toUi(): LibraryLoadResultUi =
-        LibraryLoadResultUi(tracks, favorites, "Library updated")
+        LibraryLoadResultUi(
+            tracks = tracks,
+            favorites = favorites,
+            status = "Library updated",
+            importSummary = importSummary
+        )
 }

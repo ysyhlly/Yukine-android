@@ -9,33 +9,34 @@ import android.os.Build;
 import android.provider.MediaStore;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 
 import app.yukine.common.EmbeddedArtwork;
+import app.yukine.model.LocalAudioDecision;
+import app.yukine.model.LocalAudioFormatPolicy;
+import app.yukine.model.LocalAudioImportSummary;
+import app.yukine.model.LocalAudioIngestResult;
 import app.yukine.model.Track;
 import app.yukine.model.TrackIdentityTags;
 
 public final class MediaStoreMusicScanner {
-    private static final Set<String> DECODABLE_EXTENSIONS = Set.of(
-            "mp3", "flac", "m4a", "mp4", "ogg", "opus", "wav", "aac", "wma", "aif", "aiff",
-            "dsf", "dff", "ape", "wv", "tta"
-    );
-    private static final Set<String> ENCRYPTED_CACHE_EXTENSIONS = Set.of(
-            "kgm", "vpr", "ofl", "qmc", "mflac", "mgg", "kgc", "krc"
-    );
-
     private final Context context;
+    private final LocalAudioCandidateProbe candidateProbe;
 
     public MediaStoreMusicScanner(Context context) {
-        this.context = context.getApplicationContext();
+        this(context, new LocalAudioCandidateProbe(context));
     }
 
-    public List<Track> scan() {
+    MediaStoreMusicScanner(Context context, LocalAudioCandidateProbe candidateProbe) {
+        this.context = context.getApplicationContext();
+        this.candidateProbe = candidateProbe;
+    }
+
+    public LocalAudioIngestResult scan() {
         throwIfInterrupted();
         ArrayList<Track> tracks = new ArrayList<>();
+        LocalAudioImportSummary.Builder summary = new LocalAudioImportSummary.Builder();
         ContentResolver resolver = context.getContentResolver();
         Uri collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
         boolean hasExtendedColumns = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
@@ -48,6 +49,8 @@ public final class MediaStoreMusicScanner {
                         MediaStore.Audio.Media.YEAR,
                         MediaStore.Audio.Media.DURATION,
                         MediaStore.Audio.Media.DATA,
+                        MediaStore.Audio.Media.DISPLAY_NAME,
+                        MediaStore.Audio.Media.MIME_TYPE,
                         MediaStore.Audio.Media.ALBUM_ID,
                         MediaStore.Audio.Media.ALBUM_ARTIST,
                         MediaStore.Audio.Media.COMPOSER
@@ -60,6 +63,8 @@ public final class MediaStoreMusicScanner {
                         MediaStore.Audio.Media.YEAR,
                         MediaStore.Audio.Media.DURATION,
                         MediaStore.Audio.Media.DATA,
+                        MediaStore.Audio.Media.DISPLAY_NAME,
+                        MediaStore.Audio.Media.MIME_TYPE,
                         MediaStore.Audio.Media.ALBUM_ID
                 };
         String selection = MediaStore.Audio.Media.IS_MUSIC + " != 0";
@@ -69,7 +74,7 @@ public final class MediaStoreMusicScanner {
 
         try (Cursor cursor = resolver.query(collection, projection, selection, null, sortOrder)) {
             if (cursor == null) {
-                return tracks;
+                return LocalAudioIngestResult.empty();
             }
             int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
             int titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
@@ -78,6 +83,8 @@ public final class MediaStoreMusicScanner {
             int yearColumn = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
             int durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
             int dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
+            int displayNameColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
+            int mimeTypeColumn = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
             int albumIdColumn = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID);
             int albumArtistColumn = hasExtendedColumns
                     ? cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST) : -1;
@@ -96,9 +103,20 @@ public final class MediaStoreMusicScanner {
                     continue;
                 }
                 if (isThirdPartyCache(dataPath)) {
+                    summary.record(LocalAudioFormatPolicy.classify(dataPath, "audio/unknown"));
                     continue;
                 }
                 Uri uri = ContentUris.withAppendedId(collection, id);
+                String displayName = displayNameColumn >= 0
+                        ? cursor.getString(displayNameColumn) : dataPath;
+                String mimeType = mimeTypeColumn >= 0
+                        ? cursor.getString(mimeTypeColumn) : "";
+                LocalAudioDecision decision =
+                        candidateProbe.probeForMediaStore(uri, displayName, mimeType);
+                summary.record(decision);
+                if (!decision.shouldImport()) {
+                    continue;
+                }
                 String albumArtist = albumArtistColumn >= 0
                         ? nullToEmpty(cursor.getString(albumArtistColumn)) : "";
                 String composer = composerColumn >= 0
@@ -130,7 +148,7 @@ public final class MediaStoreMusicScanner {
                 tracks.add(track);
             }
         }
-        return tracks;
+        return new LocalAudioIngestResult(tracks, summary.build());
     }
 
     private static int sanitizeYear(int value) {
@@ -184,20 +202,15 @@ public final class MediaStoreMusicScanner {
     static boolean isThirdPartyCache(String dataPath) {
         if (dataPath == null || dataPath.isEmpty()) return false;
         String lower = dataPath.toLowerCase(Locale.ROOT);
-        int dot = lower.lastIndexOf('.');
-        if (dot >= 0 && dot < lower.length() - 1) {
-            String extension = lower.substring(dot + 1);
-            if (ENCRYPTED_CACHE_EXTENSIONS.contains(extension)) {
-                return true;
-            }
+        if (LocalAudioFormatPolicy.isEncryptedExtension(lower)) {
+            return true;
         }
         // Files inside known cache directories with non-standard audio extensions
         boolean inCacheDir = lower.contains("/kugou/") || lower.contains("/kugoumusic/")
                 || lower.contains("/qqmusic/") || lower.contains("/tencent/")
                 || lower.contains("/netease/cloudmusic/cache");
-        if (inCacheDir && dot >= 0 && dot < lower.length() - 1) {
-            String extension = lower.substring(dot + 1);
-            return !DECODABLE_EXTENSIONS.contains(extension);
+        if (inCacheDir) {
+            return !LocalAudioFormatPolicy.isRecognizedAudioExtension(lower);
         }
         return false;
     }

@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.ui.TrackListHeaderAction
@@ -168,7 +169,8 @@ class TrackListStateReducer(
             AppLanguage.text(languageMode, "recording.match.manage"),
             AppLanguage.text(languageMode, "songs"),
             AppLanguage.text(languageMode, "more"),
-            AppLanguage.text(languageMode, "library.favorite.updating")
+            AppLanguage.text(languageMode, "library.favorite.updating"),
+            AppLanguage.text(languageMode, "local.audio.unsupported")
         )
         publishTrackList(title, tracks.size, false) {
             buildRecommendationContent(tracks, headerMetrics, headerActions, labels)
@@ -376,7 +378,7 @@ class TrackListStateReducer(
                 effectiveHeaderActions.add(
                     TrackListHeaderAction(
                         labels.playAllLabel,
-                        Runnable { listener.playTrackList(tracks, 0) },
+                        Runnable { playFirstSupported(tracks) },
                         icon = EchoIconKind.Play,
                         kind = TrackListHeaderActionKind.PlayAll
                     )
@@ -386,7 +388,7 @@ class TrackListStateReducer(
                 effectiveHeaderActions.add(
                     TrackListHeaderAction(
                         labels.shuffleLabel,
-                        Runnable { listener.playTrackList(tracks.shuffled(), 0) },
+                        Runnable { playFirstSupported(tracks.filter(LocalAudioFormatPolicy::isPlaybackAllowed).shuffled()) },
                         icon = EchoIconKind.Shuffle,
                         kind = TrackListHeaderActionKind.Shuffle
                     )
@@ -417,12 +419,13 @@ class TrackListStateReducer(
                     if (index < details.size) details[index] else "",
                     showPlaylistAction,
                     rowKeys[index],
-                    favoritePendingIds
+                    favoritePendingIds,
+                    labels.unsupportedFormatLabel
                 )
             )
             actions.add(
                 TrackRowActions(
-                    onPlay = Runnable { listener.playTrackList(tracks, index) },
+                    onPlay = Runnable { playSupportedAt(tracks, index) },
                     onFavorite = Runnable { listener.toggleFavorite(track) },
                     onAddToPlaylist = Runnable { listener.showAddToPlaylist(track) },
                     onDownload = Runnable { listener.downloadTrack(track) },
@@ -462,10 +465,20 @@ class TrackListStateReducer(
         val rowKeys = TrackRowKeyPolicy.occurrenceKeys(tracks)
         for (index in tracks.indices) {
             val track = tracks[index]
-            rows.add(TrackRowStateFactory.trackRow(track, null, emptySet(), "", true, rowKeys[index]))
+            rows.add(
+                TrackRowStateFactory.trackRow(
+                    track,
+                    null,
+                    emptySet(),
+                    "",
+                    true,
+                    rowKeys[index],
+                    unsupportedFormatLabel = labels.unsupportedFormatLabel
+                )
+            )
             actions.add(
                 TrackRowActions(
-                    onPlay = Runnable { listener.playTrackList(tracks, index) },
+                    onPlay = Runnable { playSupportedAt(tracks, index) },
                     onFavorite = Runnable { listener.toggleFavorite(track) },
                     onAddToPlaylist = Runnable { listener.showAddToPlaylist(track) },
                     onDownload = Runnable { listener.downloadTrack(track) },
@@ -492,6 +505,18 @@ class TrackListStateReducer(
             labels,
             LibraryListContext.Songs
         )
+    }
+
+    private fun playFirstSupported(tracks: List<Track>) {
+        val playable = tracks.filter(LocalAudioFormatPolicy::isPlaybackAllowed)
+        if (playable.isNotEmpty()) listener.playTrackList(playable, 0)
+    }
+
+    private fun playSupportedAt(tracks: List<Track>, sourceIndex: Int) {
+        if (sourceIndex !in tracks.indices || !LocalAudioFormatPolicy.isPlaybackAllowed(tracks[sourceIndex])) return
+        val playableIndices = tracks.indices.filter { LocalAudioFormatPolicy.isPlaybackAllowed(tracks[it]) }
+        val targetIndex = playableIndices.indexOf(sourceIndex)
+        if (targetIndex >= 0) listener.playTrackList(playableIndices.map(tracks::get), targetIndex)
     }
 
     private data class BuiltTrackListContent(

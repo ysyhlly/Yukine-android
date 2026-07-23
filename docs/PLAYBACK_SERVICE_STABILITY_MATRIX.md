@@ -45,6 +45,7 @@ record those rows before claiming runtime smoke coverage for a playback slice.
 | 冷启动恢复 | `PlaybackQueueManagerTest.restorePlaybackQueue...` 系列覆盖过滤坏行、index 重映射、全坏队列清理、resume 标记清理；`StreamingRepositoryTest.persistentHeadersReplaceExpiredPersistedUrlWithFreshCachedUrl` 覆盖恢复队列用有效缓存 URL 替换旧地址；`EchoDatabaseHelperTest.savePlaybackPositionRollsBackTrackIdWhenPositionWriteFails` 覆盖恢复曲目 id 与位置毫秒的事务原子性。 | 杀进程/冷启动后当前曲、队列、位置恢复录屏/logcat；另需覆盖缓存已过期时自动联网重解析。 |
 | 后台被杀 | 队列/位置/SQLite 事务护栏已覆盖一部分持久化基础；无 force-stop 运行证据。 | `adb shell am force-stop app.yukine` 后重新打开的命令输出、录屏、logcat。 |
 | 无效本地 URI | `PlaybackErrorRecoveryManagerTest.invalidLocalTrackSkipsToNextWhenQueueCanContinue`、`PlaybackQueueManagerTest.restorePlaybackQueueClearsPersistedStateWhenAllRowsAreFilteredOut` 覆盖不可恢复本地项处理。 | 真机缺失 MediaStore/文件条目的失败状态录屏/logcat。 |
+| 本地格式兼容 | `LocalAudioFormatPolicyTest`、`LocalAudioCandidateProbeTest`、`PlaybackMediaSourceProviderTest`、`PlaybackErrorRecoveryManagerTest` 覆盖统一能力表、API 23/27/33 容器/解码器探测、播放预检、`FORMAT_UNSUPPORTED` 与队列推进。 | 用无版权 MP3/AAC/M4A-AAC/FLAC/PCM WAV/Ogg Vorbis/Ogg Opus 正例及 ALAC/WMA/APE 负例验证导入摘要、播放进度和无解码器设备行为。 |
 | 空队列控制 | `PlaybackQueueManagerTest.retainTracksWithEmptyKeepSetClearsQueueAndStopsPlayback` 覆盖空保留集合清空/停止边界。 | 空队列 UI 截图和控制不崩溃录屏。 |
 | 删除当前曲目 | `PlaybackQueueManagerTest.removeCurrentTrackKeepsQueueAtNextTrackAndPreparesPausedPlayback`、`PlaybackQueueMutationOwnerTest.retainEmptyTrackSetClearsExistingQueueThroughManager` 覆盖删除/同步后的队列修正；`EchoDatabaseHelperTest.deleteTrackRemovesReferencesEventsAndReconcilesPlaybackState` 覆盖 SQLite 引用清理、play_events 清理、队列压缩、current index 重映射和播放位置重置。 | 播放中删除当前曲目或移出曲库录屏。 |
 | 播放历史/数据一致性 | `EchoDatabaseHelperTest` 覆盖升级、队列保存回滚、曲库全量刷新失败回滚、远端替换回滚、WebDAV 源编辑成功清理旧远程曲目且失败回滚旧远程曲目删除、WebDAV 源删除失败回滚缓存曲目删除、WebDAV 缓存-only 清理失败回滚引用清理、并发 upsert、`markPlayedRollsBackHistoryWhenPlayEventInsertFails`、删除曲目后的 play_history/play_events 引用清理、流媒体曲目批量删除失败回滚引用清理、清空播放历史时 play_history/play_events 的事务原子性、删除不存在 playlist 时不半提交 dangling playlist_tracks、添加/移出/清空/移动歌单成员与 playlist touch 的事务原子性，缺失 playlist 行时不会新增/删除/清空/重排 dangling playlist_tracks，`updateAudioSpecsRollsBackTrackUpdateWhenQueueMirrorFails` 覆盖 tracks 与 playback_queue 音频规格镜像的事务原子性。 | 最近播放/播放历史 UI 真机冒烟。 |
@@ -244,6 +245,7 @@ adb devices
 | 进度拖动 | 任意有时长歌曲。 | 拖到中段、接近末尾、再拖回开头。 | 实际播放位置、进度条、歌词/波形按预期同步；接近末尾不越界。 | 录屏、logcat。 |  |
 | 切歌 | 队列至少 5 首。 | 连续点下一首 5 次，再上一首 3 次。 | 当前曲目、队列索引、通知标题同步；无空白状态。 | 录屏。 |  |
 | 随机/重复 | 队列至少 5 首。 | 切换随机、列表循环、单曲循环，观察自然播完。 | 图标状态和实际下一首行为一致；设置重启后保留。 | 录屏、重启后截图。 |  |
+| 常见本地格式 | 准备无版权短音频正负例，包含 AAC-in-M4A、ALAC-in-M4A、PCM WAV、Ogg Vorbis/Opus。 | 逐个通过 MediaStore 与 SAF 导入，再从 Library/Search/Collections/Playlist/Queue 操作。 | 正例在设备有解码器时进入 READY 并推进进度；负例只出现在聚合跳过摘要；旧负例条目显示“不支持格式”、不能播放但可收藏/移除/管理歌单。 | 导入提示、五处列表、播放页与 logcat。 |  |
 | 睡眠定时 | 播放中。 | 设置短倒计时，等待触发；再设置一次并取消。 | 到时暂停；取消后不会再次触发。 | 录屏、logcat。 |  |
 
 ## 3. 系统媒体矩阵

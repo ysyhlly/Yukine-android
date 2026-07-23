@@ -1,5 +1,6 @@
 package app.yukine
 
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.ui.PlaylistTrackUiState
 import app.yukine.ui.QueueTrackUiState
@@ -14,8 +15,11 @@ object TrackRowStateFactory {
         detail: String,
         showPlaylistAction: Boolean,
         key: String = track.id.toString(),
-        favoritePendingIds: Set<Long> = emptySet()
-    ): TrackRowUiState = TrackRowUiState(
+        favoritePendingIds: Set<Long> = emptySet(),
+        unsupportedFormatLabel: String = "不支持格式"
+    ): TrackRowUiState {
+        val playbackEnabled = LocalAudioFormatPolicy.isPlaybackAllowed(track)
+        return TrackRowUiState(
         id = track.id,
         title = track.title,
         subtitle = track.subtitle(),
@@ -26,8 +30,11 @@ object TrackRowStateFactory {
         favorite = favoriteIds.contains(track.id),
         showPlaylistAction = showPlaylistAction,
         key = key,
-        favoritePending = track.id in favoritePendingIds
-    )
+        favoritePending = track.id in favoritePendingIds,
+        playbackEnabled = playbackEnabled,
+        supportLabel = if (playbackEnabled) null else unsupportedFormatLabel
+        )
+    }
 
     @JvmStatic
     fun queueRow(
@@ -35,7 +42,9 @@ object TrackRowStateFactory {
         track: Track,
         currentTrack: Track?,
         favoriteIds: Set<Long>
-    ): QueueTrackUiState = QueueTrackUiState(
+    ): QueueTrackUiState {
+        val playbackEnabled = LocalAudioFormatPolicy.isPlaybackAllowed(track)
+        return QueueTrackUiState(
         key,
         track.id,
         track.title,
@@ -44,8 +53,11 @@ object TrackRowStateFactory {
         Track.formatDuration(track.durationMs),
         track.albumArtUri,
         isCurrent(track, currentTrack),
-        favoriteIds.contains(track.id)
-    )
+        favoriteIds.contains(track.id),
+        playbackEnabled,
+        if (playbackEnabled) null else "不支持格式"
+        )
+    }
 
     @JvmStatic
     fun playlistRow(
@@ -54,8 +66,11 @@ object TrackRowStateFactory {
         currentTrack: Track?,
         favoriteIds: Set<Long>,
         canMoveUp: Boolean,
-        canMoveDown: Boolean
-    ): PlaylistTrackUiState = PlaylistTrackUiState(
+        canMoveDown: Boolean,
+        unsupportedFormatLabel: String = "不支持格式"
+    ): PlaylistTrackUiState {
+        val playbackEnabled = LocalAudioFormatPolicy.isPlaybackAllowed(track)
+        return PlaylistTrackUiState(
         key,
         track.id,
         track.title,
@@ -66,8 +81,11 @@ object TrackRowStateFactory {
         isCurrent(track, currentTrack),
         favoriteIds.contains(track.id),
         canMoveUp,
-        canMoveDown
-    )
+        canMoveDown,
+        playbackEnabled,
+        if (playbackEnabled) null else unsupportedFormatLabel
+        )
+    }
 
     private fun isCurrent(track: Track, currentTrack: Track?): Boolean =
         currentTrack != null && currentTrack.id == track.id

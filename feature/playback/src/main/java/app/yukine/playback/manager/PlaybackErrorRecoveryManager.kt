@@ -1,6 +1,8 @@
 package app.yukine.playback.manager
 
+import androidx.media3.common.PlaybackException
 import app.yukine.model.Track
+import app.yukine.playback.AudioFallbackReason
 import java.util.function.Predicate
 
 internal class PlaybackErrorRecoveryManager(
@@ -51,6 +53,12 @@ internal class PlaybackErrorRecoveryManager(
         if (released) {
             return
         }
+        val fallbackReason = fallbackReasonFor(error)
+        val errorMessage = if (fallbackReason == AudioFallbackReason.FORMAT_UNSUPPORTED) {
+            "This audio format is not supported."
+        } else {
+            "Unable to play this track."
+        }
         val failed = actions.currentTrack()
         val failedId = failed?.id ?: -1L
         val isStreaming = streamingTrackPredicate.test(failed)
@@ -81,11 +89,13 @@ internal class PlaybackErrorRecoveryManager(
         if (actions.canSkipFailedTrack(failed)) {
             lastErrorTrackId = -1L
             actions.logWarning("Skipping unplayable track: ${actions.debugTrack(failed)}", error)
-            actions.setErrorMessage("")
+            actions.setErrorMessage(
+                if (fallbackReason == AudioFallbackReason.FORMAT_UNSUPPORTED) errorMessage else ""
+            )
             actions.skipToNext()
             return
         }
-        actions.setErrorMessage("Unable to play this track.")
+        actions.setErrorMessage(errorMessage)
         actions.publishState()
     }
 
@@ -95,7 +105,19 @@ internal class PlaybackErrorRecoveryManager(
         pendingRetry = null
     }
 
-    private companion object {
+    companion object {
         const val DEFAULT_RETRY_DELAY_MS = 1500L
+
+        @JvmStatic
+        fun fallbackReasonFor(error: Exception): AudioFallbackReason {
+            val playbackError = error as? PlaybackException ?: return AudioFallbackReason.NONE
+            return when (playbackError.errorCode) {
+                PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
+                    AudioFallbackReason.FORMAT_UNSUPPORTED
+                else -> AudioFallbackReason.NONE
+            }
+        }
     }
 }

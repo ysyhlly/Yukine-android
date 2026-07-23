@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.TrackDownloadItem
 import app.yukine.UnifiedSearchUiState
+import app.yukine.model.LocalAudioFormatPolicy
 import app.yukine.model.Track
 import app.yukine.streaming.StreamingPlaybackCandidate
 import app.yukine.streaming.StreamingProviderName
@@ -502,13 +504,15 @@ private fun LocalTrackResultRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val playbackEnabled = LocalAudioFormatPolicy.isPlaybackAllowed(track)
     ResultRow(
         title = track.title,
         subtitle = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" / "),
         coverUri = track.albumArtUri,
-        sourceLabel = "本地",
+        sourceLabel = if (playbackEnabled) "本地" else "不支持格式",
         modifier = modifier,
-        onClick = onClick
+        onClick = { if (playbackEnabled) onClick() },
+        playbackEnabled = playbackEnabled
     )
 }
 
@@ -574,6 +578,7 @@ private fun ResultRow(
     sourceLabel: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    playbackEnabled: Boolean = true,
     onSourceClick: (() -> Unit)? = null,
     expandedContent: (@Composable () -> Unit)? = null
 ) {
@@ -584,6 +589,9 @@ private fun ResultRow(
         interactionSource = interaction,
         modifier = modifier
             .fillMaxWidth()
+            .semantics {
+                if (!playbackEnabled) stateDescription = sourceLabel
+            }
             .echoPressScale(interaction)
             .echoGaussianBackdrop(p, EchoShapes.large)
             .animateContentSize(),
@@ -624,7 +632,11 @@ private fun ResultRow(
                 }
                 SourceChip(sourceLabel, onSourceClick)
                 Spacer(Modifier.width(8.dp))
-                EchoIcon(EchoIconKind.Play, Modifier.size(22.dp), p.accent)
+                EchoIcon(
+                    EchoIconKind.Play,
+                    Modifier.size(22.dp),
+                    if (playbackEnabled) p.accent else p.muted.copy(alpha = 0.45f)
+                )
             }
             if (expandedContent != null) {
                 Box(

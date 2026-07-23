@@ -348,5 +348,6 @@ private fun trackListLabels(languageMode: String): TrackListLabels = TrackListLa
     AppLanguage.text(languageMode, "recording.match.manage"),
     AppLanguage.text(languageMode, "songs"),
     AppLanguage.text(languageMode, "more"),
-    AppLanguage.text(languageMode, "library.favorite.updating")
+    AppLanguage.text(languageMode, "library.favorite.updating"),
+    AppLanguage.text(languageMode, "local.audio.unsupported")
 )

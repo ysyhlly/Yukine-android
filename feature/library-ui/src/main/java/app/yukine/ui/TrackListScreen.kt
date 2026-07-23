@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,9 @@ data class TrackRowUiState(
     val favorite: Boolean,
     val showPlaylistAction: Boolean,
     val key: String = id.toString(),
-    val favoritePending: Boolean = false
+    val favoritePending: Boolean = false,
+    val playbackEnabled: Boolean = true,
+    val supportLabel: String? = null
 )
 
 data class TrackRowActions(
@@ -161,7 +164,8 @@ data class TrackListLabels(
     val matchManagementLabel: String = "\u7ba1\u7406\u6b4c\u66f2\u5339\u914d",
     val songsLabel: String = "\u9996\u6b4c\u66f2",
     val moreActionsLabel: String = "\u66f4\u591a\u64cd\u4f5c",
-    val favoriteUpdatingLabel: String = "\u6b63\u5728\u66f4\u65b0\u6536\u85cf"
+    val favoriteUpdatingLabel: String = "\u6b63\u5728\u66f4\u65b0\u6536\u85cf",
+    val unsupportedFormatLabel: String = "\u4e0d\u652f\u6301\u683c\u5f0f"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1098,7 +1102,7 @@ private fun SwipeRevealTrackRow(
                 when {
                     libraryUi.selectionActive -> actionHandler.onAction(LibraryAction.ToggleTrackSelection(track.key))
                     expanded -> actionHandler.onAction(LibraryAction.RevealTrack(null))
-                    else -> actions.onPlay.run()
+                    track.playbackEnabled -> actions.onPlay.run()
                 }
             },
             onLongPress = { actionHandler.onAction(LibraryAction.ToggleTrackSelection(track.key)) },
@@ -1479,9 +1483,18 @@ private fun TrackRow(
             .combinedClickable(
                 interactionSource = interaction,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = { onClick?.invoke() ?: actions.onPlay.run() },
+                onClick = {
+                    if (onClick != null) {
+                        onClick()
+                    } else if (track.playbackEnabled) {
+                        actions.onPlay.run()
+                    }
+                },
                 onLongClick = { onLongPress?.invoke() ?: run { menuExpanded = true } }
             )
+            .semantics {
+                track.supportLabel?.let { stateDescription = it }
+            }
             .echoPressScale(interaction)
             .then(
                 if (independentCard) {
@@ -1554,6 +1567,15 @@ private fun TrackRow(
                         color = p.muted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                track.supportLabel?.let { label ->
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        label,
+                        style = EchoTypography.small.copy(fontWeight = FontWeight.SemiBold),
+                        color = p.accent,
+                        maxLines = 1
                     )
                 }
             }
