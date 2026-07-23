@@ -68,10 +68,19 @@ internal class NetworkRequestController(
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
+        rootPath: String,
+        allowInsecureTls: Boolean
     ) {
         listener.setStatus(labels.text("saving.webdav.source"))
-        operations.saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath)
+        operations.saveWebDavSource(
+            sourceId,
+            name,
+            baseUrl,
+            username,
+            password,
+            rootPath,
+            allowInsecureTls
+        )
     }
 
     fun testRemoteSource(sourceId: Long) {

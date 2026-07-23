@@ -1563,6 +1563,21 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun incrementalReplaceCanPublishRowsBeforeDeferredIdentityIngestion() {
+        val track = track(305L, "Deferred", "/music/deferred.flac")
+
+        repository.replaceScanManagedTracksIncremental(
+            listOf(track),
+            false
+        )
+
+        assertEquals(listOf(track.id), repository.loadTracks().map { it.id })
+        assertTrue(database.musicIdentityDao().sourceMatchFeatures().isEmpty())
+        repository.ingestPendingConfirmedIdentitySources()
+        assertTrue(database.musicIdentityDao().sourceMatchFeatures().isNotEmpty())
+    }
+
+    @Test
     fun incrementalReplaceRemovesDeletedTracks() {
         val kept = track(310L, "Kept", "/music/kept.flac")
         val removed = track(311L, "Removed", "/music/removed.flac")

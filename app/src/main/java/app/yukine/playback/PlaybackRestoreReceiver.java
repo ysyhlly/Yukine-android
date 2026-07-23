@@ -34,6 +34,16 @@ public final class PlaybackRestoreReceiver extends BroadcastReceiver {
                 if (!repository.loadPlaybackRestoreEnabled()) return;
                 PlaybackQueueState queueState = repository.loadPlaybackQueue();
                 if (queueState == null || queueState.isEmpty()) return;
+                if (!PlaybackBootRestorePolicy.canStartMediaPlaybackService(
+                        Build.VERSION.SDK_INT,
+                        appContext.getApplicationInfo().targetSdkVersion
+                )) {
+                    DiagnosticLog.i(
+                            TAG,
+                            "Playback restore deferred until the app is opened on Android 15 or newer"
+                    );
+                    return;
+                }
                 Intent serviceIntent = new Intent(appContext, EchoPlaybackService.class);
                 serviceIntent.setAction(repository.loadPlaybackResumeRequested()
                         ? PlaybackServiceActions.RESTORE_AND_PLAY

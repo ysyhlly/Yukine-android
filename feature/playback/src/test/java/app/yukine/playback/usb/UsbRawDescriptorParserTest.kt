@@ -51,6 +51,23 @@ class UsbRawDescriptorParserTest {
     }
 
     @Test
+    fun preservesReservedUac2FrequencyControlModeForNativeRejection() {
+        val descriptor = byteArrayOf(
+            9, 2, 67, 0, 2, 1, 0, 0x80.toByte(), 50,
+            9, 4, 0, 0, 0, 1, 1, 0x20, 0,
+            9, 0x24, 1, 0, 2, 0, 0, 0, 0,
+            8, 0x24, 0x0A, 0x10, 0, 2, 0, 0,
+            17, 0x24, 2, 0x30, 1, 1, 0, 0x10, 2, 3, 0, 0, 0, 0, 0, 0, 0,
+            9, 4, 1, 1, 1, 1, 2, 0x20, 0,
+            7, 5, 1, 5, 0, 2, 1
+        )
+
+        val endpoint = UsbRawDescriptorParser.parseEndpoints(descriptor).single()
+
+        assertArrayEquals(intArrayOf(2), endpoint.clockSourceFrequencyControls)
+    }
+
+    @Test
     fun terminalLinkWinsOverUnrelatedLaterClockSource() {
         val descriptor = byteArrayOf(
             9, 2, 84, 0, 2, 1, 0, 0x80.toByte(), 50,

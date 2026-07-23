@@ -10,6 +10,7 @@ sealed interface SettingsRuntimeEffect {
     data class SetAudioExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetBitPerfectEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetUsbExclusiveEnabled(val enabled: Boolean) : SettingsRuntimeEffect
+    data class SetUsbClockMismatchCompatibilityEnabled(val enabled: Boolean) : SettingsRuntimeEffect
     data class ApplyAudioEffects(val settings: AudioEffectSettings) : SettingsRuntimeEffect
     data class SetStatusBarLyrics(val enabled: Boolean) : SettingsRuntimeEffect
     data class SetSystemMediaLyricsTitleEnabled(val enabled: Boolean) : SettingsRuntimeEffect

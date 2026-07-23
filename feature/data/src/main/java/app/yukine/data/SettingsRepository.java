@@ -36,6 +36,8 @@ public final class SettingsRepository {
     private static final String AUDIO_EXCLUSIVE_ENABLED = "audio_exclusive_enabled";
     private static final String BIT_PERFECT_ENABLED = "bit_perfect_enabled";
     private static final String USB_EXCLUSIVE_ENABLED = "usb_exclusive_enabled";
+    private static final String USB_CLOCK_MISMATCH_COMPATIBILITY_ENABLED =
+            "usb_clock_mismatch_compatibility_enabled";
     private static final String DEBUG_PROMPTS_ENABLED = "debug_prompts_enabled";
     private static final String CHECK_UPDATE_ENABLED = "check_update_enabled";
     private static final String CUSTOM_BACKGROUND_BLUR_ENABLED = "custom_background_blur_enabled";
@@ -151,6 +153,12 @@ public final class SettingsRepository {
     void saveBitPerfectEnabled(boolean value) { saveBool(BIT_PERFECT_ENABLED, value); }
     boolean loadUsbExclusiveEnabled() { return bool(USB_EXCLUSIVE_ENABLED, false); }
     void saveUsbExclusiveEnabled(boolean value) { saveBool(USB_EXCLUSIVE_ENABLED, value); }
+    boolean loadUsbClockMismatchCompatibilityEnabled() {
+        return bool(USB_CLOCK_MISMATCH_COMPATIBILITY_ENABLED, false);
+    }
+    void saveUsbClockMismatchCompatibilityEnabled(boolean value) {
+        saveBool(USB_CLOCK_MISMATCH_COMPATIBILITY_ENABLED, value);
+    }
     boolean loadDebugPromptsEnabled() { return bool(DEBUG_PROMPTS_ENABLED, false); }
     void saveDebugPromptsEnabled(boolean value) { saveBool(DEBUG_PROMPTS_ENABLED, value); }
     boolean loadCheckUpdateEnabled() { return bool(CHECK_UPDATE_ENABLED, true); }

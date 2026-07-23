@@ -25,6 +25,52 @@ public final class AppLanguage {
         put("tab.downloads", "Downloads", "\u4e0b\u8f7d");
         put("tab.search", "Search", "\u641c\u7d22");
         put("tab.settings", "Settings", "\u8bbe\u7f6e");
+        put("together.title", "Listen together", "\u4e00\u8d77\u542c");
+        put("together.create", "Create room", "\u521b\u5efa\u623f\u95f4");
+        put("together.join", "Join room", "\u52a0\u5165\u623f\u95f4");
+        put("together.room.code", "Room code", "\u623f\u95f4\u7801");
+        put("together.room.paste", "Paste a jun1... room code", "\u7c98\u8d34 jun1... \u623f\u95f4\u7801");
+        put("together.settings", "Connection settings", "\u8fde\u63a5\u8bbe\u7f6e");
+        put("together.create.confirm", "Create with this queue", "\u7528\u5f53\u524d\u961f\u5217\u521b\u5efa");
+        put("together.queue.empty", "The current queue has no shareable local audio", "\u5f53\u524d\u961f\u5217\u4e2d\u6ca1\u6709\u53ef\u5206\u4eab\u7684\u672c\u5730\u97f3\u9891");
+        put("together.queue.add", "Add local audio", "\u6dfb\u52a0\u672c\u5730\u97f3\u9891");
+        put("together.join.preview", "Check room files", "\u68c0\u67e5\u623f\u95f4\u6587\u4ef6");
+        put("together.join.confirm", "Join and download", "\u786e\u8ba4\u52a0\u5165\u5e76\u4e0b\u8f7d");
+        put("together.join.match", "Match local file", "\u5339\u914d\u672c\u5730\u6587\u4ef6");
+        put("together.join.matched", "Matched local file", "\u5df2\u5339\u914d\u672c\u5730\u6587\u4ef6");
+        put("together.join.download", "P2P download required", "\u9700\u8981 P2P \u4e0b\u8f7d");
+        put("together.join.storage", "Download / available space", "\u9700\u4e0b\u8f7d / \u53ef\u7528\u7a7a\u95f4");
+        put("together.join.space.error", "Not enough free space; match more local files or clear storage", "\u53ef\u7528\u7a7a\u95f4\u4e0d\u8db3\uff0c\u8bf7\u5339\u914d\u66f4\u591a\u672c\u5730\u6587\u4ef6\u6216\u6e05\u7406\u5b58\u50a8");
+        put("together.connecting", "Connecting to the room\u2026", "\u6b63\u5728\u8fde\u63a5\u623f\u95f4\u2026");
+        put("together.waiting", "Waiting for everyone to be ready", "\u7b49\u5f85\u6240\u6709\u6210\u5458\u5c31\u7eea");
+        put("together.leave", "Leave room", "\u79bb\u5f00\u623f\u95f4");
+        put("together.members", "Members", "\u6210\u5458");
+        put("together.buffering", "Buffering", "\u7f13\u51b2\u4e2d");
+        put("together.ready", "Ready", "\u5df2\u5c31\u7eea");
+        put("together.drift", "Drift", "\u540c\u6b65\u504f\u5dee");
+        put("together.transfer", "Transfer", "\u4f20\u8f93");
+        put("together.save.file", "Save to library", "\u4fdd\u5b58\u5230\u672c\u5730");
+        put("together.connection.direct", "Direct P2P", "P2P \u76f4\u8fde");
+        put("together.connection.turn", "Connected through TURN", "\u5df2\u901a\u8fc7 TURN \u8fde\u63a5");
+        put("together.connection.relay", "Negotiating connection", "\u6b63\u5728\u534f\u5546\u8fde\u63a5");
+        put("together.nickname", "Nickname", "\u6635\u79f0");
+        put("together.relays", "Nostr relays (one per line)", "Nostr relay\uff08\u6bcf\u884c\u4e00\u4e2a\uff09");
+        put("together.turn.url", "TURN URL", "TURN \u5730\u5740");
+        put("together.turn.username", "TURN username", "TURN \u7528\u6237\u540d");
+        put("together.turn.password", "TURN password", "TURN \u5bc6\u7801");
+        put("together.turn.remember", "Remember TURN password on this device", "\u5728\u672c\u8bbe\u5907\u4e0a\u8bb0\u4f4f TURN \u5bc6\u7801");
+        put("together.settings.save", "Save settings", "\u4fdd\u5b58\u8bbe\u7f6e");
+        put("together.connection.test", "Test relay connection", "\u6d4b\u8bd5 relay \u8fde\u63a5");
+        put("together.connection.test.ok", "Relay connection succeeded", "Relay \u8fde\u63a5\u6210\u529f");
+        put("together.connection.test.turn", "Relay connected; TURN is configured and will be verified during peer connection", "Relay \u8fde\u63a5\u6210\u529f\uff1bTURN \u5df2\u914d\u7f6e\uff0c\u5c06\u5728\u8fde\u63a5\u6210\u5458\u65f6\u9a8c\u8bc1");
+        put("together.code.copy", "Copy room code", "\u590d\u5236\u623f\u95f4\u7801");
+        put("together.code.share", "Share", "\u5206\u4eab");
+        put("together.code.invalid", "Enter a valid jun1... room code", "\u8bf7\u8f93\u5165\u6709\u6548\u7684 jun1... \u623f\u95f4\u7801");
+        put("together.file.saved", "Saved and added to the media library", "\u5df2\u4fdd\u5b58\u5e76\u5237\u65b0\u66f2\u5e93");
+        put("action.back", "Back", "\u8fd4\u56de");
+        put("action.remove", "Remove", "\u79fb\u9664");
+        put("action.move.up", "Move up", "\u4e0a\u79fb");
+        put("action.move.down", "Move down", "\u4e0b\u79fb");
         put("search.music", "Search music", "\u641c\u7d22\u97f3\u4e50");
         put("library.search", "Search library", "\u641c\u7d22\u66f2\u5e93");
         put("library.sort", "Sort", "\u6392\u5e8f");
@@ -359,6 +405,12 @@ public final class AppLanguage {
         put("bit.perfect.hint", "Bypass system resampling, output at original sample rate", "绕过系统重采样，原始采样率直通硬件");
         put("usb.exclusive", "USB Exclusive Output", "USB 独占输出");
         put("usb.exclusive.hint", "Bypass system mixer, PCM direct to USB DAC for true bit-perfect output", "绕过系统混音器，PCM 直通 USB DAC，实现真正位完美输出");
+        put("usb.clock.compatibility", "USB clock compatibility", "USB 时钟兼容模式");
+        put(
+                "usb.clock.compatibility.hint",
+                "For DACs that report a stale clock: keep PCM exclusive after SET_CUR succeeds. May cause pitch changes or noise; requires USB Exclusive Output.",
+                "用于采样率读回异常的 DAC：SET_CUR 成功后仍保持 PCM 独占。可能导致变调或爆音，且需要先开启 USB 独占输出。"
+        );
         put("remote.music.sources.hint", "Add WebDAV or other network music sources", "\u6dfb\u52a0 WebDAV \u7b49\u7f51\u7edc\u97f3\u4e50\u6765\u6e90");
         put("streaming.audio.quality.hint", "Audio quality for online streaming playback", "\u5728\u7ebf\u64ad\u653e\u7684\u97f3\u8d28\u9009\u62e9");
         put("streaming.gateway.hint", "For advanced users; normal users can skip this", "\u9ad8\u7ea7\u9009\u9879\uff0c\u666e\u901a\u7528\u6237\u65e0\u9700\u8bbe\u7f6e");
@@ -859,6 +911,7 @@ public final class AppLanguage {
         put("name", "Name", "\u540d\u79f0");
         put("username", "Username", "\u7528\u6237\u540d");
         put("password", "Password", "\u5bc6\u7801");
+        put("allow.insecure.webdav.tls", "Trust self-signed certificate (trusted networks only)", "\u4fe1\u4efb\u81ea\u7b7e\u540d\u8bc1\u4e66\uff08\u4ec5\u9650\u53ef\u4fe1\u7f51\u7edc\uff09");
         put("create.playlist", "Create playlist", "\u65b0\u5efa\u64ad\u653e\u5217\u8868");
         put("rename.playlist", "Rename playlist", "\u91cd\u547d\u540d\u64ad\u653e\u5217\u8868");
         put("delete.playlist", "Delete playlist", "\u5220\u9664\u64ad\u653e\u5217\u8868");

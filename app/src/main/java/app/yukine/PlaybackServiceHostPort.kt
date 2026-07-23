@@ -4,6 +4,7 @@ import app.yukine.model.Track
 import app.yukine.playback.PlaybackCommands
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.state.PlaybackStateListener
+import app.yukine.together.TogetherSessionHostPort
 
 interface PlaybackServiceHostPort : PlaybackCommands, SettingsPlaybackServicePort {
     fun snapshot(): PlaybackStateSnapshot?
@@ -25,4 +26,6 @@ interface PlaybackServiceHostPort : PlaybackCommands, SettingsPlaybackServicePor
     fun queueSize(): Int
 
     fun queueTrackAt(index: Int): Track?
+
+    fun togetherSessionHost(): TogetherSessionHostPort
 }

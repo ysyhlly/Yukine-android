@@ -5,6 +5,7 @@ plugins {
 android {
     namespace "app.yukine.feature.playback"
     compileSdk 37
+    ndkVersion "28.2.13676358"
 
     defaultConfig {
         minSdk 23
@@ -15,7 +16,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17 -O2"
+                targets "usb-1.0", "echo_usb_iso_rust"
             }
         }
     }
@@ -36,6 +37,15 @@ android {
         }
     }
 
+    sourceSets {
+        debug {
+            jniLibs.srcDir file("build/generated/rust/debug/jniLibs")
+        }
+        release {
+            jniLibs.srcDir file("build/generated/rust/release/jniLibs")
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path file("src/main/cpp/CMakeLists.txt")
@@ -47,6 +57,18 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "mergeDebugJniLibFolders") {
+        task.dependsOn("buildCMakeDebug")
+        // Cargo runs inside CMake, outside Gradle's declared output model. Refresh the generated
+        // directory so an incremental build cannot package a previous Rust shared library.
+        task.outputs.upToDateWhen { false }
+    } else if (task.name == "mergeReleaseJniLibFolders") {
+        task.dependsOn("buildCMakeRelWithDebInfo")
+        task.outputs.upToDateWhen { false }
     }
 }
 

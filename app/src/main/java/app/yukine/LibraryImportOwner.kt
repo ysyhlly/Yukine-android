@@ -14,7 +14,8 @@ internal class LibraryImportOwner @JvmOverloads constructor(
     private val collectionsLoader: CollectionsLoader,
     private val onboardingScanObserver: OnboardingScanObserver,
     private val networkNavigator: NetworkNavigator,
-    private val audioVerificationScheduler: AudioVerificationScheduler = AudioVerificationScheduler {}
+    private val audioVerificationScheduler: AudioVerificationScheduler = AudioVerificationScheduler {},
+    private val identityIngestScheduler: IdentityIngestScheduler = IdentityIngestScheduler {}
 ) {
     fun interface AudioPermissionSource {
         fun hasAudioPermission(): Boolean
@@ -41,6 +42,10 @@ internal class LibraryImportOwner @JvmOverloads constructor(
     }
 
     fun interface AudioVerificationScheduler {
+        fun schedule()
+    }
+
+    fun interface IdentityIngestScheduler {
         fun schedule()
     }
 
@@ -118,6 +123,7 @@ internal class LibraryImportOwner @JvmOverloads constructor(
         applyLibraryReplacement(tracks, favorites) {
             statusSink.setStatus(status)
             if (scanned) {
+                identityIngestScheduler.schedule()
                 viewModel.loading.parseMissingAudioSpecsJava { result ->
                     audioVerificationScheduler.schedule()
                     applyLibraryReplacement(result.tracks, result.favorites) {

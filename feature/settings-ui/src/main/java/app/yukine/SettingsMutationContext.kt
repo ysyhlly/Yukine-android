@@ -158,6 +158,8 @@ internal class SettingsMutationContext(
         SettingsPreferenceKey.AudioExclusiveEnabled to preferences.audioExclusiveEnabled,
         SettingsPreferenceKey.BitPerfectEnabled to preferences.bitPerfectEnabled,
         SettingsPreferenceKey.UsbExclusiveEnabled to preferences.usbExclusiveEnabled,
+        SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled to
+            preferences.usbClockMismatchCompatibilityEnabled,
         SettingsPreferenceKey.DebugPromptsEnabled to preferences.debugPromptsEnabled,
         SettingsPreferenceKey.CheckUpdateEnabled to preferences.checkUpdateEnabled,
         SettingsPreferenceKey.CustomBackgroundBlurEnabled to preferences.customBackgroundBlurEnabled,
@@ -193,6 +195,8 @@ internal class SettingsMutationContext(
             SettingsPreferenceKey.AudioExclusiveEnabled -> state.preferences.audioExclusiveEnabled
             SettingsPreferenceKey.BitPerfectEnabled -> state.preferences.bitPerfectEnabled
             SettingsPreferenceKey.UsbExclusiveEnabled -> state.preferences.usbExclusiveEnabled
+            SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled ->
+                state.preferences.usbClockMismatchCompatibilityEnabled
             SettingsPreferenceKey.DebugPromptsEnabled -> state.preferences.debugPromptsEnabled
             SettingsPreferenceKey.CheckUpdateEnabled -> state.preferences.checkUpdateEnabled
             SettingsPreferenceKey.CustomBackgroundBlurEnabled -> state.preferences.customBackgroundBlurEnabled
@@ -250,6 +254,10 @@ internal class SettingsMutationContext(
                 preferences = preferences.copy(bitPerfectEnabled = value as Boolean)
             SettingsPreferenceKey.UsbExclusiveEnabled ->
                 preferences = preferences.copy(usbExclusiveEnabled = value as Boolean)
+            SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled ->
+                preferences = preferences.copy(
+                    usbClockMismatchCompatibilityEnabled = value as Boolean
+                )
             SettingsPreferenceKey.DebugPromptsEnabled ->
                 preferences = preferences.copy(debugPromptsEnabled = value as Boolean)
             SettingsPreferenceKey.CheckUpdateEnabled ->
@@ -292,6 +300,12 @@ internal class SettingsMutationContext(
                 applyRuntime(SettingsRuntimeEffect.SetBitPerfectEnabled(preferences.bitPerfectEnabled))
             SettingsPreferenceKey.UsbExclusiveEnabled ->
                 applyRuntime(SettingsRuntimeEffect.SetUsbExclusiveEnabled(preferences.usbExclusiveEnabled))
+            SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled ->
+                applyRuntime(
+                    SettingsRuntimeEffect.SetUsbClockMismatchCompatibilityEnabled(
+                        preferences.usbClockMismatchCompatibilityEnabled
+                    )
+                )
             SettingsPreferenceKey.LyricsOffsetMs -> applyRuntime(SettingsRuntimeEffect.SetLyricsOffsetMs(runtime.lyricsOffsetMs))
             else -> Unit
         }

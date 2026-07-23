@@ -17,6 +17,8 @@ interface SettingsPlaybackServiceControls {
 
     fun setUsbExclusiveEnabled(enabled: Boolean)
 
+    fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean)
+
     fun applyAudioEffectSettings(settings: AudioEffectSettings)
 
     fun setStatusBarLyricsEnabled(enabled: Boolean)

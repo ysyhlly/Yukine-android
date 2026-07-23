@@ -559,6 +559,14 @@ public final class MusicLibraryRepository {
         settingsRepository.saveUsbExclusiveEnabled(enabled);
     }
 
+    public boolean loadUsbClockMismatchCompatibilityEnabled() {
+        return settingsRepository.loadUsbClockMismatchCompatibilityEnabled();
+    }
+
+    public void saveUsbClockMismatchCompatibilityEnabled(boolean enabled) {
+        settingsRepository.saveUsbClockMismatchCompatibilityEnabled(enabled);
+    }
+
     public boolean loadDebugPromptsEnabled() {
         return settingsRepository.loadDebugPromptsEnabled();
     }
@@ -696,10 +704,22 @@ public final class MusicLibraryRepository {
     }
 
     public long saveWebDavSource(String name, String baseUrl, String username, String password, String rootPath) {
-        return saveWebDavSource(-1L, name, baseUrl, username, password, rootPath);
+        return saveWebDavSource(-1L, name, baseUrl, username, password, rootPath, false);
     }
 
     public long saveWebDavSource(long sourceId, String name, String baseUrl, String username, String password, String rootPath) {
+        return saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath, false);
+    }
+
+    public long saveWebDavSource(
+            long sourceId,
+            String name,
+            String baseUrl,
+            String username,
+            String password,
+            String rootPath,
+            boolean allowInsecureTls
+    ) {
         RemoteSource source = new RemoteSource(
                 sourceId,
                 RemoteSource.TYPE_WEBDAV,
@@ -708,6 +728,7 @@ public final class MusicLibraryRepository {
                 username,
                 password,
                 rootPath,
+                allowInsecureTls,
                 sourceId > 0L ? "已更新，等待测试" : "已保存，等待测试",
                 System.currentTimeMillis()
         );
@@ -1268,7 +1289,10 @@ public final class MusicLibraryRepository {
         List<Track> tracks = scanner.scan();
         throwIfRefreshInterrupted();
         reportRefreshProgress(progressListener, LibraryRefreshPhase.REPLACING, tracks.size(), startedAtNanos);
-        libraryRepository.replaceScanManagedTracksIncremental(tracks);
+        // Keep opening the library bounded: physical-source identity clustering can take minutes
+        // for a first large scan. The app schedules that durable database work after publishing
+        // this refreshed snapshot instead of blocking the refresh result.
+        libraryRepository.replaceScanManagedTracksIncremental(tracks, false);
         throwIfRefreshInterrupted();
         // Persist only after the replacement transaction succeeds. If the scan or write fails,
         // the old token forces a safe retry next time.

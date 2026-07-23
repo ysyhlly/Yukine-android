@@ -6,19 +6,26 @@ import app.yukine.model.Track
 import app.yukine.ui.LibraryGroupActions
 import app.yukine.ui.LibraryGroupUiState
 import app.yukine.ui.LibraryAction
+import app.yukine.ui.LibraryUiState
 import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackListAlbumCardUiState
 import app.yukine.ui.EchoIconKind
 import app.yukine.streaming.StreamingPlaybackAdapter
+import app.yukine.diagnostics.DiagnosticLog
 import java.util.ArrayList
 import java.util.Collections
 import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 fun interface LibraryGroupsUiDispatcher {
     fun dispatch(action: Runnable)
@@ -52,7 +59,8 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
     private val listener: Listener,
     private val uiDispatcher: LibraryGroupsUiDispatcher = LibraryGroupsUiDispatcher { action -> action.run() },
     private val artistLocalInfoSource: ArtistLocalInfoSource? = null,
-    private val artistEnrichmentTrigger: ArtistEnrichmentTrigger? = null
+    private val artistEnrichmentTrigger: ArtistEnrichmentTrigger? = null,
+    private val groupingDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
     private val artistInfoCache = Collections.synchronizedMap(
         object : LinkedHashMap<String, ArtistInfo>(24, 0.75f, true) {
@@ -62,6 +70,18 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
     private val artistInfoRequests = ConcurrentHashMap.newKeySet<String>()
     private var activeArtistInfoKey: String = ""
     private var artistInfoRequestSerial = 0
+    private var groupBuildJob: Job? = null
+    private val groupBuildGeneration = AtomicLong()
+
+    private data class BuiltLibraryGroups(
+        val groups: Map<String, ArrayList<Track>>,
+        val visibleTargets: Map<String, List<Track>>,
+        val rows: ArrayList<LibraryGroupUiState>,
+        val actions: ArrayList<LibraryGroupActions>,
+        val title: String,
+        val emptyText: String,
+        val modeActions: List<TrackListModeAction>
+    )
 
     interface Listener {
         fun selectLibraryGroup(key: String, title: String)
@@ -94,6 +114,12 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         )
     }
 
+    fun cancelPendingBuild() {
+        groupBuildGeneration.incrementAndGet()
+        groupBuildJob?.cancel()
+        groupBuildJob = null
+    }
+
     fun reduce(
         visibleTracks: List<Track>,
         libraryMode: String,
@@ -122,10 +148,68 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         modeActions: List<TrackListModeAction>,
         favoriteIds: Set<Long> = emptySet()
     ) {
+        val generation = groupBuildGeneration.incrementAndGet()
+        groupBuildJob?.cancel()
+        val libraryUi = viewModel.libraryUi.value
+        val tracksSnapshot = visibleTracks.toList()
+        val favoritesSnapshot = favoriteIds.toSet()
+        val modeActionsSnapshot = modeActions.toList()
+        val buildContent = {
+            buildGroups(
+                languageMode,
+                tracksSnapshot,
+                libraryMode,
+                modeActionsSnapshot,
+                favoritesSnapshot,
+                libraryUi
+            )
+        }
+        if (tracksSnapshot.size < BACKGROUND_GROUP_BUILD_THRESHOLD) {
+            publishGroups(
+                buildContent(),
+                languageMode,
+                libraryMode,
+                selectedLibraryGroupKey,
+                selectedLibraryGroupTitle
+            )
+            return
+        }
+
+        // Release a potentially large song-row snapshot before building the grouped projection.
+        // The new result is published only if no newer route/filter request superseded it.
+        viewModel.presentation.clearTrackList()
+        groupBuildJob = viewModel.viewModelScope.launch {
+            val content = try {
+                withContext(groupingDispatcher) { buildContent() }
+            } catch (_: CancellationException) {
+                return@launch
+            } catch (error: Throwable) {
+                DiagnosticLog.w(TAG, "Unable to build library groups off the main thread", error)
+                return@launch
+            }
+            if (generation != groupBuildGeneration.get()) return@launch
+            publishGroups(
+                content,
+                languageMode,
+                libraryMode,
+                selectedLibraryGroupKey,
+                selectedLibraryGroupTitle
+            )
+        }
+    }
+
+    private fun buildGroups(
+        languageMode: String,
+        visibleTracks: List<Track>,
+        libraryMode: String,
+        modeActions: List<TrackListModeAction>,
+        favoriteIds: Set<Long>,
+        libraryUi: LibraryUiState
+    ): BuiltLibraryGroups {
         val filteredTracks = LibraryTrackPresentationPolicy.present(
             visibleTracks,
             emptyList(),
-            viewModel.libraryUi.value,
+            libraryUi,
             favoriteIds
         ).map { it.track }
         val groups = LibraryGrouping.groupTracks(
@@ -133,23 +217,6 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
             libraryMode,
             viewModel.dataOwner()::artistIdentitiesFor
         )
-        if (selectedLibraryGroupKey.isNotEmpty()) {
-            val selectedTracks = groups[selectedLibraryGroupKey]
-            if (selectedTracks != null) {
-                reduceGroupDetail(
-                    languageMode,
-                    selectedLibraryGroupTitle,
-                    selectedTracks,
-                    libraryMode,
-                    selectedLibraryGroupKey
-                )
-                return
-            }
-        }
-
-        activeArtistInfoKey = ""
-        artistInfoRequestSerial++
-        listener.clearLibraryGroupSelection()
         val groupRows = ArrayList<LibraryGroupUiState>()
         val groupActions = ArrayList<LibraryGroupActions>()
         if (LibraryGrouping.PLAYLISTS == libraryMode) {
@@ -171,7 +238,7 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
         }
         val sortedGroups = LibraryGroupSortPolicy.sort(
             items = groups.entries.toList(),
-            sort = viewModel.libraryUi.value.groupSort,
+            sort = libraryUi.groupSort,
             languageMode = languageMode,
             stableId = { entry -> entry.key },
             title = { entry -> LibraryGrouping.groupTitle(entry.key, libraryMode, languageMode) },
@@ -200,15 +267,50 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
             )
         }
 
-        viewModel.presentation.updateVisibleGroupTargets(groups.mapKeys { (key, _) ->
-            "$libraryMode:${if (key.isEmpty()) "unknown" else key}"
-        })
-
         val title = LibraryGrouping.modeTitle(libraryMode, languageMode)
         val emptyText = AppLanguage.text(languageMode, "no.library.groups").replace("%s", title)
+        val visibleTargets = groups.entries.associate { (key, tracks) ->
+            "$libraryMode:${if (key.isEmpty()) "unknown" else key}" to tracks
+        }
+        return BuiltLibraryGroups(
+            groups,
+            visibleTargets,
+            groupRows,
+            groupActions,
+            title,
+            emptyText,
+            modeActions
+        )
+    }
+
+    private fun publishGroups(
+        content: BuiltLibraryGroups,
+        languageMode: String,
+        libraryMode: String,
+        selectedLibraryGroupKey: String,
+        selectedLibraryGroupTitle: String
+    ) {
+        if (selectedLibraryGroupKey.isNotEmpty()) {
+            val selectedTracks = content.groups[selectedLibraryGroupKey]
+            if (selectedTracks != null) {
+                reduceGroupDetail(
+                    languageMode,
+                    selectedLibraryGroupTitle,
+                    selectedTracks,
+                    libraryMode,
+                    selectedLibraryGroupKey
+                )
+                return
+            }
+        }
+
+        activeArtistInfoKey = ""
+        artistInfoRequestSerial++
+        listener.clearLibraryGroupSelection()
+        viewModel.presentation.updateVisibleGroupTargets(content.visibleTargets)
         viewModel.presentation.clearTrackList()
-        viewModel.presentation.updateLibraryGroups(title, groupRows)
-        listener.publishLibraryGroupsChrome(groupActions, emptyText, modeActions)
+        viewModel.presentation.updateLibraryGroups(content.title, content.rows)
+        listener.publishLibraryGroupsChrome(content.actions, content.emptyText, content.modeActions)
     }
 
     private fun reduceGroupDetail(
@@ -482,5 +584,10 @@ class LibraryGroupsStateReducer @JvmOverloads constructor(
                 append("。后台增强可在后续补充已验证资料。")
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "LibraryGroupsReducer"
+        const val BACKGROUND_GROUP_BUILD_THRESHOLD = 200
     }
 }

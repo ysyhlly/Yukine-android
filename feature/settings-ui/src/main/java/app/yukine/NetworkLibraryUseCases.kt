@@ -43,7 +43,8 @@ interface NetworkLibraryOperations {
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
+        rootPath: String,
+        allowInsecureTls: Boolean
     ): Long
     fun loadCachedTracks(): List<Track>
     fun loadFavoriteIds(): Set<Long>
@@ -132,10 +133,19 @@ class SaveWebDavSourceUseCase(
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
+        rootPath: String,
+        allowInsecureTls: Boolean
     ): SaveWebDavSourceResult =
         SaveWebDavSourceResult(
-            savedSourceId = operations.saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath),
+            savedSourceId = operations.saveWebDavSource(
+                sourceId,
+                name,
+                baseUrl,
+                username,
+                password,
+                rootPath,
+                allowInsecureTls
+            ),
             snapshot = operations.snapshot()
         )
 }

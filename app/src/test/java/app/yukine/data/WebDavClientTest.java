@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLHandshakeException;
+
 import android.net.Uri;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
@@ -27,6 +30,8 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 
 public final class WebDavClientTest {
     @Test
@@ -36,7 +41,32 @@ public final class WebDavClientTest {
                 + "<d:multistatus xmlns:d=\"DAV:\"><d:response>&xxe;</d:response></d:multistatus>")
                 .getBytes(StandardCharsets.UTF_8);
 
-        assertThrows(Exception.class, () -> WebDavClient.parseDirectoryDocument(maliciousXml));
+        Exception error = assertThrows(
+                Exception.class,
+                () -> WebDavClient.parseDirectoryDocument(maliciousXml)
+        );
+
+        assertTrue(error.getMessage().contains("DOCTYPE is disabled"));
+    }
+
+    @Test
+    public void directoryXmlAcceptsStandardDavPropertyStatuses() throws Exception {
+        byte[] validXml = ("<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                + "<d:multistatus xmlns:d=\"DAV:\">"
+                + "<d:response><d:href>/home/Music/example/</d:href>"
+                + "<d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype>"
+                + "</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>"
+                + "<d:propstat><d:prop><d:getetag/></d:prop>"
+                + "<d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>"
+                + "</d:response></d:multistatus>")
+                .getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(
+                "multistatus",
+                WebDavClient.parseDirectoryDocument(validXml)
+                        .getDocumentElement()
+                        .getLocalName()
+        );
     }
 
     @Test
@@ -55,6 +85,19 @@ public final class WebDavClientTest {
                         exact.length
                 )
         );
+    }
+
+    @Test
+    public void directoryBudgetSupportsLargeLibrariesAndStillHasAHardLimit() {
+        WebDavClient.requireDirectoryWithinLimit(10_000);
+
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> WebDavClient.requireDirectoryWithinLimit(10_001)
+        );
+
+        assertTrue(error.getMessage().contains("10000"));
+        assertTrue(error.getMessage().contains("已停止扫描"));
     }
 
     @Test
@@ -81,6 +124,32 @@ public final class WebDavClientTest {
     }
 
     @Test
+    public void connectionTestSummarizesOnlyTheRootDirectory() throws Exception {
+        Class<?> entryType = Class.forName("app.yukine.data.WebDavClient$WebDavEntry");
+        Constructor<?> constructor = entryType.getDeclaredConstructor(
+                String.class,
+                String.class,
+                boolean.class,
+                long.class,
+                String.class,
+                String.class
+        );
+        constructor.setAccessible(true);
+        List<Object> entries = new java.util.ArrayList<>();
+        entries.add(constructor.newInstance("sub/", "https://dav/music/sub/", true, -1L, "", ""));
+        entries.add(constructor.newInstance("song.flac", "https://dav/music/song.flac", false, 1L, "", ""));
+        entries.add(constructor.newInstance("cover.jpg", "https://dav/music/cover.jpg", false, 1L, "", ""));
+        WebDavClient client = new WebDavClient();
+        Method status = WebDavClient.class.getDeclaredMethod("rootDirectoryStatus", List.class);
+        status.setAccessible(true);
+
+        assertEquals(
+                "连接成功，根目录子目录：1，音频：1",
+                status.invoke(client, entries)
+        );
+    }
+
+    @Test
     public void safeMessageFormatsAndroidConnectExceptionTarget() throws Exception {
         WebDavClient client = new WebDavClient();
         Method safeMessage = WebDavClient.class.getDeclaredMethod("safeMessage", Exception.class);
@@ -94,6 +163,65 @@ public final class WebDavClientTest {
         assertTrue(message.contains("198.44.178.36:5006"));
         assertTrue(message.contains("端口拒绝连接"));
         assertFalse(message.contains("/198.44.178.36"));
+    }
+
+    @Test
+    public void safeMessageExplainsSlowDirectoryResponses() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method safeMessage = WebDavClient.class.getDeclaredMethod("safeMessage", Exception.class);
+        safeMessage.setAccessible(true);
+
+        String message = (String) safeMessage.invoke(
+                client,
+                new java.net.SocketTimeoutException("Read timed out")
+        );
+
+        assertTrue(message.contains("目录较大"));
+        assertTrue(message.contains("稍后重试"));
+    }
+
+    @Test
+    public void openOnlyRelaxesTlsForAnExplicitlyEnabledSource() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method open = WebDavClient.class.getDeclaredMethod("open", RemoteSource.class, String.class);
+        open.setAccessible(true);
+        RemoteSource strict = source("https://192.168.1.4:5006", false);
+        RemoteSource compatible = source("https://192.168.1.4:5006", true);
+
+        HttpsURLConnection strictConnection = (HttpsURLConnection) open.invoke(
+                client, strict, strict.baseUrl
+        );
+        HttpsURLConnection compatibleConnection = (HttpsURLConnection) open.invoke(
+                client, compatible, compatible.baseUrl
+        );
+
+        assertSame(HttpsURLConnection.getDefaultHostnameVerifier(), strictConnection.getHostnameVerifier());
+        assertNotSame(
+                HttpsURLConnection.getDefaultHostnameVerifier(),
+                compatibleConnection.getHostnameVerifier()
+        );
+        assertSame(HttpsURLConnection.getDefaultSSLSocketFactory(), strictConnection.getSSLSocketFactory());
+        assertNotSame(
+                HttpsURLConnection.getDefaultSSLSocketFactory(),
+                compatibleConnection.getSSLSocketFactory()
+        );
+        strictConnection.disconnect();
+        compatibleConnection.disconnect();
+    }
+
+    @Test
+    public void tlsFailurePointsToThePerSourceCompatibilityOption() throws Exception {
+        WebDavClient client = new WebDavClient();
+        Method safeMessage = WebDavClient.class.getDeclaredMethod("safeMessage", Exception.class);
+        safeMessage.setAccessible(true);
+
+        String message = (String) safeMessage.invoke(
+                client,
+                new SSLHandshakeException("certificate_unknown")
+        );
+
+        assertTrue(message.contains("信任自签名证书"));
+        assertTrue(message.contains("http://"));
     }
 
     @Test
@@ -348,6 +476,10 @@ public final class WebDavClientTest {
     }
 
     private RemoteSource source(String baseUrl) {
+        return source(baseUrl, false);
+    }
+
+    private RemoteSource source(String baseUrl, boolean allowInsecureTls) {
         return new RemoteSource(
                 7L,
                 RemoteSource.TYPE_WEBDAV,
@@ -356,6 +488,7 @@ public final class WebDavClientTest {
                 "",
                 "",
                 "/music",
+                allowInsecureTls,
                 "",
                 0L
         );

@@ -1,0 +1,26 @@
+# build output
+/junto
+/junto-old
+/syncstr
+/watchtogether
+
+# goreleaser output
+/dist/
+
+# test binaries
+*.test
+
+# junto download artifacts (streaming .part + resume sidecar)
+*.part
+*.part.junto
+
+# downloaded modules
+vendor/
+
+# macOS
+.DS_Store
+
+# editor
+.idea/
+.vscode/
+*.swp

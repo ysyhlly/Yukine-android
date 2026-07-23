@@ -41,18 +41,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.SSLException;
+import javax.net.ssl.HttpsURLConnection;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.xml.sax.SAXException;
 
+import app.yukine.common.InsecureTlsSupport;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.Track;
 import app.yukine.model.TrackIdentityTags;
 import app.yukine.model.TrackIdentity;
 
 public final class WebDavClient {
-    private static final int MAX_DIRECTORIES = 200;
+    private static final int MAX_DIRECTORIES = 10_000;
+    private static final int CONNECT_TIMEOUT_MS = 8_000;
+    private static final int READ_TIMEOUT_MS = 15_000;
+    private static final int DIRECTORY_READ_TIMEOUT_MS = 45_000;
     private static final int INITIAL_FLAC_PREFIX_BYTES = 64 * 1024;
     private static final int MAX_FLAC_PREFIX_BYTES = 2 * 1024 * 1024;
     private static final int MAX_ARTWORK_BYTES = 16 * 1024 * 1024;
@@ -119,23 +124,24 @@ public final class WebDavClient {
 
     public String test(RemoteSource source) {
         try {
-            ArrayList<Track> tracks = new ArrayList<>();
-            HashSet<String> visitedDirectories = new HashSet<>();
-            ScanStats stats = scanDirectory(
-                    source,
-                    directoryUrl(source),
-                    tracks,
-                    visitedDirectories,
-                    Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    new HashSet<>(),
-                    new LinkedHashMap<>()
-            );
-            return "连接成功，目录：" + stats.directoryCount + "，子目录：" + stats.childDirectoryCount + "，音频：" + tracks.size();
+            ArrayList<WebDavEntry> entries = readDirectoryEntries(source, directoryUrl(source));
+            return rootDirectoryStatus(entries);
         } catch (Exception error) {
             return "连接失败：" + safeMessage(error);
         }
+    }
+
+    private String rootDirectoryStatus(List<WebDavEntry> entries) {
+        int directoryCount = 0;
+        int audioCount = 0;
+        for (WebDavEntry entry : entries) {
+            if (entry.directory) {
+                directoryCount++;
+            } else if (isAudio(displayName(entry.href))) {
+                audioCount++;
+            }
+        }
+        return "连接成功，根目录子目录：" + directoryCount + "，音频：" + audioCount;
     }
 
     private ScanStats scanDirectory(
@@ -153,9 +159,7 @@ public final class WebDavClient {
         if (!visitedDirectories.add(normalizedDirectory)) {
             return new ScanStats();
         }
-        if (visitedDirectories.size() > MAX_DIRECTORIES) {
-            throw new IllegalStateException("目录过多，已停止扫描");
-        }
+        requireDirectoryWithinLimit(visitedDirectories.size());
 
         ArrayList<WebDavEntry> entries = readDirectoryEntries(source, normalizedDirectory);
         Map<String, Uri> remoteArtworkCache = new LinkedHashMap<>();
@@ -252,8 +256,17 @@ public final class WebDavClient {
         return stats;
     }
 
+    static void requireDirectoryWithinLimit(int directoryCount) {
+        if (directoryCount > MAX_DIRECTORIES) {
+            throw new IllegalStateException(
+                    "目录数量超过 " + MAX_DIRECTORIES + "，已停止扫描"
+            );
+        }
+    }
+
     private ArrayList<WebDavEntry> readDirectoryEntries(RemoteSource source, String directoryUrl) throws Exception {
         HttpURLConnection connection = open(source, directoryUrl);
+        connection.setReadTimeout(DIRECTORY_READ_TIMEOUT_MS);
         try {
             setRequestMethod(connection, "PROPFIND");
             connection.setRequestProperty("Depth", "1");
@@ -370,12 +383,29 @@ public final class WebDavClient {
     private static final int MAX_RESPONSE_BODY_BYTES = 50 * 1024 * 1024;
 
     static Document parseDirectoryDocument(byte[] responseBody) throws Exception {
+        rejectXmlDoctype(responseBody);
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setXIncludeAware(false);
+        setXmlFeatureIfSupported(
+                factory,
+                "http://apache.org/xml/features/disallow-doctype-decl",
+                true
+        );
+        setXmlFeatureIfSupported(
+                factory,
+                "http://xml.org/sax/features/external-general-entities",
+                false
+        );
+        setXmlFeatureIfSupported(
+                factory,
+                "http://xml.org/sax/features/external-parameter-entities",
+                false
+        );
+        try {
+            factory.setXIncludeAware(false);
+        } catch (UnsupportedOperationException ignored) {
+            // Some Android XML implementations do not expose this optional setting.
+        }
         factory.setExpandEntityReferences(false);
         DocumentBuilder builder = factory.newDocumentBuilder();
         builder.setEntityResolver((publicId, systemId) -> {
@@ -383,6 +413,31 @@ public final class WebDavClient {
         });
         try (InputStream input = new ByteArrayInputStream(responseBody)) {
             return builder.parse(input);
+        }
+    }
+
+    private static void setXmlFeatureIfSupported(
+            DocumentBuilderFactory factory,
+            String feature,
+            boolean enabled
+    ) {
+        try {
+            factory.setFeature(feature, enabled);
+        } catch (Exception | AbstractMethodError ignored) {
+            // Android vendors ship different XML factories; the explicit DOCTYPE
+            // check and rejecting EntityResolver below remain the security boundary.
+        }
+    }
+
+    private static void rejectXmlDoctype(byte[] responseBody) throws SAXException {
+        if (responseBody == null || responseBody.length == 0) {
+            return;
+        }
+        String asciiView = new String(responseBody, StandardCharsets.ISO_8859_1)
+                .replace("\u0000", "")
+                .toUpperCase(Locale.ROOT);
+        if (asciiView.contains("<!DOCTYPE")) {
+            throw new SAXException("DOCTYPE is disabled");
         }
     }
 
@@ -919,8 +974,11 @@ public final class WebDavClient {
 
     private HttpURLConnection open(RemoteSource source, String url) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setConnectTimeout(8000);
-        connection.setReadTimeout(15000);
+        if (source.allowInsecureTls && connection instanceof HttpsURLConnection) {
+            InsecureTlsSupport.configure((HttpsURLConnection) connection);
+        }
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
         if (source.hasAuth()) {
             String auth = source.username + ":" + source.password;
             String encoded = Base64.encodeToString(auth.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -1117,7 +1175,7 @@ public final class WebDavClient {
                         : "无法解析 WebDAV 主机：" + host;
             }
             if (current instanceof SocketTimeoutException) {
-                return "连接 WebDAV 超时，请检查地址、端口、网络或端口转发";
+                return "等待 WebDAV 响应超时，可能是目录较大、服务器忙或网络不稳定，请稍后重试";
             }
             if (current instanceof ConnectException) {
                 String target = connectTarget(cleanMessage(current));
@@ -1127,7 +1185,7 @@ public final class WebDavClient {
                 return "无法连接到 WebDAV 服务：端口拒绝连接，请检查端口、协议和端口转发";
             }
             if (current instanceof SSLException) {
-                return "HTTPS 连接 WebDAV 失败，请检查证书；如果服务器未启用 HTTPS，请改用 http:// 地址";
+                return "HTTPS 连接 WebDAV 失败，请检查证书；可信 NAS 使用自签名证书时，可编辑来源并开启“信任自签名证书”；如果服务器未启用 HTTPS，请改用 http:// 地址";
             }
             current = current.getCause();
         }

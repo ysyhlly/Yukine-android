@@ -8,6 +8,7 @@ interface SettingsPlaybackServicePort {
     fun setAudioExclusiveEnabled(enabled: Boolean)
     fun setBitPerfectEnabled(enabled: Boolean)
     fun setUsbExclusiveEnabled(enabled: Boolean)
+    fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean)
     fun applyAudioEffectSettings(settings: AudioEffectSettings)
     fun setStatusBarLyricsEnabled(enabled: Boolean)
     fun setSystemMediaLyricsTitleEnabled(enabled: Boolean)
@@ -36,6 +37,10 @@ internal class MainSettingsPlaybackServiceControls(
 
     override fun setUsbExclusiveEnabled(enabled: Boolean) {
         service.setUsbExclusiveEnabled(enabled)
+    }
+
+    override fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+        service.setUsbClockMismatchCompatibilityEnabled(enabled)
     }
 
     override fun applyAudioEffectSettings(settings: AudioEffectSettings) {

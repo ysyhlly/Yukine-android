@@ -31,6 +31,17 @@ import app.yukine.playback.usb.UsbExclusiveAudioSink
  */
 internal enum class AudioOutputMode { STANDARD, HARDWARE_OFFLOAD, DIRECT_PCM, USB_EXCLUSIVE }
 
+internal object PlaybackAudioSinkModeGuard {
+    @JvmStatic
+    fun resolve(requestedMode: AudioOutputMode, hasUsbAudioSink: Boolean): AudioOutputMode {
+        return if (requestedMode == AudioOutputMode.USB_EXCLUSIVE && !hasUsbAudioSink) {
+            AudioOutputMode.DIRECT_PCM
+        } else {
+            requestedMode
+        }
+    }
+}
+
 @UnstableApi
 internal class PlaybackPlayerFactory(
     private val context: Context,
@@ -38,6 +49,11 @@ internal class PlaybackPlayerFactory(
     private val audioOutputMode: AudioOutputMode = AudioOutputMode.STANDARD,
     private val usbAudioSink: UsbExclusiveAudioSink? = null
 ) {
+    private val effectiveAudioOutputMode = PlaybackAudioSinkModeGuard.resolve(
+        audioOutputMode,
+        usbAudioSink != null
+    )
+
     companion object {
         private const val TAG = "PlaybackPlayerFactory"
         private const val STREAMING_MIN_BUFFER_MS = 15000
@@ -64,7 +80,7 @@ internal class PlaybackPlayerFactory(
                     metadataRendererOutput
                 )
                 val dsdSink = usbAudioSink
-                return if (audioOutputMode == AudioOutputMode.USB_EXCLUSIVE && dsdSink != null) {
+                return if (effectiveAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE && dsdSink != null) {
                     arrayOf(DsdRenderer(dsdSink), *defaults)
                 } else {
                     defaults
@@ -76,7 +92,7 @@ internal class PlaybackPlayerFactory(
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParams: Boolean
             ): AudioSink {
-                return when (audioOutputMode) {
+                return when (effectiveAudioOutputMode) {
                     AudioOutputMode.HARDWARE_OFFLOAD -> {
                         // Bit-Perfect mode: enable hardware offload to bypass Android SRC.
                         // No AudioProcessors are injected so the raw bitstream reaches the
@@ -108,9 +124,7 @@ internal class PlaybackPlayerFactory(
                     }
                     AudioOutputMode.USB_EXCLUSIVE -> {
                         // USB Exclusive: PCM directly to USB DAC, bypassing AudioFlinger entirely.
-                        usbAudioSink ?: throw IllegalStateException(
-                            "USB_EXCLUSIVE mode requires a UsbExclusiveAudioSink instance"
-                        )
+                        checkNotNull(usbAudioSink)
                     }
                 }
             }

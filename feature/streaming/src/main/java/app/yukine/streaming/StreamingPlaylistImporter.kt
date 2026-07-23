@@ -103,18 +103,18 @@ class StreamingPlaylistImporter(
         val remove = existingIds.filterNot(desiredIds::contains)
         add.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
             repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, true)
-            val confirmed = loadFullPlaylist(provider, providerPlaylistId)
-                .tracks.map { it.providerTrackId }.toSet()
-            check(batch.all(confirmed::contains)) {
-                "Remote playlist did not confirm an added track batch"
-            }
         }
         remove.chunked(PLAYLIST_WRITE_BATCH_SIZE).forEach { batch ->
             repository.mutateUserPlaylistTracks(provider, providerPlaylistId, batch, false)
+        }
+        if (add.isNotEmpty() || remove.isNotEmpty()) {
             val confirmed = loadFullPlaylist(provider, providerPlaylistId)
                 .tracks.map { it.providerTrackId }.toSet()
-            check(batch.none(confirmed::contains)) {
-                "Remote playlist did not confirm a removed track batch"
+            check(add.all(confirmed::contains)) {
+                "Remote playlist did not confirm all added tracks"
+            }
+            check(remove.none(confirmed::contains)) {
+                "Remote playlist did not confirm all removed tracks"
             }
         }
         if (desiredIds.isNotEmpty() && desiredIds != existingIds) {

@@ -96,12 +96,13 @@ class NetworkLibraryUseCasesTest {
             baseUrl = "https://example.com",
             username = "u",
             password = "p",
-            rootPath = "music"
+            rootPath = "music",
+            allowInsecureTls = true
         )
 
         assertEquals(12L, result.savedSourceId)
         assertEquals(
-            listOf("saveSource:-1:nas:https://example.com:u:p:music", "cached", "favorites"),
+            listOf("saveSource:-1:nas:https://example.com:u:p:music:true", "cached", "favorites"),
             operations.events
         )
     }
@@ -152,9 +153,12 @@ class NetworkLibraryUseCasesTest {
             baseUrl: String,
             username: String,
             password: String,
-            rootPath: String
+            rootPath: String,
+            allowInsecureTls: Boolean
         ): Long {
-            events.add("saveSource:$sourceId:$name:$baseUrl:$username:$password:$rootPath")
+            events.add(
+                "saveSource:$sourceId:$name:$baseUrl:$username:$password:$rootPath:$allowInsecureTls"
+            )
             return savedSourceId
         }
 

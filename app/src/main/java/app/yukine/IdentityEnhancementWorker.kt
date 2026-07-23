@@ -37,6 +37,12 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal const val IDENTITY_ON_DEMAND_JOB_LIMIT = 5
+internal const val IDENTITY_BACKGROUND_JOB_LIMIT = 100
+
+internal fun identityEnhancementJobLimit(onDemand: Boolean): Int =
+    if (onDemand) IDENTITY_ON_DEMAND_JOB_LIMIT else IDENTITY_BACKGROUND_JOB_LIMIT
+
 class IdentityEnhancementWorker(
     appContext: Context,
     params: WorkerParameters
@@ -108,7 +114,7 @@ class IdentityEnhancementWorker(
         )
         val run = runCatching {
             val onDemand = inputData.getBoolean(KEY_ON_DEMAND, false)
-            engine.runReadyJobs(if (onDemand) ON_DEMAND_JOB_LIMIT else Int.MAX_VALUE)
+            engine.runReadyJobs(identityEnhancementJobLimit(onDemand))
         }
         run.fold(
             onSuccess = { outcome ->
@@ -125,7 +131,6 @@ class IdentityEnhancementWorker(
         const val TAG = "IdentityEnhancement"
         const val MUSICBRAINZ_CONTACT = "https://github.com/ysyhlly/Yukine-android"
         const val KEY_ON_DEMAND = "on_demand"
-        const val ON_DEMAND_JOB_LIMIT = 5
     }
 }
 

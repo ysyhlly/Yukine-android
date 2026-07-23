@@ -23,6 +23,7 @@ internal data class LoadedSettingsPreferences(
     val audioExclusiveEnabled: Boolean,
     val bitPerfectEnabled: Boolean,
     val usbExclusiveEnabled: Boolean,
+    val usbClockMismatchCompatibilityEnabled: Boolean,
     val debugPromptsEnabled: Boolean,
     val checkUpdateEnabled: Boolean,
     val customBackgroundBlurEnabled: Boolean,
@@ -54,6 +55,7 @@ internal interface SettingsPreferenceLoadOperations {
     fun loadAudioExclusiveEnabled(): Boolean
     fun loadBitPerfectEnabled(): Boolean
     fun loadUsbExclusiveEnabled(): Boolean
+    fun loadUsbClockMismatchCompatibilityEnabled(): Boolean
     fun loadDebugPromptsEnabled(): Boolean
     fun loadCheckUpdateEnabled(): Boolean
     fun loadCustomBackgroundBlurEnabled(): Boolean
@@ -114,6 +116,9 @@ internal class MusicLibrarySettingsPreferenceLoadOperations(
 
     override fun loadUsbExclusiveEnabled(): Boolean =
         repository.loadUsbExclusiveEnabled()
+
+    override fun loadUsbClockMismatchCompatibilityEnabled(): Boolean =
+        repository.loadUsbClockMismatchCompatibilityEnabled()
 
     override fun loadDebugPromptsEnabled(): Boolean =
         repository.loadDebugPromptsEnabled()
@@ -182,6 +187,8 @@ internal class LoadSettingsPreferencesUseCase(
             audioExclusiveEnabled = operations.loadAudioExclusiveEnabled(),
             bitPerfectEnabled = operations.loadBitPerfectEnabled(),
             usbExclusiveEnabled = operations.loadUsbExclusiveEnabled(),
+            usbClockMismatchCompatibilityEnabled =
+                operations.loadUsbClockMismatchCompatibilityEnabled(),
             debugPromptsEnabled = operations.loadDebugPromptsEnabled(),
             checkUpdateEnabled = operations.loadCheckUpdateEnabled(),
             customBackgroundBlurEnabled = operations.loadCustomBackgroundBlurEnabled(),

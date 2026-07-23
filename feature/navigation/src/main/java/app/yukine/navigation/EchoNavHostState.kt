@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import app.yukine.together.TogetherLabels
+import app.yukine.together.TogetherViewModel
 
 private val EmptyRealtimeBands = FloatArray(0)
 
@@ -78,12 +80,20 @@ data class StreamingNavBinding(
     val streamingState: StateFlow<StreamingSearchState>
 )
 
+data class TogetherNavBinding(
+    val viewModel: TogetherViewModel,
+    val labels: () -> TogetherLabels,
+    val copyRoomCode: (String) -> Unit,
+    val shareRoomCode: (String) -> Unit
+)
+
 class EchoNavHostState @JvmOverloads constructor(
     val routeState: StateFlow<NavigationRouteState>,
     val player: PlayerNavBinding,
     val library: LibraryNavBinding,
     val settings: SettingsNavBinding,
     val streaming: StreamingNavBinding,
+    val together: TogetherNavBinding? = null,
     private val queueSheetVisibilityListener: QueueSheetVisibilityListener =
         QueueSheetVisibilityListener { }
 ) {

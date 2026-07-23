@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -90,6 +93,8 @@ data class NowPlayingUiState(
     val romanizationVisible: Boolean = false,
     val onShare: Runnable = Runnable {},
     val onDownload: Runnable = Runnable {},
+    val togetherLabel: String = "",
+    val onTogether: Runnable = Runnable {},
     val onImportLyrics: Runnable = Runnable {},
     val onClearLyrics: Runnable = Runnable {},
     val onPrimaryVisibleChange: (Boolean) -> Unit = {},
@@ -190,7 +195,16 @@ private fun ImmersiveLyricsView(
         offsetMs = offsetMs
     )
     val activeIndex = activeLyricIndex(lyrics, positionMs)
-    val follow = rememberLyricsFollowHandle(trackId, activeIndex, listState)
+    val follow = rememberLyricsFollowHandle(
+        trackId = trackId,
+        activeIndex = activeIndex,
+        listState = listState,
+        keepPreviousLineVisible = true
+    )
+    val bottomSafeInset = maxOf(
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+        LocalEchoPageBottomChromeInset.current
+    )
     Box(modifier = Modifier.fillMaxSize()) {
         if (albumArtUri != null) {
             AsyncArtwork(
@@ -250,7 +264,10 @@ private fun ImmersiveLyricsView(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 80.dp),
+                    contentPadding = PaddingValues(
+                        top = 80.dp,
+                        bottom = 80.dp + bottomSafeInset
+                    ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -258,9 +275,10 @@ private fun ImmersiveLyricsView(
                         items = lyrics,
                         key = { index, line -> "imm-$index:${line.text.hashCode()}" }
                     ) { index, line ->
+                        val active = index == activeIndex
                         ImmersiveLyricRow(
-                            line = line.copy(active = index == activeIndex),
-                            positionMs = positionMs,
+                            line = line.copy(active = active),
+                            positionMs = if (active) positionMs else 0L,
                             onSeek = { lyricMs ->
                                 follow.resume()
                                 onLyricSeek(lyricMs)
@@ -274,7 +292,7 @@ private fun ImmersiveLyricsView(
                         onClick = follow.resume,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp)
+                            .padding(bottom = 12.dp + bottomSafeInset)
                     )
                 }
             }
@@ -417,7 +435,12 @@ private fun NowPlayingNormalView(
                         )
                     }
                     Spacer(Modifier.height(14.dp))
-                    NowPlayingQuickActions(state.onShare, state.onDownload)
+                    NowPlayingQuickActions(
+                        state.onShare,
+                        state.onDownload,
+                        state.togetherLabel,
+                        state.onTogether
+                    )
                     Spacer(Modifier.height(14.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -585,7 +608,12 @@ private fun SourceOptionRow(option: NowPlayingSourceOption) {
 }
 
 @Composable
-private fun NowPlayingQuickActions(onShare: Runnable, onDownload: Runnable) {
+private fun NowPlayingQuickActions(
+    onShare: Runnable,
+    onDownload: Runnable,
+    togetherLabel: String,
+    onTogether: Runnable
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -602,6 +630,14 @@ private fun NowPlayingQuickActions(onShare: Runnable, onDownload: Runnable) {
             modifier = Modifier.weight(1f),
             onClick = { onDownload.run() }
         )
+        if (togetherLabel.isNotBlank()) {
+            NowPlayingQuickAction(
+                label = togetherLabel,
+                icon = EchoIconKind.Network,
+                modifier = Modifier.weight(1f),
+                onClick = { onTogether.run() }
+            )
+        }
     }
 }
 
@@ -907,9 +943,10 @@ private fun LyricsPanel(
                             items = lines,
                             key = { index, line -> "$index:${line.text.hashCode()}" }
                         ) { index, line ->
+                            val active = index == activeIndex
                             LyricRow(
-                                line = line.copy(active = index == activeIndex),
-                                positionMs = positionMs,
+                                line = line.copy(active = active),
+                                positionMs = if (active) positionMs else 0L,
                                 onSeek = { lyricMs ->
                                     follow.resume()
                                     onLyricSeek(lyricMs)
@@ -1022,29 +1059,71 @@ private fun LayeredLyricText(
 private fun rememberLyricsFollowHandle(
     trackId: Long,
     activeIndex: Int,
-    listState: LazyListState
+    listState: LazyListState,
+    anchorFraction: Float = 0.5f,
+    keepPreviousLineVisible: Boolean = false
 ): LyricsFollowHandle {
     var state by remember(trackId) { mutableStateOf(LyricsFollowState()) }
     val dragged by listState.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(dragged) {
         if (dragged) state = state.pauseForUserScroll()
     }
-    LaunchedEffect(trackId, activeIndex, state.following) {
+    LaunchedEffect(
+        trackId,
+        activeIndex,
+        state.following,
+        anchorFraction,
+        keepPreviousLineVisible
+    ) {
         if (state.following && activeIndex >= 0) {
-            listState.animateScrollToCenteredItem(activeIndex)
+            listState.animateScrollToAnchoredItem(
+                index = activeIndex,
+                anchorFraction = anchorFraction,
+                keepPreviousLineVisible = keepPreviousLineVisible
+            )
         }
     }
     return LyricsFollowHandle(state.following) { state = state.resume() }
 }
 
-private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
+private suspend fun LazyListState.animateScrollToAnchoredItem(
+    index: Int,
+    anchorFraction: Float,
+    keepPreviousLineVisible: Boolean
+) {
     val viewportHeight = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
     val visibleItems = layoutInfo.visibleItemsInfo
+    val averageItemHeight = visibleItems.map { it.size }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+        ?.toInt()
     val estimatedItemHeight = visibleItems.firstOrNull { it.index == index }?.size
-        ?: visibleItems.map { it.size }.takeIf { it.isNotEmpty() }?.average()?.toInt()
+        ?: averageItemHeight
         ?: 0
-    val centeredOffset = -((viewportHeight - estimatedItemHeight) / 2).coerceAtLeast(0)
-    animateScrollToItem(index, centeredOffset)
+    val scrollOffset = if (keepPreviousLineVisible && index > 0) {
+        val previousItemHeight = visibleItems.firstOrNull { it.index == index - 1 }?.size
+            ?: averageItemHeight
+            ?: estimatedItemHeight
+        lyricPreviousLineScrollOffset(previousItemHeight, layoutInfo.mainAxisItemSpacing)
+    } else {
+        lyricAnchorScrollOffset(viewportHeight, estimatedItemHeight, anchorFraction)
+    }
+    animateScrollToItem(
+        index,
+        scrollOffset
+    )
+}
+
+internal fun lyricPreviousLineScrollOffset(previousItemHeight: Int, itemSpacing: Int): Int =
+    -(previousItemHeight.coerceAtLeast(0) + itemSpacing.coerceAtLeast(0))
+
+internal fun lyricAnchorScrollOffset(
+    viewportHeight: Int,
+    itemHeight: Int,
+    anchorFraction: Float
+): Int {
+    val availableSpace = (viewportHeight - itemHeight).coerceAtLeast(0)
+    return -(availableSpace * anchorFraction.coerceIn(0f, 1f)).toInt()
 }
 
 private data class LyricsFollowHandle(

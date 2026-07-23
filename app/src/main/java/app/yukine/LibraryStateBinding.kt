@@ -133,6 +133,7 @@ internal class LibraryStateBinding @JvmOverloads constructor(
         viewModel.presentation.syncLibraryMode(route.libraryMode)
         viewModel.presentation.syncSearchQuery(route.searchQuery)
         if (!audioPermissionReader.hasAudioPermission()) {
+            groupsReducer.cancelPendingBuild()
             statusSink.showStatus(
                 AppLanguage.text(languageMode, "audio.permission.required") + ": " +
                     AppLanguage.text(languageMode, "audio.permission.description")
@@ -146,6 +147,11 @@ internal class LibraryStateBinding @JvmOverloads constructor(
             )
         }
         val modeActions = libraryModeActions(languageMode, route.libraryMode)
+        if (route.libraryMode == LibraryGrouping.PLAYLISTS ||
+            route.libraryMode == LibraryGrouping.SONGS
+        ) {
+            groupsReducer.cancelPendingBuild()
+        }
         when (route.libraryMode) {
             LibraryGrouping.PLAYLISTS -> publishPlaylists(inputs, modeActions)
             LibraryGrouping.SONGS -> publishSongs(inputs, modeActions)

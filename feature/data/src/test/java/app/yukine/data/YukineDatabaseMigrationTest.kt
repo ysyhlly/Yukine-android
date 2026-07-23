@@ -477,6 +477,35 @@ class YukineDatabaseMigrationTest {
     }
 
     @Test
+    fun versionThirtyFourDefaultsExistingWebDavSourcesToStrictTls() {
+        val name = databaseName("v34-webdav-tls")
+        createExportedSchemaFixture(name, 34)
+        SQLiteDatabase.openDatabase(
+            context.getDatabasePath(name).path,
+            null,
+            SQLiteDatabase.OPEN_READWRITE
+        ).use { database ->
+            database.execSQL(
+                "INSERT INTO remote_sources(id,type,name,base_url,username,password,root_path," +
+                    "last_status,updated_at) VALUES(34,'webdav','Legacy DAV'," +
+                    "'https://dav.example.test','','','Music','ready',1)"
+            )
+            database.version = 34
+        }
+
+        val database = YukineDatabase.open(context, name)
+        val sqlite = database.openHelper.writableDatabase
+
+        assertEquals(YukineMigrations.TARGET_VERSION, sqlite.version)
+        assertTrue(columnExists(sqlite, "remote_sources", "allow_insecure_tls"))
+        assertEquals(
+            0L,
+            longValue(sqlite, "SELECT allow_insecure_tls FROM remote_sources WHERE id=34")
+        )
+        database.close()
+    }
+
+    @Test
     fun v20BackfillIsCompleteAndIdempotent() {
         val name = databaseName("v20-repair")
         createPartialVersionTwentyCanonicalFixture(name)

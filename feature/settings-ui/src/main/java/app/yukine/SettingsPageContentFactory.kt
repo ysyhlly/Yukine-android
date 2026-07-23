@@ -74,6 +74,8 @@ internal object SettingsPageContentFactory {
                     audioExclusiveEnabled = preferences.audioExclusiveEnabled,
                     bitPerfectEnabled = preferences.bitPerfectEnabled,
                     usbExclusiveEnabled = preferences.usbExclusiveEnabled,
+                    usbClockMismatchCompatibilityEnabled =
+                        preferences.usbClockMismatchCompatibilityEnabled,
                     remainingMs = runtime.sleepTimerRemainingMs,
                     onNavigate = { nextPage -> onNavigate(nextPage) },
                     onReplayGainEnabledChange = { enabled ->
@@ -90,6 +92,9 @@ internal object SettingsPageContentFactory {
                     },
                     onUsbExclusiveEnabledChange = { enabled ->
                         playback.setUsbExclusiveEnabled(enabled)
+                    },
+                    onUsbClockMismatchCompatibilityEnabledChange = { enabled ->
+                        playback.setUsbClockMismatchCompatibilityEnabled(enabled)
                     },
                     audioExclusiveStatusDescription = focusStatusDescription(
                         languageMode,
@@ -410,6 +415,10 @@ internal object SettingsPageContentFactory {
         val reason = localizedFallbackReason(languageMode, snapshot.fallbackReason)
         val format = when {
             snapshot.dsdRate > 0 -> "DSD${snapshot.dsdRate}"
+            snapshot.phase == app.yukine.playback.AudioOutputPhase.NEGOTIATING &&
+                snapshot.requestedSampleRateHz > 0 &&
+                snapshot.requestedSampleRateHz != snapshot.previousSampleRateHz ->
+                "${snapshot.previousSampleRateHz} Hz → ${snapshot.requestedSampleRateHz} Hz"
             snapshot.sampleRateHz > 0 -> "${snapshot.sampleRateHz} Hz"
             else -> ""
         }
@@ -434,6 +443,7 @@ internal object SettingsPageContentFactory {
             AudioFallbackReason.NATIVE_LIBRARY_UNAVAILABLE -> "原生 USB 传输库不可用"
             AudioFallbackReason.NO_COMPATIBLE_ENDPOINT -> "无兼容音频端点"
             AudioFallbackReason.CLOCK_NEGOTIATION_FAILED -> "时钟或采样率协商失败"
+            AudioFallbackReason.SESSION_RECONFIGURE_FAILED -> "USB 音频会话切换失败"
             AudioFallbackReason.TRANSFER_FAILED -> "USB 传输失败"
             AudioFallbackReason.DEVICE_DETACHED -> "设备已断开"
             AudioFallbackReason.NATIVE_DSD_PROFILE_MISSING -> "缺少 Native DSD 设备配置"

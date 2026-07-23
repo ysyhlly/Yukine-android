@@ -9,7 +9,7 @@ import app.yukine.diagnostics.DiagnosticLog
 import android.widget.Toast
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executor
 import org.json.JSONObject
 
 /**
@@ -18,7 +18,7 @@ import org.json.JSONObject
  */
 internal class GitHubUpdateChecker(
     private val activity: Activity,
-    private val executor: ExecutorService,
+    private val executor: Executor,
     private val mainHandler: Handler,
     private val languageModeProvider: () -> String
 ) {

@@ -23,6 +23,14 @@ import androidx.media3.exoplayer.audio.AudioSink
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+internal object UsbSessionOpenRetryPolicy {
+    fun shouldRetry(reason: AudioFallbackReason): Boolean = when (reason) {
+        AudioFallbackReason.CLOCK_NEGOTIATION_FAILED,
+        AudioFallbackReason.SESSION_RECONFIGURE_FAILED -> true
+        else -> false
+    }
+}
+
 /**
  * USB Exclusive [AudioSink]: force-claims all USB audio interfaces and writes
  * PCM directly to the USB DAC endpoint, completely bypassing AudioFlinger.
@@ -38,7 +46,8 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
     private val deviceManager: UsbAudioDeviceManager,
     private val transportFactory: UsbPcmTransportFactory = DefaultUsbPcmTransportFactory,
     private val outputListener: UsbAudioOutputListener = UsbAudioOutputListener { },
-    private val allowDsd: Boolean = false
+    private val allowDsd: Boolean = false,
+    private val allowUac2PcmRateMismatch: Boolean = false
 ) : AudioSink {
 
     constructor(
@@ -52,13 +61,35 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         outputListener: UsbAudioOutputListener
     ) : this(deviceManager, DefaultUsbPcmTransportFactory, outputListener, allowDsd)
 
+    constructor(
+        deviceManager: UsbAudioDeviceManager,
+        allowDsd: Boolean,
+        allowUac2PcmRateMismatch: Boolean,
+        outputListener: UsbAudioOutputListener
+    ) : this(
+        deviceManager,
+        DefaultUsbPcmTransportFactory,
+        outputListener,
+        allowDsd,
+        allowUac2PcmRateMismatch
+    )
+
     companion object {
         private const val TAG = "UsbExclusiveAudioSink"
         private const val METRIC_PUBLISH_INTERVAL_MS = 250L
         private const val METRIC_LOG_INTERVAL_MS = 1_000L
+        private const val SESSION_OPEN_ATTEMPTS = 2
+        private val SUPPORTED_PCM_SAMPLE_RATES = setOf(
+            44_100,
+            48_000,
+            88_200,
+            96_000,
+            176_400,
+            192_000
+        )
     }
 
-    private var writer: UsbPcmWriter? = null
+    private val sessionOwner = UsbPcmSessionOwner(deviceManager::closeConnection)
     private var configured = false
     // Media3 configures and prebuffers an AudioSink before it necessarily invokes play().
     // Starting paused here deadlocks that bootstrap once the bounded writer queue fills.
@@ -84,53 +115,67 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
     }
 
     override fun configure(format: Format, specifiedBufferSize: Int, tunnelingAudioSessionId: IntArray?) {
-        emit(
-            AudioOutputSnapshot(
-                AudioTransport.USB_PCM,
-                AudioOutputPhase.NEGOTIATING,
-                deviceManager.activeDevice?.deviceName.orEmpty(),
-                format.sampleRate.coerceAtLeast(0),
-                pcmBitDepth(format),
-                format.channelCount.coerceAtLeast(0),
-                0,
-                AudioFallbackReason.NONE,
-                0, 0, 0, 0, 0, 0, 0.0, ""
+        val request = pcmRequest(format)
+        val deviceId = deviceManager.activeDevice?.device?.deviceId ?: -1
+        if (sessionOwner.matchesRequest(
+                deviceId,
+                request.sampleRateHz,
+                request.channelCount,
+                request.bitDepth
             )
-        )
-        try {
-            configureDirectUsb(format)
-        } catch (failure: UsbConfigurationFailure) {
-            reportConfigurationFailure(failure.reason, failure.message.orEmpty())
-            throw AudioSink.ConfigurationException(failure.message.orEmpty(), format)
-        } catch (failure: Exception) {
-            val message = failure.message.orEmpty()
-            val reason = if (message.contains("native library unavailable", ignoreCase = true)) {
-                AudioFallbackReason.NATIVE_LIBRARY_UNAVAILABLE
-            } else {
-                AudioFallbackReason.CLOCK_NEGOTIATION_FAILED
-            }
-            reportConfigurationFailure(reason, message)
-            throw AudioSink.ConfigurationException(message, format)
+        ) {
+            DiagnosticLog.d(
+                TAG,
+                "Keeping compatible USB PCM session at ${request.sampleRateHz} Hz"
+            )
+            return
         }
+
+        val previousRate = activeSnapshot.sampleRateHz
+        activeSnapshot = AudioOutputSnapshot.transition(
+            AudioTransport.USB_PCM,
+            deviceManager.activeDevice?.deviceName.orEmpty(),
+            previousRate,
+            request.sampleRateHz,
+            request.bitDepth,
+            request.channelCount
+        )
+        emit(activeSnapshot)
+
+        var lastFailure: Exception? = null
+        var lastReason = AudioFallbackReason.SESSION_RECONFIGURE_FAILED
+        for (attempt in 1..SESSION_OPEN_ATTEMPTS) {
+            val generation = sessionOwner.beginTransition()
+            configured = false
+            resetPcmSessionState()
+            try {
+                configureDirectUsb(request, generation)
+                return
+            } catch (failure: Exception) {
+                lastFailure = failure
+                lastReason = configurationFailureReason(failure)
+                DiagnosticLog.w(
+                    TAG,
+                    "USB PCM session attempt $attempt/$SESSION_OPEN_ATTEMPTS failed: " +
+                        failure.message.orEmpty()
+                )
+                if (!UsbSessionOpenRetryPolicy.shouldRetry(lastReason)) {
+                    break
+                }
+            }
+        }
+
+        val message = lastFailure?.message.orEmpty().ifBlank {
+            "USB PCM session reconfiguration failed"
+        }
+        reportConfigurationFailure(lastReason, message)
+        throw AudioSink.ConfigurationException(message, format)
     }
 
-    private fun configureDirectUsb(format: Format) {
-            if (!isUsbPcmFormat(format)) {
-                throw UsbConfigurationFailure(
-                    AudioFallbackReason.FORMAT_UNSUPPORTED,
-                    "USB PCM sink requires decoded audio/raw PCM, got " +
-                        "${format.sampleMimeType}/${format.pcmEncoding}"
-                )
-            }
-            if (format.pcmEncoding == C.ENCODING_PCM_FLOAT) {
-                throw UsbConfigurationFailure(
-                    AudioFallbackReason.FORMAT_UNSUPPORTED,
-                    "Floating-point PCM cannot be sent bit-perfect to an integer USB Audio endpoint"
-                )
-            }
-            val sampleRate = format.sampleRate.takeIf { it > 0 } ?: 48000
-            val channelCount = format.channelCount.takeIf { it > 0 } ?: 2
-            val bitDepth = pcmBitDepth(format)
+    private fun configureDirectUsb(request: PcmRequest, generation: Long) {
+            val sampleRate = request.sampleRateHz
+            val channelCount = request.channelCount
+            val bitDepth = request.bitDepth
             val conn = deviceManager.openConnection() ?: throw UsbConfigurationFailure(
                 if (deviceManager.activeDevice == null) AudioFallbackReason.NO_USB_DEVICE
                 else AudioFallbackReason.USB_PERMISSION_DENIED,
@@ -143,7 +188,6 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 bitDepth
             )
             if (selection == null) {
-                deviceManager.closeConnection()
                 throw UsbConfigurationFailure(
                     AudioFallbackReason.NO_COMPATIBLE_ENDPOINT,
                     "No compatible USB Audio streaming endpoint"
@@ -154,17 +198,12 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
             val usbSampleBytes = selection.subslotSizeBytes.takeIf { it > 0 }
                 ?: sourceSampleBytes
             if (usbSampleBytes !in sourceSampleBytes..4) {
-                deviceManager.closeConnection()
                 throw UsbConfigurationFailure(
                     AudioFallbackReason.FORMAT_UNSUPPORTED,
                     "Unsupported USB PCM container: source=${sourceSampleBytes}B, " +
                         "endpoint=${usbSampleBytes}B"
                 )
             }
-            inputSampleBytes = sourceSampleBytes
-            outputSampleBytes = usbSampleBytes
-            clearPendingPcm()
-
             val parsedConfig = deviceManager.activeDevice?.streamConfig
             val config = UsbAudioStreamConfig(
                 endpointAddress = endpoint.address,
@@ -190,22 +229,51 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 clockSelectorEntityId = selection.clockSelectorEntityId,
                 clockSelectorControl = selection.clockSelectorControl,
                 sampleFrequencyControl = selection.sampleFrequencyControl,
-                synchronizationType = selection.synchronizationType
+                synchronizationType = selection.synchronizationType,
+                allowUac2PcmRateMismatch = allowUac2PcmRateMismatch
             )
 
+            DiagnosticLog.d(
+                TAG,
+                "USB PCM negotiating: ${sampleRate}Hz/${channelCount}ch/${bitDepth}bit, " +
+                    "uac=${selection.audioClassVersion}, controlIf=${selection.controlInterfaceNumber}, " +
+                    "streamIf=${selection.interfaceNumber}, alt=${selection.alternateSetting}, " +
+                    "endpoint=0x${Integer.toHexString(endpoint.address)}, " +
+                    "clockSources=${selection.clockSourceEntityIds.contentToString()}, " +
+                    "frequencyControls=${selection.clockSourceFrequencyControls.contentToString()}, " +
+                    "clockSelector=${selection.clockSelectorEntityId}, " +
+                    "selectorControl=${selection.clockSelectorControl}, " +
+                    "endpointFrequencyControl=${selection.sampleFrequencyControl}, " +
+                    "allowUac2PcmRateMismatch=$allowUac2PcmRateMismatch"
+            )
             val transport = transportFactory.create(conn, endpoint, config)
-            writer = UsbPcmWriter(config, transport, { error ->
-                DiagnosticLog.e(TAG, "USB write error: $error")
-                emitFailure(AudioFallbackReason.TRANSFER_FAILED, error)
-                mainHandler.post {
-                    listener?.onAudioSinkError(IllegalStateException(error))
-                }
-            }, ::onWriterMetrics)
+            val candidateWriter = createWriter(config, transport, generation)
+            val key = UsbPcmSessionKey(
+                deviceId = deviceManager.activeDevice?.device?.deviceId ?: -1,
+                sampleRateHz = sampleRate,
+                channelCount = channelCount,
+                sourceBitDepth = bitDepth,
+                usbSubslotBytes = usbSampleBytes,
+                interfaceNumber = selection.interfaceNumber,
+                alternateSetting = selection.alternateSetting,
+                clockSourceEntityId = selection.clockSourceEntityId
+            )
+            if (!sessionOwner.install(generation, key, candidateWriter)) {
+                candidateWriter.stop()
+                throw UsbConfigurationFailure(
+                    AudioFallbackReason.SESSION_RECONFIGURE_FAILED,
+                    "USB PCM session was superseded during negotiation"
+                )
+            }
+            inputSampleBytes = sourceSampleBytes
+            outputSampleBytes = usbSampleBytes
+            clearPendingPcm()
             configured = true
             inputEnded = false
+            dsdMetadata = null
             startPositionUs = AudioSink.CURRENT_POSITION_NOT_SET
-            writer?.setPlaybackEnabled(playing)
-            writer?.start()
+            candidateWriter.setPlaybackEnabled(playing)
+            candidateWriter.start()
             activeSnapshot = AudioOutputSnapshot(
                 AudioTransport.USB_PCM,
                 AudioOutputPhase.ACTIVE,
@@ -247,6 +315,9 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 0, 0, 0, 0, 0, 0, 0.0, ""
             )
         )
+        val generation = sessionOwner.beginTransition()
+        configured = false
+        resetPcmSessionState()
         try {
             val connection = deviceManager.openConnection() ?: throw UsbConfigurationFailure(
                 if (deviceManager.activeDevice == null) AudioFallbackReason.NO_USB_DEVICE
@@ -289,7 +360,8 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 clockSelectorEntityId = selection.clockSelectorEntityId,
                 clockSelectorControl = selection.clockSelectorControl,
                 sampleFrequencyControl = selection.sampleFrequencyControl,
-                synchronizationType = selection.synchronizationType
+                synchronizationType = selection.synchronizationType,
+                allowUac2PcmRateMismatch = false
             )
             val requiredPayload = ((dopSampleRate.toLong() * config.bytesPerFrame *
                 serviceIntervalUs(config) + 999_999L) / 1_000_000L).toInt()
@@ -298,13 +370,30 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 "DoP requires $requiredPayload bytes per interval; endpoint supports ${config.maximumPayloadBytes}"
             )
             val transport = transportFactory.create(connection, endpoint, config)
-            writer = createWriter(config, transport)
+            val candidateWriter = createWriter(config, transport, generation)
+            val key = UsbPcmSessionKey(
+                deviceId = deviceManager.activeDevice?.device?.deviceId ?: -1,
+                sampleRateHz = dopSampleRate,
+                channelCount = channelCount,
+                sourceBitDepth = 24,
+                usbSubslotBytes = 3,
+                interfaceNumber = selection.interfaceNumber,
+                alternateSetting = selection.alternateSetting,
+                clockSourceEntityId = selection.clockSourceEntityId
+            )
+            if (!sessionOwner.install(generation, key, candidateWriter)) {
+                candidateWriter.stop()
+                throw UsbConfigurationFailure(
+                    AudioFallbackReason.SESSION_RECONFIGURE_FAILED,
+                    "USB DoP session was superseded during negotiation"
+                )
+            }
             configured = true
             inputEnded = false
             dsdMetadata = metadata
             dopPacker.reset()
-            writer?.setPlaybackEnabled(playing)
-            writer?.start()
+            candidateWriter.setPlaybackEnabled(playing)
+            candidateWriter.start()
             activeSnapshot = AudioOutputSnapshot(
                 AudioTransport.USB_DOP,
                 AudioOutputPhase.ACTIVE,
@@ -337,29 +426,48 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         val payload = ByteArray(buffer.remaining())
         buffer.duplicate().get(payload)
         val channels = DsdPayloadDecoder.toCanonicalChannels(payload, channelCount, metadata)
-        return writer?.queueBuffer(dopPacker.pack(channels)) == true
+        return sessionOwner.writer()?.queueBuffer(dopPacker.pack(channels)) == true
     }
 
     fun flushDsd() {
         dopPacker.reset()
-        writer?.resetPosition()
+        sessionOwner.writer()?.resetPosition()
     }
 
     private fun serviceIntervalUs(config: UsbAudioStreamConfig): Int =
         125 shl (config.interval - 1).coerceIn(0, 7)
 
-    private fun createWriter(config: UsbAudioStreamConfig, transport: UsbPcmTransport): UsbPcmWriter =
-        UsbPcmWriter(config, transport, { error ->
-            DiagnosticLog.e(TAG, "USB write error: $error")
-            emitFailure(AudioFallbackReason.TRANSFER_FAILED, error)
-            mainHandler.post { listener?.onAudioSinkError(IllegalStateException(error)) }
-        }, ::onWriterMetrics)
+    private fun createWriter(
+        config: UsbAudioStreamConfig,
+        transport: UsbPcmTransport,
+        generation: Long
+    ): UsbPcmWriter {
+        lateinit var candidate: UsbPcmWriter
+        candidate = UsbPcmWriter(
+            config,
+            transport,
+            { error -> onWriterFailure(generation, candidate, error) },
+            { metrics -> onWriterMetrics(generation, candidate, metrics) }
+        )
+        return candidate
+    }
+
+    private fun onWriterFailure(generation: Long, candidate: UsbPcmWriter, error: String) {
+        if (!sessionOwner.detachIfCurrent(generation, candidate)) return
+        DiagnosticLog.e(TAG, "USB write error: $error")
+        candidate.stop()
+        deviceManager.closeConnection()
+        configured = false
+        resetPcmSessionState()
+        emitFailure(AudioFallbackReason.TRANSFER_FAILED, error)
+        mainHandler.post { listener?.onAudioSinkError(IllegalStateException(error)) }
+    }
 
     private fun reportConfigurationFailure(reason: AudioFallbackReason, error: String) {
         DiagnosticLog.e(TAG, "USB direct config error [$reason]: $error")
-        writer?.stop()
-        writer = null
-        deviceManager.closeConnection()
+        sessionOwner.closeCurrent()
+        configured = false
+        resetPcmSessionState()
         emitFailure(reason, error)
     }
 
@@ -370,6 +478,8 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
                 AudioOutputPhase.FALLBACK,
                 deviceManager.activeDevice?.deviceName.orEmpty(),
                 activeSnapshot.sampleRateHz,
+                activeSnapshot.previousSampleRateHz,
+                activeSnapshot.requestedSampleRateHz,
                 activeSnapshot.bitDepth,
                 activeSnapshot.channelCount,
                 0,
@@ -386,7 +496,12 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         )
     }
 
-    private fun onWriterMetrics(metrics: UsbPcmWriterMetrics) {
+    private fun onWriterMetrics(
+        generation: Long,
+        candidate: UsbPcmWriter,
+        metrics: UsbPcmWriterMetrics
+    ) {
+        if (!sessionOwner.isCurrent(generation, candidate)) return
         activeSnapshot = activeSnapshot.withMetrics(
             metrics.queueDepth,
             metrics.submittedPackets,
@@ -424,14 +539,51 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         else -> 16
     }
 
+    private fun pcmRequest(format: Format): PcmRequest {
+        if (!isUsbPcmFormat(format)) {
+            throw AudioSink.ConfigurationException(
+                "USB PCM sink requires decoded audio/raw PCM, got " +
+                    "${format.sampleMimeType}/${format.pcmEncoding}",
+                format
+            )
+        }
+        val sampleRate = format.sampleRate.takeIf { it > 0 } ?: 48_000
+        val channelCount = format.channelCount.takeIf { it > 0 } ?: 2
+        val bitDepth = pcmBitDepth(format)
+        if (sampleRate !in SUPPORTED_PCM_SAMPLE_RATES || channelCount !in 1..2 ||
+            bitDepth !in setOf(16, 24, 32)
+        ) {
+            throw AudioSink.ConfigurationException(
+                "Unsupported USB PCM request: ${sampleRate}Hz/${channelCount}ch/${bitDepth}bit",
+                format
+            )
+        }
+        return PcmRequest(sampleRate, channelCount, bitDepth)
+    }
+
+    private fun configurationFailureReason(failure: Exception): AudioFallbackReason {
+        if (failure is UsbConfigurationFailure) return failure.reason
+        val message = failure.message.orEmpty()
+        return when {
+            message.contains("native library unavailable", ignoreCase = true) ->
+                AudioFallbackReason.NATIVE_LIBRARY_UNAVAILABLE
+            message.contains("clock", ignoreCase = true) ||
+                message.contains("sample rate", ignoreCase = true) ||
+                message.contains("alternate setting", ignoreCase = true) ||
+                message.contains("isochronous transport", ignoreCase = true) ->
+                AudioFallbackReason.CLOCK_NEGOTIATION_FAILED
+            else -> AudioFallbackReason.SESSION_RECONFIGURE_FAILED
+        }
+    }
+
     override fun play() {
         playing = true
-        writer?.setPlaybackEnabled(true)
+        sessionOwner.writer()?.setPlaybackEnabled(true)
     }
 
     override fun pause() {
         playing = false
-        writer?.setPlaybackEnabled(false)
+        sessionOwner.writer()?.setPlaybackEnabled(false)
     }
 
     override fun setPlaybackParameters(p: PlaybackParameters) = Unit
@@ -448,7 +600,7 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
     override fun getAudioAttributes(): AudioAttributes? = null
 
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
-        val w = writer ?: return false
+        val w = sessionOwner.writer() ?: return false
         if (startPositionUs == AudioSink.CURRENT_POSITION_NOT_SET) {
             // MediaCodecAudioRenderer expects the sink position to remain on the media timeline
             // after a resume or seek. Starting every USB session at zero makes the player jump
@@ -495,36 +647,36 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
     override fun handleDiscontinuity() {
         clearPendingPcm()
         startPositionUs = AudioSink.CURRENT_POSITION_NOT_SET
-        writer?.resetPosition()
+        sessionOwner.writer()?.resetPosition()
     }
 
     override fun getCurrentPositionUs(sourceEnded: Boolean): Long {
         if (startPositionUs == AudioSink.CURRENT_POSITION_NOT_SET) {
             return AudioSink.CURRENT_POSITION_NOT_SET
         }
-        val w = writer ?: return startPositionUs
+        val w = sessionOwner.writer() ?: return startPositionUs
         return startPositionUs + w.currentPositionUs
     }
 
     override fun isEnded(): Boolean {
-        return inputEnded && (writer?.queuedBufferCount() ?: 0) == 0
+        return inputEnded && (sessionOwner.writer()?.queuedBufferCount() ?: 0) == 0
     }
 
     override fun hasPendingData(): Boolean {
-        return pendingQueuePayload != null || (writer?.queuedBufferCount() ?: 0) > 0
+        return pendingQueuePayload != null ||
+            (sessionOwner.writer()?.queuedBufferCount() ?: 0) > 0
     }
 
     override fun playToEndOfStream() { inputEnded = true }
     override fun flush() {
         clearPendingPcm()
         startPositionUs = AudioSink.CURRENT_POSITION_NOT_SET
-        writer?.resetPosition()
+        sessionOwner.writer()?.resetPosition()
         inputEnded = false
     }
 
     override fun reset() {
-        writer?.stop()
-        writer = null
+        sessionOwner.closeCurrent()
         configured = false
         playing = false
         inputEnded = false
@@ -532,7 +684,6 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         inputSampleBytes = 0
         outputSampleBytes = 0
         clearPendingPcm()
-        deviceManager.closeConnection()
     }
 
     override fun supportsFormat(format: Format): Boolean = isUsbPcmFormat(format)
@@ -545,10 +696,24 @@ internal class UsbExclusiveAudioSink @JvmOverloads constructor(
         pendingQueueRemainder = byteArrayOf()
     }
 
+    private fun resetPcmSessionState() {
+        inputEnded = false
+        startPositionUs = AudioSink.CURRENT_POSITION_NOT_SET
+        inputSampleBytes = 0
+        outputSampleBytes = 0
+        clearPendingPcm()
+    }
+
     private class UsbConfigurationFailure(
         val reason: AudioFallbackReason,
         message: String
     ) : Exception(message)
+
+    private data class PcmRequest(
+        val sampleRateHz: Int,
+        val channelCount: Int,
+        val bitDepth: Int
+    )
 
 }
 

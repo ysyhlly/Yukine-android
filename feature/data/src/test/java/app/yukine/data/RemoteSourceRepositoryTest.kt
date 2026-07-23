@@ -46,16 +46,20 @@ class RemoteSourceRepositoryTest {
 
     @Test
     fun sourcePasswordRoundTripsEncryptedAndCachedTracksFollowSourceLifecycle() {
-        val sourceId = repository.save(source(-1L, "Original", "secret"))
+        val sourceId = repository.save(source(-1L, "Original", "secret", allowInsecureTls = true))
         val track = track(sourceId, 1L)
         repository.replaceTracks(sourceId, listOf(track))
 
         assertEquals("secret", repository.loadSource(sourceId)?.password)
+        assertTrue(repository.loadSource(sourceId)?.allowInsecureTls == true)
         // Robolectric has no AndroidKeyStore provider; production instrumentation covers ciphertext.
         assertTrue(database.remoteSourceDao().loadSource(sourceId)?.password?.isNotEmpty() == true)
         assertEquals(listOf(track.id), repository.loadTracks(sourceId).map { it.id })
 
-        assertEquals(sourceId, repository.save(source(sourceId, "Updated", "new-secret")))
+        assertEquals(
+            sourceId,
+            repository.save(source(sourceId, "Updated", "new-secret", allowInsecureTls = true))
+        )
         assertEquals("Updated", repository.loadSource(sourceId)?.name)
         assertEquals(listOf(track.id), repository.loadTracks(sourceId).map { it.id })
 
@@ -182,7 +186,12 @@ class RemoteSourceRepositoryTest {
         assertFalse(library.isFavorite(replacement.id))
     }
 
-    private fun source(id: Long, name: String, password: String) = RemoteSource(
+    private fun source(
+        id: Long,
+        name: String,
+        password: String,
+        allowInsecureTls: Boolean = false
+    ) = RemoteSource(
         id,
         RemoteSource.TYPE_WEBDAV,
         name,
@@ -190,6 +199,7 @@ class RemoteSourceRepositoryTest {
         "user",
         password,
         "music",
+        allowInsecureTls,
         "",
         0L
     )

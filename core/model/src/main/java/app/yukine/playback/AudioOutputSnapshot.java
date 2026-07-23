@@ -11,6 +11,8 @@ public final class AudioOutputSnapshot {
     public final AudioOutputPhase phase;
     public final String deviceName;
     public final int sampleRateHz;
+    public final int previousSampleRateHz;
+    public final int requestedSampleRateHz;
     public final int bitDepth;
     public final int channelCount;
     public final int dsdRate;
@@ -42,10 +44,54 @@ public final class AudioOutputSnapshot {
             double feedbackRateHz,
             String lastError
     ) {
+        this(
+                transport,
+                phase,
+                deviceName,
+                sampleRateHz,
+                sampleRateHz,
+                sampleRateHz,
+                bitDepth,
+                channelCount,
+                dsdRate,
+                fallbackReason,
+                queueDepth,
+                submittedPackets,
+                completedPackets,
+                failedPackets,
+                underruns,
+                framesWritten,
+                feedbackRateHz,
+                lastError
+        );
+    }
+
+    public AudioOutputSnapshot(
+            AudioTransport transport,
+            AudioOutputPhase phase,
+            String deviceName,
+            int sampleRateHz,
+            int previousSampleRateHz,
+            int requestedSampleRateHz,
+            int bitDepth,
+            int channelCount,
+            int dsdRate,
+            AudioFallbackReason fallbackReason,
+            int queueDepth,
+            long submittedPackets,
+            long completedPackets,
+            long failedPackets,
+            long underruns,
+            long framesWritten,
+            double feedbackRateHz,
+            String lastError
+    ) {
         this.transport = transport == null ? AudioTransport.SYSTEM_STANDARD : transport;
         this.phase = phase == null ? AudioOutputPhase.IDLE : phase;
         this.deviceName = deviceName == null ? "" : deviceName;
         this.sampleRateHz = Math.max(sampleRateHz, 0);
+        this.previousSampleRateHz = Math.max(previousSampleRateHz, 0);
+        this.requestedSampleRateHz = Math.max(requestedSampleRateHz, 0);
         this.bitDepth = Math.max(bitDepth, 0);
         this.channelCount = Math.max(channelCount, 0);
         this.dsdRate = Math.max(dsdRate, 0);
@@ -90,6 +136,36 @@ public final class AudioOutputSnapshot {
         );
     }
 
+    public static AudioOutputSnapshot transition(
+            AudioTransport transport,
+            String deviceName,
+            int previousSampleRateHz,
+            int requestedSampleRateHz,
+            int bitDepth,
+            int channelCount
+    ) {
+        return new AudioOutputSnapshot(
+                transport,
+                AudioOutputPhase.NEGOTIATING,
+                deviceName,
+                previousSampleRateHz,
+                previousSampleRateHz,
+                requestedSampleRateHz,
+                bitDepth,
+                channelCount,
+                0,
+                AudioFallbackReason.NONE,
+                0,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0.0d,
+                ""
+        );
+    }
+
     public AudioOutputSnapshot withMetrics(
             int queueDepth,
             long submittedPackets,
@@ -105,6 +181,8 @@ public final class AudioOutputSnapshot {
                 phase,
                 deviceName,
                 sampleRateHz,
+                previousSampleRateHz,
+                requestedSampleRateHz,
                 bitDepth,
                 channelCount,
                 dsdRate,

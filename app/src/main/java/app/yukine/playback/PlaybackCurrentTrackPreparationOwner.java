@@ -30,6 +30,10 @@ final class PlaybackCurrentTrackPreparationOwner {
         void logRefusingToPrepareEmptyUri(Track track);
     }
 
+    interface UnresolvedTrackResolver {
+        boolean resolve(Track track);
+    }
+
     static final class PreparedTrack {
         private final Track track;
         private final long startPositionMs;
@@ -86,6 +90,7 @@ final class PlaybackCurrentTrackPreparationOwner {
     private final RuntimeStateController runtimeStateController;
     private final StatePublisher statePublisher;
     private final RefusalLogger refusalLogger;
+    private final UnresolvedTrackResolver unresolvedTrackResolver;
 
     static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider(
             PlaybackMediaSourceProvider mediaSourceProvider,
@@ -94,6 +99,26 @@ final class PlaybackCurrentTrackPreparationOwner {
             RuntimeStateController runtimeStateController,
             StatePublisher statePublisher,
             RefusalLogger refusalLogger
+    ) {
+        return fromMediaSourceProvider(
+                mediaSourceProvider,
+                metadataProvider,
+                queuePreparationController,
+                runtimeStateController,
+                statePublisher,
+                refusalLogger,
+                null
+        );
+    }
+
+    static PlaybackCurrentTrackPreparationOwner fromMediaSourceProvider(
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            Function<Track, MediaMetadata> metadataProvider,
+            QueuePreparationController queuePreparationController,
+            RuntimeStateController runtimeStateController,
+            StatePublisher statePublisher,
+            RefusalLogger refusalLogger,
+            UnresolvedTrackResolver unresolvedTrackResolver
     ) {
         return new PlaybackCurrentTrackPreparationOwner(
                 track -> mediaSourceProvider == null
@@ -108,7 +133,8 @@ final class PlaybackCurrentTrackPreparationOwner {
                 queuePreparationController,
                 runtimeStateController,
                 statePublisher,
-                refusalLogger
+                refusalLogger,
+                unresolvedTrackResolver
         );
     }
 
@@ -120,12 +146,33 @@ final class PlaybackCurrentTrackPreparationOwner {
             StatePublisher statePublisher,
             RefusalLogger refusalLogger
     ) {
+        this(
+                playbackPreparationProvider,
+                mediaSourceResolver,
+                queuePreparationController,
+                runtimeStateController,
+                statePublisher,
+                refusalLogger,
+                null
+        );
+    }
+
+    PlaybackCurrentTrackPreparationOwner(
+            Function<Track, PlaybackMediaSourceProvider.PlaybackPreparation> playbackPreparationProvider,
+            Function<Track, MediaSource> mediaSourceResolver,
+            QueuePreparationController queuePreparationController,
+            RuntimeStateController runtimeStateController,
+            StatePublisher statePublisher,
+            RefusalLogger refusalLogger,
+            UnresolvedTrackResolver unresolvedTrackResolver
+    ) {
         this.playbackPreparationProvider = playbackPreparationProvider;
         this.mediaSourceResolver = mediaSourceResolver;
         this.queuePreparationController = queuePreparationController;
         this.runtimeStateController = runtimeStateController;
         this.statePublisher = statePublisher;
         this.refusalLogger = refusalLogger;
+        this.unresolvedTrackResolver = unresolvedTrackResolver;
     }
 
     PreparedTrack prepareCurrentTrack(Track track) {
@@ -146,6 +193,12 @@ final class PlaybackCurrentTrackPreparationOwner {
         }
         if (preparation != null && !preparation.getPlayable()) {
             String unplayableMessage = preparation.getUnplayableMessage();
+            if (unresolvedTrackResolver != null && unresolvedTrackResolver.resolve(preparedTrack)) {
+                runtimeStateController.setPreparing(true);
+                runtimeStateController.setErrorMessage("");
+                statePublisher.publishState();
+                return PreparedTrack.unplayable(preparedTrack);
+            }
             runtimeStateController.setPreparing(false);
             runtimeStateController.setErrorMessage(unplayableMessage);
             refusalLogger.logRefusingToPrepareEmptyUri(preparedTrack);

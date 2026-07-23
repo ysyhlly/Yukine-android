@@ -102,6 +102,44 @@ public class PlaybackCurrentTrackPreparationOwnerTest {
     }
 
     @Test
+    public void unresolvedStreamingTrackStartsResolutionWithoutLoggingRefusal() {
+        List<String> events = new ArrayList<>();
+        Track unresolved = track(6L, Uri.EMPTY);
+        PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(
+                track -> preparation(
+                        unresolved,
+                        null,
+                        false,
+                        "Streaming track is not resolved yet. Tap the track again to play."
+                ),
+                track -> null,
+                new FakeQueuePreparationController(events, 0L),
+                new FakeRuntimeStateController(events),
+                () -> events.add("publish"),
+                track -> events.add("refuse:" + track.id),
+                track -> {
+                    events.add("resolve:" + track.id);
+                    return true;
+                }
+        );
+
+        PlaybackCurrentTrackPreparationOwner.PreparedTrack prepared =
+                owner.prepareCurrentTrack(unresolved);
+
+        assertFalse(prepared.playable());
+        assertSame(unresolved, prepared.track());
+        assertEquals(
+                Arrays.asList(
+                        "resolve:6",
+                        "preparing:true",
+                        "error:",
+                        "publish"
+                ),
+                events
+        );
+    }
+
+    @Test
     public void restoredPositionIsClampedToZero() {
         Track track = track(3L, Uri.parse("file:///music/local.flac"));
         PlaybackCurrentTrackPreparationOwner owner = new PlaybackCurrentTrackPreparationOwner(

@@ -56,7 +56,7 @@ class StreamingPlaylistWriteTest {
         assertEquals(listOf("keep", "new"), gateway.reordered.single())
         assertEquals(listOf("unused-mirror"), gateway.deleted)
         assertEquals(0, gateway.clearOrRebuildCalls)
-        assertTrue(gateway.requestedPages.contains(2))
+        assertEquals(listOf(1, 2, 1, 2), gateway.requestedPages)
     }
 
     private class RecordingPlaylistGateway(

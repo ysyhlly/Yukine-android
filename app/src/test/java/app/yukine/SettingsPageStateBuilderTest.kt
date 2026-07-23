@@ -506,7 +506,7 @@ class SettingsPageStateBuilderTest {
             content.uiState.metrics[2].value
         )
         assertEquals("2" + AppLanguage.text(AppLanguage.MODE_ENGLISH, "min.left"), content.uiState.metrics[8].value)
-        assertEquals(10, content.actions.size)
+        assertEquals(11, content.actions.size)
         assertEquals(AppLanguage.text(AppLanguage.MODE_ENGLISH, "audio.effects.hint"), content.actions[3].description)
         assertEquals("1.25x", content.actions[1].value)
         assertEquals(SettingsActionStyle.Toggle, content.actions[4].style)
@@ -530,6 +530,52 @@ class SettingsPageStateBuilderTest {
             listOf("replay:true", "restore:false"),
             toggled
         )
+    }
+
+    @Test
+    fun usbClockCompatibilityRequiresUsbExclusiveAndTogglesWhenAvailable() {
+        val disabled = SettingsPageStateBuilder.playbackGroup(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playbackSpeed = 1f,
+            appVolume = 1f,
+            audioEffects = AudioEffectSettings.DEFAULT,
+            playbackRestoreEnabled = true,
+            replayGainEnabled = true,
+            audioExclusiveEnabled = false,
+            bitPerfectEnabled = false,
+            usbExclusiveEnabled = false,
+            remainingMs = 0L,
+            onNavigate = {},
+            usbClockMismatchCompatibilityEnabled = true
+        )
+        val disabledAction = disabled.actions.first {
+            it.entryId == SettingsEntryId.UsbClockMismatchCompatibility
+        }
+        assertEquals(false, disabledAction.enabled)
+        assertEquals(true, disabledAction.checked)
+
+        val toggles = mutableListOf<Boolean>()
+        val enabled = SettingsPageStateBuilder.playbackGroup(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            playbackSpeed = 1f,
+            appVolume = 1f,
+            audioEffects = AudioEffectSettings.DEFAULT,
+            playbackRestoreEnabled = true,
+            replayGainEnabled = true,
+            audioExclusiveEnabled = false,
+            bitPerfectEnabled = false,
+            usbExclusiveEnabled = true,
+            remainingMs = 0L,
+            onNavigate = {},
+            usbClockMismatchCompatibilityEnabled = false,
+            onUsbClockMismatchCompatibilityEnabledChange = { toggles += it }
+        )
+        val enabledAction = enabled.actions.first {
+            it.entryId == SettingsEntryId.UsbClockMismatchCompatibility
+        }
+        assertEquals(true, enabledAction.enabled)
+        enabledAction.onClick.run()
+        assertEquals(listOf(true), toggles)
     }
 
     @Test

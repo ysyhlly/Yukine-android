@@ -106,11 +106,11 @@ adb devices
 # 2026-07-07 P0 自动化门禁脚本
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\p0-stability-gate.ps1 -SkipDeviceProbe
 # BUILD SUCCESSFUL
-# Covers playback-stability-smoke.ps1 syntax, StreamingViewModelTest, EchoDatabaseHelperTest, and :feature:playback:testDebugUnitTest.
+# Covers playback-stability-smoke.ps1 syntax, StreamingViewModelTest, YukineDatabaseMigrationTest, and :feature:playback:testDebugUnitTest.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\p0-stability-gate.ps1 -SkipDeviceProbe -IncludeAssemble
 # BUILD SUCCESSFUL
-# Covers playback-stability-smoke.ps1 syntax, StreamingViewModelTest, EchoDatabaseHelperTest, :feature:playback:testDebugUnitTest, and :app:assembleDebug.
+# Covers playback-stability-smoke.ps1 syntax, StreamingViewModelTest, YukineDatabaseMigrationTest, :feature:playback:testDebugUnitTest, and :app:assembleDebug.
 # Debug APK: app\build\outputs\apk\debug\app-debug.apk
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\p0-stability-gate.ps1 -SkipDeviceProbe -IncludeAssemble -ReportPath app\build\p0-stability-gate\latest.md
@@ -267,7 +267,10 @@ adb devices
 | UAC1 Full Speed PCM | 16/24-bit，44.1/48/96 kHz | `USB_PCM / ACTIVE` 与 DAC 面板一致；10 分钟 0 underrun、0 packet error。 | 描述符、AudioOutputSnapshot、logcat。 |  |
 | UAC1 High Speed PCM | 24/32-bit，44.1–192 kHz | 分数包长累计帧数正确；seek 误差 ≤100 ms。 | packet/frame 指标、录屏。 |  |
 | UAC2 async feedback | 显式 feedback DAC | feedback Hz 非零且稳定；队列不持续增减；10 分钟 0 underrun。 | feedback/queue depth 日志。 |  |
+| UAC2 Clock Source 读写控制 | Clock Source Sampling Frequency `bmControls=3` | 按读写控件执行 `SET_CUR`，随后 `GET_CUR` 返回目标采样率；不得误报 `frequency control mode 3 is not writable`。 | 请求采样率、UAC 版本、Clock Source/Selector、原始控制值、interface/alt/endpoint 与 libusb 阶段日志。 |  |
 | UAC2 high-bandwidth | wMaxPacketSize 2–3 transactions | high-bandwidth 位解析与提交包长一致；0 packet/URB error。 | 描述符、逐包状态。 |  |
+| PCM 自动换率切歌 | 同一 DAC，依次播放 44.1/16、48/24、96/32、192/24、44.1/16 | 每次先关闭旧 transfer/FD，再协商新 clock/alt；2 秒内恢复 `USB_PCM / ACTIVE`；无爆音、旧格式残帧、永久 BUFFERING。 | 带时间戳的 session generation、clock、alt、packet 日志及 DAC 面板录屏。 |  |
+| PCM 换率失败恢复 | 让一次新采样率握手失败，再持续失败 | 首次使用全新 FD 自动重试；再次失败明确降级 `SYSTEM_DIRECT_PCM`；相同或未知格式不循环重试，下一首格式完整且不同时仅允许一次新的 USB 协商。 | snapshot、fallback reason、格式键与模式切换日志。 |  |
 | DSF/DFF DoP | 双声道 DSD64/128/256/512 | `USB_DOP / ACTIVE`；marker 05/FA 交替；DAC 面板倍率一致；不经过 DSP。 | DAC 面板、snapshot、DoP fixture。 |  |
 | XMOS Native DSD512 | 已验证精确 VID/PID profile | 仅 profile 命中时报告 `USB_NATIVE_DSD`；连续 30 分钟 0 underrun/error。 | profile、DAC 面板、30 分钟日志。 |  |
 | 非白名单 DAC | 支持 DoP 的未知 DAC | 不声明 Native DSD；回退 DoP，否则 typed `DOP_UNSUPPORTED`。 | snapshot、设置页原因。 |  |

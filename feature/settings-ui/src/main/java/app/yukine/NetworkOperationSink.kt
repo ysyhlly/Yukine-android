@@ -23,7 +23,8 @@ interface NetworkOperationSink {
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
+        rootPath: String,
+        allowInsecureTls: Boolean
     )
 
     fun testRemoteSource(sourceId: Long)

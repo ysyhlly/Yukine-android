@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 34
+    const val TARGET_VERSION: Int = 35
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -26,6 +26,7 @@ object YukineMigrations {
                 normalizeV32(db)
                 normalizeV33(db)
                 normalizeV34(db)
+                normalizeV35(db)
             }
         }
     }.toTypedArray()
@@ -527,6 +528,10 @@ object YukineMigrations {
         addIntegerColumn(db, "playback_queue", "track_number")
         addIntegerColumn(db, "playback_queue", "bpm")
         addTextColumn(db, "playback_queue", "lyrics")
+    }
+
+    private fun normalizeV35(db: SupportSQLiteDatabase) {
+        addIntegerColumn(db, "remote_sources", "allow_insecure_tls")
     }
 
     private fun addIntegerColumn(db: SupportSQLiteDatabase, table: String, column: String) {

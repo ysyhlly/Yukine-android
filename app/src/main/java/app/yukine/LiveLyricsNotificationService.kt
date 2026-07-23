@@ -20,6 +20,7 @@ import app.yukine.diagnostics.DiagnosticLog
 import app.yukine.common.EmbeddedArtwork
 import app.yukine.playback.EchoPlaybackService
 import app.yukine.playback.service.PlaybackServiceActions
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -31,6 +32,23 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+internal const val LIVE_LYRICS_MAX_HTTP_ARTWORK_BYTES = 16 * 1024 * 1024
+
+internal fun readLiveLyricsArtworkBytes(input: InputStream, maxBytes: Int): ByteArray? {
+    require(maxBytes > 0)
+    val output = ByteArrayOutputStream(minOf(DEFAULT_BUFFER_SIZE, maxBytes))
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) return null
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
+}
 
 class LiveLyricsNotificationService : Service() {
     companion object {
@@ -484,26 +502,39 @@ class LiveLyricsNotificationService : Service() {
         }
     }
 
-    private fun decodeHttpArtwork(url: String): Bitmap? = try {
+    private fun decodeHttpArtwork(url: String): Bitmap? {
         val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-        connection.connectTimeout = 4000
-        connection.readTimeout = 4000
-        connection.inputStream.use { stream ->
-            val bytes = stream.readBytes()
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                null
+        return try {
+            connection.connectTimeout = 4000
+            connection.readTimeout = 4000
+            val declaredLength = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connection.contentLengthLong
             } else {
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
-                    inPreferredConfig = Bitmap.Config.RGB_565
-                }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                connection.contentLength.toLong()
             }
+            if (declaredLength > LIVE_LYRICS_MAX_HTTP_ARTWORK_BYTES) return null
+            connection.inputStream.use { stream ->
+                val bytes = readLiveLyricsArtworkBytes(
+                    stream,
+                    LIVE_LYRICS_MAX_HTTP_ARTWORK_BYTES
+                ) ?: return@use null
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    null
+                } else {
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight)
+                        inPreferredConfig = Bitmap.Config.RGB_565
+                    }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                }
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
         }
-    } catch (_: Exception) {
-        null
     }
 
     private fun decodeArtwork(uri: Uri): Bitmap? {

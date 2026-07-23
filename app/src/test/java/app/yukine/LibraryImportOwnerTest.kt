@@ -31,6 +31,7 @@ class LibraryImportOwnerTest {
         assertEquals(listOf(track), fixture.libraryViewModel.library.value.allTracks)
         assertEquals(setOf(track.id), fixture.libraryViewModel.library.value.favoriteTrackIds)
         assertEquals(1, fixture.collectionsLoads)
+        assertEquals(1, fixture.identityIngestSchedules)
         assertEquals(
             listOf(
                 AppLanguage.text(AppLanguage.MODE_ENGLISH, "importing.audio.files"),
@@ -53,12 +54,30 @@ class LibraryImportOwnerTest {
 
         assertEquals(listOf(track), fixture.libraryViewModel.library.value.allTracks)
         assertEquals(listOf(true), fixture.scanResults)
+        assertEquals(1, fixture.identityIngestSchedules)
         assertEquals(
             AppLanguage.text(AppLanguage.MODE_ENGLISH, "library.scan.found.prefix") +
                 "1" +
                 AppLanguage.text(AppLanguage.MODE_ENGLISH, "library.scan.found.suffix"),
             fixture.statuses.last()
         )
+    }
+
+    @Test
+    fun cachedSnapshotDoesNotScheduleIdentityIngest() = runTest {
+        val track = Track(10L, "Cached", "Artist", "Album", 1_000L, Uri.EMPTY, "file:10")
+        val fixture = fixture(FakeImportGateway(), StandardTestDispatcher(testScheduler))
+
+        fixture.owner.replaceLibrary(
+            listOf(track),
+            emptySet(),
+            "Cached",
+            scanned = false
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf(track), fixture.libraryViewModel.library.value.allTracks)
+        assertEquals(0, fixture.identityIngestSchedules)
     }
 
     private fun fixture(
@@ -72,6 +91,7 @@ class LibraryImportOwnerTest {
         val statuses = mutableListOf<String>()
         val scanResults = mutableListOf<Boolean>()
         var collectionsLoads = 0
+        var identityIngestSchedules = 0
         val owner = LibraryImportOwner(
             libraryViewModel,
             store,
@@ -81,9 +101,18 @@ class LibraryImportOwnerTest {
             LibraryImportOwner.StatusSink(statuses::add),
             LibraryImportOwner.CollectionsLoader { collectionsLoads++ },
             LibraryImportOwner.OnboardingScanObserver(scanResults::add),
-            LibraryImportOwner.NetworkNavigator {}
+            LibraryImportOwner.NetworkNavigator {},
+            LibraryImportOwner.AudioVerificationScheduler {},
+            LibraryImportOwner.IdentityIngestScheduler { identityIngestSchedules++ }
         )
-        return Fixture(owner, libraryViewModel, statuses, scanResults) { collectionsLoads }
+        return Fixture(
+            owner,
+            libraryViewModel,
+            statuses,
+            scanResults,
+            { collectionsLoads },
+            { identityIngestSchedules }
+        )
     }
 
     private class FakeImportGateway(
@@ -102,9 +131,13 @@ class LibraryImportOwnerTest {
         val libraryViewModel: LibraryViewModel,
         val statuses: List<String>,
         val scanResults: List<Boolean>,
-        private val collectionsLoadCount: () -> Int
+        private val collectionsLoadCount: () -> Int,
+        private val identityIngestScheduleCount: () -> Int
     ) {
         val collectionsLoads: Int
             get() = collectionsLoadCount()
+
+        val identityIngestSchedules: Int
+            get() = identityIngestScheduleCount()
     }
 }

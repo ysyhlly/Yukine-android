@@ -690,6 +690,7 @@
                             "wordLyricsSource": {
                               "type": "string",
                               "enum": [
+                                "netease",
                                 "qqmusic",
                                 "kugou"
                               ]

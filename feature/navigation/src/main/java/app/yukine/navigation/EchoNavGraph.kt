@@ -54,6 +54,9 @@ import app.yukine.ui.EchoTheme
 import app.yukine.ui.StreamingSearchScreen
 import app.yukine.ui.UnifiedSearchStreamingState
 import app.yukine.ui.YukineOrbAudioMotion
+import app.yukine.together.TogetherDestination
+import app.yukine.together.TogetherSessionState
+import app.yukine.together.TogetherUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -141,6 +144,15 @@ fun EchoNavGraph(
     val settingsChromeState by hostState.settings.settingsChromeState.collectAsState()
     val streamingState by hostState.streaming.streamingState.collectAsState()
     val downloadsState by hostState.library.downloadsState.collectAsState()
+    val togetherBinding = hostState.together
+    val togetherUiState = if (togetherBinding == null) {
+        null
+    } else {
+        togetherBinding.viewModel.uiState.collectAsState().value
+    }
+    val togetherQuickLabel = togetherBinding?.labels?.invoke()?.let { labels ->
+        togetherCompactLabel(labels.title, togetherUiState)
+    }.orEmpty()
     val activeDownloadVisible = selectedInPager || selectedTab == SearchTab || selectedTab == NowTab
     val activeDownload = downloadsState.active.firstOrNull().takeIf { activeDownloadVisible }
     val openSearchAction = remember(hostState) { Runnable { onTabChanged(SearchTab) } }
@@ -278,7 +290,15 @@ fun EchoNavGraph(
                         },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
-                        audioMotion = audioMotion
+                        audioMotion = audioMotion,
+                        togetherLabel = togetherQuickLabel,
+                        onOpenTogether = { onTabChanged(TogetherTab) }
+                    )
+                    TogetherTab -> TogetherDestination(
+                        viewModel = requireNotNull(hostState.together).viewModel,
+                        labels = requireNotNull(hostState.together).labels(),
+                        onCopyRoomCode = requireNotNull(hostState.together).copyRoomCode,
+                        onShareRoomCode = requireNotNull(hostState.together).shareRoomCode
                     )
                     else -> HomeDestination(
                         hostState.library.homeDashboardState,
@@ -345,7 +365,9 @@ fun EchoNavGraph(
                         },
                         activeDownload = activeDownload,
                         playbackQuality = playbackQuality,
-                        audioMotion = audioMotion
+                        audioMotion = audioMotion,
+                        togetherLabel = togetherQuickLabel,
+                        onOpenTogether = { onTabChanged(TogetherTab) }
                     )
                     SettingsTab -> SettingsDestination(
                         state = hostState.settings.settingsState,
@@ -518,6 +540,17 @@ private fun backgroundPageForTab(tab: TabRoute): String = when (tab) {
     QueueTab, NowTab -> app.yukine.PageBackgrounds.PAGE_PLAYER
     SettingsTab -> app.yukine.PageBackgrounds.PAGE_SETTINGS
     else -> ""
+}
+
+private fun togetherCompactLabel(title: String, uiState: TogetherUiState?): String {
+    return when (val session = uiState?.session) {
+        is TogetherSessionState.Active -> "$title · ${session.members.size}"
+        is TogetherSessionState.WaitingReady -> "$title · ${session.members.size}"
+        is TogetherSessionState.Connecting,
+        is TogetherSessionState.Reconnecting,
+        is TogetherSessionState.Preparing -> "$title · …"
+        else -> title
+    }
 }
 
 private fun realtimeVisualsVisible(selectedTab: TabRoute, networkPage: NetworkPage): Boolean = when (selectedTab) {

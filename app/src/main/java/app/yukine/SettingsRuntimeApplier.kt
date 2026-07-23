@@ -148,6 +148,12 @@ internal class SettingsRuntimeApplier(
                     true
                 } ?: false
             }
+            is SettingsRuntimeEffect.SetUsbClockMismatchCompatibilityEnabled -> {
+                playbackServiceControlsProvider.controls()?.let {
+                    it.setUsbClockMismatchCompatibilityEnabled(effect.enabled)
+                    true
+                } ?: false
+            }
             is SettingsRuntimeEffect.ApplyAudioEffects -> {
                 playbackServiceControlsProvider.controls()?.let {
                     it.applyAudioEffectSettings(effect.settings)

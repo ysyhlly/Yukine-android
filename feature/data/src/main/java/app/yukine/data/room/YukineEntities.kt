@@ -181,6 +181,7 @@ data class RemoteSourceEntity(
     @ColumnInfo(defaultValue = "''") val username: String,
     @ColumnInfo(defaultValue = "''") val password: String,
     @ColumnInfo(name = "root_path", defaultValue = "'/'") val rootPath: String,
+    @ColumnInfo(name = "allow_insecure_tls", defaultValue = "0") val allowInsecureTls: Boolean,
     @ColumnInfo(name = "last_status", defaultValue = "''") val lastStatus: String,
     @ColumnInfo(name = "updated_at") val updatedAt: Long
 )

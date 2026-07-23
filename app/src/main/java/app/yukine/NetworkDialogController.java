@@ -2,6 +2,8 @@ package app.yukine;
 
 import android.content.Context;
 import android.content.DialogInterface;
+import android.text.InputType;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 
@@ -24,7 +26,8 @@ final class NetworkDialogController {
                 String baseUrl,
                 String username,
                 String password,
-                String rootPath
+                String rootPath,
+                boolean allowInsecureTls
         );
     }
 
@@ -113,12 +116,18 @@ final class NetworkDialogController {
         final EditText baseUrl = dialogInput("https://example.com/dav", source == null ? "" : source.baseUrl);
         final EditText username = dialogInput(text("username"), source == null ? "" : source.username);
         final EditText password = dialogInput(text("password"), source == null ? "" : source.password);
+        password.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         final EditText rootPath = dialogInput("Music", source == null ? "" : source.rootPath);
+        final CheckBox allowInsecureTls = new CheckBox(context);
+        allowInsecureTls.setText(text("allow.insecure.webdav.tls"));
+        allowInsecureTls.setTextColor(EchoTheme.textArgb(context));
+        allowInsecureTls.setChecked(source != null && source.allowInsecureTls);
         form.addView(name);
         form.addView(baseUrl);
         form.addView(username);
         form.addView(password);
         form.addView(rootPath);
+        form.addView(allowInsecureTls);
         EchoDialog.builder(context)
                 .setTitle(source == null ? text("add.webdav.source") : text("edit.webdav.source"))
                 .setView(form)
@@ -132,7 +141,8 @@ final class NetworkDialogController {
                                 baseUrl.getText().toString(),
                                 username.getText().toString(),
                                 password.getText().toString(),
-                                rootPath.getText().toString()
+                                rootPath.getText().toString(),
+                                allowInsecureTls.isChecked()
                         );
                     }
                 })

@@ -26,7 +26,10 @@ class DiagnosticBundleBuilderTest {
                         DiagnosticLogFile(
                             "events-current.jsonl",
                             10L,
-                            "{\"message\":\"Authorization: Bearer event-secret\"}".toByteArray()
+                            (
+                                "{\"message\":\"Authorization: Bearer event-secret " +
+                                    "https://media.example/audio.flac?vuutv=signed-url\"}"
+                                ).toByteArray()
                         )
                     ),
                     droppedEvents = 2L,
@@ -56,6 +59,9 @@ class DiagnosticBundleBuilderTest {
             assertTrue(event.contains("<redacted>"))
             assertTrue(crash.contains("<redacted>"))
             assertFalse(event.contains("event-secret"))
+            assertFalse(event.contains("vuutv"))
+            assertFalse(event.contains("signed-url"))
+            assertTrue(event.contains("https://media.example/audio.flac?<redacted-url-params>"))
             assertFalse(crash.contains("crash-secret"))
             assertTrue(zip.readText("diagnostics.json").contains("\"dropped_events\": 2"))
         }
@@ -75,6 +81,34 @@ class DiagnosticBundleBuilderTest {
         ZipFile(output).use { zip ->
             assertNotNull(zip.getEntry("diagnostics.json"))
             assertNotNull(zip.getEntry("README.txt"))
+        }
+    }
+
+    @Test
+    fun oversizedCrashLogIsReadWithABoundedPrefix() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val crashDirectory = File(context.filesDir, "crash-logs")
+        crashDirectory.deleteRecursively()
+        crashDirectory.mkdirs()
+        val crash = File(crashDirectory, "crash-oversized.log")
+        crash.writeBytes(ByteArray(2 * 1024 * 1024) { 'x'.code.toByte() })
+        val builder = DiagnosticBundleBuilder(
+            eventSnapshotProvider = { DiagnosticLogSnapshot(emptyList(), 0L, true) }
+        )
+        val output = File(context.cacheDir, "diagnostic-bounded-crash.zip")
+
+        try {
+            assertTrue(builder.build(context, output))
+            ZipFile(output).use { zip ->
+                val entry = zip.getEntry("crashes/crash-oversized.log")
+                assertNotNull(entry)
+                val content = zip.getInputStream(entry).use { it.readBytes() }
+                assertTrue(content.size <= 1024 * 1024)
+                assertTrue(zip.readText("diagnostics.json").contains("\"truncated\": true"))
+            }
+        } finally {
+            crashDirectory.deleteRecursively()
+            output.delete()
         }
     }
 

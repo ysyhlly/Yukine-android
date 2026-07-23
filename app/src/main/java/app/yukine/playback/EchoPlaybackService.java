@@ -14,13 +14,13 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaLibraryService;
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession;
 import androidx.media3.session.MediaSession;
-
 import javax.inject.Inject;
-
 import app.yukine.R;
 import app.yukine.PlaybackServiceHostPort;
 import app.yukine.playback.manager.PlaybackNotificationChannelOwner;
 import app.yukine.playback.service.PlaybackServiceActions;
+import app.yukine.together.TogetherSessionHostPort;
+import app.yukine.together.TogetherSessionOwner;
 import dagger.hilt.android.AndroidEntryPoint;
 
 @AndroidEntryPoint
@@ -41,9 +41,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     private static final int NOTIFICATION_ID = 1001;
     private static final String TAG = "EchoPlaybackService";
-
     private final LocalBinder binder = new LocalBinder();
     private PlaybackServiceRuntime runtime;
+    private TogetherSessionOwner togetherSessionOwner;
+    private boolean togetherDataSyncActive;
 
     @Inject
     PlaybackServiceRuntimeFactory runtimeFactory;
@@ -59,6 +60,11 @@ public final class EchoPlaybackService extends MediaLibraryService {
         super.onCreate();
         runtime = runtimeFactory.create(this);
         runtime.create();
+        togetherSessionOwner = TogetherSessionOwner.create(
+                this,
+                new TogetherMedia3PlayerAdapter(runtime),
+                this::setTogetherDataSyncActive
+        );
     }
 
     @Override
@@ -99,6 +105,10 @@ public final class EchoPlaybackService extends MediaLibraryService {
 
     @Override
     public void onDestroy() {
+        if (togetherSessionOwner != null) {
+            togetherSessionOwner.close();
+            togetherSessionOwner = null;
+        }
         if (runtime != null) {
             runtime.destroy();
             runtime = null;
@@ -112,10 +122,14 @@ public final class EchoPlaybackService extends MediaLibraryService {
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                int foregroundTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+                if (togetherDataSyncActive) {
+                    foregroundTypes |= ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+                }
                 startForeground(
                         NOTIFICATION_ID,
                         notification,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                        foregroundTypes
                 );
             } else {
                 startForeground(NOTIFICATION_ID, notification);
@@ -125,6 +139,35 @@ public final class EchoPlaybackService extends MediaLibraryService {
             DiagnosticLog.w(TAG, "Unable to start playback foreground notification", error);
             return false;
         }
+    }
+
+    TogetherSessionHostPort togetherSessionHost() {
+        return togetherSessionOwner;
+    }
+
+    TogetherSessionOwner togetherSessionOwner() {
+        return togetherSessionOwner;
+    }
+
+    private void setTogetherDataSyncActive(boolean active) {
+        if (togetherDataSyncActive == active) {
+            return;
+        }
+        togetherDataSyncActive = active;
+        startPlaybackForeground(restoringPlaybackNotification());
+    }
+
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        if (Build.VERSION.SDK_INT >= 35
+                && (fgsType & ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) != 0) {
+            togetherDataSyncActive = false;
+            if (togetherSessionOwner != null) {
+                togetherSessionOwner.requestLeave("data_sync_timeout");
+            }
+            startPlaybackForeground(restoringPlaybackNotification());
+        }
+        super.onTimeout(startId, fgsType);
     }
 
     private Notification restoringPlaybackNotification() {

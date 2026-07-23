@@ -79,7 +79,15 @@ class NetworkActionsViewModelTest {
         viewModel.deleteTrack(4L, "Deleted")
         viewModel.deleteTracks(listOf(4L, 5L), "Removed tracks: 2")
         viewModel.deleteRemoteSource(8L)
-        viewModel.saveWebDavSource(-1L, "NAS", "https://example.test", "u", "p", "music")
+        viewModel.saveWebDavSource(
+            -1L,
+            "NAS",
+            "https://example.test",
+            "u",
+            "p",
+            "music",
+            true
+        )
         viewModel.testRemoteSource(8L)
         viewModel.syncRemoteSource(8L, "NAS")
         viewModel.syncAllWebDavSources(listOf(8L, 9L))
@@ -99,7 +107,7 @@ class NetworkActionsViewModelTest {
                 "deleteSource:8",
                 "cached",
                 "favorites",
-                "saveSource:-1:NAS:https://example.test:u:p:music",
+                "saveSource:-1:NAS:https://example.test:u:p:music:true",
                 "cached",
                 "favorites"
             ),
@@ -237,9 +245,12 @@ class NetworkActionsViewModelTest {
             baseUrl: String,
             username: String,
             password: String,
-            rootPath: String
+            rootPath: String,
+            allowInsecureTls: Boolean
         ): Long {
-            events.add("saveSource:$sourceId:$name:$baseUrl:$username:$password:$rootPath")
+            events.add(
+                "saveSource:$sourceId:$name:$baseUrl:$username:$password:$rootPath:$allowInsecureTls"
+            )
             return savedSourceId
         }
 

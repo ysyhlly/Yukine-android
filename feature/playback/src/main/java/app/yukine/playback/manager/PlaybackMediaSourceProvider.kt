@@ -18,6 +18,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import app.yukine.common.StreamingDataPathMetadata
 import app.yukine.common.ApplicationNetworkClient
+import app.yukine.common.InsecureTlsSupport
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.model.Track
 import app.yukine.model.TrackIdentity
@@ -53,7 +54,7 @@ internal class PlaybackMediaSourceProvider(
     private var audioCacheKey: String? = null
 
     fun mediaSourceFactory(track: Track): DefaultMediaSourceFactory {
-        val httpFactory = httpDataSourceFactory(headersForTrack(track))
+        val httpFactory = httpDataSourceFactory(track, headersForTrack(track))
         val upstreamFactory = DefaultDataSource.Factory(context, httpFactory)
         if (!isHttpTrack(track)) {
             return DefaultMediaSourceFactory(upstreamFactory, DsdExtractorsFactory())
@@ -85,13 +86,13 @@ internal class PlaybackMediaSourceProvider(
         }
     }
 
-    private fun isDsdTrack(track: Track): Boolean {
+    fun isDsdTrack(track: Track): Boolean {
         val path = (track.contentUri?.toString() ?: track.dataPath).lowercase()
         return path.substringBefore('?').endsWith(".dsf") || path.substringBefore('?').endsWith(".dff")
     }
 
     fun cacheDataSourceForTrack(track: Track): CacheDataSource {
-        val httpFactory = httpDataSourceFactory(headersForTrack(track))
+        val httpFactory = httpDataSourceFactory(track, headersForTrack(track))
         val upstream = DefaultDataSource(context, httpFactory.createDataSource())
         return CacheDataSource(
             audioCache(),
@@ -100,10 +101,13 @@ internal class PlaybackMediaSourceProvider(
         )
     }
 
-    private fun httpDataSourceFactory(headers: Map<String, String>): HttpDataSource.Factory {
+    private fun httpDataSourceFactory(
+        track: Track,
+        headers: Map<String, String>
+    ): HttpDataSource.Factory {
         // Factory/headers remain track-scoped, while every playback, precache and retry request
         // shares the same OkHttp DNS/TLS/HTTP2 connection pool.
-        return OkHttpDataSource.Factory(PlaybackNetworkClient.httpClient).apply {
+        return OkHttpDataSource.Factory(httpClientForTrack(track)).apply {
             if (headers.isNotEmpty()) {
                 setDefaultRequestProperties(headers)
             }
@@ -127,7 +131,7 @@ internal class PlaybackMediaSourceProvider(
             }
             .build()
         return runCatching {
-            PlaybackNetworkClient.rangeProbeClient.newCall(request).execute().use { response ->
+            rangeProbeClientForTrack(track).newCall(request).execute().use { response ->
                 if (response.code != 206) return@use -1L
                 contentLengthFromContentRange(response.header("Content-Range"))
             }
@@ -275,9 +279,7 @@ internal class PlaybackMediaSourceProvider(
         if (!track.dataPath.startsWith("webdav:")) {
             return headers
         }
-        val sourceId = webDavSourceId(track.dataPath)
-        if (sourceId <= 0L) return headers
-        val source = remoteSourceLookup.apply(sourceId) ?: return headers
+        val source = remoteSourceForTrack(track) ?: return headers
         if (!source.hasAuth()) return headers
         val auth = "${source.username}:${source.password}"
         val encoded = Base64.encodeToString(
@@ -286,6 +288,26 @@ internal class PlaybackMediaSourceProvider(
         )
         headers["Authorization"] = "Basic $encoded"
         return headers
+    }
+
+    private fun httpClientForTrack(track: Track): OkHttpClient =
+        if (remoteSourceForTrack(track)?.allowInsecureTls == true) {
+            PlaybackNetworkClient.insecureHttpClient
+        } else {
+            PlaybackNetworkClient.httpClient
+        }
+
+    private fun rangeProbeClientForTrack(track: Track): OkHttpClient =
+        if (remoteSourceForTrack(track)?.allowInsecureTls == true) {
+            PlaybackNetworkClient.insecureRangeProbeClient
+        } else {
+            PlaybackNetworkClient.rangeProbeClient
+        }
+
+    private fun remoteSourceForTrack(track: Track): RemoteSource? {
+        if (!track.dataPath.startsWith("webdav:")) return null
+        val sourceId = webDavSourceId(track.dataPath)
+        return if (sourceId > 0L) remoteSourceLookup.apply(sourceId) else null
     }
 
     fun cacheKeyForTrack(track: Track?): String? = mediaCacheKey(track)
@@ -541,9 +563,21 @@ internal class PlaybackMediaSourceProvider(
 private object PlaybackNetworkClient {
     val httpClient: OkHttpClient = ApplicationNetworkClient.httpClient
 
+    val insecureHttpClient: OkHttpClient by lazy {
+        InsecureTlsSupport.configure(httpClient.newBuilder()).build()
+    }
+
     val rangeProbeClient: OkHttpClient = httpClient.newBuilder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
         .callTimeout(4, TimeUnit.SECONDS)
         .build()
+
+    val insecureRangeProbeClient: OkHttpClient by lazy {
+        insecureHttpClient.newBuilder()
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(4, TimeUnit.SECONDS)
+            .callTimeout(4, TimeUnit.SECONDS)
+            .build()
+    }
 }

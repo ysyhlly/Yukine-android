@@ -48,6 +48,7 @@ final class LibraryFeatureBinding {
 
     private LibraryImportOwner importOwner;
     private LibraryAudioVerificationOwner audioVerificationOwner;
+    private LibraryIdentityIngestOwner identityIngestOwner;
     private LibraryWebDavSyncOwner librarySyncOwner;
     private LibraryDeletionCompletionOwner deletionCompletionOwner;
     private HiddenLibraryRestoreOwner hiddenLibraryRestoreOwner;
@@ -197,7 +198,7 @@ final class LibraryFeatureBinding {
             PlaybackFeatureBinding playback,
             Consumer<Boolean> onboardingScanResult
     ) {
-        audioVerificationOwner = new LibraryAudioVerificationOwner(activity, repository, () -> {
+        Runnable identityChanged = () -> {
             multiSourceSync.refreshIdentitySnapshot();
             List<Track> tracks = repository.loadCachedTracks();
             Set<Long> favoriteIds = repository.loadFavoriteIds();
@@ -206,7 +207,9 @@ final class LibraryFeatureBinding {
                     importOwner.republishCanonicalLibrary(tracks, favoriteIds);
                 }
             });
-        });
+        };
+        audioVerificationOwner = new LibraryAudioVerificationOwner(activity, repository, identityChanged);
+        identityIngestOwner = new LibraryIdentityIngestOwner(repository, identityChanged);
         importOwner = new LibraryImportOwner(
                 viewModel,
                 store,
@@ -217,7 +220,8 @@ final class LibraryFeatureBinding {
                 collectionsOwner::load,
                 onboardingScanResult::accept,
                 () -> navigation.navigateToNetworkTabPage(NetworkPage.Streaming),
-                audioVerificationOwner::schedule
+                audioVerificationOwner::schedule,
+                identityIngestOwner::schedule
         );
         recordingMatchViewModel.bindIdentityChangedListener(() ->
                 executors.io(() -> {
@@ -661,6 +665,9 @@ final class LibraryFeatureBinding {
         }
         if (audioVerificationOwner != null) {
             audioVerificationOwner.release();
+        }
+        if (identityIngestOwner != null) {
+            identityIngestOwner.release();
         }
         libraryStateBinding.release();
         collectionsStateBinding.release();

@@ -640,70 +640,7 @@ class StreamingRepository(
         }
         providers.forEach { target ->
             searchedProviders += target
-            val searchStarted = clockMs()
-            val searchResult = try {
-                val result = withTimeout(titleSearchTimeoutMs.coerceAtLeast(1L)) {
-                    search(target, query, setOf(StreamingMediaType.TRACK), pageSize = 5)
-                }
-                val candidates = result.tracks
-                    .filter { candidate ->
-                        candidate.provider == target && candidate.providerTrackId.isNotBlank()
-                    }
-                recordPlaybackTelemetry(
-                    StreamingPlaybackTelemetryEvent(
-                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
-                        provider = target,
-                        durationMs = elapsedSince(searchStarted),
-                        success = true,
-                        cacheHit = result.cached,
-                        candidateCount = candidates.size
-                    )
-                )
-                candidates
-            } catch (timeout: TimeoutCancellationException) {
-                recordPlaybackTelemetry(
-                    StreamingPlaybackTelemetryEvent(
-                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
-                        provider = target,
-                        durationMs = elapsedSince(searchStarted),
-                        success = false,
-                        timedOut = true,
-                        errorCode = StreamingErrorCode.SOURCE_UNAVAILABLE
-                    )
-                )
-                logWarning(
-                    "Title search timed out for ${target.wireName} (queryLength=${query.length})",
-                    timeout
-                )
-                null
-            } catch (cancelled: CancellationException) {
-                recordPlaybackTelemetry(
-                    StreamingPlaybackTelemetryEvent(
-                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
-                        provider = target,
-                        durationMs = elapsedSince(searchStarted),
-                        success = false,
-                        cancelled = true
-                    )
-                )
-                throw cancelled
-            } catch (error: Throwable) {
-                recordPlaybackTelemetry(
-                    StreamingPlaybackTelemetryEvent(
-                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
-                        provider = target,
-                        durationMs = elapsedSince(searchStarted),
-                        success = false,
-                        errorCode = streamingErrorCode(error)
-                    )
-                )
-                logWarning(
-                    "Title search failed for ${target.wireName} (queryLength=${query.length})",
-                    error
-                )
-                null
-            }
-            val candidates = searchResult ?: return@forEach
+            val candidates = searchPlaybackFallbackCandidates(target, query) ?: return@forEach
             val rankStarted = clockMs()
             val reference = StreamingTrackMatchPolicy.reference(track)
             val rankedV2 = StreamingTrackMatchPolicy.rankCandidates(reference, candidates)
@@ -738,6 +675,81 @@ class StreamingRepository(
                     match.luoxueMusicInfoJson,
                     fromTitleSearch = true
                 )
+            }
+        }
+        return null
+    }
+
+    private suspend fun searchPlaybackFallbackCandidates(
+        target: StreamingProviderName,
+        query: String
+    ): List<StreamingTrack>? {
+        for (attempt in 1..TITLE_SEARCH_ATTEMPTS) {
+            val searchStarted = clockMs()
+            try {
+                val result = withTimeout(titleSearchTimeoutMs.coerceAtLeast(1L)) {
+                    search(target, query, setOf(StreamingMediaType.TRACK), pageSize = 5)
+                }
+                val candidates = result.tracks
+                    .filter { candidate ->
+                        candidate.provider == target && candidate.providerTrackId.isNotBlank()
+                    }
+                recordPlaybackTelemetry(
+                    StreamingPlaybackTelemetryEvent(
+                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
+                        provider = target,
+                        durationMs = elapsedSince(searchStarted),
+                        success = true,
+                        cacheHit = result.cached,
+                        candidateCount = candidates.size
+                    )
+                )
+                return candidates
+            } catch (timeout: TimeoutCancellationException) {
+                recordPlaybackTelemetry(
+                    StreamingPlaybackTelemetryEvent(
+                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
+                        provider = target,
+                        durationMs = elapsedSince(searchStarted),
+                        success = false,
+                        timedOut = true,
+                        errorCode = StreamingErrorCode.SOURCE_UNAVAILABLE
+                    )
+                )
+                logWarning(
+                    "Title search timed out for ${target.wireName} " +
+                        "(attempt=$attempt/$TITLE_SEARCH_ATTEMPTS, queryLength=${query.length})",
+                    timeout
+                )
+                if (attempt == TITLE_SEARCH_ATTEMPTS) {
+                    return null
+                }
+            } catch (cancelled: CancellationException) {
+                recordPlaybackTelemetry(
+                    StreamingPlaybackTelemetryEvent(
+                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
+                        provider = target,
+                        durationMs = elapsedSince(searchStarted),
+                        success = false,
+                        cancelled = true
+                    )
+                )
+                throw cancelled
+            } catch (error: Throwable) {
+                recordPlaybackTelemetry(
+                    StreamingPlaybackTelemetryEvent(
+                        stage = StreamingPlaybackTelemetryStage.TITLE_SEARCH,
+                        provider = target,
+                        durationMs = elapsedSince(searchStarted),
+                        success = false,
+                        errorCode = streamingErrorCode(error)
+                    )
+                )
+                logWarning(
+                    "Title search failed for ${target.wireName} (queryLength=${query.length})",
+                    error
+                )
+                return null
             }
         }
         return null
@@ -1154,6 +1166,7 @@ class StreamingRepository(
         const val DEFAULT_LUOXUE_PLAYBACK_ATTEMPT_TIMEOUT_MS = 8_000L
         const val DEFAULT_LUOXUE_TX_PLAYBACK_ATTEMPT_TIMEOUT_MS = 12_000L
         const val DEFAULT_TITLE_SEARCH_TIMEOUT_MS = 2_000L
+        const val TITLE_SEARCH_ATTEMPTS = 2
         const val TAG = "StreamingRepository"
     }
 }

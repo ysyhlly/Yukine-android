@@ -17,6 +17,7 @@ import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.MutablePlaybackReadModel
 import app.yukine.playback.service.PlaybackServiceActions
 import app.yukine.playback.state.PlaybackStateListener
+import app.yukine.together.TogetherSessionClient
 import kotlinx.coroutines.flow.StateFlow
 
 internal class PlaybackReadModelStateListener(
@@ -50,6 +51,7 @@ internal class PlaybackServiceConnectionController(
     private var service: PlaybackServiceHostPort? = null
     private var bound: Boolean = false
     private var appVisible: Boolean = false
+    val togetherSession = TogetherSessionClient()
 
     private val readModel = MutablePlaybackReadModel()
     override val state: StateFlow<PlaybackStateSnapshot> = readModel.state
@@ -72,6 +74,7 @@ internal class PlaybackServiceConnectionController(
             nextService.snapshot()?.let(::publishReadModel)
             commandQueue.flush(nextService)
             nextService.setAppVisible(appVisible)
+            togetherSession.attach(nextService.togetherSessionHost())
             listener.onPlaybackServiceConnected(nextService)
         }
 
@@ -113,6 +116,7 @@ internal class PlaybackServiceConnectionController(
         }
         service = null
         bound = false
+        togetherSession.attach(null)
         clearPublishedState()
     }
 
@@ -144,6 +148,7 @@ internal class PlaybackServiceConnectionController(
         service = null
         bound = false
         disconnectedService?.unregisterListener(readModelListener)
+        togetherSession.attach(null)
         clearPublishedState()
     }
 
@@ -244,6 +249,10 @@ internal class PlaybackServiceConnectionController(
 
     override fun setUsbExclusiveEnabled(enabled: Boolean) {
         service?.setUsbExclusiveEnabled(enabled)
+    }
+
+    override fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+        service?.setUsbClockMismatchCompatibilityEnabled(enabled)
     }
 
     override fun applyAudioEffectSettings(settings: AudioEffectSettings) {

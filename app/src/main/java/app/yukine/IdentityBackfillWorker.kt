@@ -29,7 +29,7 @@ class IdentityBackfillWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val store = IdentityBackfillCheckpointStore(applicationContext)
         try {
-            store.updateRuntimeState(IdentityBackfillRuntimeState.RUNNING)
+            store.markWork(id.toString(), IdentityBackfillRuntimeState.RUNNING)
             val database = YukineDatabase.getInstance(applicationContext)
             val maintenance = LibraryDedupMaintenance(database)
             val expectedMode = inputData.getString(KEY_DEDUP_MODE)
@@ -119,11 +119,13 @@ object IdentityBackfillScheduler {
     const val UNIQUE_WORK_NAME = "canonical_identity_backfill_v1"
 
     fun scheduleAutomatic(context: Context): IdentityBackfillScheduleResult {
-        // REPLACE also upgrades an already-persisted eager request from the first v1 build.
+        // Automatic startup must not replace an active manual rebuild that carries a
+        // mode/generation snapshot. The worker resolves the current mode on its IO dispatcher.
         return enqueue(
             context,
-            ExistingWorkPolicy.REPLACE,
-            awaitResult = false
+            ExistingWorkPolicy.KEEP,
+            awaitResult = false,
+            captureDedupSnapshot = false
         )
     }
 
@@ -137,7 +139,8 @@ object IdentityBackfillScheduler {
         return enqueue(
             context,
             ExistingWorkPolicy.REPLACE,
-            awaitResult = true
+            awaitResult = true,
+            captureDedupSnapshot = true
         )
     }
 
@@ -161,7 +164,8 @@ object IdentityBackfillScheduler {
                 enqueue(
                     appContext,
                     ExistingWorkPolicy.REPLACE,
-                    awaitResult = true
+                    awaitResult = true,
+                    captureDedupSnapshot = true
                 )
             }
         }.getOrElse { error ->
@@ -194,25 +198,31 @@ object IdentityBackfillScheduler {
     private fun enqueue(
         context: Context,
         policy: ExistingWorkPolicy,
-        awaitResult: Boolean
+        awaitResult: Boolean,
+        captureDedupSnapshot: Boolean
     ): IdentityBackfillScheduleResult {
         val appContext = context.applicationContext
         val store = IdentityBackfillCheckpointStore(appContext)
         return runCatching {
-            val maintenance = LibraryDedupMaintenance(
-                YukineDatabase.getInstance(appContext)
-            )
-            val inputData = Data.Builder()
-                .putString("dedupMode", maintenance.currentMode().name)
-                .putLong("dedupGeneration", maintenance.currentGeneration())
-                .build()
-            val request = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
-                .setInputData(inputData)
-                .build()
-            store.markWork(
-                request.id.toString(),
-                IdentityBackfillRuntimeState.QUEUED
-            )
+            val requestBuilder = OneTimeWorkRequestBuilder<IdentityBackfillWorker>()
+            if (captureDedupSnapshot) {
+                val maintenance = LibraryDedupMaintenance(
+                    YukineDatabase.getInstance(appContext)
+                )
+                requestBuilder.setInputData(
+                    Data.Builder()
+                        .putString("dedupMode", maintenance.currentMode().name)
+                        .putLong("dedupGeneration", maintenance.currentGeneration())
+                        .build()
+                )
+            }
+            val request = requestBuilder.build()
+            if (policy != ExistingWorkPolicy.KEEP) {
+                store.markWork(
+                    request.id.toString(),
+                    IdentityBackfillRuntimeState.QUEUED
+                )
+            }
             val operation = WorkManager.getInstance(appContext).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 policy,

@@ -38,6 +38,7 @@ class LoadSettingsPreferencesUseCaseTest {
         operations.nowPlayingGesturesEnabled = false
         operations.playbackRestoreEnabled = true
         operations.replayGainEnabled = false
+        operations.usbClockMismatchCompatibilityEnabled = true
         operations.debugPromptsEnabled = true
         operations.customBackgroundBlurEnabled = true
         operations.customBackgroundBlurRadiusDp = 32f
@@ -65,6 +66,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertFalse(result.nowPlayingGesturesEnabled)
         assertEquals(true, result.playbackRestoreEnabled)
         assertFalse(result.replayGainEnabled)
+        assertEquals(true, result.usbClockMismatchCompatibilityEnabled)
         assertEquals(true, result.debugPromptsEnabled)
         assertEquals(true, result.customBackgroundBlurEnabled)
         assertEquals(32f, result.customBackgroundBlurRadiusDp)
@@ -76,7 +78,7 @@ class LoadSettingsPreferencesUseCaseTest {
         assertEquals(TrackShareStyle.PLATFORM_CARD, result.shareStyle)
         assertEquals("content://all", result.pageBackgrounds.sharedUri)
         assertEquals(
-            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "audioExclusive", "bitPerfect", "usbExclusive", "debugPrompts", "checkUpdateEnabled", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
+            listOf("theme", "accent", "language", "speed", "volume", "quality", "refuseQualityDowngrade", "effects", "statusLyrics", "floatingLyrics", "systemMediaTitle", "gestures", "restore", "replayGain", "audioExclusive", "bitPerfect", "usbExclusive", "usbClockMismatchCompatibility", "debugPrompts", "checkUpdateEnabled", "customBackgroundBlurEnabled", "customBackgroundBlurRadius", "glassBlurEnabled", "glassBlurRadius", "glassSurfaceOpacity", "compactSettingsCards", "homeDashboardLayout", "shareStyle", "backgrounds"),
             operations.events
         )
     }
@@ -109,6 +111,7 @@ class LoadSettingsPreferencesUseCaseTest {
         var nowPlayingGesturesEnabled = true
         var playbackRestoreEnabled = true
         var replayGainEnabled = true
+        var usbClockMismatchCompatibilityEnabled = false
         var debugPromptsEnabled = false
         var customBackgroundBlurEnabled = false
         var customBackgroundBlurRadiusDp = 24f
@@ -203,6 +206,11 @@ class LoadSettingsPreferencesUseCaseTest {
         override fun loadUsbExclusiveEnabled(): Boolean {
             events.add("usbExclusive")
             return false
+        }
+
+        override fun loadUsbClockMismatchCompatibilityEnabled(): Boolean {
+            events.add("usbClockMismatchCompatibility")
+            return usbClockMismatchCompatibilityEnabled
         }
 
         override fun loadDebugPromptsEnabled(): Boolean {

@@ -65,6 +65,8 @@ object ArtworkLoader {
 
     /** Hard ceiling on decoded edge length so a huge source image can never blow the heap. */
     const val MAX_TARGET_PX = 1536
+    /** Crop previews keep extra detail without ever decoding an unbounded ARGB bitmap. */
+    internal const val MAX_PREVIEW_TARGET_PX = 2048
 
     private val cache = object : LruCache<String, Bitmap>(cacheSizeKib()) {
         override fun sizeOf(key: String, value: Bitmap): Int {
@@ -90,10 +92,15 @@ object ArtworkLoader {
     }
 
     suspend fun loadOriginal(context: Context, albumArtUri: Uri): Bitmap? {
-        val key = albumArtUri.toString() + "#original"
+        val key = albumArtUri.toString() + "#preview-$MAX_PREVIEW_TARGET_PX"
         return loadDeduplicated(key) {
             withContext(Dispatchers.IO) {
-                decodeOriginalBitmap(context, albumArtUri)
+                decodeSampledBitmap(
+                    context = context,
+                    uri = albumArtUri,
+                    targetPx = MAX_PREVIEW_TARGET_PX,
+                    preferredConfig = Bitmap.Config.ARGB_8888
+                )
             }
         }
     }
@@ -137,16 +144,26 @@ object ArtworkLoader {
         return snapshot.entries.firstOrNull { it.key.startsWith(prefix) }?.value
     }
 
-    private fun decodeSampledBitmap(context: Context, uri: Uri, targetPx: Int): Bitmap? {
+    private fun decodeSampledBitmap(
+        context: Context,
+        uri: Uri,
+        targetPx: Int,
+        preferredConfig: Bitmap.Config = Bitmap.Config.RGB_565
+    ): Bitmap? {
         if (EmbeddedArtwork.isEmbeddedArtworkUri(uri)) {
-            return decodeSampledEmbeddedArtwork(context, uri, targetPx)
+            return decodeSampledEmbeddedArtwork(context, uri, targetPx, preferredConfig)
         }
         return artworkCandidates(uri).firstNotNullOfOrNull { candidate ->
-            decodeSampledBitmapCandidate(context, candidate, targetPx)
+            decodeSampledBitmapCandidate(context, candidate, targetPx, preferredConfig)
         }
     }
 
-    private fun decodeSampledBitmapCandidate(context: Context, uri: Uri, targetPx: Int): Bitmap? {
+    private fun decodeSampledBitmapCandidate(
+        context: Context,
+        uri: Uri,
+        targetPx: Int,
+        preferredConfig: Bitmap.Config
+    ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         runCatching {
             openArtworkStream(context, uri)?.use { input ->
@@ -157,22 +174,12 @@ object ArtworkLoader {
             return null
         }
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, targetPx)
-            inPreferredConfig = Bitmap.Config.RGB_565
+            inSampleSize = artworkSampleSize(bounds.outWidth, bounds.outHeight, targetPx)
+            inPreferredConfig = preferredConfig
         }
         return runCatching {
             openArtworkStream(context, uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, options)
-            }
-        }.getOrNull()
-    }
-
-    private fun decodeOriginalBitmap(context: Context, uri: Uri): Bitmap? {
-        return runCatching {
-            openArtworkStream(context, uri)?.use { input ->
-                BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply {
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                })
             }
         }.getOrNull()
     }
@@ -195,7 +202,12 @@ object ArtworkLoader {
         return candidates.map(Uri::parse)
     }
 
-    private fun decodeSampledEmbeddedArtwork(context: Context, uri: Uri, targetPx: Int): Bitmap? {
+    private fun decodeSampledEmbeddedArtwork(
+        context: Context,
+        uri: Uri,
+        targetPx: Int,
+        preferredConfig: Bitmap.Config
+    ): Bitmap? {
         val bytes = EmbeddedArtwork.read(context, uri) ?: return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -203,8 +215,8 @@ object ArtworkLoader {
             return null
         }
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, targetPx)
-            inPreferredConfig = Bitmap.Config.RGB_565
+            inSampleSize = artworkSampleSize(bounds.outWidth, bounds.outHeight, targetPx)
+            inPreferredConfig = preferredConfig
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
@@ -289,19 +301,20 @@ object ArtworkLoader {
         }
     }
 
-    private fun sampleSize(width: Int, height: Int, targetPx: Int): Int {
-        var sample = 1
-        var maxEdge = maxOf(width, height)
-        while (maxEdge / sample > targetPx) {
-            sample *= 2
-        }
-        return sample.coerceAtLeast(1)
-    }
-
     private fun cacheSizeKib(): Int {
         val runtimeKib = (Runtime.getRuntime().maxMemory() / BYTES_PER_KIB).toInt()
         return (runtimeKib / 8).coerceIn(FALLBACK_CACHE_KIB, MAX_CACHE_KIB)
     }
+}
+
+internal fun artworkSampleSize(width: Int, height: Int, targetPx: Int): Int {
+    if (width <= 0 || height <= 0 || targetPx <= 0) return 1
+    var sample = 1
+    val maxEdge = maxOf(width, height)
+    while (maxEdge / sample > targetPx) {
+        sample *= 2
+    }
+    return sample.coerceAtLeast(1)
 }
 
 @Composable

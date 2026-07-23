@@ -65,3 +65,4 @@ tmp-m3u/
 artifacts/
 echo_next_*.db
 *.pid
+.tools/

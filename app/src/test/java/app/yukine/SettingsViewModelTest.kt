@@ -433,6 +433,8 @@ class SettingsViewModelTest {
                     is SettingsRuntimeEffect.SetAudioExclusiveEnabled -> "audioExclusive:${effect.enabled}"
                     is SettingsRuntimeEffect.SetBitPerfectEnabled -> "bitPerfect:${effect.enabled}"
                     is SettingsRuntimeEffect.SetUsbExclusiveEnabled -> "usbExclusive:${effect.enabled}"
+                    is SettingsRuntimeEffect.SetUsbClockMismatchCompatibilityEnabled ->
+                        "usbClockMismatchCompatibility:${effect.enabled}"
                     is SettingsRuntimeEffect.UpdateFloatingLyricsTextColor ->
                         "floatingTextColor:${effect.colorArgb}"
                 }
@@ -880,6 +882,8 @@ class SettingsViewModelTest {
                 SettingsPreferenceKey.AudioExclusiveEnabled -> "audioExclusive:${update.value}"
                 SettingsPreferenceKey.BitPerfectEnabled -> "bitPerfect:${update.value}"
                 SettingsPreferenceKey.UsbExclusiveEnabled -> "usbExclusive:${update.value}"
+                SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled ->
+                    "usbClockMismatchCompatibility:${update.value}"
                 SettingsPreferenceKey.DebugPromptsEnabled -> "debugPrompts:${update.value}"
                 SettingsPreferenceKey.CheckUpdateEnabled -> "checkUpdate:${update.value}"
                 SettingsPreferenceKey.CustomBackgroundBlurEnabled ->

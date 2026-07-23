@@ -62,6 +62,7 @@ data class SettingsPreferencesSnapshot(
     val audioExclusiveEnabled: Boolean = false,
     val bitPerfectEnabled: Boolean = false,
     val usbExclusiveEnabled: Boolean = false,
+    val usbClockMismatchCompatibilityEnabled: Boolean = false,
     val debugPromptsEnabled: Boolean = false,
     val checkUpdateEnabled: Boolean = true,
     val customBackgroundBlurEnabled: Boolean = false,

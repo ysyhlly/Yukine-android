@@ -1,0 +1,2 @@
+-keep class app.yukine.junto.mobile.** { *; }
+-keep interface app.yukine.junto.mobile.** { *; }

@@ -9,8 +9,11 @@ import app.yukine.ui.TrackListHeaderAction
 import app.yukine.ui.TrackListHeaderMetric
 import app.yukine.ui.TrackListModeAction
 import app.yukine.ui.TrackListAlbumCardUiState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -19,7 +22,81 @@ import java.util.ArrayList
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@OptIn(ExperimentalCoroutinesApi::class)
 class LibraryGroupsStateReducerTest {
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun largeGroupBuildRunsAsynchronouslyAndPublishesOnlyLatestRequest() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val groupingDispatcher = StandardTestDispatcher(mainDispatcherRule.testScheduler)
+        val controller = LibraryGroupsStateReducer(
+            viewModel = viewModel,
+            listener = listener,
+            groupingDispatcher = groupingDispatcher
+        )
+        val first = (1L..2_405L).map { id ->
+            track(id, "Old $id", "Artist", "Old album")
+        }
+        val latest = (3_000L..5_404L).map { id ->
+            track(id, "New $id", "Artist", "New album")
+        }
+
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            first,
+            LibraryGrouping.ALBUMS,
+            "",
+            "",
+            emptyList()
+        )
+        assertTrue(viewModel.libraryGroups.value.rows.isEmpty())
+
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            latest,
+            LibraryGrouping.ALBUMS,
+            "",
+            "",
+            emptyList()
+        )
+        mainDispatcherRule.testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf("New album"), viewModel.libraryGroups.value.rows.map { it.title })
+        assertEquals(2_405, viewModel.libraryGroups.value.rows.single().trackCount)
+    }
+
+    @Test
+    fun cancelledLargeGroupBuildCannotPublishAfterLeavingGroupedMode() {
+        val viewModel = LibraryViewModel()
+        val listener = FakeListener()
+        val groupingDispatcher = StandardTestDispatcher(mainDispatcherRule.testScheduler)
+        val controller = LibraryGroupsStateReducer(
+            viewModel = viewModel,
+            listener = listener,
+            groupingDispatcher = groupingDispatcher
+        )
+        val tracks = (1L..2_405L).map { id ->
+            track(id, "Track $id", "Artist", "Album")
+        }
+
+        controller.reduce(
+            AppLanguage.MODE_ENGLISH,
+            tracks,
+            LibraryGrouping.ALBUMS,
+            "",
+            "",
+            emptyList()
+        )
+        controller.cancelPendingBuild()
+        mainDispatcherRule.testScheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.libraryGroups.value.rows.isEmpty())
+        assertEquals(null, listener.chromeState)
+    }
+
     @Test
     fun rendersAlbumGroupsWithEnglishLabels() {
         val viewModel = LibraryViewModel()

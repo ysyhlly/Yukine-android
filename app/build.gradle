@@ -126,6 +126,7 @@ dependencies {
     implementation project(":feature:library-ui")
     implementation project(":feature:settings-ui")
     implementation project(":feature:streaming-ui")
+    implementation project(":feature:together")
     implementation project(":feature:navigation")
 
     // Compose BOM
@@ -178,6 +179,7 @@ dependencies {
     testImplementation libs.androidx.test.core
     testImplementation libs.androidx.test.junit
     testImplementation libs.androidx.compose.ui.test.junit4
+    testImplementation libs.androidx.work.testing
 
     // Debug
     debugImplementation libs.androidx.compose.ui.test.manifest

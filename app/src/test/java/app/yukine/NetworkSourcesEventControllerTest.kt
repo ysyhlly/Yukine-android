@@ -157,7 +157,8 @@ class NetworkSourcesEventControllerTest {
             baseUrl: String,
             username: String,
             password: String,
-            rootPath: String
+            rootPath: String,
+            allowInsecureTls: Boolean
         ) = Unit
 
         override fun testRemoteSource(sourceId: Long) {

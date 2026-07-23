@@ -22,6 +22,7 @@ enum class SettingsEntryId {
     AudioExclusive,
     BitPerfect,
     UsbExclusive,
+    UsbClockMismatchCompatibility,
     SleepTimer,
     LibraryScan,
     ImportAudioFiles,
@@ -172,6 +173,7 @@ object SettingsInformationArchitecture {
         entry(SettingsEntryId.AudioExclusive, SettingsCategoryId.PlaybackAudio, "audio.exclusive", "audio.exclusive.hint", EchoIconKind.Gauge, "audio focus", "音频焦点"),
         entry(SettingsEntryId.BitPerfect, SettingsCategoryId.PlaybackAudio, "bit.perfect", "bit.perfect.hint", EchoIconKind.Gauge, "bit-perfect", "src bypass", "绕过SRC", "位完美"),
         entry(SettingsEntryId.UsbExclusive, SettingsCategoryId.PlaybackAudio, "usb.exclusive", "usb.exclusive.hint", EchoIconKind.Gauge, "usb dac", "usb exclusive", "USB独占", "外置解码"),
+        entry(SettingsEntryId.UsbClockMismatchCompatibility, SettingsCategoryId.PlaybackAudio, "usb.clock.compatibility", "usb.clock.compatibility.hint", EchoIconKind.Gauge, "usb clock", "clock mismatch", "时钟兼容", "采样率"),
         entry(SettingsEntryId.SleepTimer, SettingsCategoryId.PlaybackAudio, "sleep.timer", "sleep.timer.description", EchoIconKind.Timer, "timer", "\u5b9a\u65f6"),
 
         entryWithKeywords(SettingsEntryId.LibraryScan, SettingsCategoryId.LibraryMetadata, "scan.library", icon = EchoIconKind.Sync, keywords = arrayOf("rescan", "\u626b\u63cf")),

@@ -33,7 +33,7 @@ public class PlaybackErrorRecoveryCommandOwnerTest {
 
         assertSame(track, owner.currentTrack());
         assertTrue(owner.canSkipFailedTrack(track));
-        assertEquals("trackId=7, title=Track 7, dataPath=file:7, uri=null", owner.debugTrack(track));
+        assertEquals("trackId=7, uri=null", owner.debugTrack(track));
         assertEquals("track=<null>", owner.debugTrack(null));
         owner.prepareCurrent(true);
         owner.skipToNext();

@@ -1,0 +1,52 @@
+name: release
+
+# Releases are manual: push the version tag first, then trigger this
+# workflow from the Actions tab. Nothing is published automatically.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    # macOS so `pkgbuild` is available for the .pkg installer; the Linux
+    # binaries are still cross-compiled (CGO_ENABLED=0 in .goreleaser.yaml).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # goreleaser reads tags and history for the changelog
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify the workflow was triggered on a tagged commit
+        run: |
+          git describe --exact-match --tags HEAD || {
+            echo "::error::HEAD is not tagged. Tag the release commit (git tag vX.Y.Z && git push origin vX.Y.Z), then re-run."
+            exit 1
+          }
+      - name: Run tests
+        run: go test -race ./...
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          # Pinned for reproducible releases. Kept in sync with
+          # ci.yml's goreleaser-check job.
+          version: "2.16.0"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Fine-grained PAT with write access to swayam-mishra/homebrew-tap,
+          # used to push the generated Homebrew formula.
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+      - name: Build and upload the macOS .pkg installer
+        # goreleaser has already created and published the GitHub release,
+        # so the binary is in dist/ and the release exists to upload to.
+        # pkgbuild is macOS-only, which is why this job runs on macos-latest.
+        run: |
+          TAG=$(git describe --exact-match --tags HEAD)
+          scripts/build-pkg.sh "${TAG#v}"
+          gh release upload "$TAG" dist/junto_*_macos.pkg dist/junto_*_macos.pkg.sha256 --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

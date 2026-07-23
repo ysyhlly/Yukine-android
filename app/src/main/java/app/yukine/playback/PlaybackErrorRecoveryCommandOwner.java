@@ -102,10 +102,15 @@ final class PlaybackErrorRecoveryCommandOwner implements PlaybackErrorRecoveryMa
         if (track == null) {
             return "track=<null>";
         }
-        return "trackId=" + track.id
-                + ", title=" + track.title
-                + ", dataPath=" + track.dataPath
-                + ", uri=" + track.contentUri;
+        String uriState;
+        if (track.contentUri == null) {
+            uriState = "null";
+        } else if (track.contentUri.toString().isEmpty()) {
+            uriState = "empty";
+        } else {
+            uriState = "present";
+        }
+        return "trackId=" + track.id + ", uri=" + uriState;
     }
 
     @Override

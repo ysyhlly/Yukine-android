@@ -119,7 +119,7 @@ final class SettingsFeatureBinding {
                         () -> navigation.navigateToTab(app.yukine.navigation.DownloadsTab.INSTANCE, true),
                         () -> new GitHubUpdateChecker(
                                 activity,
-                                java.util.concurrent.Executors.newSingleThreadExecutor(),
+                                executors::network,
                                 mainHandler,
                                 this::languageMode
                         ).check()

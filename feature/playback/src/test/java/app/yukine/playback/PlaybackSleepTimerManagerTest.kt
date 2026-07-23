@@ -50,7 +50,7 @@ class PlaybackSleepTimerManagerTest {
         clock.now = 60000L
         scheduler.runPending()
 
-        assertEquals(listOf("pause"), actions.calls)
+        assertEquals(listOf("pause", "publish"), actions.calls)
         assertEquals(0L, manager.remainingMs())
     }
 

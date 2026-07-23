@@ -4,6 +4,7 @@ import app.yukine.model.Track
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.playback.PlaybackStateSnapshot
 import app.yukine.playback.state.PlaybackStateListener
+import app.yukine.together.TogetherSessionHostPort
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -118,6 +119,9 @@ class MainPlaybackServiceHostTest {
 
         override fun queueTrackAt(index: Int): Track? = null
 
+        override fun togetherSessionHost(): TogetherSessionHostPort =
+            error("Together session is not used by this settings host test")
+
         override fun skipToPrevious() = Unit
 
         override fun skipToNext() = Unit
@@ -194,6 +198,10 @@ class MainPlaybackServiceHostTest {
 
         override fun setUsbExclusiveEnabled(enabled: Boolean) {
             calls += "usbExclusive:$enabled"
+        }
+
+        override fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+            calls += "usbClockMismatchCompatibility:$enabled"
         }
     }
 }

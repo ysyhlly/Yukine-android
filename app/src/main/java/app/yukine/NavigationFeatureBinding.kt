@@ -2,6 +2,10 @@ package app.yukine
 
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import app.yukine.navigation.EchoNavHostState
 import app.yukine.navigation.HomeTab
 import app.yukine.navigation.LibraryNavBinding
@@ -10,6 +14,11 @@ import app.yukine.navigation.SettingsNavBinding
 import app.yukine.navigation.SettingsTab
 import app.yukine.navigation.StreamingNavBinding
 import app.yukine.navigation.TabRoute
+import app.yukine.navigation.TogetherNavBinding
+import app.yukine.together.TogetherLabels
+import app.yukine.together.TogetherPreferences
+import app.yukine.together.TogetherQueueItem
+import app.yukine.together.TogetherViewModel
 import app.yukine.ui.OnboardingActions
 
 /**
@@ -33,6 +42,7 @@ internal class NavigationFeatureBinding(
     private var navHostState: EchoNavHostState? = null
     private var boundQueueViewModel: app.yukine.queue.QueueViewModel? = null
     private var rootInstalled = false
+    private var togetherViewModel: TogetherViewModel? = null
 
     fun bindRoot(
         viewModels: MainActivityViewModels,
@@ -85,6 +95,7 @@ internal class NavigationFeatureBinding(
         boundQueueViewModel?.bindIntentListener(null)
         boundQueueViewModel = null
         navHostState = null
+        togetherViewModel = null
         rootInstalled = false
     }
 
@@ -167,8 +178,46 @@ internal class NavigationFeatureBinding(
             networkSourcesState = viewModels.networkSourcesViewModel.uiState
         ),
         streaming = StreamingNavBinding(viewModels.streamingViewModel.streaming),
+        together = TogetherNavBinding(
+            viewModel = TogetherViewModel(
+                playbackConnection.togetherSession,
+                currentQueue = {
+                    playbackConnection.queueSnapshot().map { track ->
+                        val source = track.dataPath.takeIf(String::isNotBlank)
+                            ?: track.contentUri?.toString().orEmpty()
+                        val localFile = java.io.File(source)
+                        TogetherQueueItem(
+                            stableId = track.id.toString(),
+                            title = track.title,
+                            artist = track.artist,
+                            sourceUri = source,
+                            sizeBytes = if (localFile.isFile) localFile.length() else 0L,
+                            shareable = source.startsWith("content://") ||
+                                source.startsWith("file://") ||
+                                localFile.isFile
+                        )
+                    }
+                },
+                preferences = TogetherPreferences(activity)
+            ).also { togetherViewModel = it },
+            labels = { togetherLabels(settingsStore.languageMode()) },
+            copyRoomCode = ::copyTogetherRoomCode,
+            shareRoomCode = ::shareTogetherRoomCode
+        ),
         queueSheetVisibilityListener = { },
     )
+
+    private fun copyTogetherRoomCode(code: String) {
+        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("junto room", code))
+    }
+
+    private fun shareTogetherRoomCode(code: String) {
+        val intent = Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, "https://junto.watch/join#$code")
+        activity.startActivity(Intent.createChooser(intent, togetherLabels(settingsStore.languageMode()).shareCode))
+    }
 
     private fun installBackNavigation() {
         activity.onBackPressedDispatcher.addCallback(activity, object : OnBackPressedCallback(true) {
@@ -180,6 +229,55 @@ internal class NavigationFeatureBinding(
         })
     }
 }
+
+private fun togetherLabels(language: String) = TogetherLabels(
+    title = AppLanguage.text(language, "together.title"),
+    createRoom = AppLanguage.text(language, "together.create"),
+    joinRoom = AppLanguage.text(language, "together.join"),
+    roomCode = AppLanguage.text(language, "together.room.code"),
+    pasteRoomCode = AppLanguage.text(language, "together.room.paste"),
+    settings = AppLanguage.text(language, "together.settings"),
+    back = AppLanguage.text(language, "action.back"),
+    confirmCreate = AppLanguage.text(language, "together.create.confirm"),
+    emptyQueue = AppLanguage.text(language, "together.queue.empty"),
+    addLocalAudio = AppLanguage.text(language, "together.queue.add"),
+    previewFiles = AppLanguage.text(language, "together.join.preview"),
+    confirmJoin = AppLanguage.text(language, "together.join.confirm"),
+    matchLocal = AppLanguage.text(language, "together.join.match"),
+    matchedLocal = AppLanguage.text(language, "together.join.matched"),
+    downloadRequired = AppLanguage.text(language, "together.join.download"),
+    storageSpace = AppLanguage.text(language, "together.join.storage"),
+    notEnoughSpace = AppLanguage.text(language, "together.join.space.error"),
+    remove = AppLanguage.text(language, "action.remove"),
+    moveUp = AppLanguage.text(language, "action.move.up"),
+    moveDown = AppLanguage.text(language, "action.move.down"),
+    connecting = AppLanguage.text(language, "together.connecting"),
+    waitingReady = AppLanguage.text(language, "together.waiting"),
+    leave = AppLanguage.text(language, "together.leave"),
+    members = AppLanguage.text(language, "together.members"),
+    buffering = AppLanguage.text(language, "together.buffering"),
+    ready = AppLanguage.text(language, "together.ready"),
+    drift = AppLanguage.text(language, "together.drift"),
+    transfer = AppLanguage.text(language, "together.transfer"),
+    saveFile = AppLanguage.text(language, "together.save.file"),
+    direct = AppLanguage.text(language, "together.connection.direct"),
+    turn = AppLanguage.text(language, "together.connection.turn"),
+    relay = AppLanguage.text(language, "together.connection.relay"),
+    nickname = AppLanguage.text(language, "together.nickname"),
+    relays = AppLanguage.text(language, "together.relays"),
+    turnUrl = AppLanguage.text(language, "together.turn.url"),
+    turnUsername = AppLanguage.text(language, "together.turn.username"),
+    turnPassword = AppLanguage.text(language, "together.turn.password"),
+    rememberPassword = AppLanguage.text(language, "together.turn.remember"),
+    saveSettings = AppLanguage.text(language, "together.settings.save"),
+    connectionTest = AppLanguage.text(language, "together.connection.test"),
+    relayTestOk = AppLanguage.text(language, "together.connection.test.ok"),
+    relayTurnConfigured = AppLanguage.text(language, "together.connection.test.turn"),
+    copyCode = AppLanguage.text(language, "together.code.copy"),
+    shareCode = AppLanguage.text(language, "together.code.share"),
+    invalidRoomCode = AppLanguage.text(language, "together.code.invalid"),
+    fileSaved = AppLanguage.text(language, "together.file.saved")
+)
 
 internal fun openPlayHistoryRoute(routeController: MainRouteController, languageMode: String) {
     routeController.openLibraryGroup(

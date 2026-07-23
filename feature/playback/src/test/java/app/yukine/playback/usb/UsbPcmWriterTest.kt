@@ -6,7 +6,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
 class UsbPcmWriterTest {
@@ -27,7 +29,7 @@ class UsbPcmWriterTest {
 
     @Test
     fun successfulWriteAdvancesFramesAndPublishesMetrics() {
-        val metrics = mutableListOf<UsbPcmWriterMetrics>()
+        val metrics = CopyOnWriteArrayList<UsbPcmWriterMetrics>()
         val writer = UsbPcmWriter(
             UsbAudioStreamConfig.FALLBACK,
             FakeTransport(shortWrite = false),
@@ -45,7 +47,38 @@ class UsbPcmWriterTest {
         assertTrue(metrics.any { it.framesWritten == 48L })
     }
 
-    private class FakeTransport(private val shortWrite: Boolean) : UsbPcmTransport {
+    @Test
+    fun asynchronousPacketFailureStopsWriterEvenWhenWriteWasAccepted() {
+        val transport = FakeTransport(
+            shortWrite = false,
+            asynchronousFailure = true
+        )
+        val error = AtomicReference<String>()
+        val reported = CountDownLatch(1)
+        val writer = UsbPcmWriter(
+            UsbAudioStreamConfig.FALLBACK,
+            transport,
+            {
+                error.set(it)
+                reported.countDown()
+            }
+        )
+
+        writer.start()
+        assertTrue(writer.queueBuffer(ByteArray(192)))
+        assertTrue(reported.await(2, TimeUnit.SECONDS))
+        writer.stop()
+
+        assertEquals("asynchronous transfer failed", error.get())
+        assertEquals(0L, writer.totalFramesWritten)
+        assertTrue(transport.cancelled)
+        assertTrue(transport.closed)
+    }
+
+    private class FakeTransport(
+        private val shortWrite: Boolean,
+        private val asynchronousFailure: Boolean = false
+    ) : UsbPcmTransport {
         var cancelled = false
         var closed = false
         private var submitted = 0L
@@ -59,9 +92,13 @@ class UsbPcmWriterTest {
         override fun close() { closed = true }
         override fun metrics(): UsbTransferMetrics = UsbTransferMetrics(
             submittedPackets = submitted,
-            completedPackets = if (shortWrite) 0 else submitted,
-            failedPackets = if (shortWrite) submitted else 0,
-            lastError = if (shortWrite) "short write" else ""
+            completedPackets = if (shortWrite || asynchronousFailure) 0 else submitted,
+            failedPackets = if (shortWrite || asynchronousFailure) submitted else 0,
+            lastError = when {
+                asynchronousFailure -> "asynchronous transfer failed"
+                shortWrite -> "short write"
+                else -> ""
+            }
         )
     }
 }

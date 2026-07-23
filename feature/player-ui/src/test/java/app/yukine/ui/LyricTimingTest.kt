@@ -82,4 +82,18 @@ class LyricTimingTest {
         assertFalse(paused.following)
         assertTrue(paused.resume().following)
     }
+
+    @Test
+    fun immersiveAnchorLeavesExactlyOnePreviousRowAboveCurrentLyric() {
+        assertEquals(-108, lyricPreviousLineScrollOffset(100, 8))
+        assertEquals(-64, lyricPreviousLineScrollOffset(64, 0))
+        assertEquals(0, lyricPreviousLineScrollOffset(-1, -1))
+    }
+
+    @Test
+    fun lyricAnchorOffsetClampsInvalidSpaceAndFraction() {
+        assertEquals(0, lyricAnchorScrollOffset(100, 200, 0.4f))
+        assertEquals(0, lyricAnchorScrollOffset(1_000, 100, -1f))
+        assertEquals(-900, lyricAnchorScrollOffset(1_000, 100, 2f))
+    }
 }

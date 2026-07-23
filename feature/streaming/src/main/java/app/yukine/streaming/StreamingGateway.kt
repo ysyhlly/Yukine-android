@@ -1243,6 +1243,14 @@ class RemoteStreamingGateway(
                 val mappedCode = when (code) {
                     429 -> StreamingErrorCode.RATE_LIMITED
                     in 500..599 -> StreamingErrorCode.GATEWAY_UNAVAILABLE
+                    404, 405 -> if (error.hasRecognizedCode) {
+                        error.code
+                    } else {
+                        // A route-level 404/405 from a server that does not implement the streaming
+                        // contract must not override the direct provider result. Treat it like an
+                        // unavailable gateway so local NetEase/QQ/LX fallbacks remain usable.
+                        StreamingErrorCode.GATEWAY_UNAVAILABLE
+                    }
                     else -> error.code
                 }
                 throw StreamingGatewayException(

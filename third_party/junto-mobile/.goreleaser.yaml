@@ -1,0 +1,87 @@
+# goreleaser config — runs on every pushed v* tag via
+# .github/workflows/release.yml. Produces macOS (universal) and Linux
+# (amd64/arm64) binaries, a GitHub release, and a Homebrew cask in
+# swayam-mishra/homebrew-tap (which declares mpv as a dependency, so
+# `brew install --cask` is genuinely one command). Casks, not the
+# deprecated `brews` formula config — see
+# https://goreleaser.com/deprecations/#brews.
+version: 2
+
+project_name: junto
+
+before:
+  hooks:
+    - go mod tidy
+
+# The macOS .pkg installer is built and uploaded by an explicit step in
+# .github/workflows/release.yml after this release publishes — goreleaser
+# `after` hooks run post-publish, so their output can't be uploaded here.
+
+builds:
+  - main: ./cmd/junto
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+# Merge the two darwin builds into one universal binary.
+universal_binaries:
+  - replace: true
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs"
+      - "^test"
+      - "^chore"
+
+homebrew_casks:
+  - name: junto
+    binaries:
+      - junto
+    repository:
+      owner: swayam-mishra
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/swayam-mishra/junto
+    description: "Watch media in sync with friends — no server, no account"
+    license: MIT
+    dependencies:
+      - formula: mpv
+    # junto's binaries aren't Apple-notarized, so Homebrew's default
+    # quarantine of the downloaded artifact makes Gatekeeper block the
+    # first launch ("Apple could not verify 'junto' is free of malware").
+    # Strip the flag on install, mirroring what scripts/install.sh does for
+    # the curl path. (goreleaser's documented remedy for unnotarized casks.)
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h", "#{staged_path}/junto"], print_stderr: false).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/junto"]
+          end
+    caveats: |
+      Host a watch party:   junto create movie.mkv
+      Join one:             junto join <roomcode>

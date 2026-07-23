@@ -1641,6 +1641,144 @@ class RemoteStreamingGatewayTest {
         assertEquals(listOf("/api/song/enhance/player/url/v1"), netease.paths)
     }
 
+    @Test
+    fun bareRoute404FallsBackToLocalNeteasePlayback() = runTest {
+        assertUntypedRouteFailureFallsBackToLocalNetease(
+            statusCode = 404,
+            responseBody = JSONObject().put("message", "接口未找到").toString()
+        )
+    }
+
+    @Test
+    fun bareRoute405FallsBackToLocalNeteasePlayback() = runTest {
+        assertUntypedRouteFailureFallsBackToLocalNetease(
+            statusCode = 405,
+            responseBody = "Method Not Allowed"
+        )
+    }
+
+    private suspend fun assertUntypedRouteFailureFallsBackToLocalNetease(
+        statusCode: Int,
+        responseBody: String
+    ) {
+        val server = GatewayTestServer(
+            statusOverrides = mapOf("/resolvePlayback" to statusCode),
+            responseOverrides = mapOf("/resolvePlayback" to responseBody)
+        )
+        server.start()
+        try {
+            val authStore = FakeLocalAuthStore(
+                cookies = mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+            )
+            var localAttempts = 0
+            val netease = FakeNeteaseHttpClient(
+                responses = emptyMap(),
+                dynamicResponse = { path, _ ->
+                    if (path != "/api/song/enhance/player/url/v1") return@FakeNeteaseHttpClient null
+                    localAttempts += 1
+                    if (localAttempts == 1) {
+                        throw StreamingGatewayException(
+                            "Direct NetEase request temporarily failed",
+                            code = StreamingErrorCode.SOURCE_UNAVAILABLE
+                        )
+                    }
+                    neteasePlaybackResponse(11L)
+                }
+            )
+            val gateway = RemoteStreamingGateway(
+                endpointBaseUrl = server.baseUrl,
+                maxRetries = 0,
+                localAuthStore = authStore,
+                localNeteaseClient = LocalNeteaseStreamingClient(authStore, netease)
+            )
+
+            val source = gateway.resolvePlayback(
+                StreamingPlaybackRequest(
+                    provider = StreamingProviderName.NETEASE,
+                    providerTrackId = "11",
+                    quality = StreamingAudioQuality.LOSSLESS
+                )
+            )
+
+            assertEquals("https://m701.music.126.net/audio.flac", source.url)
+            assertEquals(2, localAttempts)
+            assertEquals(listOf("/resolvePlayback"), server.requests.map { it.path })
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun typedSource404DoesNotMasqueradeAsMissingGatewayRoute() = runTest {
+        val server = GatewayTestServer(
+            statusOverrides = mapOf("/resolvePlayback" to 404),
+            responseOverrides = mapOf(
+                "/resolvePlayback" to JSONObject()
+                    .put(
+                        "error",
+                        JSONObject()
+                            .put("code", "SOURCE_UNAVAILABLE")
+                            .put("message", "track missing")
+                    )
+                    .toString()
+            )
+        )
+        server.start()
+        try {
+            val authStore = FakeLocalAuthStore(
+                cookies = mapOf(StreamingProviderName.NETEASE to "MUSIC_U=local-token")
+            )
+            var localAttempts = 0
+            val netease = FakeNeteaseHttpClient(
+                responses = emptyMap(),
+                dynamicResponse = { path, _ ->
+                    if (path == "/api/song/enhance/player/url/v1") {
+                        localAttempts += 1
+                    }
+                    throw StreamingGatewayException(
+                        "Direct NetEase source unavailable",
+                        code = StreamingErrorCode.SOURCE_UNAVAILABLE
+                    )
+                }
+            )
+            val gateway = RemoteStreamingGateway(
+                endpointBaseUrl = server.baseUrl,
+                maxRetries = 0,
+                localAuthStore = authStore,
+                localNeteaseClient = LocalNeteaseStreamingClient(authStore, netease)
+            )
+
+            val error = captureGatewayError {
+                gateway.resolvePlayback(
+                    StreamingPlaybackRequest(
+                        provider = StreamingProviderName.NETEASE,
+                        providerTrackId = "11",
+                        quality = StreamingAudioQuality.LOSSLESS
+                    )
+                )
+            }
+
+            assertEquals(StreamingErrorCode.SOURCE_UNAVAILABLE, error.code)
+            assertTrue(error.message.orEmpty().contains("track missing"))
+            assertEquals(1, localAttempts)
+        } finally {
+            server.stop()
+        }
+    }
+
+    private fun neteasePlaybackResponse(id: Long): JSONObject = JSONObject()
+        .put(
+            "data",
+            JSONArray().put(
+                JSONObject()
+                    .put("id", id)
+                    .put("url", "https://m701.music.126.net/audio.flac")
+                    .put("type", "flac")
+                    .put("br", 999000)
+                    .put("expi", 1200L)
+            )
+        )
+
     private fun assertProxiedArtworkUrl(baseUrl: String, originalUrl: String, actualUrl: String?) {
         val value = actualUrl.orEmpty()
         assertTrue(value.startsWith("$baseUrl/artwork?"))
@@ -1729,6 +1867,7 @@ class RemoteStreamingGatewayTest {
         }
 
         private fun responseFor(request: RecordedRequest, statusCode: Int = 200): String {
+            responseOverrides[request.path]?.let { return it }
             if (statusCode !in 200..299) {
                 return JSONObject()
                     .put(
@@ -1739,7 +1878,6 @@ class RemoteStreamingGatewayTest {
                     )
                     .toString()
             }
-            responseOverrides[request.path]?.let { return it }
             return when (request.path) {
                 "/providers" -> JSONObject()
                     .put(

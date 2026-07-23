@@ -30,6 +30,7 @@ enum class SettingsPreferenceKey {
     PageBackgrounds,
     BitPerfectEnabled,
     UsbExclusiveEnabled,
+    UsbClockMismatchCompatibilityEnabled,
     CheckUpdateEnabled
 }
 

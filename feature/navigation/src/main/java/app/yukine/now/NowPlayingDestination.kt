@@ -44,7 +44,9 @@ fun NowPlayingDestination(
     onSwitchLocalSource: (Track, Track) -> Unit = { _, _ -> },
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    togetherLabel: String = "",
+    onOpenTogether: () -> Unit = {}
 ) {
     val uiState by state.collectAsState()
     val track = uiState.track.currentTrack
@@ -103,6 +105,8 @@ fun NowPlayingDestination(
             resumeLyricsFollowLabel = uiState.labels.resumeLyricsFollow,
             onShare = Runnable { onEvent(NowPlayingEvent.ShareCurrentTrack) },
             onDownload = Runnable { onEvent(NowPlayingEvent.DownloadCurrentTrack) },
+            togetherLabel = togetherLabel,
+            onTogether = Runnable(onOpenTogether),
             onImportLyrics = Runnable { onEvent(NowPlayingEvent.ImportCurrentLyrics) },
             onClearLyrics = Runnable { onEvent(NowPlayingEvent.ClearCurrentLyrics) },
             onPrimaryVisibleChange = {

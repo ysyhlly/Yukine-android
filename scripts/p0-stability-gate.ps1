@@ -101,10 +101,10 @@ try {
     } -Native
     Add-StepResult "StreamingViewModelTest" "Pass" ":app:testDebugUnitTest --tests StreamingViewModelTest"
 
-    Invoke-Checked "EchoDatabaseHelperTest" {
-        & $Gradle :app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest --console=plain
+    Invoke-Checked "YukineDatabaseMigrationTest" {
+        & $Gradle :feature:data:testDebugUnitTest --tests app.yukine.data.YukineDatabaseMigrationTest --console=plain
     } -Native
-    Add-StepResult "EchoDatabaseHelperTest" "Pass" ":app:testDebugUnitTest --tests app.yukine.data.EchoDatabaseHelperTest"
+    Add-StepResult "YukineDatabaseMigrationTest" "Pass" ":feature:data:testDebugUnitTest --tests app.yukine.data.YukineDatabaseMigrationTest"
 
     Invoke-Checked "feature playback unit tests" {
         & $Gradle :feature:playback:testDebugUnitTest --console=plain

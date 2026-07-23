@@ -18,6 +18,7 @@ class SettingsPlaybackServiceControlsAdapterTest {
         controls.setPlaybackRestoreEnabled(true)
         controls.setReplayGainEnabled(false)
         controls.setAudioExclusiveEnabled(true)
+        controls.setUsbClockMismatchCompatibilityEnabled(true)
 
         assertEquals(
             listOf(
@@ -28,7 +29,8 @@ class SettingsPlaybackServiceControlsAdapterTest {
                 "systemMediaTitle:true",
                 "restore:true",
                 "replayGain:false",
-                "exclusive:true"
+                "exclusive:true",
+                "usbClockMismatchCompatibility:true"
             ),
             service.calls
         )
@@ -75,6 +77,10 @@ class SettingsPlaybackServiceControlsAdapterTest {
 
         override fun setUsbExclusiveEnabled(enabled: Boolean) {
             calls += "usbExclusive:$enabled"
+        }
+
+        override fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+            calls += "usbClockMismatchCompatibility:$enabled"
         }
     }
 }

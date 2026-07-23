@@ -37,6 +37,7 @@ internal data class UsbAudioStreamConfig(
     val clockSelectorControl: Int = 0,
     val sampleFrequencyControl: Int = -1,
     val synchronizationType: Int = 0,
+    val allowUac2PcmRateMismatch: Boolean = false,
     val transactionsPerServiceInterval: Int = ((maxPacketSize shr 11) and 0x3) + 1
 ) {
     /** Bytes per audio frame (one sample across all channels). */

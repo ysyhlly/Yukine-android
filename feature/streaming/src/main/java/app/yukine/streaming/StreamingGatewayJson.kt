@@ -6,7 +6,8 @@ import org.json.JSONObject
 internal object StreamingGatewayJson {
     data class GatewayError(
         val code: StreamingErrorCode,
-        val message: String?
+        val message: String?,
+        val hasRecognizedCode: Boolean
     )
 
     fun searchRequest(request: StreamingSearchRequest): JSONObject {
@@ -141,17 +142,20 @@ internal object StreamingGatewayJson {
 
     fun gatewayError(json: String): GatewayError {
         if (json.isBlank()) {
-            return GatewayError(StreamingErrorCode.UNKNOWN, null)
+            return GatewayError(StreamingErrorCode.UNKNOWN, null, hasRecognizedCode = false)
         }
         return try {
             val value = JSONObject(json)
             val error = value.optJSONObject("error") ?: value
+            val rawCode = error.optString("code")
+            val code = StreamingErrorCode.fromWireName(rawCode)
             GatewayError(
-                code = StreamingErrorCode.fromWireName(error.optString("code")),
-                message = error.optionalString("message") ?: error.optionalString("statusMessage")
+                code = code,
+                message = error.optionalString("message") ?: error.optionalString("statusMessage"),
+                hasRecognizedCode = rawCode.isNotBlank() && code != StreamingErrorCode.UNKNOWN
             )
         } catch (_: Exception) {
-            GatewayError(StreamingErrorCode.UNKNOWN, json)
+            GatewayError(StreamingErrorCode.UNKNOWN, json, hasRecognizedCode = false)
         }
     }
 

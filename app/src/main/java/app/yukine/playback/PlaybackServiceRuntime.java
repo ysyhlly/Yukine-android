@@ -17,6 +17,7 @@ import app.yukine.PlaybackServiceHostPort;
 import app.yukine.StreamingRepositorySource;
 import app.yukine.playback.manager.PlaybackAudioEffectManager;
 import app.yukine.playback.manager.PlaybackAudioOutputCoordinator;
+import app.yukine.playback.manager.PlaybackAudioSinkModeGuard;
 import app.yukine.playback.manager.NativeAudioFocusController;
 import app.yukine.playback.manager.AudioDeviceCapabilityProbe;
 import app.yukine.playback.manager.PlaybackCrossfadeAdvanceManager;
@@ -49,10 +50,14 @@ import app.yukine.playback.state.PlaybackStateListener;
 import app.yukine.playback.service.PlaybackServiceActions;
 import app.yukine.model.Track;
 import app.yukine.streaming.StreamingPlaybackHeaderStore;
+import app.yukine.together.TogetherPlaybackEvent;
+import app.yukine.together.TogetherSessionHostPort;
+import app.yukine.together.TogetherSessionOwner;
 import androidx.annotation.OptIn;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -78,6 +83,9 @@ final class PlaybackServiceRuntime
     private final PlaybackStreamingDiagnostics streamingDiagnostics = PlaybackStreamingDiagnostics.process();
 
     private ExoPlayer player;
+    private boolean togetherRoomActive;
+    private boolean togetherPreviousShuffle;
+    private int togetherPreviousRepeatMode = PlaybackRepeatMode.REPEAT_OFF;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
             PlaybackPlayerStateOwner.fromPlayerProvider(() -> player);
     private PlaybackQueueManager playbackQueueManager;
@@ -211,14 +219,23 @@ final class PlaybackServiceRuntime
     private PlaybackWifiLockManager playbackWifiLockManager;
     private NativeAudioFocusController audioFocusController;
     private final NativeAudioFocusController.Callback focusCallback = new NativeAudioFocusController.Callback() {
-        @Override public void onFocusGained() { /* no-op, playback already normal */ }
+        @Override public void onFocusGained() {
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) owner.onSystemInterruption(false);
+        }
         @Override public void onFocusLostPermanently() {
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) owner.onSystemInterruption(true);
             if (player != null) player.pause();
         }
         @Override public void onFocusLostTransiently() {
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) owner.onSystemInterruption(true);
             if (player != null) player.pause();
         }
         @Override public void onPlayRequested() {
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) owner.onSystemInterruption(false);
             if (player != null) player.play();
         }
     };
@@ -244,11 +261,13 @@ final class PlaybackServiceRuntime
     private volatile boolean destroyed;
     private volatile boolean bitPerfectEnabled;
     private volatile boolean usbExclusiveEnabled;
+    private volatile boolean usbClockMismatchCompatibilityEnabled;
     private volatile AudioOutputMode currentAudioOutputMode = AudioOutputMode.STANDARD;
     private final PlaybackAudioOutputCoordinator audioOutputCoordinator =
             new PlaybackAudioOutputCoordinator();
     private long outputReevaluationGeneration;
     private long usbSinkGeneration;
+    private Long lastUsbRetryTrackId;
     private boolean usbFallbackInProgress;
     private String bitPerfectFallbackReasonOverride;
     private String usbFallbackReasonOverride;
@@ -298,6 +317,15 @@ final class PlaybackServiceRuntime
                 publishBufferingState();
             }
             playbackProgressUpdateCommandOwner.startProgressUpdates();
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) {
+                boolean buffering = playbackState == Player.STATE_BUFFERING
+                        && player.getPlayWhenReady();
+                owner.onLocalPlayback(new TogetherPlaybackEvent.BufferingChanged(buffering));
+                if (playbackState == Player.STATE_READY) {
+                    owner.onLocalPlayback(TogetherPlaybackEvent.PlaybackRestarted.INSTANCE);
+                }
+            }
         }
 
         @Override
@@ -306,13 +334,22 @@ final class PlaybackServiceRuntime
                 return;
             }
             int nextIndex = player.getCurrentMediaItemIndex();
+            TogetherSessionOwner together = togetherOwner();
+            if (together != null) {
+                together.onLocalPlayback(new TogetherPlaybackEvent.QueueIndexChanged(nextIndex));
+            }
             if (!playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
                 playbackPlayerStateOwner.resetPositionEstimate();
+                maybeRetryUsbForMediaItemTransition(playbackQueueStateOwner.currentTrack(), reason);
                 return;
             }
             PlaybackQueueManager.MirroredTransitionResult transition =
                     playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
+                // A rebuilt single-item queue reports PLAYLIST_CHANGED at the same index. It is
+                // still a real media transition for a latched USB retry even though queue state
+                // itself has nothing to advance.
+                maybeRetryUsbForMediaItemTransition(playbackQueueStateOwner.currentTrack(), reason);
                 return;
             }
             playbackPlayerStateOwner.beginMediaItemPositionTransition(nextIndex, 0L);
@@ -324,6 +361,7 @@ final class PlaybackServiceRuntime
             playbackQueueMirroredTransitionOwner.prepareMirroredTransitionPlaybackState();
             if (track != null) {
                 resetWaveformIfTrackChanged(track);
+                maybeRetryUsbForMediaItemTransition(track, reason);
             }
             publishState();
             playbackProgressUpdateCommandOwner.startProgressUpdates();
@@ -384,12 +422,45 @@ final class PlaybackServiceRuntime
         public void onPlayWhenReadyChanged(boolean playWhenReady,
                 @Player.PlayWhenReadyChangeReason int reason) {
             if (audioFocusController == null) return;
+            TogetherSessionOwner together = togetherOwner();
             if (playWhenReady) {
+                if (together != null) {
+                    together.onSystemInterruption(false);
+                    together.onLocalPlayback(new TogetherPlaybackEvent.PauseChanged(false));
+                }
                 audioFocusController.acquire();
             } else if (reason != Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS) {
+                if (together != null) {
+                    together.onLocalPlayback(new TogetherPlaybackEvent.PauseChanged(true));
+                }
                 // User-initiated pause or other reason — release focus.
                 // Focus-loss-triggered pause is handled by the controller itself.
                 audioFocusController.release();
+            }
+        }
+
+        @Override
+        public void onPositionDiscontinuity(
+                Player.PositionInfo oldPosition,
+                Player.PositionInfo newPosition,
+                @Player.DiscontinuityReason int reason
+        ) {
+            if (reason != Player.DISCONTINUITY_REASON_SEEK) {
+                return;
+            }
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) {
+                owner.onLocalPlayback(new TogetherPlaybackEvent.Seeked(newPosition.positionMs));
+            }
+        }
+
+        @Override
+        public void onPlaybackParametersChanged(PlaybackParameters playbackParameters) {
+            TogetherSessionOwner owner = togetherOwner();
+            if (owner != null) {
+                owner.onLocalPlayback(
+                        new TogetherPlaybackEvent.SpeedChanged(playbackParameters.speed)
+                );
             }
         }
     };
@@ -431,15 +502,10 @@ final class PlaybackServiceRuntime
             handleAudioDeviceCapabilitiesChanged();
             return null;
         });
-        currentAudioOutputMode = audioOutputCoordinator.updateRequests(
+        AudioOutputMode requestedMode = audioOutputCoordinator.updateRequests(
                 bitPerfectEnabled, usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile());
-        audioOutputCoordinator.onTargetMode(
-                currentAudioOutputMode,
-                outputNativeSampleRateHz(),
-                usbExclusiveDeviceName()
-        );
-        playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, currentAudioOutputMode, null);
+        configurePlayerFactory(requestedMode);
         audioEffectManager.setBitPerfectGuard(new BitPerfectGuard(() -> currentAudioOutputMode));
         audioDeviceCapabilityProbe.setOnDeviceChanged(() -> {
             handleAudioDeviceCapabilitiesChanged();
@@ -490,7 +556,11 @@ final class PlaybackServiceRuntime
                 failedTrackId -> {
                     Track currentTrack = playbackQueueStateOwner.currentTrack();
                     if (currentTrack != null && currentTrack.id == failedTrackId) {
-                        prepareCurrent(true);
+                        playbackCurrentTrackPreparationRuntimeOwner.setPreparing(false);
+                        playbackCurrentTrackPreparationRuntimeOwner.setErrorMessage(
+                                "Unable to resolve streaming playback URL."
+                        );
+                        publishState();
                     }
                 }
         );
@@ -681,7 +751,12 @@ final class PlaybackServiceRuntime
                 playbackCurrentTrackPreparationRuntimeOwner,
                 PlaybackServiceRuntime.this::publishState,
                 track -> DiagnosticLog.w(TAG, "Refusing to prepare empty uri for "
-                        + playbackErrorRecoveryCommandOwner.debugTrack(track))
+                        + playbackErrorRecoveryCommandOwner.debugTrack(track)),
+                track -> playbackStreamingUrlRecovery != null
+                        && playbackStreamingUrlRecovery.refresh(
+                                track,
+                                playbackPlayerStateOwner.positionMs()
+                        )
         );
         playbackMediaLibraryCallback = new PlaybackMediaLibraryCallback(
                 PlaybackMediaLibraryDataSource.fromRepository(
@@ -1065,10 +1140,16 @@ final class PlaybackServiceRuntime
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     public void appendToQueue(List<Track> tracks) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.appendToQueue(tracks);
     }
 
@@ -1128,6 +1209,10 @@ final class PlaybackServiceRuntime
     }
 
     private void pauseForSystemInterruption() {
+        TogetherSessionOwner owner = togetherOwner();
+        if (owner != null) {
+            owner.onSystemInterruption(true);
+        }
         pause(false);
     }
 
@@ -1165,7 +1250,7 @@ final class PlaybackServiceRuntime
     }
 
     public void skipToNext() {
-        if (playbackCrossfadeCommandOwner.startFadeOutThenNext()) {
+        if (!togetherRoomActive && playbackCrossfadeCommandOwner.startFadeOutThenNext()) {
             return;
         }
         playbackQueueNavigationOwner.skipToNextImmediately();
@@ -1209,6 +1294,9 @@ final class PlaybackServiceRuntime
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.moveQueueTrack(fromIndex, toIndex);
     }
 
@@ -1230,6 +1318,9 @@ final class PlaybackServiceRuntime
     }
 
     public void removeTracksById(Set<Long> trackIds) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.removeTracksById(trackIds);
     }
 
@@ -1241,10 +1332,16 @@ final class PlaybackServiceRuntime
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.retainTracksById(trackIdsToKeep);
     }
 
     public void clearQueue() {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.clearQueue();
     }
 
@@ -1265,23 +1362,19 @@ final class PlaybackServiceRuntime
         // Rebuild player factory if bit-perfect or USB exclusive was persisted as enabled.
         boolean restoredBitPerfect = playbackRuntimeStateManager.bitPerfectActive();
         boolean restoredUsbExclusive = persistenceOwner.usbExclusiveEnabled();
-        if (restoredBitPerfect != bitPerfectEnabled || restoredUsbExclusive != usbExclusiveEnabled) {
+        boolean restoredUsbClockMismatchCompatibility =
+                persistenceOwner.usbClockMismatchCompatibilityEnabled();
+        if (restoredBitPerfect != bitPerfectEnabled
+                || restoredUsbExclusive != usbExclusiveEnabled
+                || restoredUsbClockMismatchCompatibility
+                        != usbClockMismatchCompatibilityEnabled) {
             bitPerfectEnabled = restoredBitPerfect;
             usbExclusiveEnabled = restoredUsbExclusive;
-            currentAudioOutputMode = audioOutputCoordinator.updateRequests(
+            usbClockMismatchCompatibilityEnabled = restoredUsbClockMismatchCompatibility;
+            AudioOutputMode requestedMode = audioOutputCoordinator.updateRequests(
                     bitPerfectEnabled, usbExclusiveEnabled,
                     audioDeviceCapabilityProbe.getCurrentProfile());
-            audioOutputCoordinator.onTargetMode(
-                    currentAudioOutputMode,
-                    outputNativeSampleRateHz(),
-                    usbExclusiveDeviceName()
-            );
-            if (currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
-                usbExclusiveAudioSink = createUsbExclusiveAudioSink();
-            } else {
-                usbExclusiveAudioSink = null;
-            }
-            playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, currentAudioOutputMode, usbExclusiveAudioSink);
+            configurePlayerFactory(requestedMode);
         }
         PlaybackLyricsSettingsStore lyricsSettingsStore =
                 new PlaybackLyricsSettingsStore(persistenceOwner.lyricsSettings());
@@ -1336,6 +1429,9 @@ final class PlaybackServiceRuntime
     }
 
     public void replaceQueuedTrack(Track replacement) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.replaceQueuedTrack(replacement);
     }
 
@@ -1344,10 +1440,16 @@ final class PlaybackServiceRuntime
     }
 
     public void replaceQueuedTracks(List<Track> replacements) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.replaceQueuedTracks(replacements);
     }
 
     public void replaceQueuedTrackById(long oldTrackId, Track replacement) {
+        if (togetherRoomActive) {
+            return;
+        }
         playbackQueueMutationOwner.replaceQueuedTrackById(oldTrackId, replacement);
     }
 
@@ -1355,6 +1457,50 @@ final class PlaybackServiceRuntime
         return playbackStateSnapshotOwner == null
                 ? PlaybackStateSnapshot.empty()
                 : playbackStateSnapshotOwner.snapshot();
+    }
+
+    @Override
+    public TogetherSessionHostPort togetherSessionHost() {
+        return service.togetherSessionHost();
+    }
+
+    void setTogetherRoomActive(boolean active) {
+        if (togetherRoomActive == active) {
+            return;
+        }
+        if (active) {
+            togetherPreviousShuffle = playbackRuntimeStateManager.shuffleEnabled();
+            togetherPreviousRepeatMode = playbackRuntimeStateManager.repeatMode();
+            togetherRoomActive = true;
+            playbackCrossfadeCommandOwner.cancelCrossfadeAdvance();
+            setShuffleEnabled(false);
+            setRepeatMode(PlaybackRepeatMode.REPEAT_OFF);
+            return;
+        }
+        togetherRoomActive = false;
+        setShuffleEnabled(togetherPreviousShuffle);
+        setRepeatMode(togetherPreviousRepeatMode);
+    }
+
+    void seekToTogetherQueueIndex(int index) {
+        if (player == null || index < 0 || index >= player.getMediaItemCount()) {
+            return;
+        }
+        player.seekTo(index, 0L);
+        playbackPlayerStateOwner.beginMediaItemPositionTransition(index, 0L);
+        publishState();
+    }
+
+    void replaceTogetherQueue(List<Track> tracks) {
+        if (!togetherRoomActive || tracks == null || tracks.isEmpty()) {
+            return;
+        }
+        playbackQueueMutationOwner.playQueue(tracks, 0, C.TIME_UNSET);
+        pause();
+    }
+
+    private TogetherSessionOwner togetherOwner() {
+        return service.togetherSessionOwner();
     }
 
     public float realtimeBeat() {
@@ -1448,17 +1594,8 @@ final class PlaybackServiceRuntime
                 usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile()
         );
-        currentAudioOutputMode = targetMode;
-        audioOutputCoordinator.onTargetMode(targetMode, outputNativeSampleRateHz(), usbExclusiveDeviceName());
-        // Rebuild the player factory with the new mode and recreate the player
-        // to apply the offload/standard AudioSink configuration.
-        if (targetMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
-            usbExclusiveAudioSink = createUsbExclusiveAudioSink();
-        } else if (targetMode != AudioOutputMode.USB_EXCLUSIVE) {
-            usbExclusiveAudioSink = null;
-        }
-        playerFactory = new PlaybackPlayerFactory(service, realtimeBassAudioProcessor, targetMode, usbExclusiveAudioSink);
-        rebuildPlayerPreservingPosition(targetMode);
+        AudioOutputMode effectiveMode = configurePlayerFactory(targetMode);
+        rebuildPlayerPreservingPosition(effectiveMode);
         publishState();
     }
 
@@ -1501,19 +1638,9 @@ final class PlaybackServiceRuntime
         AudioOutputMode targetMode = audioOutputCoordinator.updateRequests(
                 bitPerfectEnabled, usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile());
-        currentAudioOutputMode = targetMode;
-        audioOutputCoordinator.onTargetMode(targetMode, outputNativeSampleRateHz(), usbExclusiveDeviceName());
-        // Create USB audio sink if needed
-        if (targetMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
-            usbExclusiveAudioSink = createUsbExclusiveAudioSink();
-        } else {
-            usbExclusiveAudioSink = null;
-        }
-        // Rebuild the player factory with the new mode and recreate the player.
-        playerFactory = new PlaybackPlayerFactory(
-                service, realtimeBassAudioProcessor, targetMode, usbExclusiveAudioSink);
-        rebuildPlayerPreservingPosition(targetMode);
-        if (targetMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+        AudioOutputMode effectiveMode = configurePlayerFactory(targetMode);
+        rebuildPlayerPreservingPosition(effectiveMode);
+        if (effectiveMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
             usbAudioDeviceManager.closeConnection();
         }
         publishState();
@@ -1521,6 +1648,30 @@ final class PlaybackServiceRuntime
 
     public boolean usbExclusiveEnabled() {
         return usbExclusiveEnabled;
+    }
+
+    public void setUsbClockMismatchCompatibilityEnabled(boolean enabled) {
+        if (usbClockMismatchCompatibilityEnabled == enabled) {
+            return;
+        }
+        usbClockMismatchCompatibilityEnabled = enabled;
+        persistenceOwner.updateUsbClockMismatchCompatibilityEnabled(enabled);
+        if (!usbExclusiveEnabled || audioDeviceCapabilityProbe == null) {
+            publishState();
+            return;
+        }
+        usbFallbackReasonOverride = null;
+        AudioOutputMode targetMode = audioOutputCoordinator.updateRequests(
+                bitPerfectEnabled,
+                usbExclusiveEnabled,
+                audioDeviceCapabilityProbe.getCurrentProfile()
+        );
+        AudioOutputMode effectiveMode = configurePlayerFactory(targetMode);
+        rebuildPlayerPreservingPosition(effectiveMode);
+        if (effectiveMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+            usbAudioDeviceManager.closeConnection();
+        }
+        publishState();
     }
 
     public boolean usbExclusiveActive() {
@@ -1582,10 +1733,18 @@ final class PlaybackServiceRuntime
     private UsbExclusiveAudioSink createUsbExclusiveAudioSink() {
         final long sinkGeneration = ++usbSinkGeneration;
         usbFallbackInProgress = false;
-        return new UsbExclusiveAudioSink(usbAudioDeviceManager, bitPerfectEnabled, snapshot ->
+        return new UsbExclusiveAudioSink(
+                usbAudioDeviceManager,
+                bitPerfectEnabled,
+                usbClockMismatchCompatibilityEnabled,
+                snapshot ->
                 mainHandler.post(() -> {
                     if (destroyed || sinkGeneration != usbSinkGeneration) return;
                     audioOutputCoordinator.onUsbSnapshot(snapshot);
+                    if (snapshot.phase == AudioOutputPhase.ACTIVE) {
+                        usbFallbackReasonOverride = null;
+                        lastUsbRetryTrackId = null;
+                    }
                     if ((snapshot.phase == AudioOutputPhase.FALLBACK
                             || snapshot.phase == AudioOutputPhase.ERROR)
                             && currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE) {
@@ -1595,6 +1754,70 @@ final class PlaybackServiceRuntime
                     }
                 })
         );
+    }
+
+    private AudioOutputMode configurePlayerFactory(AudioOutputMode requestedMode) {
+        if (requestedMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+            usbExclusiveAudioSink = createUsbExclusiveAudioSink();
+        } else {
+            // Invalidate callbacks already posted by the sink being released. A late ACTIVE
+            // snapshot must not clear the failure latch after we have switched to Direct PCM.
+            usbSinkGeneration++;
+            usbExclusiveAudioSink = null;
+        }
+        AudioOutputMode effectiveMode = PlaybackAudioSinkModeGuard.resolve(
+                requestedMode,
+                usbExclusiveAudioSink != null
+        );
+        if (effectiveMode != requestedMode) {
+            usbFallbackReasonOverride = "USB output unavailable, using Direct PCM";
+            DiagnosticLog.w(TAG, usbFallbackReasonOverride);
+            audioOutputCoordinator.onSystemFallback(
+                    effectiveMode,
+                    outputNativeSampleRateHz(),
+                    AudioFallbackReason.NO_USB_DEVICE,
+                    usbFallbackReasonOverride
+            );
+        }
+        currentAudioOutputMode = effectiveMode;
+        audioOutputCoordinator.onTargetMode(
+                effectiveMode,
+                outputNativeSampleRateHz(),
+                usbExclusiveDeviceName()
+        );
+        playerFactory = new PlaybackPlayerFactory(
+                service,
+                realtimeBassAudioProcessor,
+                effectiveMode,
+                usbExclusiveAudioSink
+        );
+        return effectiveMode;
+    }
+
+    private void maybeRetryUsbForMediaItemTransition(Track track, int reason) {
+        boolean realTrackChange = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+                || reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+                || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK;
+        if (!realTrackChange || track == null
+                || currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE
+                || (lastUsbRetryTrackId != null && lastUsbRetryTrackId == track.id)) {
+            return;
+        }
+        boolean unknownDecodedPcm = mediaSourceProvider != null
+                && mediaSourceProvider.isHttpTrack(track)
+                && !mediaSourceProvider.isDsdTrack(track);
+        if (!audioOutputCoordinator.armUsbRetryForMediaItemTransition(
+                track.sampleRateHz,
+                track.bitsPerSample,
+                track.channelCount,
+                unknownDecodedPcm
+        )) {
+            return;
+        }
+        lastUsbRetryTrackId = track.id;
+        // Rebuild once for this logical track. Rebuild-generated playlist callbacks carry the
+        // same id and are ignored, so a deterministic sink failure cannot oscillate modes.
+        scheduleOutputReevaluation(true);
     }
 
     private void scheduleOutputReevaluation(boolean immediate) {
@@ -2069,18 +2292,9 @@ final class PlaybackServiceRuntime
     private void switchOutputMode(AudioOutputMode newMode) {
         if (destroyed || newMode == currentAudioOutputMode) return;
         DiagnosticLog.w(TAG, "Switching audio output mode: " + currentAudioOutputMode + " -> " + newMode);
-        currentAudioOutputMode = newMode;
-        audioOutputCoordinator.onTargetMode(newMode, outputNativeSampleRateHz(), usbExclusiveDeviceName());
-        // Create USB audio sink if switching to USB exclusive mode
-        if (newMode == AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
-            usbExclusiveAudioSink = createUsbExclusiveAudioSink();
-        } else {
-            usbExclusiveAudioSink = null;
-        }
-        playerFactory = new PlaybackPlayerFactory(
-                service, realtimeBassAudioProcessor, newMode, usbExclusiveAudioSink);
-        rebuildPlayerPreservingPosition(newMode);
-        if (newMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
+        AudioOutputMode effectiveMode = configurePlayerFactory(newMode);
+        rebuildPlayerPreservingPosition(effectiveMode);
+        if (effectiveMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
             // The old player's sink must cancel native transfers before its permission-backed
             // connection is closed. Closing the FD first can enqueue a stale transfer failure
             // that tears down the freshly rebuilt Direct PCM player.

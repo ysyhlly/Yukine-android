@@ -1,0 +1,39 @@
+name: junto mobile AAR
+
+on:
+  pull_request:
+    paths:
+      - "third_party/junto-mobile/**"
+      - "tools/build_junto_mobile.ps1"
+      - "feature/together/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: third_party/junto-mobile/go.sum
+      - working-directory: third_party/junto-mobile
+        run: go test ./...
+
+  rebuild:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+          cache-dependency-path: third_party/junto-mobile/go.sum
+      - uses: android-actions/setup-android@v3
+      - shell: pwsh
+        run: ./tools/build_junto_mobile.ps1 -SkipGoTests
+      - shell: pwsh
+        run: |
+          $expected = (Get-Content third_party/junto-mobile/junto-mobile.aar.sha256).Split()[0]
+          $actual = (Get-FileHash feature/together/libs/junto-mobile.aar -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw "AAR checksum mismatch" }
+          git diff --exit-code -- feature/together/libs/junto-mobile.aar feature/together/libs/junto-mobile-sources.jar third_party/junto-mobile/junto-mobile.aar.sha256

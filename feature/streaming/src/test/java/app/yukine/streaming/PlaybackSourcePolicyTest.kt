@@ -1,5 +1,6 @@
 package app.yukine.streaming
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,6 +80,33 @@ class PlaybackSourcePolicyTest {
     }
 
     @Test
+    fun qqMetadataRetriesTransientLuoxueTitleSearchTimeout() = runTest {
+        val qq = RecordingProvider(StreamingProviderName.QQ_MUSIC)
+        val luoxue = RecordingProvider(
+            StreamingProviderName.LUOXUE,
+            searchTrackId = "lx-after-timeout",
+            searchDelaysMs = listOf(200L, 0L)
+        )
+        val repository = StreamingRepository(
+            RegistryStreamingGateway(StreamingProviderRegistry(listOf(qq, luoxue))),
+            playbackSourcePolicy = TestPolicy(setOf(StreamingProviderName.LUOXUE)),
+            titleSearchTimeoutMs = 100L
+        )
+        val metadata = track(StreamingProviderName.QQ_MUSIC, "qq-1")
+
+        val result = repository.resolvePlaybackTrack(
+            metadata.provider,
+            metadata.providerTrackId,
+            metadata = metadata
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, result.source.provider)
+        assertEquals(2, luoxue.searchCount)
+        assertEquals(1, luoxue.resolveCount)
+        assertEquals(0, qq.resolveCount)
+    }
+
+    @Test
     fun luoxueFailureNeverFallsBackToQq() = runTest {
         val qq = RecordingProvider(StreamingProviderName.QQ_MUSIC, searchTrackId = "qq-fallback")
         val luoxue = RecordingProvider(StreamingProviderName.LUOXUE, searchTrackId = "lx-1", failResolve = true)
@@ -104,8 +132,10 @@ class PlaybackSourcePolicyTest {
     private class RecordingProvider(
         private val name: StreamingProviderName,
         private val searchTrackId: String? = null,
-        private val failResolve: Boolean = false
+        private val failResolve: Boolean = false,
+        private val searchDelaysMs: List<Long> = emptyList()
     ) : StreamingProvider {
+        var searchCount = 0
         var resolveCount = 0
         override val descriptor = StreamingProviderDescriptor(
             name,
@@ -121,13 +151,17 @@ class PlaybackSourcePolicyTest {
             )
         )
 
-        override suspend fun search(request: StreamingSearchRequest) = StreamingSearchResult(
-            request.provider,
-            request.query,
-            request.page,
-            request.pageSize,
-            tracks = searchTrackId?.let { listOf(track(name, it)) }.orEmpty()
-        )
+        override suspend fun search(request: StreamingSearchRequest): StreamingSearchResult {
+            val attempt = searchCount++
+            delay(searchDelaysMs.getOrElse(attempt) { 0L })
+            return StreamingSearchResult(
+                request.provider,
+                request.query,
+                request.page,
+                request.pageSize,
+                tracks = searchTrackId?.let { listOf(track(name, it)) }.orEmpty()
+            )
+        }
         override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource {
             resolveCount += 1
             if (failResolve) throw StreamingGatewayException("unavailable", code = StreamingErrorCode.SOURCE_UNAVAILABLE)

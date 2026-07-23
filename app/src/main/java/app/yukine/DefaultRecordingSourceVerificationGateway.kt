@@ -6,6 +6,7 @@ import android.net.Uri
 import app.yukine.data.MusicLibraryRepository
 import app.yukine.data.RecordingSourceVerification
 import app.yukine.data.RecordingSourceVerificationGateway
+import app.yukine.common.InsecureTlsSupport
 import app.yukine.identity.TrackSourceMapping
 import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.streaming.StreamingProviderName
@@ -16,6 +17,7 @@ import java.net.URL
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -93,7 +95,7 @@ class DefaultRecordingSourceVerificationGateway @Inject constructor(
             "WebDAV account unavailable"
         }
         val headers = webDavAuthorizationHeaders(url, remote.username, remote.password)
-        val probe = RecordingHttpProbe.probe(url, headers)
+        val probe = RecordingHttpProbe.probe(url, headers, allowInsecureTls = remote.allowInsecureTls)
         return RecordingSourceVerification(
             success = true,
             codec = probe.codec.ifBlank { codecFromPath(url) },
@@ -184,11 +186,13 @@ internal object RecordingHttpProbe {
     fun probe(
         url: String,
         headers: Map<String, String>,
-        timeoutMs: Int = NETWORK_TIMEOUT_MS
+        timeoutMs: Int = NETWORK_TIMEOUT_MS,
+        allowInsecureTls: Boolean = false
     ): RecordingProbeResult {
         var current = URL(url)
         require(current.protocol == "http" || current.protocol == "https") { "Unsupported URL protocol" }
         var currentHeaders = headers
+        var allowInsecureForCurrentOrigin = allowInsecureTls
         val deadlineNanos = System.nanoTime() + timeoutMs.coerceAtLeast(1) * 1_000_000L
         repeat(MAX_REDIRECTS + 1) { redirectCount ->
             val remainingMs = ((deadlineNanos - System.nanoTime()) / 1_000_000L)
@@ -196,6 +200,9 @@ internal object RecordingHttpProbe {
                 .toInt()
             check(System.nanoTime() < deadlineNanos) { "Verification timed out" }
             val connection = (current.openConnection() as HttpURLConnection).apply {
+                if (allowInsecureForCurrentOrigin && this is HttpsURLConnection) {
+                    InsecureTlsSupport.configure(this)
+                }
                 connectTimeout = remainingMs
                 readTimeout = remainingMs
                 instanceFollowRedirects = false
@@ -216,7 +223,10 @@ internal object RecordingHttpProbe {
                     require(next.protocol == "http" || next.protocol == "https") {
                         "Unsupported redirect protocol"
                     }
-                    if (!current.sameOrigin(next)) currentHeaders = emptyMap()
+                    if (!current.sameOrigin(next)) {
+                        currentHeaders = emptyMap()
+                        allowInsecureForCurrentOrigin = false
+                    }
                     current = next
                     return@repeat
                 }

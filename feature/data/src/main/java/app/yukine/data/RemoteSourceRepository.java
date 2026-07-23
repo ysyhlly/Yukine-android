@@ -71,7 +71,8 @@ public final class RemoteSourceRepository {
         if (savedId.get() > 0L) {
             RemoteSource saved = new RemoteSource(
                     savedId.get(), source.type, source.name, source.baseUrl, source.username,
-                    source.password, source.rootPath, source.lastStatus, System.currentTimeMillis()
+                    source.password, source.rootPath, source.allowInsecureTls, source.lastStatus,
+                    System.currentTimeMillis()
             );
             sourceCache.put(saved.id, saved);
         }
@@ -291,6 +292,7 @@ public final class RemoteSourceRepository {
                 source.username,
                 encrypted == null ? "" : encrypted,
                 source.rootPath,
+                source.allowInsecureTls,
                 source.lastStatus,
                 updatedAt
         );
@@ -306,6 +308,7 @@ public final class RemoteSourceRepository {
                 row.getUsername(),
                 password == null ? "" : password,
                 row.getRootPath(),
+                row.getAllowInsecureTls(),
                 row.getLastStatus(),
                 row.getUpdatedAt()
         );

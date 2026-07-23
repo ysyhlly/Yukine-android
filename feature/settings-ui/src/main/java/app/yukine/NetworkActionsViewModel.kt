@@ -157,12 +157,21 @@ class NetworkActionsViewModel @JvmOverloads constructor(
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
+        rootPath: String,
+        allowInsecureTls: Boolean
     ) {
         val actions = useCases ?: return
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
-                actions.saveWebDavSourceUseCase.execute(sourceId, name, baseUrl, username, password, rootPath)
+                actions.saveWebDavSourceUseCase.execute(
+                    sourceId,
+                    name,
+                    baseUrl,
+                    username,
+                    password,
+                    rootPath,
+                    allowInsecureTls
+                )
             }
             val status = if (result.savedSourceId > 0L) {
                 if (sourceId > 0L) "Updated WebDAV source" else "Added WebDAV source"

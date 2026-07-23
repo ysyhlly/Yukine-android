@@ -58,6 +58,10 @@ class SettingsRuntimeApplierTest {
             override fun setUsbExclusiveEnabled(enabled: Boolean) {
                 calls += "usbExclusive:$enabled"
             }
+
+            override fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+                calls += "usbClockMismatchCompatibility:$enabled"
+            }
         }
         val lyricsControls = object : SettingsLyricsControls {
             override fun setOnlineEnabled(enabled: Boolean) {
@@ -100,6 +104,9 @@ class SettingsRuntimeApplierTest {
         assertTrue(applier.apply(SettingsRuntimeEffect.OpenFloatingLyricsPermissionSettings))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetPlaybackRestoreEnabled(true)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetReplayGainEnabled(false)))
+        assertTrue(
+            applier.apply(SettingsRuntimeEffect.SetUsbClockMismatchCompatibilityEnabled(true))
+        )
         assertTrue(applier.apply(SettingsRuntimeEffect.SetOnlineLyricsEnabled(true)))
         assertTrue(applier.apply(SettingsRuntimeEffect.SetLyricsOffsetMs(320L)))
 
@@ -117,6 +124,7 @@ class SettingsRuntimeApplierTest {
                 "floatingPermission",
                 "restore:true",
                 "replayGain:false",
+                "usbClockMismatchCompatibility:true",
                 "onlineLyrics:true",
                 "lyricsOffset:320"
             ),

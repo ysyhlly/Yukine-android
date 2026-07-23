@@ -11,11 +11,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -32,10 +28,9 @@ import app.yukine.playback.manager.PlaybackQueueStore;
 @Singleton
 final class PlaybackPersistenceOwner {
     private static final String TAG = "PlaybackPersistence";
-    private static final long SHUTDOWN_FLUSH_TIMEOUT_SECONDS = 3L;
 
     private final MusicLibraryRepository repository;
-    private final ExecutorService databaseExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService databaseExecutor;
     private final ArrayList<Runnable> readyCallbacks = new ArrayList<>();
     private final ArrayList<Runnable> pendingCacheMutations = new ArrayList<>();
 
@@ -52,6 +47,7 @@ final class PlaybackPersistenceOwner {
     private volatile boolean replayGainEnabled;
     private volatile boolean bitPerfectEnabled;
     private volatile boolean usbExclusiveEnabled;
+    private volatile boolean usbClockMismatchCompatibilityEnabled;
     private volatile boolean audioExclusiveEnabled = false;
     private volatile float playbackSpeed = 1.0f;
     private volatile float appVolume = 1.0f;
@@ -61,7 +57,15 @@ final class PlaybackPersistenceOwner {
 
     @Inject
     PlaybackPersistenceOwner(MusicLibraryRepository repository) {
+        this(repository, Executors.newSingleThreadExecutor());
+    }
+
+    PlaybackPersistenceOwner(
+            MusicLibraryRepository repository,
+            ExecutorService databaseExecutor
+    ) {
         this.repository = repository;
+        this.databaseExecutor = databaseExecutor;
     }
 
     void initialize(Handler mainHandler, Runnable callback) {
@@ -254,6 +258,15 @@ final class PlaybackPersistenceOwner {
         return usbExclusiveEnabled;
     }
 
+    void updateUsbClockMismatchCompatibilityEnabled(boolean enabled) {
+        updateCache(() -> usbClockMismatchCompatibilityEnabled = enabled);
+        execute(() -> repository.saveUsbClockMismatchCompatibilityEnabled(enabled));
+    }
+
+    boolean usbClockMismatchCompatibilityEnabled() {
+        return usbClockMismatchCompatibilityEnabled;
+    }
+
     boolean audioExclusiveEnabled() {
         return audioExclusiveEnabled;
     }
@@ -315,6 +328,8 @@ final class PlaybackPersistenceOwner {
             boolean loadedReplayGain = repository.loadReplayGainEnabled();
             boolean loadedBitPerfect = repository.loadBitPerfectEnabled();
             boolean loadedUsbExclusive = repository.loadUsbExclusiveEnabled();
+            boolean loadedUsbClockMismatchCompatibility =
+                    repository.loadUsbClockMismatchCompatibilityEnabled();
             boolean loadedAudioExclusive = repository.loadAudioExclusiveEnabled();
             float loadedSpeed = repository.loadPlaybackSpeed();
             float loadedVolume = repository.loadAppVolume();
@@ -338,6 +353,7 @@ final class PlaybackPersistenceOwner {
                 replayGainEnabled = loadedReplayGain;
                 bitPerfectEnabled = loadedBitPerfect;
                 usbExclusiveEnabled = loadedUsbExclusive;
+                usbClockMismatchCompatibilityEnabled = loadedUsbClockMismatchCompatibility;
                 audioExclusiveEnabled = loadedAudioExclusive;
                 playbackSpeed = loadedSpeed;
                 appVolume = loadedVolume;
@@ -384,21 +400,9 @@ final class PlaybackPersistenceOwner {
     }
 
     void flushPendingWrites() {
-        final Future<?> barrier;
-        try {
-            barrier = databaseExecutor.submit(() -> { });
-        } catch (RejectedExecutionException error) {
-            DiagnosticLog.w(TAG, "Unable to schedule playback persistence flush", error);
-            return;
-        }
-        try {
-            barrier.get(SHUTDOWN_FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-            DiagnosticLog.w(TAG, "Interrupted while flushing playback persistence", error);
-        } catch (ExecutionException | TimeoutException error) {
-            DiagnosticLog.w(TAG, "Unable to flush playback persistence before shutdown", error);
-        }
+        // The single-thread executor preserves FIFO ordering, so this barrier stays behind every
+        // snapshot already submitted without blocking Service lifecycle callbacks on the main looper.
+        execute(() -> { });
     }
 
     private static void post(Handler handler, Runnable callback) {

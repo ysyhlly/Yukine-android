@@ -7,7 +7,9 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import app.yukine.common.StreamingDataPathParser
+import app.yukine.common.ApplicationNetworkClient
 import app.yukine.data.MusicLibraryRepository
+import app.yukine.model.RemoteSource
 import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
 import app.yukine.playback.manager.PlaybackQueueManager
@@ -23,6 +25,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.function.LongFunction
+import okhttp3.OkHttpClient
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackMediaSourceProviderTest {
@@ -33,6 +37,33 @@ class PlaybackMediaSourceProviderTest {
 
         assertSame(first.connectionPoolForTest(), second.connectionPoolForTest())
         assertSame(first.connectionPoolForTest(), first.rangeProbeConnectionPoolForTest())
+    }
+
+    @Test
+    fun webDavPlaybackOnlyRelaxesTlsForAnExplicitlyEnabledSource() {
+        val strictProvider = providerWithRemoteSource(remoteSource(allowInsecureTls = false))
+        val compatibleProvider = providerWithRemoteSource(remoteSource(allowInsecureTls = true))
+        val track = Track(
+            9L,
+            "WebDAV",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://192.168.1.4:5006/Music/track.flac"),
+            "webdav:3:https://192.168.1.4:5006/Music/track.flac"
+        )
+        val method = PlaybackMediaSourceProvider::class.java.getDeclaredMethod(
+            "httpClientForTrack",
+            Track::class.java
+        ).apply { isAccessible = true }
+
+        val strictClient = method.invoke(strictProvider, track) as OkHttpClient
+        val compatibleClient = method.invoke(compatibleProvider, track) as OkHttpClient
+
+        assertSame(ApplicationNetworkClient.httpClient, strictClient)
+        assertNotEquals(strictClient, compatibleClient)
+        assertNotEquals(strictClient.hostnameVerifier, compatibleClient.hostnameVerifier)
+        assertSame(strictClient.connectionPool, compatibleClient.connectionPool)
     }
 
     @Test
@@ -499,6 +530,46 @@ class PlaybackMediaSourceProviderTest {
     }
 
     @Test
+    fun providerSeparatesDecodedHttpAudioFromRemoteDsd() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        val ordinaryStreams = listOf(
+            Track(1L, "MP3", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.mp3"), "streaming:1"),
+            Track(2L, "FLAC", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.flac"), "streaming:2"),
+            Track(3L, "AAC", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.aac"), "streaming:3")
+        )
+
+        ordinaryStreams.forEach { track ->
+            assertTrue(provider.isHttpTrack(track))
+            assertFalse(provider.isDsdTrack(track))
+        }
+        assertTrue(provider.isDsdTrack(Track(4L, "DSF", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.DSF?token=1"), "streaming:4")))
+        assertTrue(provider.isDsdTrack(Track(5L, "DFF", "Artist", "Album", 180_000L, Uri.parse("https://audio.example/a.dff"), "streaming:5")))
+    }
+
+    @Test
+    fun remoteDsdStillRequiresCompleteCacheForUsbExclusivePlayback() {
+        val provider = provider(FakeStreamingPlaybackHeaderStore())
+        val remoteDsd = Track(
+            4L,
+            "Remote DSD",
+            "Artist",
+            "Album",
+            180_000L,
+            Uri.parse("https://audio.example/a.dsf"),
+            "streaming:4"
+        )
+
+        assertEquals(
+            AudioFallbackReason.REMOTE_DSD_NOT_CACHED,
+            provider.dsdPlaybackBlockReason(remoteDsd, true, true)
+        )
+        assertEquals(
+            AudioFallbackReason.FORMAT_UNSUPPORTED,
+            provider.dsdPlaybackBlockReason(remoteDsd, false, true)
+        )
+    }
+
+    @Test
     fun resolvedTrackIsPlayable() {
         val track = Track(7L, "Local", "Artist", "Album", 180_000L, Uri.parse("file:///music/local.flac"), "local")
 
@@ -673,6 +744,26 @@ class PlaybackMediaSourceProviderTest {
             headerStore
         )
     }
+
+    private fun providerWithRemoteSource(source: RemoteSource): PlaybackMediaSourceProvider =
+        PlaybackMediaSourceProvider(
+            RuntimeEnvironment.getApplication(),
+            LongFunction { sourceId -> if (sourceId == source.id) source else null },
+            FakeStreamingPlaybackHeaderStore()
+        )
+
+    private fun remoteSource(allowInsecureTls: Boolean): RemoteSource = RemoteSource(
+        3L,
+        RemoteSource.TYPE_WEBDAV,
+        "NAS",
+        "https://192.168.1.4:5006",
+        "",
+        "",
+        "Music",
+        allowInsecureTls,
+        "",
+        0L
+    )
 
     private object FakeStreamingDataPathParser : StreamingDataPathParser {
         override fun isStreamingTrack(dataPath: String): Boolean = dataPath.startsWith("streaming:")

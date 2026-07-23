@@ -23,6 +23,7 @@ internal class MainSettingsStore {
     private var audioExclusiveEnabled: Boolean = true
     private var bitPerfectEnabled: Boolean = false
     private var usbExclusiveEnabled: Boolean = false
+    private var usbClockMismatchCompatibilityEnabled: Boolean = false
     private var debugPromptsEnabled: Boolean = false
     private var checkUpdateEnabled: Boolean = true
     private var customBackgroundBlurEnabled: Boolean = false
@@ -54,6 +55,7 @@ internal class MainSettingsStore {
         audioExclusiveEnabled = preferences.audioExclusiveEnabled
         bitPerfectEnabled = preferences.bitPerfectEnabled
         usbExclusiveEnabled = preferences.usbExclusiveEnabled
+        usbClockMismatchCompatibilityEnabled = preferences.usbClockMismatchCompatibilityEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
         checkUpdateEnabled = preferences.checkUpdateEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
@@ -89,6 +91,7 @@ internal class MainSettingsStore {
         audioExclusiveEnabled = preferences.audioExclusiveEnabled
         bitPerfectEnabled = preferences.bitPerfectEnabled
         usbExclusiveEnabled = preferences.usbExclusiveEnabled
+        usbClockMismatchCompatibilityEnabled = preferences.usbClockMismatchCompatibilityEnabled
         debugPromptsEnabled = preferences.debugPromptsEnabled
         checkUpdateEnabled = preferences.checkUpdateEnabled
         customBackgroundBlurEnabled = preferences.customBackgroundBlurEnabled
@@ -123,6 +126,7 @@ internal class MainSettingsStore {
             audioExclusiveEnabled = audioExclusiveEnabled,
             bitPerfectEnabled = bitPerfectEnabled,
             usbExclusiveEnabled = usbExclusiveEnabled,
+            usbClockMismatchCompatibilityEnabled = usbClockMismatchCompatibilityEnabled,
             debugPromptsEnabled = debugPromptsEnabled,
             checkUpdateEnabled = checkUpdateEnabled,
             customBackgroundBlurEnabled = customBackgroundBlurEnabled,

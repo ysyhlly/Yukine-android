@@ -36,6 +36,13 @@ class ArtworkDiskCachePolicyTest {
         assertTrue(newest.exists())
     }
 
+    @Test
+    fun previewSamplingBoundsLargeArgbImages() {
+        assertEquals(1, artworkSampleSize(2048, 1024, ArtworkLoader.MAX_PREVIEW_TARGET_PX))
+        assertEquals(4, artworkSampleSize(8000, 8000, ArtworkLoader.MAX_PREVIEW_TARGET_PX))
+        assertEquals(8, artworkSampleSize(16384, 4096, ArtworkLoader.MAX_PREVIEW_TARGET_PX))
+    }
+
     private fun artworkFile(directory: File, name: String, bytes: Int, modifiedAt: Long): File {
         return File(directory, name).apply {
             writeBytes(ByteArray(bytes))

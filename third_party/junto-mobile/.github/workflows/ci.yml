@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: shellcheck install scripts
+        if: runner.os == 'Linux'
+        run: shellcheck scripts/*.sh
+      - name: vet
+        run: go vet ./...
+      - name: govulncheck
+        # Fails only when our code actually reaches a vulnerable symbol
+        # (not merely requires a module with a CVE), so it stays low-noise
+        # even though go-nostr is pinned to an archived release. Linux-only
+        # to avoid a redundant run on the macOS matrix leg. Pinned (not
+        # @latest) so a new govulncheck release can't change CI's outcome
+        # without a corresponding change in this repo.
+        if: runner.os == 'Linux'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: test
+        run: go test -race ./...
+
+  goreleaser-check:
+    # Exercises the full goreleaser build matrix (including linux/arm64,
+    # which nothing else in CI cross-compiles for) and catches config
+    # drift — a bad template variable, an invalid build/archive setting —
+    # on every push instead of only when a real release is cut.
+    # --skip=publish means no GITHUB_TOKEN/TAP_GITHUB_TOKEN is needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # goreleaser reads tags and history for the changelog
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          # Kept in sync with release.yml's pinned version.
+          version: "2.16.0"
+          args: release --snapshot --clean --skip=publish

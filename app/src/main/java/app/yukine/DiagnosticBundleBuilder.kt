@@ -23,7 +23,8 @@ import java.util.zip.ZipOutputStream
 internal data class DiagnosticSourceFile(
     val name: String,
     val lastModifiedMs: Long,
-    val content: ByteArray
+    val content: ByteArray,
+    val truncated: Boolean = false
 )
 
 internal class DiagnosticBundleBuilder(
@@ -44,7 +45,7 @@ internal class DiagnosticBundleBuilder(
         }.sortedByDescending { it.lastModifiedMs }
 
         var remaining = MAX_PAYLOAD_BYTES
-        var truncated = false
+        var truncated = crashes.any { it.truncated }
         val selected = mutableListOf<DiagnosticSourceFile>()
         candidates.forEach { source ->
             if (source.content.size.toLong() <= remaining) {
@@ -146,6 +147,8 @@ internal class DiagnosticBundleBuilder(
     private companion object {
         const val MAX_PAYLOAD_BYTES = 7L * 1024L * 1024L
         const val MAX_ZIP_BYTES = 8L * 1024L * 1024L
+        const val MAX_CRASH_SOURCE_BYTES = 1024 * 1024
+        const val MAX_CRASH_FILES = 10
         val README = """
             Yukine diagnostics package
 
@@ -159,14 +162,40 @@ internal class DiagnosticBundleBuilder(
 
         fun readCrashLogs(context: Context): List<DiagnosticSourceFile> {
             val directory = File(context.filesDir, "crash-logs")
-            return directory.listFiles { file -> file.isFile && file.name.startsWith("crash-") }
-                .orEmpty()
-                .sortedBy { it.lastModified() }
-                .mapNotNull { file ->
-                    runCatching {
-                        DiagnosticSourceFile(file.name, file.lastModified(), file.readBytes())
-                    }.getOrNull()
+            val files = directory.listFiles { file ->
+                file.isFile && file.name.startsWith("crash-")
+            }.orEmpty().sortedByDescending { it.lastModified() }
+            val droppedFiles = files.size > MAX_CRASH_FILES
+            return files.take(MAX_CRASH_FILES).mapIndexedNotNull { index, file ->
+                val content = runCatching {
+                    readPrefix(file, MAX_CRASH_SOURCE_BYTES)
+                }.getOrNull() ?: return@mapIndexedNotNull null
+                DiagnosticSourceFile(
+                    name = file.name,
+                    lastModifiedMs = file.lastModified(),
+                    content = content,
+                    truncated = file.length() > content.size || (index == 0 && droppedFiles)
+                )
+            }
+        }
+
+        private fun readPrefix(file: File, maxBytes: Int): ByteArray {
+            val expectedSize = minOf(file.length(), maxBytes.toLong()).toInt()
+            if (expectedSize <= 0) return byteArrayOf()
+            val content = ByteArray(expectedSize)
+            var offset = 0
+            file.inputStream().use { input ->
+                while (offset < content.size) {
+                    val read = input.read(content, offset, content.size - offset)
+                    if (read < 0) break
+                    offset += read
                 }
+            }
+            return if (offset == content.size) {
+                content
+            } else {
+                content.copyOf(offset)
+            }
         }
     }
 }

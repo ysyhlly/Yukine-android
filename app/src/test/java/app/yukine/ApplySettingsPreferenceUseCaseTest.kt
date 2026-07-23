@@ -26,6 +26,12 @@ class ApplySettingsPreferenceUseCaseTest {
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.NowPlayingGesturesEnabled, false))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.PlaybackRestoreEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.ReplayGainEnabled, false))
+        useCase.execute(
+            SettingsPreferenceUpdate(
+                SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled,
+                true
+            )
+        )
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.DebugPromptsEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.CustomBackgroundBlurEnabled, true))
         useCase.execute(SettingsPreferenceUpdate(SettingsPreferenceKey.CustomBackgroundBlurRadiusDp, 32f))
@@ -59,6 +65,7 @@ class ApplySettingsPreferenceUseCaseTest {
                 "gestures:false",
                 "restore:true",
                 "replayGain:false",
+                "usbClockMismatchCompatibility:true",
                 "debugPrompts:true",
                 "customBackgroundBlurEnabled:true",
                 "customBackgroundBlurRadius:32.0",
@@ -151,6 +158,10 @@ class ApplySettingsPreferenceUseCaseTest {
 
         override fun saveUsbExclusiveEnabled(enabled: Boolean) {
             events.add("usbExclusive:$enabled")
+        }
+
+        override fun saveUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+            events.add("usbClockMismatchCompatibility:$enabled")
         }
 
         override fun saveDebugPromptsEnabled(enabled: Boolean) {

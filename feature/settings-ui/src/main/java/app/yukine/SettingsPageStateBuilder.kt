@@ -689,7 +689,9 @@ object SettingsPageStateBuilder {
         onUsbExclusiveEnabledChange: (Boolean) -> Unit = {},
         audioExclusiveStatusDescription: String? = null,
         bitPerfectStatusDescription: String? = null,
-        usbExclusiveStatusDescription: String? = null
+        usbExclusiveStatusDescription: String? = null,
+        usbClockMismatchCompatibilityEnabled: Boolean = false,
+        onUsbClockMismatchCompatibilityEnabledChange: (Boolean) -> Unit = {}
     ): SettingsPageStateContent {
         val metrics = listOf(
             SettingsMetric(text(languageMode, "playback.speed"), playbackSpeedLabel(playbackSpeed)),
@@ -786,6 +788,21 @@ object SettingsPageStateBuilder {
                 checked = usbExclusiveEnabled,
                 section = text(languageMode, "settings.section.behavior"),
                 entryId = SettingsEntryId.UsbExclusive
+            ),
+            SettingsAction(
+                label = text(languageMode, "usb.clock.compatibility"),
+                onClick = Runnable {
+                    onUsbClockMismatchCompatibilityEnabledChange(
+                        !usbClockMismatchCompatibilityEnabled
+                    )
+                },
+                description = text(languageMode, "usb.clock.compatibility.hint"),
+                style = SettingsActionStyle.Toggle,
+                icon = EchoIconKind.Gauge,
+                checked = usbClockMismatchCompatibilityEnabled,
+                enabled = usbExclusiveEnabled,
+                section = text(languageMode, "settings.section.behavior"),
+                entryId = SettingsEntryId.UsbClockMismatchCompatibility
             ),
             navigationAction(
                 text(languageMode, "sleep.timer"),

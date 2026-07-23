@@ -23,6 +23,7 @@ internal interface SettingsPreferenceOperations {
     fun saveAudioExclusiveEnabled(enabled: Boolean)
     fun saveBitPerfectEnabled(enabled: Boolean)
     fun saveUsbExclusiveEnabled(enabled: Boolean)
+    fun saveUsbClockMismatchCompatibilityEnabled(enabled: Boolean)
     fun saveDebugPromptsEnabled(enabled: Boolean)
     fun saveCheckUpdateEnabled(enabled: Boolean)
     fun saveCustomBackgroundBlurEnabled(enabled: Boolean)
@@ -89,6 +90,9 @@ internal class MusicLibrarySettingsPreferenceOperations(
 
     override fun saveUsbExclusiveEnabled(enabled: Boolean) =
         repository.saveUsbExclusiveEnabled(enabled)
+
+    override fun saveUsbClockMismatchCompatibilityEnabled(enabled: Boolean) =
+        repository.saveUsbClockMismatchCompatibilityEnabled(enabled)
 
     override fun saveDebugPromptsEnabled(enabled: Boolean) =
         repository.saveDebugPromptsEnabled(enabled)
@@ -157,6 +161,8 @@ internal class ApplySettingsPreferenceUseCase(
                     operations.saveBitPerfectEnabled(update.value as Boolean)
                 SettingsPreferenceKey.UsbExclusiveEnabled ->
                     operations.saveUsbExclusiveEnabled(update.value as Boolean)
+                SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled ->
+                    operations.saveUsbClockMismatchCompatibilityEnabled(update.value as Boolean)
                 SettingsPreferenceKey.DebugPromptsEnabled ->
                     operations.saveDebugPromptsEnabled(update.value as Boolean)
                 SettingsPreferenceKey.CheckUpdateEnabled ->

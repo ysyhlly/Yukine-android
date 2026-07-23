@@ -221,6 +221,14 @@ class PlaybackSettingsStateOwner internal constructor(private val context: Setti
         context.save(SettingsPreferenceKey.UsbExclusiveEnabled, enabled)
     }
 
+    fun setUsbClockMismatchCompatibilityEnabled(enabled: Boolean) {
+        context.applyRuntime(SettingsRuntimeEffect.SetUsbClockMismatchCompatibilityEnabled(enabled))
+        context.updatePreferences {
+            it.copy(usbClockMismatchCompatibilityEnabled = enabled)
+        }
+        context.save(SettingsPreferenceKey.UsbClockMismatchCompatibilityEnabled, enabled)
+    }
+
     fun startSleepTimer(minutes: Int) {
         context.emit(SettingsEffect.StartSleepTimer(minutes))
     }

@@ -1,0 +1,8 @@
+ECHO embeds junto v1.4.0, copyright its contributors, under the MIT License.
+
+Upstream: https://github.com/swayam-mishra/junto
+Tag: v1.4.0
+Commit: 0141c375a6a37d417c3215dc6caf62715ca55b38
+
+The complete upstream license is included in LICENSE. ECHO's mobile facade and the small
+FileStore completion query are described in PATCHES.md.

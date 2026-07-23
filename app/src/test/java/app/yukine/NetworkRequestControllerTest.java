@@ -44,7 +44,7 @@ public final class NetworkRequestControllerTest {
         controller.addStream("Title", "https://example.test/audio.mp3");
         controller.importM3u("https://example.test/list.m3u8");
         controller.updateStream(track, "Updated", "https://example.test/updated.mp3");
-        controller.saveWebDavSource(3L, "Home", "https://dav.example.test", "u", "p", "Music");
+        controller.saveWebDavSource(3L, "Home", "https://dav.example.test", "u", "p", "Music", true);
 
         assertEquals(
                 Arrays.asList(
@@ -55,7 +55,7 @@ public final class NetworkRequestControllerTest {
                         "status:label:updating.stream",
                         "updateStream:Updated|https://example.test/updated.mp3",
                         "status:label:saving.webdav.source",
-                        "saveWebDav:3|Home|https://dav.example.test|u|p|Music"
+                        "saveWebDav:3|Home|https://dav.example.test|u|p|Music|true"
                 ),
                 events(listener, sink)
         );
@@ -93,7 +93,7 @@ public final class NetworkRequestControllerTest {
         FakeListener listener = new FakeListener();
         NetworkRequestController controller = controller(sink, listener);
 
-        controller.saveWebDavSource(3L, "Home", "https://dav.example.test", "u", "p", "Music");
+        controller.saveWebDavSource(3L, "Home", "https://dav.example.test", "u", "p", "Music", true);
         controller.testRemoteSource(3L);
         controller.syncRemoteSource(3L, "Home");
         controller.syncAllWebDavSources(Arrays.asList(1L, 2L));
@@ -101,7 +101,7 @@ public final class NetworkRequestControllerTest {
         assertEquals(
                 Arrays.asList(
                         "status:label:saving.webdav.source",
-                        "saveWebDav:3|Home|https://dav.example.test|u|p|Music",
+                        "saveWebDav:3|Home|https://dav.example.test|u|p|Music|true",
                         "status:label:test...",
                         "testRemoteSource:3",
                         "status:label:syncingHome",
@@ -192,8 +192,8 @@ public final class NetworkRequestControllerTest {
         }
 
         @Override
-        public void saveWebDavSource(long sourceId, String name, String baseUrl, String username, String password, String rootPath) {
-            events.add("saveWebDav:" + sourceId + "|" + name + "|" + baseUrl + "|" + username + "|" + password + "|" + rootPath);
+        public void saveWebDavSource(long sourceId, String name, String baseUrl, String username, String password, String rootPath, boolean allowInsecureTls) {
+            events.add("saveWebDav:" + sourceId + "|" + name + "|" + baseUrl + "|" + username + "|" + password + "|" + rootPath + "|" + allowInsecureTls);
         }
 
         @Override

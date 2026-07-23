@@ -27,8 +27,17 @@ internal class MusicLibraryNetworkLibraryOperations(
         baseUrl: String,
         username: String,
         password: String,
-        rootPath: String
-    ): Long = repository.saveWebDavSource(sourceId, name, baseUrl, username, password, rootPath)
+        rootPath: String,
+        allowInsecureTls: Boolean
+    ): Long = repository.saveWebDavSource(
+        sourceId,
+        name,
+        baseUrl,
+        username,
+        password,
+        rootPath,
+        allowInsecureTls
+    )
     override fun loadCachedTracks(): List<Track> = repository.loadCachedTracks()
     override fun loadFavoriteIds(): Set<Long> = repository.loadFavoriteIds()
 }

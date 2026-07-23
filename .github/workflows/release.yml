@@ -30,6 +30,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Rust 1.86.0
+        uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Install Android native toolchain
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Install cargo-ndk 4.1.2
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -49,6 +60,30 @@ jobs:
         #   ECHO_RELEASE_STORE_PASSWORD: ${{ secrets.ECHO_RELEASE_STORE_PASSWORD }}
         #   ECHO_RELEASE_KEY_ALIAS:      ${{ secrets.ECHO_RELEASE_KEY_ALIAS }}
         #   ECHO_RELEASE_KEY_PASSWORD:   ${{ secrets.ECHO_RELEASE_KEY_PASSWORD }}
+
+      - name: Verify USB native libraries
+        shell: bash
+        run: |
+          apk="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          mapfile -t actual < <(
+            unzip -Z1 "$apk" |
+              grep -E '^lib/[^/]+/(libusb-1\.0|libecho_usb_iso_rust)\.so$' |
+              sort
+          )
+          expected=(
+            "lib/arm64-v8a/libecho_usb_iso_rust.so"
+            "lib/arm64-v8a/libusb-1.0.so"
+            "lib/x86_64/libecho_usb_iso_rust.so"
+            "lib/x86_64/libusb-1.0.so"
+          )
+          diff \
+            <(printf '%s\n' "${expected[@]}") \
+            <(printf '%s\n' "${actual[@]}")
+          if unzip -Z1 "$apk" | grep -Eq '^lib/(armeabi-v7a|x86)/'; then
+            echo "Unexpected legacy ABI found in $apk" >&2
+            exit 1
+          fi
 
       # 归档解混淆映射文件，用于还原线上崩溃栈。
       # artifact 保留期默认 90 天（GitHub 默认），可按需调整 retention-days。

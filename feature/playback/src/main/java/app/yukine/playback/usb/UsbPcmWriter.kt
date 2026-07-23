@@ -24,7 +24,8 @@ internal class UsbPcmWriter(
     companion object {
         private const val TAG = "UsbPcmWriter"
         private const val QUEUE_CAPACITY = 64
-        private const val STOP_JOIN_TIMEOUT_MS = 1_500L
+        // bulkTransfer itself is bounded to 200 ms; never hold Media3's configure thread for 1.5 s.
+        private const val STOP_JOIN_TIMEOUT_MS = 250L
         private const val PAUSED_POLL_INTERVAL_MS = 10L
     }
 
@@ -161,24 +162,31 @@ internal class UsbPcmWriter(
                 DiagnosticLog.e(TAG, "USB transfer exception: ${e.message}")
                 -1
             }
+            val transfer = transport.metrics()
 
-            if (written != buffer.size) {
-                DiagnosticLog.e(TAG, "USB transfer failed (device disconnected or rejected stream)")
+            if (written != buffer.size || transfer.failedPackets > 0L) {
+                val error = transfer.lastError.ifBlank {
+                    if (transfer.failedPackets > 0L) {
+                        "USB transfer reported ${transfer.failedPackets} failed packets"
+                    } else {
+                        "USB transfer failed"
+                    }
+                }
+                DiagnosticLog.e(TAG, error)
                 running.set(false)
-                publishMetrics()
-                onError(transport.metrics().lastError.ifBlank { "USB transfer failed" })
+                publishMetrics(transfer)
+                onError(error)
                 return
             }
 
             if (bytesPerFrame > 0) {
                 framesWritten.addAndGet((written / bytesPerFrame).toLong())
             }
-            publishMetrics()
+            publishMetrics(transfer)
         }
     }
 
-    private fun publishMetrics() {
-        val transfer = transport.metrics()
+    private fun publishMetrics(transfer: UsbTransferMetrics = transport.metrics()) {
         onMetrics(
             UsbPcmWriterMetrics(
                 queueDepth = bufferQueue.size,

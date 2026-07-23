@@ -424,6 +424,10 @@ public final class LibraryRepository {
     }
 
     public void replaceScanManagedTracks(List<Track> values) {
+        replaceScanManagedTracks(values, true);
+    }
+
+    private void replaceScanManagedTracks(List<Track> values, boolean ingestIdentitySources) {
         throwIfInterrupted();
         List<Track> replacementTracks = values == null ? Collections.emptyList() : values;
         Map<Long, String> contentSignatures = contentSignatures(replacementTracks);
@@ -460,7 +464,9 @@ public final class LibraryRepository {
             );
             musicIdentityStore.pruneMissingTracks();
         });
-        ingestConfirmedIdentitySources(localTrackIds(replacementTracks));
+        if (ingestIdentitySources) {
+            ingestConfirmedIdentitySources(localTrackIds(replacementTracks));
+        }
     }
 
     /**
@@ -470,6 +476,13 @@ public final class LibraryRepository {
      * references are cleaned up for genuinely removed tracks via {@link #applyTrackDelta}.
      */
     public int replaceScanManagedTracksIncremental(List<Track> scannedTracks) {
+        return replaceScanManagedTracksIncremental(scannedTracks, true);
+    }
+
+    int replaceScanManagedTracksIncremental(
+            List<Track> scannedTracks,
+            boolean ingestIdentitySources
+    ) {
         throwIfInterrupted();
         List<Track> replacementTracks = scannedTracks == null ? Collections.emptyList() : scannedTracks;
         List<Track> previous = tracks(libraryDao.loadScanManagedTracks());
@@ -500,7 +513,7 @@ public final class LibraryRepository {
         // Safety fallback: if the diff would remove more than half the library, something is
         // likely wrong (e.g. permission loss). Fall back to the full replacement path.
         if (!previous.isEmpty() && removedIds.size() > previous.size() / 2) {
-            replaceScanManagedTracks(replacementTracks);
+            replaceScanManagedTracks(replacementTracks, ingestIdentitySources);
             return removedIds.size();
         }
 
@@ -510,7 +523,7 @@ public final class LibraryRepository {
             upserts.removeIf(t -> exclusions.contains(librarySourceKey(t)));
         }
 
-        return applyTrackDelta(removedIds, upserts);
+        return applyTrackDelta(removedIds, upserts, ingestIdentitySources);
     }
 
     private static boolean metadataChanged(Track a, Track b) {
@@ -555,6 +568,14 @@ public final class LibraryRepository {
     }
 
     public int applyTrackDelta(List<Long> removedIds, List<Track> upserts) {
+        return applyTrackDelta(removedIds, upserts, true);
+    }
+
+    private int applyTrackDelta(
+            List<Long> removedIds,
+            List<Track> upserts,
+            boolean ingestIdentitySources
+    ) {
         AtomicInteger removed = new AtomicInteger();
         Map<Long, String> contentSignatures = contentSignatures(upserts);
         database.runInTransaction(() -> {
@@ -571,7 +592,9 @@ public final class LibraryRepository {
             }
             musicIdentityStore.pruneMissingTracks();
         });
-        ingestConfirmedIdentitySources(localTrackIds(upserts));
+        if (ingestIdentitySources) {
+            ingestConfirmedIdentitySources(localTrackIds(upserts));
+        }
         return removed.get();
     }
 

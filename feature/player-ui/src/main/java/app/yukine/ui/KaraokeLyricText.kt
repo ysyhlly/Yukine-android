@@ -38,11 +38,23 @@ internal fun KaraokeLyricText(
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip
 ) {
+    if (!line.active) {
+        Text(
+            text = line.text,
+            modifier = modifier,
+            style = style,
+            color = activeColor,
+            textAlign = textAlign,
+            maxLines = maxLines,
+            overflow = overflow
+        )
+        return
+    }
     val words = remember(line.words) { line.words.map(LyricUiWord::asKaraokeWordTiming) }
     val frame = remember(line.text, words, positionMs) {
         karaokeHighlightFrame(line.text, words, positionMs)
     }
-    if (!line.active || frame.ranges.isEmpty()) {
+    if (frame.ranges.isEmpty()) {
         Text(
             text = line.text,
             modifier = modifier,
