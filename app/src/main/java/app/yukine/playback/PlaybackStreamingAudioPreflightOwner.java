@@ -1,6 +1,8 @@
 package app.yukine.playback;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 
 import app.yukine.model.Track;
 import app.yukine.playback.manager.PlaybackMediaSourceProvider;
@@ -14,6 +16,7 @@ import java.util.function.Supplier;
  * Results may warm in the background, but only the still-current track can resume a blocked
  * foreground preparation.
  */
+@OptIn(markerClass = UnstableApi.class)
 final class PlaybackStreamingAudioPreflightOwner {
     private final StreamingAudioFormatPreflight preflight;
     private final Supplier<Track> currentTrackProvider;
