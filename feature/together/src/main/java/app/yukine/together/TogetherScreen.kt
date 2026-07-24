@@ -41,8 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.yukine.ui.LocalEchoPageBottomChromeInset
 
 data class TogetherLabels(
     val title: String,
@@ -99,13 +99,14 @@ fun TogetherDestination(
     labels: TogetherLabels,
     onCopyRoomCode: (String) -> Unit,
     onShareRoomCode: (String) -> Unit,
+    bottomChromeInset: Dp = 244.dp,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val bottomSafePadding = maxOf(
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
-        LocalEchoPageBottomChromeInset.current
+        bottomChromeInset
     )
     var pendingMatchId by remember { mutableStateOf<String?>(null) }
     val addAudioLauncher = rememberLauncherForActivityResult(
