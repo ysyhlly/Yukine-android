@@ -81,6 +81,22 @@ internal class LibraryImportOwner @JvmOverloads constructor(
         )
     }
 
+    fun loadCachedLibrary() {
+        viewModel.loading.loadLibraryJava(
+            true,
+            false,
+            { result ->
+                replaceLibrary(
+                    result.tracks,
+                    result.favorites,
+                    importResultStatus(result.importSummary, result.status),
+                    false
+                )
+            },
+            { statusKey -> statusSink.setStatus(text(statusKey)) }
+        )
+    }
+
     fun cancelLibraryLoad() {
         viewModel.loading.cancelLibraryLoad()
     }
@@ -100,14 +116,15 @@ internal class LibraryImportOwner @JvmOverloads constructor(
         }
     }
 
-    fun importAudioFolder(treeUri: Uri) {
+    @JvmOverloads
+    fun importAudioFolder(treeUri: Uri, onComplete: Runnable = Runnable {}) {
         statusSink.setStatus(text("importing.audio.folder"))
         viewModel.loading.importAudioTreeJava(treeUri) { result ->
             replaceLibrary(
                 result.tracks,
                 result.favorites,
                 importResultStatus(result.importSummary, result.status)
-            )
+            ) { onComplete.run() }
         }
     }
 

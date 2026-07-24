@@ -1,6 +1,7 @@
 package app.yukine
 
 import app.yukine.identity.LibraryDedupMode
+import app.yukine.model.LocalMusicSource
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.ui.EchoTheme
@@ -1019,8 +1020,71 @@ class SettingsPageStateBuilderTest {
         content.actions[3].onClick.run()
         content.actions[4].onClick.run()
 
-        assertEquals(listOf(SettingsPage.LibraryGroup), navigated)
-        assertEquals(listOf("load", "files", "folder", "identity"), calls)
+        assertEquals(listOf(SettingsPage.LibraryGroup, SettingsPage.MusicFolders), navigated)
+        assertEquals(listOf("load", "files", "identity"), calls)
+    }
+
+    @Test
+    fun musicFoldersBuildsStatusActionsAndConfirmation() {
+        val calls = mutableListOf<String>()
+        val sources = listOf(
+            LocalMusicSource(
+                "folder:ready",
+                LocalMusicSource.TYPE_FOLDER,
+                "content://tree/ready",
+                "Ready folder",
+                LocalMusicSource.STATUS_READY,
+                3,
+                1L,
+                2L,
+                2L
+            ),
+            LocalMusicSource(
+                "folder:lost",
+                LocalMusicSource.TYPE_FOLDER,
+                "content://tree/lost",
+                "Lost folder",
+                LocalMusicSource.STATUS_ACCESS_LOST,
+                2,
+                1L,
+                2L,
+                3L
+            )
+        )
+
+        val content = SettingsPageStateBuilder.musicFolders(
+            languageMode = AppLanguage.MODE_ENGLISH,
+            sources = sources,
+            onNavigate = { calls += "navigate:${it.route}" },
+            onAddFolder = { calls += "add" },
+            onRefreshAll = { calls += "refresh-all" },
+            onRefresh = { calls += "refresh:$it" },
+            onRemove = { calls += "remove:$it" },
+            onReauthorize = { calls += "reauthorize:$it" }
+        )
+
+        assertEquals("2", content.uiState.metrics.single().value)
+        val readyRefresh = content.actions.first {
+            it.section == "Ready folder" && it.entryId == SettingsEntryId.RefreshMusicFolders
+        }
+        val lostRefresh = content.actions.first {
+            it.section == "Lost folder" && it.entryId == SettingsEntryId.RefreshMusicFolders
+        }
+        val remove = content.actions.first {
+            it.section == "Ready folder" && it.entryId == SettingsEntryId.RemoveMusicFolder
+        }
+        assertEquals("Ready", readyRefresh.value)
+        assertEquals("Access expired", lostRefresh.value)
+        assertTrue(remove.confirmationDialog != null)
+
+        readyRefresh.onClick.run()
+        lostRefresh.onClick.run()
+        remove.onClick.run()
+
+        assertEquals(
+            listOf("refresh:folder:ready", "reauthorize:folder:lost", "remove:folder:ready"),
+            calls
+        )
     }
 
     @Test

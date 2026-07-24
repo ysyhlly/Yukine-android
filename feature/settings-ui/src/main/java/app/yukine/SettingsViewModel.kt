@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.yukine.playback.AudioEffectSettings
 import app.yukine.playback.AudioOutputSnapshot
+import app.yukine.model.LocalMusicSource
 import app.yukine.identity.LibraryDedupMode
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.EchoTheme
@@ -108,7 +109,8 @@ data class RuntimeSettingsStatus(
     val kugouSyncLastResult: String = "",
     val kugouSyncDegradationReason: String = "",
     val identityBackfill: IdentityBackfillStatusUi = IdentityBackfillStatusUi(),
-    val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList()
+    val hiddenLibraryItems: List<HiddenLibraryItemUi> = emptyList(),
+    val localMusicSources: List<LocalMusicSource> = emptyList()
 )
 
 enum class IdentityBackfillStateUi {

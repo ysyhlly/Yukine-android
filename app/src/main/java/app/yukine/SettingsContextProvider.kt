@@ -12,7 +12,8 @@ internal class SettingsContextProvider(
     private val lyricsViewModel: LyricsViewModel?,
     private val streamingGatewaySettingsStore: StreamingGatewaySettingsStore,
     private val luoxueSourceStore: app.yukine.streaming.LuoxueSourceStoreManager,
-    private val repository: app.yukine.data.MusicLibraryRepository
+    private val repository: app.yukine.data.MusicLibraryRepository,
+    private val localMusicFolderSourceOwner: LocalMusicFolderSourceOwner
 ) : SettingsContextLoader {
     private val identityBackfillStore = IdentityBackfillCheckpointStore(context)
     private val floatingLyricsSettingsStore = FloatingLyricsOverlaySettingsStore(context)
@@ -106,7 +107,8 @@ internal class SettingsContextProvider(
             ),
             hiddenLibraryItems = repository.loadLibraryExclusions().map { exclusion ->
                 HiddenLibraryItemUi(exclusion.sourceKey, exclusion.displayName())
-            }
+            },
+            localMusicSources = localMusicFolderSourceOwner.sourcesSnapshot()
         )
     }
 }

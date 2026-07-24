@@ -387,6 +387,13 @@ class LibrarySettingsStateOwner internal constructor(private val context: Settin
     fun loadLibrary() = context.emit(SettingsEffect.LoadLibrary)
     fun openAudioFilePicker() = context.emit(SettingsEffect.OpenAudioFilePicker)
     fun openAudioFolderPicker() = context.emit(SettingsEffect.OpenAudioFolderPicker)
+    fun refreshAllMusicFolders() = context.emit(SettingsEffect.RefreshAllMusicFolders)
+    fun refreshMusicFolder(sourceId: String) =
+        context.emit(SettingsEffect.RefreshMusicFolder(sourceId))
+    fun removeMusicFolder(sourceId: String) =
+        context.emit(SettingsEffect.RemoveMusicFolder(sourceId))
+    fun reauthorizeMusicFolder(sourceId: String) =
+        context.emit(SettingsEffect.ReauthorizeMusicFolder(sourceId))
     fun rebuildSongIdentity() = context.emit(SettingsEffect.RebuildSongIdentity)
     fun cancelIdentityBackfill() = context.emit(SettingsEffect.CancelIdentityBackfill)
     fun setDedupMode(mode: LibraryDedupMode) = context.emit(SettingsEffect.SetLibraryDedupMode(mode))

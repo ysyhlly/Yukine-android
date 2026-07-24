@@ -75,6 +75,9 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsertTracks(tracks: List<TrackEntity>)
 
+    @Upsert
+    fun upsertTracksPreservingReferences(tracks: List<TrackEntity>)
+
     @Query(
         "UPDATE tracks SET album_art_uri = :coverUrl, updated_at = :updatedAt " +
             "WHERE id = :trackId AND TRIM(album_art_uri) = ''"

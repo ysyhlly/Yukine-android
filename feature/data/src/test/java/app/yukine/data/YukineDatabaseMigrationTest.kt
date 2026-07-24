@@ -433,6 +433,45 @@ class YukineDatabaseMigrationTest {
     }
 
     @Test
+    fun versionThirtyFiveMigratesMusicSourcesWithIndexesAndCascadingMappings() {
+        val name = databaseName("v35-sources")
+        createExportedSchemaFixture(name, 35)
+
+        val database = YukineDatabase.open(context, name)
+        val sqlite = database.openHelper.writableDatabase
+
+        assertEquals(36, sqlite.version)
+        assertTrue(columnExists(sqlite, "local_music_sources", "root_uri"))
+        assertTrue(columnExists(sqlite, "local_music_source_tracks", "document_uri"))
+        assertTrue(indexExists(sqlite, "idx_local_music_sources_type"))
+        assertTrue(indexExists(sqlite, "idx_local_music_sources_type_root_uri"))
+        assertTrue(indexExists(sqlite, "idx_local_music_source_tracks_track"))
+        sqlite.execSQL(
+            "INSERT INTO tracks(id,title,artist,album,duration_ms,content_uri,data_path," +
+                "album_id,album_art_uri,updated_at) VALUES" +
+                "(35001,'Folder Track','Artist','Album',120000," +
+                "'content://document/35001','document:content://document/35001',35001,'',1)"
+        )
+        sqlite.execSQL(
+            "INSERT INTO local_music_sources(source_id,type,root_uri,display_name,status," +
+                "added_at,last_scan_at,updated_at) VALUES" +
+                "('folder:test','FOLDER','content://tree/test','Test','READY',1,1,1)"
+        )
+        sqlite.execSQL(
+            "INSERT INTO local_music_source_tracks(source_id,track_id,document_uri,last_seen_at) " +
+                "VALUES('folder:test',35001,'content://document/35001',1)"
+        )
+        sqlite.execSQL("DELETE FROM local_music_sources WHERE source_id = 'folder:test'")
+
+        assertEquals(
+            0L,
+            longValue(sqlite, "SELECT COUNT(*) FROM local_music_source_tracks")
+        )
+        assertEquals(0L, rowCount(sqlite, "PRAGMA foreign_key_check"))
+        database.close()
+    }
+
+    @Test
     fun version31BackfillsLegacyIdentifiersAndAddsTrustProvenance() {
         val name = databaseName("v31-v32-identity")
         createExportedSchemaFixture(name, 31)

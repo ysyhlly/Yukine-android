@@ -22,18 +22,19 @@ class OnboardingControllerTest {
     }
 
     @Test
-    fun canFinishAfterAudioPermissionAndLibraryScanEvenWhenNotificationPermissionIsMissing() {
+    fun canFinishWithoutPermissionsOrLibraryScan() {
         val listener = FakeListener(
-            audioPermission = true,
+            audioPermission = false,
             notificationPermission = false
         )
         val controller = OnboardingController(listener)
 
-        controller.scanLibraryFromOnboarding()
-        controller.onLibraryScanResult(true)
+        controller.initialize(true)
+        controller.finishOnboarding()
 
         assertTrue(controller.canFinishOnboarding())
-        assertEquals(1, listener.loadLibraryCalls)
+        assertFalse(controller.state.value.visible)
+        assertEquals(1, listener.completedCalls)
     }
 
     @Test
@@ -48,7 +49,7 @@ class OnboardingControllerTest {
 
         assertFalse(controller.libraryScanInProgress())
         assertFalse(controller.libraryScanCompleted())
-        assertTrue(controller.onboardingMissingSetupMessage().contains("扫描本地曲库"))
+        assertEquals("", controller.onboardingMissingSetupMessage())
     }
 
     @Test
@@ -78,8 +79,33 @@ class OnboardingControllerTest {
         assertEquals(1, listener.scanTimedOutCalls)
         assertFalse(controller.libraryScanInProgress())
         assertFalse(controller.libraryScanCompleted())
-        assertTrue(controller.onboardingMissingSetupMessage().contains("扫描本地曲库"))
+        assertEquals("", controller.onboardingMissingSetupMessage())
         assertFalse(controller.state.value.libraryScanInProgress)
+    }
+
+    @Test
+    fun folderActionOpensPickerWithoutPermissionGate() {
+        val listener = FakeListener(audioPermission = false)
+        val controller = OnboardingController(listener)
+
+        controller.addMusicFolderFromOnboarding()
+
+        assertEquals(1, listener.openFolderCalls)
+        assertEquals(0, listener.permissionRequests)
+    }
+
+    @Test
+    fun canFinishWhileScanContinuesInBackground() {
+        val listener = FakeListener(audioPermission = true)
+        val controller = OnboardingController(listener)
+        controller.initialize(true)
+
+        controller.scanLibraryFromOnboarding()
+        controller.finishOnboarding()
+
+        assertFalse(controller.state.value.visible)
+        assertEquals(0, listener.cancelLibraryLoadCalls)
+        assertEquals(1, listener.completedCalls)
     }
 
     private class FakeListener(
@@ -91,6 +117,7 @@ class OnboardingControllerTest {
         var cancelLibraryLoadCalls = 0
         var scanTimedOutCalls = 0
         var completedCalls = 0
+        var openFolderCalls = 0
 
         override fun hasAudioPermission(): Boolean = audioPermission
 
@@ -116,6 +143,10 @@ class OnboardingControllerTest {
         }
 
         override fun openPlaylistM3uFilePicker() {
+        }
+
+        override fun openAudioFolderPicker() {
+            openFolderCalls++
         }
 
         override fun onboardingCompleted() {

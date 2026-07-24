@@ -75,6 +75,7 @@ internal class OnboardingOwner(
     private val libraryAccess: OnboardingLibraryAccess,
     private val networkNavigator: OnboardingNetworkNavigator,
     private val playlistPicker: OnboardingAction,
+    private val audioFolderPicker: OnboardingAction,
     private val completionStore: OnboardingCompletionStore,
     private val languageSource: OnboardingLanguageSource,
     private val statusSink: OnboardingStatusSink,
@@ -99,6 +100,11 @@ internal class OnboardingOwner(
     fun onLibraryScanResult(canScan: Boolean) = controller.onLibraryScanResult(canScan)
 
     fun scanLibrary() = controller.scanLibraryFromOnboarding()
+
+    fun addMusicFolder() = controller.addMusicFolderFromOnboarding()
+
+    fun onLocalMusicFolderCountChanged(count: Int) =
+        controller.onLocalMusicFolderCountChanged(count)
 
     fun importPlaylist() = controller.importPlaylistFromOnboarding()
 
@@ -125,6 +131,8 @@ internal class OnboardingOwner(
     override fun navigateToNetworkTabPage(page: NetworkPage) = networkNavigator.navigate(page)
 
     override fun openPlaylistM3uFilePicker() = playlistPicker.run()
+
+    override fun openAudioFolderPicker() = audioFolderPicker.run()
 
     override fun onboardingCompleted() = completionStore.markCompleted()
 }

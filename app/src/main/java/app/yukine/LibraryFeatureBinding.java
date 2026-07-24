@@ -594,6 +594,11 @@ final class LibraryFeatureBinding {
         refreshDedupCandidateCount();
     }
 
+    void loadCachedLibrary() {
+        importOwner.loadCachedLibrary();
+        refreshDedupCandidateCount();
+    }
+
     void cancelLibraryLoad() {
         importOwner.cancelLibraryLoad();
     }
@@ -616,6 +621,10 @@ final class LibraryFeatureBinding {
 
     void importAudioFolder(android.net.Uri uri) {
         importOwner.importAudioFolder(uri);
+    }
+
+    void importAudioFolder(android.net.Uri uri, Runnable onComplete) {
+        importOwner.importAudioFolder(uri, onComplete);
     }
 
     void importStreamM3u(android.net.Uri uri) {

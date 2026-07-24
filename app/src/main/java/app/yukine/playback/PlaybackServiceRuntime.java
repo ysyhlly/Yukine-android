@@ -43,6 +43,7 @@ import app.yukine.playback.manager.PlaybackRecoveryScheduler;
 import app.yukine.playback.manager.PlaybackRuntimeStateManager;
 import app.yukine.playback.manager.PlaybackSessionManager;
 import app.yukine.playback.manager.PlaybackSleepTimerManager;
+import app.yukine.playback.manager.StreamingAudioFormatPreflight;
 import app.yukine.playback.manager.PlaybackTransitionStateManager;
 import app.yukine.playback.manager.PlaybackWifiLockManager;
 import app.yukine.playback.diagnostics.PlaybackStreamingDiagnostics;
@@ -253,6 +254,7 @@ final class PlaybackServiceRuntime
     private final PlaybackPersistenceOwner persistenceOwner;
     private PlaybackAudioEffectSettingsStore playbackAudioEffectSettingsStore;
     private PlaybackMediaSourceProvider mediaSourceProvider;
+    private PlaybackStreamingAudioPreflightOwner streamingAudioPreflightOwner;
     private PlaybackPlayerFactory playerFactory;
     private PlaybackRuntimeSettingsStore playbackRuntimeSettingsStore;
     private PlaybackStreamingUrlRecovery playbackStreamingUrlRecovery;
@@ -483,6 +485,12 @@ final class PlaybackServiceRuntime
                 service,
                 repository::cachedRemoteSource,
                 streamingPlaybackHeaderStore
+        );
+        streamingAudioPreflightOwner = new PlaybackStreamingAudioPreflightOwner(
+                mediaSourceProvider,
+                mainHandler::post,
+                playbackQueueStateOwner::currentTrack,
+                playbackCurrentTrackPreparationRuntimeOwner::beginPreparing
         );
         playbackCurrentTrackPreparationQueueOwner =
                 PlaybackCurrentTrackPreparationQueueOwner.fromPlaybackQueueManager(
@@ -977,7 +985,8 @@ final class PlaybackServiceRuntime
                 playbackPrecacheStateOwner,
                 playbackQueueStateOwner::upcomingTracksForPrecache,
                 mediaSourceProvider,
-                playbackMainHandlerSchedulerOwner
+                playbackMainHandlerSchedulerOwner,
+                streamingAudioPreflightOwner::requestUpcoming
         );
         playbackNotificationCommandOwner.publishPlaybackNotificationIfWorthy();
         playbackLyricsManager.bind();
@@ -1092,6 +1101,10 @@ final class PlaybackServiceRuntime
     void destroy() {
         destroyed = true;
         IdentityEnhancementPlaybackGate.clear();
+        if (streamingAudioPreflightOwner != null) {
+            streamingAudioPreflightOwner.release();
+            streamingAudioPreflightOwner = null;
+        }
         if (audioDeviceCapabilityProbe != null) {
             audioDeviceCapabilityProbe.unregister();
         }
@@ -1374,7 +1387,18 @@ final class PlaybackServiceRuntime
             AudioOutputMode requestedMode = audioOutputCoordinator.updateRequests(
                     bitPerfectEnabled, usbExclusiveEnabled,
                     audioDeviceCapabilityProbe.getCurrentProfile());
-            configurePlayerFactory(requestedMode);
+            Track restoredTrack = playbackQueueStateOwner.currentTrack();
+            boolean deferStreamingUsb = restoredUsbExclusive
+                    && (restoredTrack == null
+                        || (streamingAudioPreflightOwner != null
+                            && streamingAudioPreflightOwner.appliesTo(restoredTrack)));
+            configurePlayerFactory(
+                    deferStreamingUsb
+                            ? (restoredTrack == null
+                                ? AudioOutputMode.STANDARD
+                                : AudioOutputMode.DIRECT_PCM)
+                            : requestedMode
+            );
         }
         PlaybackLyricsSettingsStore lyricsSettingsStore =
                 new PlaybackLyricsSettingsStore(persistenceOwner.lyricsSettings());
@@ -1638,6 +1662,23 @@ final class PlaybackServiceRuntime
         AudioOutputMode targetMode = audioOutputCoordinator.updateRequests(
                 bitPerfectEnabled, usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile());
+        Track currentTrack = playbackQueueStateOwner.currentTrack();
+        if (enabled
+                && streamingAudioPreflightOwner != null
+                && streamingAudioPreflightOwner.appliesTo(currentTrack)) {
+            // Enabling USB while a streaming item is already loaded must not rebuild that song
+            // after a late probe. Cache the result for the next preparation boundary instead.
+            streamingAudioPreflightOwner.requestUpcoming(currentTrack);
+            usbFallbackReasonOverride =
+                    "USB exclusive will be evaluated before the next streaming track starts";
+            publishState();
+            return;
+        }
+        if (enabled && currentTrack == null) {
+            // There is no decoded format to negotiate yet. prepareCurrent() will select the sink.
+            publishState();
+            return;
+        }
         AudioOutputMode effectiveMode = configurePlayerFactory(targetMode);
         rebuildPlayerPreservingPosition(effectiveMode);
         if (effectiveMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {
@@ -1803,14 +1844,27 @@ final class PlaybackServiceRuntime
                 || (lastUsbRetryTrackId != null && lastUsbRetryTrackId == track.id)) {
             return;
         }
-        boolean unknownDecodedPcm = mediaSourceProvider != null
-                && mediaSourceProvider.isHttpTrack(track)
-                && !mediaSourceProvider.isDsdTrack(track);
+        StreamingAudioFormatPreflight.Result preflight =
+                streamingAudioPreflightOwner == null
+                        ? StreamingAudioFormatPreflight.Result.unknown()
+                        : streamingAudioPreflightOwner.resultFor(track);
+        boolean streamingTrack = streamingAudioPreflightOwner != null
+                && streamingAudioPreflightOwner.appliesTo(track);
+        if (streamingTrack && !playbackCurrentTrackPreparationRuntimeOwner.preparing()) {
+            // onMediaItemTransition can arrive after automatic playback has already begun. Never
+            // use a late preflight result to switch an in-progress item.
+            return;
+        }
+        StreamingAudioFormatPreflight.PcmFormat pcm = preflight.pcmFormat;
+        int sampleRateHz = pcm == null ? track.sampleRateHz : pcm.sampleRateHz;
+        int bitDepth = pcm == null ? track.bitsPerSample : pcm.bitDepth;
+        int channelCount = pcm == null ? track.channelCount : pcm.channelCount;
         if (!audioOutputCoordinator.armUsbRetryForMediaItemTransition(
-                track.sampleRateHz,
-                track.bitsPerSample,
-                track.channelCount,
-                unknownDecodedPcm
+                sampleRateHz,
+                bitDepth,
+                channelCount,
+                !streamingTrack || preflight.formatVerified(),
+                usbExclusiveDeviceName()
         )) {
             return;
         }
@@ -1922,10 +1976,112 @@ final class PlaybackServiceRuntime
         prepareCurrent(playWhenReady, C.TIME_UNSET);
     }
 
+    private boolean prepareStreamingOutputBeforePlayback(
+            Track track,
+            boolean playWhenReady,
+            long explicitStartPositionMs
+    ) {
+        if (streamingAudioPreflightOwner == null
+                || !streamingAudioPreflightOwner.appliesTo(track)) {
+            return true;
+        }
+        if (streamingAudioPreflightOwner.waitForCurrentResult(
+                track,
+                usbExclusiveEnabled,
+                () -> {
+                    if (!destroyed) {
+                        prepareCurrent(playWhenReady, explicitStartPositionMs);
+                    }
+                }
+        )) {
+            return false;
+        }
+        if (!usbExclusiveEnabled) {
+            return true;
+        }
+        StreamingAudioFormatPreflight.Result result =
+                streamingAudioPreflightOwner.resultFor(track);
+
+        AudioOutputMode desiredMode;
+        if (result.formatVerified()) {
+            usbFallbackReasonOverride = null;
+            StreamingAudioFormatPreflight.PcmFormat pcm = result.pcmFormat;
+            if (pcm != null) {
+                boolean retryArmed = audioOutputCoordinator.armUsbRetryForMediaItemTransition(
+                        pcm.sampleRateHz,
+                        pcm.bitDepth,
+                        pcm.channelCount,
+                        true,
+                        usbExclusiveDeviceName()
+                );
+                if (retryArmed) {
+                    lastUsbRetryTrackId = track.id;
+                }
+            }
+            AudioOutputMode requested = audioOutputCoordinator.updateRequests(
+                    bitPerfectEnabled,
+                    usbExclusiveEnabled,
+                    audioDeviceCapabilityProbe.getCurrentProfile()
+            );
+            // A latched failure or a missing DAC keeps the entire item on Direct PCM.
+            desiredMode = requested == AudioOutputMode.USB_EXCLUSIVE
+                    ? AudioOutputMode.USB_EXCLUSIVE
+                    : AudioOutputMode.DIRECT_PCM;
+        } else {
+            desiredMode = AudioOutputMode.DIRECT_PCM;
+            String detail = result.detail.isEmpty()
+                    ? "Streaming PCM format was not verified; using Direct PCM"
+                    : result.detail;
+            usbFallbackReasonOverride = detail;
+            audioOutputCoordinator.onFormatPreflightSkipped(
+                    desiredMode,
+                    outputNativeSampleRateHz(),
+                    result.fallbackReason,
+                    detail
+            );
+        }
+
+        if (desiredMode == currentAudioOutputMode) {
+            return true;
+        }
+        boolean hadPlayer = player != null;
+        switchOutputMode(desiredMode);
+        // With no existing player switchOutputMode only replaces the factory, so this preparation
+        // can continue. With an existing player it recursively prepares after the rebuild.
+        return !hadPlayer;
+    }
+
+    private boolean prepareKnownNonStreamingOutputBeforePlayback(Track track) {
+        if (!usbExclusiveEnabled
+                || audioDeviceCapabilityProbe == null
+                || (streamingAudioPreflightOwner != null
+                    && streamingAudioPreflightOwner.appliesTo(track))) {
+            return true;
+        }
+        AudioOutputMode desiredMode = audioOutputCoordinator.updateRequests(
+                bitPerfectEnabled,
+                true,
+                audioDeviceCapabilityProbe.getCurrentProfile()
+        );
+        if (desiredMode == currentAudioOutputMode) {
+            return true;
+        }
+        boolean hadPlayer = player != null;
+        switchOutputMode(desiredMode);
+        return !hadPlayer;
+    }
+
     @OptIn(markerClass = UnstableApi.class)
     private void prepareCurrent(final boolean playWhenReady, final long explicitStartPositionMs) {
         Track track = playbackQueueStateOwner.currentTrack();
         if (track == null) {
+            return;
+        }
+        if (!prepareStreamingOutputBeforePlayback(
+                track,
+                playWhenReady,
+                explicitStartPositionMs
+        ) || !prepareKnownNonStreamingOutputBeforePlayback(track)) {
             return;
         }
         AudioFallbackReason dsdBlockReason = mediaSourceProvider.dsdPlaybackBlockReason(
@@ -1963,6 +2119,19 @@ final class PlaybackServiceRuntime
     ) {
         final long startPositionMs = preparedTrack.startPositionMs();
         if (seekExistingMirroredQueue(playWhenReady, startPositionMs)) {
+            return;
+        }
+        if (usbExclusiveEnabled
+                && streamingAudioPreflightOwner != null
+                && streamingAudioPreflightOwner.appliesTo(preparedTrack.track())) {
+            // A mirrored player can auto-advance before the next format decision is applied.
+            // Keep USB-requested streaming playback on the manual single-item completion path.
+            prepareSingleTrack(
+                    preparedTrack.track(),
+                    preparedTrack.mediaSource(),
+                    playWhenReady,
+                    startPositionMs
+            );
             return;
         }
         PlaybackCurrentTrackPreparationQueueOwner.PreparedQueue queuePreparation =

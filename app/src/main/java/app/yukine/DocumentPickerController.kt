@@ -115,8 +115,11 @@ internal class DocumentPickerController @JvmOverloads constructor(
             DocumentAction.ImportAudioFolder -> {
                 val treeUri = data.data
                 if (treeUri != null) {
-                    takePersistableReadPermission(data, treeUri)
-                    actions.audioFolderImporter.importAudioFolder(treeUri)
+                    if (takePersistableReadPermission(data, treeUri)) {
+                        actions.audioFolderImporter.importAudioFolder(treeUri)
+                    } else {
+                        actions.audioFolderPermissionFailure.run()
+                    }
                 }
             }
             DocumentAction.DownloadFolder -> {
@@ -185,9 +188,23 @@ internal class DocumentPickerController @JvmOverloads constructor(
         return uris
     }
 
-    private fun takePersistableReadPermission(data: Intent?, uri: Uri?) {
+    fun releaseAudioFolderPermission(uri: Uri?) {
+        if (uri == null) return
+        try {
+            activity.contentResolver.releasePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (ignored: SecurityException) {
+            // The provider or system may already have revoked the grant.
+        } catch (ignored: IllegalArgumentException) {
+            // The provider never persisted this grant.
+        }
+    }
+
+    private fun takePersistableReadPermission(data: Intent?, uri: Uri?): Boolean {
         if (data == null || uri == null) {
-            return
+            return false
         }
         var flags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
         if (flags == 0) {
@@ -196,9 +213,16 @@ internal class DocumentPickerController @JvmOverloads constructor(
         try {
             activity.contentResolver.takePersistableUriPermission(uri, flags)
         } catch (ignored: SecurityException) {
-            // Some providers grant only transient access; import still works for this session.
+            return hasPersistedReadPermission(uri)
         } catch (ignored: IllegalArgumentException) {
-            // Some providers grant only transient access; import still works for this session.
+            return hasPersistedReadPermission(uri)
+        }
+        return hasPersistedReadPermission(uri)
+    }
+
+    private fun hasPersistedReadPermission(uri: Uri): Boolean {
+        return activity.contentResolver.persistedUriPermissions.any { permission ->
+            permission.uri == uri && permission.isReadPermission
         }
     }
 

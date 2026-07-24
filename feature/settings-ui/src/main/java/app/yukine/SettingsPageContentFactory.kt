@@ -135,6 +135,17 @@ internal object SettingsPageContentFactory {
                     onRestoreHidden = { sourceKey -> library.restoreHiddenItem(sourceKey) },
                     onRestoreAllHidden = { library.restoreAllHiddenItems() }
                 )
+            SettingsPage.MusicFolders ->
+                SettingsPageStateBuilder.musicFolders(
+                    languageMode = languageMode,
+                    sources = runtime.localMusicSources,
+                    onNavigate = { nextPage -> onNavigate(nextPage) },
+                    onAddFolder = { library.openAudioFolderPicker() },
+                    onRefreshAll = { library.refreshAllMusicFolders() },
+                    onRefresh = { sourceId -> library.refreshMusicFolder(sourceId) },
+                    onRemove = { sourceId -> library.removeMusicFolder(sourceId) },
+                    onReauthorize = { sourceId -> library.reauthorizeMusicFolder(sourceId) }
+                )
             SettingsPage.DuplicateCandidates ->
                 SettingsPageStateBuilder.duplicateCandidates(
                     languageMode = languageMode,
@@ -449,6 +460,8 @@ internal object SettingsPageContentFactory {
             AudioFallbackReason.NATIVE_DSD_PROFILE_MISSING -> "缺少 Native DSD 设备配置"
             AudioFallbackReason.DOP_UNSUPPORTED -> "设备不支持 DoP"
             AudioFallbackReason.FORMAT_UNSUPPORTED -> "格式不受支持"
+            AudioFallbackReason.FORMAT_PREFLIGHT_TIMEOUT -> "流媒体格式预读超时"
+            AudioFallbackReason.FORMAT_METADATA_INCOMPLETE -> "流媒体解码格式信息不完整"
             AudioFallbackReason.REMOTE_DSD_NOT_CACHED -> "远程 DSD 需先完整下载"
             AudioFallbackReason.DST_UNSUPPORTED -> "首版不支持 DST 压缩"
             AudioFallbackReason.OFFLOAD_UNAVAILABLE -> "硬件 Offload 不可用"

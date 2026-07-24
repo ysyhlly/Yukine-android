@@ -5,7 +5,7 @@ import org.junit.Test
 
 class PermissionResultOwnerTest {
     @Test
-    fun loadsLibraryAndPublishesPermissionResultAfterGrant() {
+    fun publishesPermissionResultWithoutStartingLibraryScanAfterGrant() {
         val calls = mutableListOf<String>()
         val owner = PermissionResultOwner(
             audioPermissionStatusSource = { true },
@@ -15,7 +15,7 @@ class PermissionResultOwnerTest {
 
         owner.onAudioPermissionResult()
 
-        assertEquals(listOf("load:false", "permissions"), calls)
+        assertEquals(listOf("permissions"), calls)
     }
 
     @Test

@@ -24,6 +24,7 @@ final class SettingsFeatureBinding {
 
     private SettingsContextProvider contextProvider;
     private SettingsEffectOwner effectOwner;
+    private LocalMusicFolderSourceOwner localMusicFolderSourceOwner;
     private BackgroundImageSelectionOwner backgroundImageSelectionOwner;
     private BackgroundImagePickerController backgroundImagePickerController;
     private Handler mainHandler;
@@ -111,6 +112,17 @@ final class SettingsFeatureBinding {
                 );
         KugouExperimentalSyncStore kugouExperimentalSyncStore =
                 new KugouExperimentalSyncStore(activity);
+        localMusicFolderSourceOwner = new LocalMusicFolderSourceOwner(
+                repository,
+                documentPickerController,
+                executors::io,
+                task -> {
+                    mainHandler.post(task);
+                },
+                library::loadCachedLibrary,
+                viewModel::refreshSettingsContext,
+                key -> statusMessages.setStatus(AppLanguage.text(languageMode(), key))
+        );
         effectOwner = new SettingsEffectOwner(
                 new SettingsNavigationEffectActions(
                         statusMessages::setStatus,
@@ -187,7 +199,11 @@ final class SettingsFeatureBinding {
                                 );
                                 viewModel.refreshSettingsContext();
                             });
-                        })
+                        }),
+                        localMusicFolderSourceOwner::refreshAll,
+                        localMusicFolderSourceOwner::refresh,
+                        localMusicFolderSourceOwner::remove,
+                        localMusicFolderSourceOwner::reauthorize
                 ),
                 new SettingsPlaybackEffectActions(
                         () -> lyricsViewModel.reloadCurrentLyrics(languageMode()),
@@ -242,9 +258,11 @@ final class SettingsFeatureBinding {
                 lyricsViewModel,
                 streamingGatewaySettingsStore,
                 luoxueSourceStore,
-                repository
+                repository,
+                localMusicFolderSourceOwner
         );
         viewModel.bindContextLoader(contextProvider);
+        localMusicFolderSourceOwner.initialize();
         bindIdentityBackfillStatus(activity);
         viewModel.bindRouteState(navigationViewModel.getSettingsRouteState());
     }
@@ -294,8 +312,17 @@ final class SettingsFeatureBinding {
     }
 
     void onResume() {
+        if (localMusicFolderSourceOwner != null) {
+            localMusicFolderSourceOwner.reloadSources();
+        }
         viewModel.refreshSettingsContext();
         reconcileFloatingLyricsState();
+    }
+
+    void onLocalMusicFoldersChanged() {
+        if (localMusicFolderSourceOwner != null) {
+            localMusicFolderSourceOwner.reloadSources();
+        }
     }
 
     private void bindIdentityBackfillStatus(ComponentActivity activity) {

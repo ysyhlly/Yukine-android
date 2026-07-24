@@ -19,6 +19,7 @@ class MainNavHostMountTest {
         val onboarding = MutableStateFlow(OnboardingUiState())
         val onboardingActions = OnboardingActions(
             Runnable { calls += "permissions" },
+            Runnable { calls += "folder" },
             Runnable { calls += "scan" },
             Runnable { calls += "import" },
             Runnable { calls += "streaming" },

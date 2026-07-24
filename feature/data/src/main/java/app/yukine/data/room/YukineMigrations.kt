@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 object YukineMigrations {
-    const val TARGET_VERSION: Int = 35
+    const val TARGET_VERSION: Int = 36
 
     val all: Array<Migration> = (1 until TARGET_VERSION).map { startVersion ->
         object : Migration(startVersion, TARGET_VERSION) {
@@ -27,9 +27,49 @@ object YukineMigrations {
                 normalizeV33(db)
                 normalizeV34(db)
                 normalizeV35(db)
+                normalizeV36(db)
             }
         }
     }.toTypedArray()
+
+    internal fun normalizeV36(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `local_music_sources` (" +
+                "`source_id` TEXT NOT NULL," +
+                "`type` TEXT NOT NULL," +
+                "`root_uri` TEXT NOT NULL," +
+                "`display_name` TEXT NOT NULL," +
+                "`status` TEXT NOT NULL," +
+                "`added_at` INTEGER NOT NULL," +
+                "`last_scan_at` INTEGER NOT NULL," +
+                "`updated_at` INTEGER NOT NULL," +
+                "PRIMARY KEY(`source_id`))"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_local_music_sources_type` ON " +
+                "`local_music_sources` (`type`, `updated_at`)"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_local_music_sources_type_root_uri` ON " +
+                "`local_music_sources` (`type`, `root_uri`)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `local_music_source_tracks` (" +
+                "`source_id` TEXT NOT NULL," +
+                "`track_id` INTEGER NOT NULL," +
+                "`document_uri` TEXT NOT NULL," +
+                "`last_seen_at` INTEGER NOT NULL," +
+                "PRIMARY KEY(`source_id`, `track_id`)," +
+                "FOREIGN KEY(`source_id`) REFERENCES `local_music_sources`(`source_id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE," +
+                "FOREIGN KEY(`track_id`) REFERENCES `tracks`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `idx_local_music_source_tracks_track` ON " +
+                "`local_music_source_tracks` (`track_id`)"
+        )
+    }
 
     private fun normalizeV22(db: SupportSQLiteDatabase) {
         db.execSQL(

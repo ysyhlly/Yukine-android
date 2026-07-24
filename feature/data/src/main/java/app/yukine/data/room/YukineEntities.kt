@@ -1071,3 +1071,53 @@ data class IdentityOperationEntity(
     val rollbackStatus: String = "NONE",
     @ColumnInfo(name = "post_state_hash", defaultValue = "''") val postStateHash: String = ""
 )
+
+@Entity(
+    tableName = "local_music_sources",
+    indices = [
+        Index(name = "idx_local_music_sources_type", value = ["type", "updated_at"]),
+        Index(
+            name = "idx_local_music_sources_type_root_uri",
+            value = ["type", "root_uri"],
+            unique = true
+        )
+    ]
+)
+data class LocalMusicSourceEntity(
+    @PrimaryKey @ColumnInfo(name = "source_id") val sourceId: String,
+    val type: String,
+    @ColumnInfo(name = "root_uri") val rootUri: String,
+    @ColumnInfo(name = "display_name") val displayName: String,
+    val status: String,
+    @ColumnInfo(name = "added_at") val addedAt: Long,
+    @ColumnInfo(name = "last_scan_at") val lastScanAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+@Entity(
+    tableName = "local_music_source_tracks",
+    primaryKeys = ["source_id", "track_id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = LocalMusicSourceEntity::class,
+            parentColumns = ["source_id"],
+            childColumns = ["source_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = TrackEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["track_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(name = "idx_local_music_source_tracks_track", value = ["track_id"])
+    ]
+)
+data class LocalMusicSourceTrackEntity(
+    @ColumnInfo(name = "source_id") val sourceId: String,
+    @ColumnInfo(name = "track_id") val trackId: Long,
+    @ColumnInfo(name = "document_uri") val documentUri: String,
+    @ColumnInfo(name = "last_seen_at") val lastSeenAt: Long
+)

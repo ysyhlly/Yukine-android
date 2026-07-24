@@ -78,7 +78,8 @@ internal class NavigationFeatureBinding(
             onboardingOwner.state,
             settingsStore::languageMode,
             OnboardingActions(
-                requestPermissions = Runnable(permissionController::requestNeededPermissions),
+                requestPermissions = Runnable(permissionController::requestAudioPermission),
+                addMusicFolder = Runnable(onboardingOwner::addMusicFolder),
                 scanLibrary = Runnable(onboardingOwner::scanLibrary),
                 importPlaylist = Runnable(onboardingOwner::importPlaylist),
                 openStreaming = Runnable(onboardingOwner::openStreaming),

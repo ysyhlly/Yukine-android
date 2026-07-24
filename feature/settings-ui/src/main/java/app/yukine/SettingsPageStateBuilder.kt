@@ -2,6 +2,7 @@ package app.yukine
 
 import app.yukine.identity.LibraryDedupMode
 import app.yukine.feature.settingsui.R
+import app.yukine.model.LocalMusicSource
 import app.yukine.streaming.StreamingQualityPreference
 
 import app.yukine.playback.AudioEffectSettings
@@ -9,11 +10,13 @@ import app.yukine.streaming.StreamingAudioQuality
 import app.yukine.ui.SettingsAction
 import app.yukine.ui.SettingsActionProgress
 import app.yukine.ui.SettingsActionStyle
+import app.yukine.ui.SettingsConfirmationDialog
 import app.yukine.ui.SettingsImageDialog
 import app.yukine.ui.SettingsMetric
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.EchoIconKind
 import app.yukine.ui.HomeDashboardLayout
+import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
@@ -1590,8 +1593,10 @@ object SettingsPageStateBuilder {
                 entryId = SettingsEntryId.ImportAudioFiles
             ))
             add(SettingsAction(
-                label = text(languageMode, "import.audio.folder"),
-                onClick = Runnable { onOpenAudioFolderPicker() },
+                label = text(languageMode, "music.folders.title"),
+                onClick = Runnable { onNavigate(SettingsPage.MusicFolders) },
+                description = text(languageMode, "music.folders.description"),
+                style = SettingsActionStyle.Navigation,
                 icon = EchoIconKind.Folder,
                 section = text(languageMode, "settings.section.library"),
                 entryId = SettingsEntryId.ImportAudioFolder
@@ -1671,6 +1676,143 @@ object SettingsPageStateBuilder {
             }
         }
         return buildContent(text(languageMode, "library"), metrics, actions)
+    }
+
+    fun musicFolders(
+        languageMode: String,
+        sources: List<LocalMusicSource>,
+        onNavigate: (SettingsPage) -> Unit,
+        onAddFolder: () -> Unit,
+        onRefreshAll: () -> Unit,
+        onRefresh: (String) -> Unit,
+        onRemove: (String) -> Unit,
+        onReauthorize: (String) -> Unit
+    ): SettingsPageStateContent {
+        val actions = buildList {
+            add(backNavigationAction(text(languageMode, "back"), SettingsPage.LibraryGroup, onNavigate))
+            add(
+                SettingsAction(
+                    label = text(languageMode, "music.folders.add"),
+                    onClick = Runnable(onAddFolder),
+                    description = text(languageMode, "music.folders.add.description"),
+                    icon = EchoIconKind.Folder,
+                    section = text(languageMode, "music.folders.actions"),
+                    entryId = SettingsEntryId.ImportAudioFolder
+                )
+            )
+            add(
+                SettingsAction(
+                    label = text(languageMode, "music.folders.refresh.all"),
+                    onClick = Runnable(onRefreshAll),
+                    enabled = sources.isNotEmpty() &&
+                        sources.none { it.status() == LocalMusicSource.STATUS_SCANNING },
+                    icon = EchoIconKind.Sync,
+                    section = text(languageMode, "music.folders.actions"),
+                    entryId = SettingsEntryId.RefreshMusicFolders
+                )
+            )
+            if (sources.isEmpty()) {
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "music.folders.empty"),
+                        onClick = Runnable {},
+                        description = text(languageMode, "music.folders.empty.description"),
+                        enabled = false,
+                        icon = EchoIconKind.Info,
+                        section = text(languageMode, "music.folders.sources")
+                    )
+                )
+            }
+            sources.forEach { source ->
+                val sourceSection = source.displayName().ifBlank {
+                    text(languageMode, "music.folders.unnamed")
+                }
+                val sourceId = source.sourceId()
+                val scanning = source.status() == LocalMusicSource.STATUS_SCANNING
+                add(
+                    SettingsAction(
+                        label = if (source.needsAuthorization()) {
+                            text(languageMode, "music.folders.reauthorize")
+                        } else {
+                            text(languageMode, "music.folders.refresh")
+                        },
+                        onClick = Runnable {
+                            if (source.needsAuthorization()) {
+                                onReauthorize(sourceId)
+                            } else {
+                                onRefresh(sourceId)
+                            }
+                        },
+                        description = musicFolderDescription(languageMode, source),
+                        value = musicFolderStatus(languageMode, source),
+                        enabled = !scanning,
+                        icon = if (source.needsAuthorization()) {
+                            EchoIconKind.Permission
+                        } else {
+                            EchoIconKind.Refresh
+                        },
+                        section = sourceSection,
+                        entryId = SettingsEntryId.RefreshMusicFolders
+                    )
+                )
+                add(
+                    SettingsAction(
+                        label = text(languageMode, "music.folders.remove"),
+                        onClick = Runnable { onRemove(sourceId) },
+                        description = text(languageMode, "music.folders.remove.description"),
+                        style = SettingsActionStyle.Destructive,
+                        enabled = !scanning,
+                        icon = EchoIconKind.Remove,
+                        section = sourceSection,
+                        entryId = SettingsEntryId.RemoveMusicFolder,
+                        confirmationDialog = SettingsConfirmationDialog(
+                            title = text(languageMode, "music.folders.remove.confirm.title"),
+                            message = text(languageMode, "music.folders.remove.confirm.message"),
+                            confirmLabel = text(languageMode, "music.folders.remove.confirm"),
+                            cancelLabel = text(languageMode, "cancel")
+                        )
+                    )
+                )
+            }
+        }
+        return buildContent(
+            title = text(languageMode, "music.folders.title"),
+            metrics = listOf(
+                SettingsMetric(
+                    text(languageMode, "music.folders.count"),
+                    sources.size.toString()
+                )
+            ),
+            actions = actions
+        )
+    }
+
+    private fun musicFolderDescription(
+        languageMode: String,
+        source: LocalMusicSource
+    ): String {
+        val count = text(languageMode, "music.folders.track.count")
+            .replace("%d", source.trackCount().toString())
+        val scanned = if (source.lastScanAt() > 0L) {
+            java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.SHORT,
+                java.text.DateFormat.SHORT,
+                Locale.getDefault()
+            ).format(Date(source.lastScanAt()))
+        } else {
+            text(languageMode, "music.folders.never.scanned")
+        }
+        return "$count · ${text(languageMode, "music.folders.last.scan")} $scanned"
+    }
+
+    private fun musicFolderStatus(languageMode: String, source: LocalMusicSource): String {
+        val key = when (source.status()) {
+            LocalMusicSource.STATUS_SCANNING -> "music.folders.status.scanning"
+            LocalMusicSource.STATUS_ACCESS_LOST -> "music.folders.status.access.lost"
+            LocalMusicSource.STATUS_FAILED -> "music.folders.status.failed"
+            else -> "music.folders.status.ready"
+        }
+        return text(languageMode, key)
     }
 
     private fun identityBackfillDescription(
@@ -2095,6 +2237,7 @@ object SettingsPageStateBuilder {
         SettingsPage.StreamingAudioQuality -> EchoIconKind.Gauge
         SettingsPage.LibraryGroup, SettingsPage.Library,
         SettingsPage.DuplicateCandidates -> EchoIconKind.Library
+        SettingsPage.MusicFolders -> EchoIconKind.Folder
         SettingsPage.AboutGroup -> EchoIconKind.Info
         SettingsPage.Downloads -> EchoIconKind.Download
         SettingsPage.SleepTimer -> EchoIconKind.Timer

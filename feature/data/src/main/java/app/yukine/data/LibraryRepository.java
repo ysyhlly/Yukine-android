@@ -25,6 +25,10 @@ import app.yukine.data.room.RecordingFavoriteEntity;
 import app.yukine.data.room.HistoryDao;
 import app.yukine.data.room.LibraryDao;
 import app.yukine.data.room.LibraryExclusionEntity;
+import app.yukine.data.room.LocalMusicSourceDao;
+import app.yukine.data.room.LocalMusicSourceEntity;
+import app.yukine.data.room.LocalMusicSourceRow;
+import app.yukine.data.room.LocalMusicSourceTrackEntity;
 import app.yukine.data.room.PlayHistoryEntity;
 import app.yukine.data.room.PlaybackPersistenceDao;
 import app.yukine.data.room.PlaylistDao;
@@ -42,6 +46,7 @@ import app.yukine.data.room.TrackEntity;
 import app.yukine.data.room.TrackEntityMapper;
 import app.yukine.data.room.YukineDatabase;
 import app.yukine.model.PlaybackTrackSourceOverlay;
+import app.yukine.model.LocalMusicSource;
 import app.yukine.model.Track;
 import app.yukine.model.TrackIdentityTags;
 import app.yukine.streaming.DefaultPlaybackSourcePolicy;
@@ -84,6 +89,7 @@ public final class LibraryRepository {
     private final SettingsDao settingsDao;
     private final StreamingTrackMatchDao streamingMatchDao;
     private final MusicIdentityDao musicIdentityDao;
+    private final LocalMusicSourceDao localMusicSourceDao;
     private final ProviderSourceIdentityWriter providerSourceIdentityWriter;
     private final PlaybackPersistenceRepository playbackPersistence;
     private final OfflineMusicIdentityStore musicIdentityStore;
@@ -124,6 +130,7 @@ public final class LibraryRepository {
         settingsDao = database.settingsDao();
         streamingMatchDao = database.streamingTrackMatchDao();
         musicIdentityDao = database.musicIdentityDao();
+        localMusicSourceDao = database.localMusicSourceDao();
         providerSourceIdentityWriter = new ProviderSourceIdentityWriter(musicIdentityDao);
         this.playbackSourcePolicy = playbackSourcePolicy == null
                 ? DefaultPlaybackSourcePolicy.INSTANCE
@@ -421,6 +428,244 @@ public final class LibraryRepository {
             );
         });
         ingestConfirmedIdentitySources(localTrackIds(values));
+    }
+
+    public List<LocalMusicSource> loadLocalMusicFolderSources() {
+        ArrayList<LocalMusicSource> values = new ArrayList<>();
+        for (LocalMusicSourceRow row : localMusicSourceDao.loadFolderRows()) {
+            values.add(new LocalMusicSource(
+                    row.getSourceId(),
+                    row.getType(),
+                    row.getRootUri(),
+                    row.getDisplayName(),
+                    row.getStatus(),
+                    row.getTrackCount(),
+                    row.getAddedAt(),
+                    row.getLastScanAt(),
+                    row.getUpdatedAt()
+            ));
+        }
+        return values;
+    }
+
+    public String beginLocalMusicFolderSource(String rootUri, String displayName) {
+        String normalizedUri = safeLocalSourceValue(rootUri);
+        String sourceId = localMusicSourceId(LocalMusicSource.TYPE_FOLDER, normalizedUri);
+        long now = System.currentTimeMillis();
+        database.runInTransaction(() -> {
+            LocalMusicSourceEntity existing = localMusicSourceDao.loadSource(sourceId);
+            localMusicSourceDao.putSource(new LocalMusicSourceEntity(
+                    sourceId,
+                    LocalMusicSource.TYPE_FOLDER,
+                    normalizedUri,
+                    normalizedLocalSourceName(displayName, normalizedUri),
+                    LocalMusicSource.STATUS_SCANNING,
+                    existing == null ? now : existing.getAddedAt(),
+                    existing == null ? 0L : existing.getLastScanAt(),
+                    now
+            ));
+        });
+        return sourceId;
+    }
+
+    public void markLocalMusicFolderSourceFailed(String sourceId, boolean accessLost) {
+        long now = System.currentTimeMillis();
+        database.runInTransaction(() -> {
+            LocalMusicSourceEntity existing = localMusicSourceDao.loadSource(sourceId);
+            if (existing == null) {
+                return;
+            }
+            localMusicSourceDao.putSource(new LocalMusicSourceEntity(
+                    existing.getSourceId(),
+                    existing.getType(),
+                    existing.getRootUri(),
+                    existing.getDisplayName(),
+                    accessLost
+                            ? LocalMusicSource.STATUS_ACCESS_LOST
+                            : LocalMusicSource.STATUS_FAILED,
+                    existing.getAddedAt(),
+                    existing.getLastScanAt(),
+                    now
+            ));
+        });
+    }
+
+    public void applyLocalMusicFolderSnapshot(String sourceId, List<Track> tracks) {
+        List<Track> safeTracks = tracks == null ? Collections.emptyList() : tracks;
+        Map<Long, String> contentSignatures = contentSignatures(safeTracks);
+        long now = System.currentTimeMillis();
+        database.runInTransaction(() -> {
+            LocalMusicSourceEntity source = localMusicSourceDao.loadSource(sourceId);
+            if (source == null || !LocalMusicSource.TYPE_FOLDER.equals(source.getType())) {
+                throw new IllegalArgumentException("Unknown local music folder source");
+            }
+            protectPreexistingDocumentTracks(safeTracks, now);
+            if (!safeTracks.isEmpty()) {
+                Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
+                upsertTrackRowsPreservingReferences(
+                        trackEntities(safeTracks, exclusions, now),
+                        identityTags(safeTracks),
+                        contentSignatures,
+                        now
+                );
+            }
+            List<Long> previousIds = localMusicSourceDao.loadTrackIds(sourceId);
+            localMusicSourceDao.deleteMappings(sourceId);
+            ArrayList<LocalMusicSourceTrackEntity> mappings = new ArrayList<>(safeTracks.size());
+            HashSet<Long> currentIds = new HashSet<>();
+            for (Track track : safeTracks) {
+                if (track == null) {
+                    continue;
+                }
+                currentIds.add(track.id);
+                mappings.add(new LocalMusicSourceTrackEntity(
+                        sourceId,
+                        track.id,
+                        documentUri(track),
+                        now
+                ));
+            }
+            if (!mappings.isEmpty()) {
+                localMusicSourceDao.putMappings(mappings);
+            }
+            ArrayList<Long> staleIds = new ArrayList<>();
+            for (Long previousId : previousIds) {
+                if (previousId != null
+                        && !currentIds.contains(previousId)
+                        && localMusicSourceDao.sourceCountForTrack(previousId) == 0) {
+                    staleIds.add(previousId);
+                }
+            }
+            deleteTrackIdsInCurrentTransaction(staleIds);
+            localMusicSourceDao.putSource(new LocalMusicSourceEntity(
+                    source.getSourceId(),
+                    source.getType(),
+                    source.getRootUri(),
+                    source.getDisplayName(),
+                    LocalMusicSource.STATUS_READY,
+                    source.getAddedAt(),
+                    now,
+                    now
+            ));
+            musicIdentityStore.pruneMissingTracks();
+        });
+    }
+
+    public void registerImportedDocumentTracks(List<Track> tracks) {
+        List<Track> safeTracks = tracks == null ? Collections.emptyList() : tracks;
+        if (safeTracks.isEmpty()) {
+            return;
+        }
+        Map<Long, String> contentSignatures = contentSignatures(safeTracks);
+        long now = System.currentTimeMillis();
+        database.runInTransaction(() -> {
+            Set<String> exclusions = new HashSet<>(libraryDao.loadExclusionKeys());
+            upsertTrackRowsPreservingReferences(
+                    trackEntities(safeTracks, exclusions, now),
+                    identityTags(safeTracks),
+                    contentSignatures,
+                    now
+            );
+            for (Track track : safeTracks) {
+                if (track == null) {
+                    continue;
+                }
+                String uri = documentUri(track);
+                String sourceId = localMusicSourceId(LocalMusicSource.TYPE_FILE, uri);
+                localMusicSourceDao.putSource(new LocalMusicSourceEntity(
+                        sourceId,
+                        LocalMusicSource.TYPE_FILE,
+                        uri,
+                        track.title,
+                        LocalMusicSource.STATUS_READY,
+                        now,
+                        now,
+                        now
+                ));
+                localMusicSourceDao.putMappings(Collections.singletonList(
+                        new LocalMusicSourceTrackEntity(sourceId, track.id, uri, now)
+                ));
+            }
+        });
+    }
+
+    public String removeLocalMusicFolderSource(String sourceId) {
+        AtomicInteger removed = new AtomicInteger();
+        String[] rootUri = new String[]{""};
+        database.runInTransaction(() -> {
+            LocalMusicSourceEntity source = localMusicSourceDao.loadSource(sourceId);
+            if (source == null || !LocalMusicSource.TYPE_FOLDER.equals(source.getType())) {
+                return;
+            }
+            rootUri[0] = source.getRootUri();
+            List<Long> candidateIds = localMusicSourceDao.loadTrackIds(sourceId);
+            localMusicSourceDao.deleteSource(sourceId);
+            ArrayList<Long> orphanedIds = new ArrayList<>();
+            for (Long candidateId : candidateIds) {
+                if (candidateId != null && localMusicSourceDao.sourceCountForTrack(candidateId) == 0) {
+                    orphanedIds.add(candidateId);
+                }
+            }
+            removed.set(deleteTrackIdsInCurrentTransaction(orphanedIds));
+            musicIdentityStore.pruneMissingTracks();
+        });
+        if (removed.get() > 0) {
+            DiagnosticLog.i(TAG, "Removed local folder source tracks=" + removed.get());
+        }
+        return rootUri[0];
+    }
+
+    private void protectPreexistingDocumentTracks(List<Track> tracks, long now) {
+        for (Track track : tracks) {
+            if (track == null
+                    || libraryDao.loadTrack(track.id) == null
+                    || localMusicSourceDao.sourceCountForTrack(track.id) > 0) {
+                continue;
+            }
+            String uri = documentUri(track);
+            String sourceId = localMusicSourceId(LocalMusicSource.TYPE_LEGACY, uri);
+            localMusicSourceDao.putSource(new LocalMusicSourceEntity(
+                    sourceId,
+                    LocalMusicSource.TYPE_LEGACY,
+                    uri,
+                    track.title,
+                    LocalMusicSource.STATUS_READY,
+                    now,
+                    now,
+                    now
+            ));
+            localMusicSourceDao.putMappings(Collections.singletonList(
+                    new LocalMusicSourceTrackEntity(sourceId, track.id, uri, now)
+            ));
+        }
+    }
+
+    private static String localMusicSourceId(String type, String rootUri) {
+        return safeLocalSourceValue(type).toLowerCase(java.util.Locale.ROOT)
+                + ":"
+                + safeLocalSourceValue(rootUri);
+    }
+
+    private static String normalizedLocalSourceName(String displayName, String rootUri) {
+        String value = safeLocalSourceValue(displayName);
+        return value.isEmpty() ? rootUri : value;
+    }
+
+    private static String safeLocalSourceValue(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String documentUri(Track track) {
+        if (track == null) {
+            return "";
+        }
+        if (track.contentUri != null && !Uri.EMPTY.equals(track.contentUri)) {
+            return track.contentUri.toString();
+        }
+        String dataPath = track.dataPath == null ? "" : track.dataPath;
+        return dataPath.startsWith("document:")
+                ? dataPath.substring("document:".length())
+                : dataPath;
     }
 
     public void replaceScanManagedTracks(List<Track> values) {
@@ -1459,6 +1704,25 @@ public final class LibraryRepository {
             Map<Long, String> contentSignatures,
             long now
     ) {
+        upsertTrackRows(rows, identityTags, contentSignatures, now, false);
+    }
+
+    private void upsertTrackRowsPreservingReferences(
+            List<TrackEntity> rows,
+            Map<Long, TrackIdentityTags> identityTags,
+            Map<Long, String> contentSignatures,
+            long now
+    ) {
+        upsertTrackRows(rows, identityTags, contentSignatures, now, true);
+    }
+
+    private void upsertTrackRows(
+            List<TrackEntity> rows,
+            Map<Long, TrackIdentityTags> identityTags,
+            Map<Long, String> contentSignatures,
+            long now,
+            boolean preserveReferences
+    ) {
         if (rows == null || rows.isEmpty()) {
             return;
         }
@@ -1501,7 +1765,11 @@ public final class LibraryRepository {
         if (persistedRows.isEmpty()) {
             return;
         }
-        libraryDao.upsertTracks(persistedRows);
+        if (preserveReferences) {
+            libraryDao.upsertTracksPreservingReferences(persistedRows);
+        } else {
+            libraryDao.upsertTracks(persistedRows);
+        }
         musicIdentityStore.ensureTracks(persistedRows, identityTags, contentSignatures, now);
     }
 

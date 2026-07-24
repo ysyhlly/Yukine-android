@@ -19,9 +19,6 @@ internal class PermissionResultOwner(
     }
 
     override fun onAudioPermissionResult() {
-        if (audioPermissionStatusSource.hasAudioPermission()) {
-            libraryLoader.loadLibrary(false)
-        }
         permissionResultObserver.onPermissionsChanged()
     }
 }

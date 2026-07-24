@@ -87,6 +87,7 @@ internal object StreamingGatewayJson {
             .put("sampleRate", source.sampleRate)
             .put("bitDepth", source.bitDepth)
             .put("codec", source.codec)
+            .put("channelCount", source.channelCount)
             .put("headers", JSONObject(source.headers))
             .put("requiresProxy", source.requiresProxy)
             .put("supportsRange", source.supportsRange)
@@ -266,6 +267,7 @@ internal object StreamingGatewayJson {
             sampleRate = value.optionalInt("sampleRate"),
             bitDepth = value.optionalInt("bitDepth"),
             codec = value.optionalString("codec"),
+            channelCount = value.optionalInt("channelCount"),
             headers = stringMap(value.optJSONObject("headers")),
             requiresProxy = value.optBoolean("requiresProxy", false),
             supportsRange = value.optBoolean("supportsRange", true)

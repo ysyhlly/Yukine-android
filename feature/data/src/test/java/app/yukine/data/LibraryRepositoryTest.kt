@@ -1563,6 +1563,78 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun localMusicFolderAddIsIdempotentAndRescanReconcilesAddedAndRemovedTracks() {
+        val rootUri = "content://com.example/tree/Music"
+        val sourceId = repository.beginLocalMusicFolderSource(rootUri, "Music")
+        val repeatedSourceId = repository.beginLocalMusicFolderSource(rootUri, "Renamed Music")
+
+        assertEquals(sourceId, repeatedSourceId)
+        repository.applyLocalMusicFolderSnapshot(sourceId, listOf(track(91_001L), track(91_002L)))
+        assertEquals(1, repository.loadLocalMusicFolderSources().size)
+        assertEquals(2, repository.loadLocalMusicFolderSources().single().trackCount())
+
+        repository.applyLocalMusicFolderSnapshot(sourceId, listOf(track(91_002L), track(91_003L)))
+
+        assertEquals(setOf(91_002L, 91_003L), repository.loadTracks().map { it.id }.toSet())
+        assertEquals(2, repository.loadLocalMusicFolderSources().single().trackCount())
+    }
+
+    @Test
+    fun overlappingFoldersKeepSharedTrackUntilTheLastSourceIsRemoved() {
+        val shared = track(92_001L)
+        val firstSource = repository.beginLocalMusicFolderSource(
+            "content://com.example/tree/Library",
+            "Library"
+        )
+        val secondSource = repository.beginLocalMusicFolderSource(
+            "content://com.example/tree/Library/Albums",
+            "Albums"
+        )
+        repository.applyLocalMusicFolderSnapshot(firstSource, listOf(shared))
+        repository.applyLocalMusicFolderSnapshot(secondSource, listOf(shared))
+
+        repository.applyLocalMusicFolderSnapshot(firstSource, emptyList())
+        assertTrue(repository.loadTracks().any { it.id == shared.id })
+
+        repository.removeLocalMusicFolderSource(secondSource)
+        assertFalse(repository.loadTracks().any { it.id == shared.id })
+    }
+
+    @Test
+    fun failedFolderScanKeepsPreviousSnapshotAndMarksSourceUnhealthy() {
+        val sourceId = repository.beginLocalMusicFolderSource(
+            "content://com.example/tree/Offline",
+            "Offline"
+        )
+        val existing = track(93_001L)
+        repository.applyLocalMusicFolderSnapshot(sourceId, listOf(existing))
+
+        repository.markLocalMusicFolderSourceFailed(sourceId, true)
+
+        val source = repository.loadLocalMusicFolderSources().single()
+        assertEquals("ACCESS_LOST", source.status())
+        assertEquals(1, source.trackCount())
+        assertTrue(repository.loadTracks().any { it.id == existing.id })
+    }
+
+    @Test
+    fun removingFolderPreservesTracksProtectedByOneTimeFileImport() {
+        val imported = track(94_001L)
+        repository.registerImportedDocumentTracks(listOf(imported))
+        val sourceId = repository.beginLocalMusicFolderSource(
+            "content://com.example/tree/Imported",
+            "Imported"
+        )
+        repository.applyLocalMusicFolderSnapshot(sourceId, listOf(imported))
+
+        val releasedUri = repository.removeLocalMusicFolderSource(sourceId)
+
+        assertEquals("content://com.example/tree/Imported", releasedUri)
+        assertTrue(repository.loadTracks().any { it.id == imported.id })
+        assertTrue(repository.loadLocalMusicFolderSources().isEmpty())
+    }
+
+    @Test
     fun incrementalReplaceCanPublishRowsBeforeDeferredIdentityIngestion() {
         val track = track(305L, "Deferred", "/music/deferred.flac")
 

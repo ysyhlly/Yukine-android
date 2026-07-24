@@ -26,7 +26,11 @@ internal data class SettingsLibraryEffectActions @JvmOverloads constructor(
     val restoreAllHiddenLibraryItems: Runnable,
     val setLibraryDedupMode: Consumer<LibraryDedupMode> = Consumer {},
     val confirmDuplicateCandidate: BiConsumer<Long, Long> = BiConsumer { _, _ -> },
-    val confirmHighConfidenceDuplicates: Runnable = Runnable {}
+    val confirmHighConfidenceDuplicates: Runnable = Runnable {},
+    val refreshAllMusicFolders: Runnable = Runnable {},
+    val refreshMusicFolder: Consumer<String> = Consumer {},
+    val removeMusicFolder: Consumer<String> = Consumer {},
+    val reauthorizeMusicFolder: Consumer<String> = Consumer {}
 )
 
 internal data class SettingsPlaybackEffectActions @JvmOverloads constructor(
@@ -70,6 +74,13 @@ internal class SettingsEffectOwner(
             SettingsEffect.LoadLibrary -> library.loadLibrary.run()
             SettingsEffect.OpenAudioFilePicker -> library.openAudioFilePicker.run()
             SettingsEffect.OpenAudioFolderPicker -> library.openAudioFolderPicker.run()
+            SettingsEffect.RefreshAllMusicFolders -> library.refreshAllMusicFolders.run()
+            is SettingsEffect.RefreshMusicFolder ->
+                library.refreshMusicFolder.accept(effect.sourceId)
+            is SettingsEffect.RemoveMusicFolder ->
+                library.removeMusicFolder.accept(effect.sourceId)
+            is SettingsEffect.ReauthorizeMusicFolder ->
+                library.reauthorizeMusicFolder.accept(effect.sourceId)
             SettingsEffect.RebuildSongIdentity -> library.rebuildSongIdentity.run()
             SettingsEffect.CancelIdentityBackfill -> library.cancelIdentityBackfill.run()
             is SettingsEffect.SetLibraryDedupMode -> library.setLibraryDedupMode.accept(effect.mode)

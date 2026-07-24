@@ -12,6 +12,10 @@ sealed interface SettingsEffect {
     data object LoadLibrary : SettingsEffect
     data object OpenAudioFilePicker : SettingsEffect
     data object OpenAudioFolderPicker : SettingsEffect
+    data object RefreshAllMusicFolders : SettingsEffect
+    data class RefreshMusicFolder(val sourceId: String) : SettingsEffect
+    data class RemoveMusicFolder(val sourceId: String) : SettingsEffect
+    data class ReauthorizeMusicFolder(val sourceId: String) : SettingsEffect
     data object RebuildSongIdentity : SettingsEffect
     data object CancelIdentityBackfill : SettingsEffect
     data class SetLibraryDedupMode(val mode: LibraryDedupMode) : SettingsEffect

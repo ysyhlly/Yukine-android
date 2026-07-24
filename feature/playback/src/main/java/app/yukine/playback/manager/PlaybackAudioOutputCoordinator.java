@@ -17,6 +17,7 @@ public final class PlaybackAudioOutputCoordinator {
     private boolean usbFailureLatched;
     private boolean mediaTransitionRetryArmed;
     private UsbPcmFormatKey failedUsbFormat;
+    private String failedUsbDeviceName = "";
     private AudioFallbackReason failedUsbReason = AudioFallbackReason.NONE;
     private volatile AudioOutputSnapshot snapshot = AudioOutputSnapshot.idle();
 
@@ -119,20 +120,37 @@ public final class PlaybackAudioOutputCoordinator {
             usbFailureLatched = true;
             mediaTransitionRetryArmed = false;
             failedUsbFormat = UsbPcmFormatKey.from(usbSnapshot);
+            failedUsbDeviceName = usbSnapshot.deviceName == null ? "" : usbSnapshot.deviceName;
             failedUsbReason = usbSnapshot.fallbackReason;
         }
     }
 
     /**
-     * Allows exactly one fresh USB negotiation after a real media-item change. Local PCM formats
-     * must differ from the failed format. HTTP media may retry even when its persisted format is
-     * complete and unchanged because the URL replacement is a new decoder/session boundary.
+     * Allows exactly one fresh USB negotiation after a real media-item change. The next decoded
+     * PCM format must have been verified and must differ from the failed format. Merely replacing
+     * an HTTP URL is not enough to re-enter a deterministic failing USB negotiation.
      */
     public synchronized boolean armUsbRetryForMediaItemTransition(
             int sampleRateHz,
             int bitDepth,
             int channelCount,
-            boolean allowStreamingMedia
+            boolean formatVerified
+    ) {
+        return armUsbRetryForMediaItemTransition(
+                sampleRateHz,
+                bitDepth,
+                channelCount,
+                formatVerified,
+                ""
+        );
+    }
+
+    public synchronized boolean armUsbRetryForMediaItemTransition(
+            int sampleRateHz,
+            int bitDepth,
+            int channelCount,
+            boolean formatVerified,
+            String usbDeviceName
     ) {
         if (!usbExclusiveRequested || !usbFailureLatched || mediaTransitionRetryArmed) {
             return false;
@@ -140,14 +158,19 @@ public final class PlaybackAudioOutputCoordinator {
         if (!isRetryableMediaTransitionFailure(failedUsbReason)) {
             return false;
         }
+        if (!formatVerified) {
+            return false;
+        }
         UsbPcmFormatKey nextFormat = new UsbPcmFormatKey(sampleRateHz, bitDepth, channelCount);
+        boolean differentDevice = usbDeviceName != null
+                && !usbDeviceName.isEmpty()
+                && !failedUsbDeviceName.isEmpty()
+                && !failedUsbDeviceName.equals(usbDeviceName);
         boolean knownDifferentFormat = nextFormat.isComplete()
                 && failedUsbFormat != null
                 && failedUsbFormat.isComplete()
-                && !failedUsbFormat.matches(nextFormat);
-        boolean streamingMediaRetry = allowStreamingMedia
-                && isRetryableMediaTransitionFailure(failedUsbReason);
-        if (!knownDifferentFormat && !streamingMediaRetry) {
+                && (differentDevice || !failedUsbFormat.matches(nextFormat));
+        if (!knownDifferentFormat) {
             return false;
         }
         mediaTransitionRetryArmed = true;
@@ -167,7 +190,38 @@ public final class PlaybackAudioOutputCoordinator {
             mediaTransitionRetryArmed = false;
             failedUsbReason = reason;
             failedUsbFormat = UsbPcmFormatKey.from(snapshot);
+            failedUsbDeviceName = snapshot.deviceName == null ? "" : snapshot.deviceName;
         }
+        snapshot = new AudioOutputSnapshot(
+                transportFor(fallbackMode),
+                AudioOutputPhase.FALLBACK,
+                "",
+                sampleRateHz,
+                0,
+                0,
+                0,
+                reason,
+                0,
+                snapshot.submittedPackets,
+                snapshot.completedPackets,
+                snapshot.failedPackets,
+                snapshot.underruns,
+                snapshot.framesWritten,
+                snapshot.feedbackRateHz,
+                error
+        );
+    }
+
+    /**
+     * Publishes a per-item preflight fallback without treating it as a failed USB session.
+     * A later item with a verified format may therefore negotiate normally.
+     */
+    public synchronized void onFormatPreflightSkipped(
+            AudioOutputMode fallbackMode,
+            int sampleRateHz,
+            AudioFallbackReason reason,
+            String error
+    ) {
         snapshot = new AudioOutputSnapshot(
                 transportFor(fallbackMode),
                 AudioOutputPhase.FALLBACK,
@@ -223,6 +277,7 @@ public final class PlaybackAudioOutputCoordinator {
         usbFailureLatched = false;
         mediaTransitionRetryArmed = false;
         failedUsbFormat = null;
+        failedUsbDeviceName = "";
         failedUsbReason = AudioFallbackReason.NONE;
     }
 

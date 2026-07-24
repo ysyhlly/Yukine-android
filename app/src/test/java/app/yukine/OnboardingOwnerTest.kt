@@ -76,6 +76,7 @@ class OnboardingOwnerTest {
             ),
             networkNavigator = { calls += "navigate:$it" },
             playlistPicker = { calls += "open-playlist" },
+            audioFolderPicker = { calls += "open-folder" },
             completionStore = OnboardingCompletionStore(
                 shouldShowSource = { shouldShow },
                 completedWriter = { calls += "completed" }

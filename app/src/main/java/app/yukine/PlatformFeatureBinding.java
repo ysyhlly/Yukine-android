@@ -23,6 +23,7 @@ final class PlatformFeatureBinding {
     private final LyricsViewModel lyricsViewModel;
     private final CustomLyricsRepository customLyricsRepository;
     private final MusicLibraryRepository musicLibraryRepository;
+    private Runnable localMusicFolderChangedListener = () -> {};
 
     private final MainUiShellController uiShellController;
     private final StatusMessageController statusMessageController;
@@ -191,12 +192,13 @@ final class PlatformFeatureBinding {
         );
         documentPickerController = new DocumentPickerController(activity, new DocumentPickerActions(
                 library::importAudioUris,
-                library::importAudioFolder,
+                uri -> library.importAudioFolder(uri, this::refreshOnboardingFolderCount),
                 downloadDirectoryOwner::setCustomDirectory,
                 library::importStreamM3u,
                 library::exportPlaylist,
                 library::importPlaylistM3u,
-                uris -> luoxueSourceImportController.importSelectedUris(uris)
+                uris -> luoxueSourceImportController.importSelectedUris(uris),
+                () -> statusMessageController.setStatusKey("music.folder.permission.persist.failed")
         ));
         libraryFileDeleteLauncher = new LibraryFileDeleteLauncher(
                 activity,
@@ -278,6 +280,22 @@ final class PlatformFeatureBinding {
 
     void attachOnboarding(OnboardingOwner onboardingOwner) {
         this.onboardingOwner = onboardingOwner;
+    }
+
+    void attachLocalMusicFolderChangedListener(Runnable listener) {
+        localMusicFolderChangedListener = listener == null ? () -> {} : listener;
+    }
+
+    private void refreshOnboardingFolderCount() {
+        executors.io(() -> {
+            int count = musicLibraryRepository.loadLocalMusicFolderSources().size();
+            mainHandler.post(() -> {
+                if (onboardingOwner != null) {
+                    onboardingOwner.onLocalMusicFolderCountChanged(count);
+                }
+                localMusicFolderChangedListener.run();
+            });
+        });
     }
 
     void applyThemeSurface() {

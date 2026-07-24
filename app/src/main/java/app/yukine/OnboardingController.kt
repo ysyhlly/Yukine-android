@@ -9,7 +9,8 @@ data class OnboardingUiState(
     val audioPermissionGranted: Boolean = false,
     val notificationPermissionGranted: Boolean = false,
     val libraryScanCompleted: Boolean = false,
-    val libraryScanInProgress: Boolean = false
+    val libraryScanInProgress: Boolean = false,
+    val localMusicFolderCount: Int = 0
 )
 
 internal class OnboardingController @JvmOverloads constructor(
@@ -40,11 +41,14 @@ internal class OnboardingController @JvmOverloads constructor(
 
         fun openPlaylistM3uFilePicker()
 
+        fun openAudioFolderPicker()
+
         fun onboardingCompleted()
     }
 
     private val mutableState = MutableStateFlow(OnboardingUiState())
     val state: StateFlow<OnboardingUiState> = mutableState.asStateFlow()
+    private var scanRequestedAfterPermission = false
 
     private val libraryScanTimeout = Runnable {
         if (!state.value.visible || !state.value.libraryScanInProgress) {
@@ -67,6 +71,10 @@ internal class OnboardingController @JvmOverloads constructor(
 
     fun onPermissionsChanged() {
         publishState()
+        if (scanRequestedAfterPermission && listener.hasAudioPermission()) {
+            scanRequestedAfterPermission = false
+            scanLibraryFromOnboarding()
+        }
     }
 
     fun finishOnboarding() {
@@ -79,6 +87,7 @@ internal class OnboardingController @JvmOverloads constructor(
 
     fun scanLibraryFromOnboarding() {
         if (!listener.hasAudioPermission()) {
+            scanRequestedAfterPermission = true
             listener.requestNeededPermissions()
             return
         }
@@ -92,10 +101,15 @@ internal class OnboardingController @JvmOverloads constructor(
     }
 
     fun importPlaylistFromOnboarding() {
-        if (!canFinishOnboarding()) {
-            return
-        }
         listener.openPlaylistM3uFilePicker()
+    }
+
+    fun addMusicFolderFromOnboarding() {
+        listener.openAudioFolderPicker()
+    }
+
+    fun onLocalMusicFolderCountChanged(count: Int) {
+        publishState(localMusicFolderCount = count.coerceAtLeast(0))
     }
 
     fun onLibraryScanResult(canScan: Boolean) {
@@ -114,25 +128,14 @@ internal class OnboardingController @JvmOverloads constructor(
     }
 
     fun canFinishOnboarding(): Boolean {
-        return listener.hasAudioPermission()
-            && state.value.libraryScanCompleted
+        return true
     }
 
     fun onboardingMissingSetupMessage(): String {
-        val missing = ArrayList<String>()
-        if (!listener.hasAudioPermission()) {
-            missing.add("音频权限")
-        }
-        if (!state.value.libraryScanCompleted) {
-            missing.add(if (state.value.libraryScanInProgress) "等待曲库扫描完成" else "扫描本地曲库")
-        }
-        return "完成后才能进入：" + missing.joinToString("、")
+        return ""
     }
 
     private fun completeOnboarding(afterComplete: Runnable? = null) {
-        if (!canFinishOnboarding()) {
-            return
-        }
         publishState(visible = false)
         scheduler.removeCallbacks(libraryScanTimeout)
         listener.onboardingCompleted()
@@ -142,14 +145,16 @@ internal class OnboardingController @JvmOverloads constructor(
     private fun publishState(
         visible: Boolean = state.value.visible,
         libraryScanCompleted: Boolean = state.value.libraryScanCompleted,
-        libraryScanInProgress: Boolean = state.value.libraryScanInProgress
+        libraryScanInProgress: Boolean = state.value.libraryScanInProgress,
+        localMusicFolderCount: Int = state.value.localMusicFolderCount
     ) {
         mutableState.value = OnboardingUiState(
             visible = visible,
             audioPermissionGranted = listener.hasAudioPermission(),
             notificationPermissionGranted = listener.hasNotificationPermission(),
             libraryScanCompleted = libraryScanCompleted,
-            libraryScanInProgress = libraryScanInProgress
+            libraryScanInProgress = libraryScanInProgress,
+            localMusicFolderCount = localMusicFolderCount
         )
     }
 

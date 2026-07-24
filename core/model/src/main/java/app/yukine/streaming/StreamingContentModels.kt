@@ -285,6 +285,7 @@ data class StreamingPlaybackSource(
     val sampleRate: Int? = null,
     val bitDepth: Int? = null,
     val codec: String? = null,
+    val channelCount: Int? = null,
     val headers: Map<String, String> = emptyMap(),
     val requiresProxy: Boolean = false,
     val supportsRange: Boolean = true

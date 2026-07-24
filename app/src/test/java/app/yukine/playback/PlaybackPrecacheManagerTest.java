@@ -475,6 +475,31 @@ public final class PlaybackPrecacheManagerTest {
     }
 
     @Test
+    public void upcomingPrecacheStartsFormatPreflightAlongsideCacheWarmup() {
+        FakeStateProvider stateProvider = new FakeStateProvider();
+        FakeCallbackScheduler scheduler = new FakeCallbackScheduler();
+        FakeUpcomingTracksProvider upcomingTracksProvider = new FakeUpcomingTracksProvider();
+        List<Long> preflightTrackIds = new ArrayList<>();
+        PlaybackMediaSourceProvider mediaSourceProvider = mediaSourceProvider();
+        PlaybackPrecacheManager manager = PlaybackPrecacheManager.fromMediaSourceProvider(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaSourceProvider,
+                scheduler,
+                track -> preflightTrackIds.add(track.id)
+        );
+        Track current = track(1L, "https://example.test/current.mp3");
+        upcomingTracksProvider.tracks.add(track(2L, "https://example.test/upcoming.m4a"));
+
+        stateProvider.currentTrack = current;
+        manager.precacheTrack(current);
+        scheduler.runNext();
+        manager.release();
+
+        assertEquals(List.of(2L), preflightTrackIds);
+    }
+
+    @Test
     public void upcomingPrecacheUsesFourSecondsOfBitrateWithSafeBounds() {
         assertEquals(
                 1_601_500L,

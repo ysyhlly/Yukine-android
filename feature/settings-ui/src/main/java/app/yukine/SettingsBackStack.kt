@@ -27,6 +27,7 @@ object SettingsBackStack {
             SettingsPage.SleepTimer -> SettingsPage.PlaybackGroup
 
             SettingsPage.Library,
+            SettingsPage.MusicFolders,
             SettingsPage.DuplicateCandidates -> SettingsPage.LibraryGroup
             SettingsPage.Lyrics,
             SettingsPage.StatusBarLyrics,

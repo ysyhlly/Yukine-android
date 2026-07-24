@@ -23,6 +23,10 @@ internal object AppPermissions {
     }
 
     @JvmStatic
+    fun neededAudioPermissions(context: Context): Array<String> =
+        if (hasAudioPermission(context)) emptyArray() else arrayOf(audioPermission())
+
+    @JvmStatic
     fun hasAudioPermission(context: Context): Boolean =
         context.checkSelfPermission(audioPermission()) == PackageManager.PERMISSION_GRANTED
 

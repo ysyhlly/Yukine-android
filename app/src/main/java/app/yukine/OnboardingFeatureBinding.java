@@ -35,11 +35,12 @@ final class OnboardingFeatureBinding {
                 new OnboardingPermissionAccess(
                         permissionController::hasAudioPermission,
                         permissionController::hasNotificationPermission,
-                        permissionController::requestNeededPermissions
+                        permissionController::requestAudioPermission
                 ),
                 new OnboardingLibraryAccess(library::loadLibrary, library::cancelLibraryLoad),
                 navigation::navigateToNetworkTabPage,
                 documentPickerController::openPlaylistM3uFilePicker,
+                documentPickerController::openAudioFolderPicker,
                 new OnboardingCompletionStore(
                         () -> {
                             throw new IllegalStateException("Onboarding visibility must be loaded asynchronously");
@@ -63,22 +64,21 @@ final class OnboardingFeatureBinding {
     void initialize(Runnable completion) {
         persistenceExecutor.execute(() -> {
             boolean shouldShow = repository == null || !repository.loadOnboardingCompleted();
+            int folderCount = repository == null
+                    ? 0
+                    : repository.loadLocalMusicFolderSources().size();
             mainHandler.post(() -> {
                 if (released) return;
                 owner.initialize(shouldShow);
+                owner.onLocalMusicFolderCountChanged(folderCount);
                 if (completion != null) completion.run();
             });
         });
     }
 
     void startLibrary() {
-        if (!owner.showOnboarding()) {
-            permissionController.requestNeededPermissions();
-        }
-        // Always publish the persisted Room snapshot before an optional device refresh. A full
-        // MediaStore scan can take long enough for the library to look empty even though hundreds
-        // of cached WebDAV/provider tracks are already available.
-        library.loadLibrary(true);
+        // Startup is cache-only. Device-wide and selected-folder refreshes are user initiated.
+        library.loadCachedLibrary();
         library.loadCollections();
     }
 

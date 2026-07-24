@@ -64,9 +64,10 @@ final class MainUiShellController {
         Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
     }
 
-    private boolean shouldSuppressToast(String message) {
+    static boolean shouldSuppressToast(String message) {
         return "正在加载曲库".equals(message)
-                || "Loading library".equals(message);
+                || "Loading library".equals(message)
+                || message.contains("接口未找到");
     }
 
 }

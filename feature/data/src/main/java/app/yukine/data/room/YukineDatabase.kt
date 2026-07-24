@@ -46,7 +46,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProviderResponseCacheEntity::class,
         LyricBindingEntity::class,
         CustomLyricsEntity::class,
-        IdentityOperationEntity::class
+        IdentityOperationEntity::class,
+        LocalMusicSourceEntity::class,
+        LocalMusicSourceTrackEntity::class
     ],
     version = YukineMigrations.TARGET_VERSION,
     exportSchema = true
@@ -60,6 +62,7 @@ abstract class YukineDatabase : RoomDatabase() {
     abstract fun remoteSourceDao(): RemoteSourceDao
     abstract fun streamingTrackMatchDao(): StreamingTrackMatchDao
     abstract fun musicIdentityDao(): MusicIdentityDao
+    abstract fun localMusicSourceDao(): LocalMusicSourceDao
 
     companion object {
         const val DATABASE_NAME: String = "echo_next.db"

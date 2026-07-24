@@ -1,7 +1,9 @@
 package app.yukine.data;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import app.yukine.diagnostics.DiagnosticLog;
 
 import java.io.BufferedReader;
@@ -23,6 +25,7 @@ import app.yukine.model.PlaylistImportResult;
 import app.yukine.model.PlaybackQueueState;
 import app.yukine.model.LocalAudioImportSummary;
 import app.yukine.model.LocalAudioIngestResult;
+import app.yukine.model.LocalMusicSource;
 import app.yukine.model.RemoteSource;
 import app.yukine.model.StreamImportResult;
 import app.yukine.model.Track;
@@ -1352,14 +1355,107 @@ public final class MusicLibraryRepository {
 
     public LocalAudioIngestResult importAudioUris(List<Uri> uris) {
         LocalAudioIngestResult result = documentImporter.importAudioUris(uris);
-        libraryRepository.upsertTracks(result.tracks());
+        libraryRepository.registerImportedDocumentTracks(result.tracks());
         return result;
     }
 
     public LocalAudioIngestResult importAudioTree(Uri treeUri) {
-        LocalAudioIngestResult result = documentImporter.importAudioTree(treeUri);
-        libraryRepository.upsertTracks(result.tracks());
+        if (treeUri == null || Uri.EMPTY.equals(treeUri)) {
+            return LocalAudioIngestResult.incomplete(
+                    Collections.emptyList(),
+                    LocalAudioImportSummary.EMPTY,
+                    "PROVIDER_ERROR"
+            );
+        }
+        String sourceId = libraryRepository.beginLocalMusicFolderSource(
+                treeUri.toString(),
+                localMusicFolderDisplayName(treeUri)
+        );
+        LocalAudioIngestResult result;
+        try {
+            result = documentImporter.importAudioTree(treeUri);
+        } catch (SecurityException error) {
+            libraryRepository.markLocalMusicFolderSourceFailed(sourceId, true);
+            return LocalAudioIngestResult.incomplete(
+                    Collections.emptyList(),
+                    LocalAudioImportSummary.EMPTY,
+                    "ACCESS_LOST"
+            );
+        } catch (RuntimeException error) {
+            libraryRepository.markLocalMusicFolderSourceFailed(sourceId, false);
+            return LocalAudioIngestResult.incomplete(
+                    Collections.emptyList(),
+                    LocalAudioImportSummary.EMPTY,
+                    "PROVIDER_ERROR"
+            );
+        }
+        if (result.complete()) {
+            libraryRepository.applyLocalMusicFolderSnapshot(sourceId, result.tracks());
+        } else {
+            libraryRepository.markLocalMusicFolderSourceFailed(
+                    sourceId,
+                    "ACCESS_LOST".equals(result.failureReason())
+            );
+        }
         return result;
+    }
+
+    public List<LocalMusicSource> loadLocalMusicFolderSources() {
+        return libraryRepository.loadLocalMusicFolderSources();
+    }
+
+    public LocalAudioIngestResult refreshLocalMusicFolder(String sourceId) {
+        for (LocalMusicSource source : loadLocalMusicFolderSources()) {
+            if (source.sourceId().equals(sourceId)) {
+                return importAudioTree(Uri.parse(source.rootUri()));
+            }
+        }
+        return LocalAudioIngestResult.incomplete(
+                Collections.emptyList(),
+                LocalAudioImportSummary.EMPTY,
+                "SOURCE_NOT_FOUND"
+        );
+    }
+
+    public int refreshAllLocalMusicFolders() {
+        int refreshed = 0;
+        for (LocalMusicSource source : loadLocalMusicFolderSources()) {
+            if (refreshLocalMusicFolder(source.sourceId()).complete()) {
+                refreshed++;
+            }
+        }
+        return refreshed;
+    }
+
+    public String removeLocalMusicFolder(String sourceId) {
+        return libraryRepository.removeLocalMusicFolderSource(sourceId);
+    }
+
+    private String localMusicFolderDisplayName(Uri treeUri) {
+        try {
+            String documentId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId);
+            try (Cursor cursor = appContext.getContentResolver().query(
+                    documentUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                    null,
+                    null,
+                    null
+            )) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    String name = cursor.getString(0);
+                    if (name != null && !name.trim().isEmpty()) {
+                        return name.trim();
+                    }
+                }
+            }
+        } catch (SecurityException | IllegalArgumentException ignored) {
+            // The source will be marked inaccessible by the real tree scan.
+        }
+        String fallback = treeUri.getLastPathSegment();
+        return fallback == null || fallback.trim().isEmpty()
+                ? treeUri.toString()
+                : Uri.decode(fallback);
     }
 
     public int parseMissingAudioSpecs() {

@@ -147,8 +147,8 @@ class PlaybackAudioOutputCoordinatorTest {
         )
 
         assertEquals(AudioOutputMode.DIRECT_PCM, coordinator.updateRequests(true, true, usbProfile))
-        assertTrue(coordinator.armUsbRetryForMediaItemTransition(48_000, 24, 2, false))
-        assertFalse(coordinator.armUsbRetryForMediaItemTransition(48_000, 24, 2, false))
+        assertTrue(coordinator.armUsbRetryForMediaItemTransition(48_000, 24, 2, true))
+        assertFalse(coordinator.armUsbRetryForMediaItemTransition(48_000, 24, 2, true))
         assertEquals(AudioOutputMode.USB_EXCLUSIVE, coordinator.updateRequests(true, true, usbProfile))
         assertEquals(AudioOutputMode.DIRECT_PCM, coordinator.updateRequests(true, true, usbProfile))
     }
@@ -162,6 +162,30 @@ class PlaybackAudioOutputCoordinatorTest {
     }
 
     @Test
+    fun verifiedFormatMayRetryOnceForADifferentUsbDevice() {
+        val coordinator = failedCoordinator(44_100, 24, 2)
+
+        assertTrue(
+            coordinator.armUsbRetryForMediaItemTransition(
+                44_100,
+                24,
+                2,
+                true,
+                "Replacement DAC"
+            )
+        )
+        assertFalse(
+            coordinator.armUsbRetryForMediaItemTransition(
+                44_100,
+                24,
+                2,
+                true,
+                "Replacement DAC"
+            )
+        )
+    }
+
+    @Test
     fun incompleteNextMediaFormatDoesNotReenterUsb() {
         val coordinator = failedCoordinator(44_100, 24, 2)
 
@@ -172,7 +196,7 @@ class PlaybackAudioOutputCoordinatorTest {
     }
 
     @Test
-    fun unknownDecodedPcmAllowsOneRetryAfterFormatOrSessionFailure() {
+    fun unverifiedDecodedPcmNeverRetriesAfterFormatOrSessionFailure() {
         listOf(
             AudioFallbackReason.NO_COMPATIBLE_ENDPOINT,
             AudioFallbackReason.CLOCK_NEGOTIATION_FAILED,
@@ -181,20 +205,16 @@ class PlaybackAudioOutputCoordinatorTest {
         ).forEach { reason ->
             val coordinator = failedCoordinator(0, 0, 0, reason)
 
-            assertTrue(reason.name, coordinator.armUsbRetryForMediaItemTransition(0, 0, 0, true))
             assertFalse(reason.name, coordinator.armUsbRetryForMediaItemTransition(0, 0, 0, true))
-            assertEquals(reason.name, AudioOutputMode.USB_EXCLUSIVE, coordinator.updateRequests(true, true, usbProfile))
             assertEquals(reason.name, AudioOutputMode.DIRECT_PCM, coordinator.updateRequests(true, true, usbProfile))
         }
     }
 
     @Test
-    fun knownStreamingPcmAllowsOneRetryAfterSameFormatFailure() {
+    fun verifiedStreamingPcmDoesNotRetryTheSameFailedFormat() {
         val coordinator = failedCoordinator(44_100, 24, 2)
 
-        assertTrue(coordinator.armUsbRetryForMediaItemTransition(44_100, 24, 2, true))
         assertFalse(coordinator.armUsbRetryForMediaItemTransition(44_100, 24, 2, true))
-        assertEquals(AudioOutputMode.USB_EXCLUSIVE, coordinator.updateRequests(true, true, usbProfile))
         assertEquals(AudioOutputMode.DIRECT_PCM, coordinator.updateRequests(true, true, usbProfile))
     }
 

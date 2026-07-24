@@ -55,6 +55,23 @@ class MainPermissionControllerTest {
         assertEquals(0, listener.results)
     }
 
+    @Test
+    fun requestAudioPermissionNeverIncludesNotificationPermission() {
+        val launcher = RecordingPermissionRequestLauncher()
+        val controller = MainPermissionController(
+            activity = activity(),
+            listener = RecordingPermissionListener(),
+            permissionRequestLauncher = launcher
+        )
+
+        controller.requestAudioPermission()
+
+        assertArrayEquals(
+            arrayOf("android.permission.READ_MEDIA_AUDIO"),
+            launcher.launches.single()
+        )
+    }
+
     private fun activity(): ComponentActivity =
         Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
 

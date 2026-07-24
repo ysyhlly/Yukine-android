@@ -102,6 +102,7 @@ data class SettingsAction(
     val section: String = "",
     val isBack: Boolean = false,
     val imageDialog: SettingsImageDialog? = null,
+    val confirmationDialog: SettingsConfirmationDialog? = null,
     val entryId: SettingsEntryId? = null,
     val categoryId: SettingsCategoryId? = null,
     val sliderDefaultLabel: String = "",
@@ -162,6 +163,13 @@ data class SettingsImageDialog(
     val dismissLabel: String
 )
 
+data class SettingsConfirmationDialog(
+    val title: String,
+    val message: String,
+    val confirmLabel: String,
+    val cancelLabel: String
+)
+
 class SettingsListScrollState(
     var firstVisibleItemIndex: Int = 0,
     var firstVisibleItemScrollOffset: Int = 0
@@ -203,6 +211,7 @@ fun SettingsScreen(
     audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
 ) {
     var activeImageDialog by remember { mutableStateOf<SettingsImageDialog?>(null) }
+    var pendingConfirmation by remember { mutableStateOf<SettingsAction?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     val titleBackAction = actions.firstOrNull { it.isBack }
     val visibleActions = settingsContentActions(actions)
@@ -312,6 +321,8 @@ fun SettingsScreen(
                         scrollState.save(listState)
                         if (action.imageDialog != null) {
                             activeImageDialog = action.imageDialog
+                        } else if (action.confirmationDialog != null) {
+                            pendingConfirmation = action
                         } else {
                             action.onClick.run()
                         }
@@ -340,6 +351,29 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = { activeImageDialog = null }) {
                     Text(dialog.dismissLabel)
+                }
+            }
+        )
+    }
+    pendingConfirmation?.let { action ->
+        val dialog = action.confirmationDialog ?: return@let
+        AlertDialog(
+            onDismissRequest = { pendingConfirmation = null },
+            title = { Text(dialog.title, style = EchoTypography.title) },
+            text = { Text(dialog.message, style = EchoTypography.bodyMedium) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingConfirmation = null
+                        action.onClick.run()
+                    }
+                ) {
+                    Text(dialog.confirmLabel)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingConfirmation = null }) {
+                    Text(dialog.cancelLabel)
                 }
             }
         )

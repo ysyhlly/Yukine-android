@@ -106,7 +106,14 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
             Uri.parse(source.url),
             dataPath,
             0L,
-            (metadata?.coverUrl ?: metadata?.coverThumbUrl)?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+            (metadata?.coverUrl ?: metadata?.coverThumbUrl)?.takeIf { it.isNotBlank() }?.let(Uri::parse),
+            source.codec.orEmpty(),
+            source.bitrate ?: 0,
+            source.sampleRate ?: 0,
+            source.bitDepth ?: 0,
+            source.channelCount ?: 0,
+            0f,
+            0f
         )
     }
 

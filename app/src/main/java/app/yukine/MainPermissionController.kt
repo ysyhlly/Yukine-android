@@ -37,7 +37,14 @@ internal class MainPermissionController @JvmOverloads constructor(
     }
 
     fun requestNeededPermissions() {
-        val permissions = neededPermissionsProvider.neededPermissions()
+        requestPermissions(neededPermissionsProvider.neededPermissions())
+    }
+
+    fun requestAudioPermission() {
+        requestPermissions(AppPermissions.neededAudioPermissions(activity))
+    }
+
+    private fun requestPermissions(permissions: Array<String>) {
         if (permissions.isEmpty()) {
             return
         }

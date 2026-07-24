@@ -196,6 +196,7 @@ internal class MainActivityComposition @Inject constructor(
             platform::importLyricsDirectory,
             platform::showLyricsImportReport
         )
+        platform.attachLocalMusicFolderChangedListener(settings::onLocalMusicFoldersChanged)
         network.bindUi(streamingSearch, platform.documentPickerController(), settings)
         library.bindPlaybackStateSources(playback, streaming, viewModels.lyricsViewModel)
         platform.bindPlaybackEffects(playback, navigation, library)

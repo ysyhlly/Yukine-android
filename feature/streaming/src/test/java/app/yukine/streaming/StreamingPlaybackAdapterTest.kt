@@ -61,7 +61,12 @@ class StreamingPlaybackAdapterTest {
             source = StreamingPlaybackSource(
                 provider = StreamingProviderName.QQ_MUSIC,
                 providerTrackId = "song-mid-1|media-mid-1",
-                url = "https://stream.qq.example/song.mp3"
+                url = "https://stream.qq.example/song.flac",
+                codec = "flac",
+                bitrate = 1_411,
+                sampleRate = 96_000,
+                bitDepth = 24,
+                channelCount = 2
             ),
             metadata = StreamingTrack(
                 provider = StreamingProviderName.QQ_MUSIC,
@@ -73,6 +78,11 @@ class StreamingPlaybackAdapterTest {
         )
 
         assertEquals("Album", resolved.album)
+        assertEquals("flac", resolved.codec)
+        assertEquals(1_411, resolved.bitrateKbps)
+        assertEquals(96_000, resolved.sampleRateHz)
+        assertEquals(24, resolved.bitsPerSample)
+        assertEquals(2, resolved.channelCount)
     }
 
     @Test

@@ -32,12 +32,13 @@ internal fun interface DocumentLuoxueSourceUrisImporter {
 }
 
 /** Typed feature actions emitted by the platform document picker. */
-internal data class DocumentPickerActions(
+internal data class DocumentPickerActions @JvmOverloads constructor(
     val audioUrisImporter: DocumentAudioUrisImporter,
     val audioFolderImporter: DocumentAudioFolderImporter,
     val downloadFolderChooser: DocumentDownloadFolderChooser,
     val streamM3uImporter: DocumentStreamM3uImporter,
     val playlistExporter: DocumentPlaylistExporter,
     val playlistM3uImporter: DocumentPlaylistM3uImporter,
-    val luoxueSourceUrisImporter: DocumentLuoxueSourceUrisImporter
+    val luoxueSourceUrisImporter: DocumentLuoxueSourceUrisImporter,
+    val audioFolderPermissionFailure: Runnable = Runnable {}
 )

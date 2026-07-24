@@ -54,9 +54,19 @@ public final class DocumentMusicImporter {
     public LocalAudioIngestResult importAudioTree(Uri treeUri) {
         ArrayList<Track> tracks = new ArrayList<>();
         LocalAudioImportSummary.Builder summary = new LocalAudioImportSummary.Builder();
-        String rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri);
-        collectTreeTracks(treeUri, rootDocumentId, 0, tracks, summary);
-        return new LocalAudioIngestResult(tracks, summary.build());
+        TreeScanState state = new TreeScanState();
+        try {
+            String rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri);
+            collectTreeTracks(treeUri, rootDocumentId, 0, tracks, summary, state);
+        } catch (SecurityException error) {
+            state.fail("ACCESS_LOST");
+        } catch (IllegalArgumentException error) {
+            state.fail("PROVIDER_ERROR");
+        }
+        LocalAudioImportSummary resultSummary = summary.build();
+        return state.complete
+                ? new LocalAudioIngestResult(tracks, resultSummary)
+                : LocalAudioIngestResult.incomplete(tracks, resultSummary, state.failureReason);
     }
 
     private void collectTreeTracks(
@@ -64,9 +74,11 @@ public final class DocumentMusicImporter {
             String documentId,
             int depth,
             List<Track> tracks,
-            LocalAudioImportSummary.Builder summary
+            LocalAudioImportSummary.Builder summary,
+            TreeScanState state
     ) {
         if (depth > MAX_TREE_DEPTH) {
+            state.fail("DEPTH_LIMIT");
             return;
         }
         Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
@@ -77,6 +89,7 @@ public final class DocumentMusicImporter {
         };
         try (Cursor cursor = context.getContentResolver().query(childrenUri, projection, null, null, null)) {
             if (cursor == null) {
+                state.fail("PROVIDER_ERROR");
                 return;
             }
             int idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
@@ -87,14 +100,28 @@ public final class DocumentMusicImporter {
                 String name = cursor.getString(nameColumn);
                 String mimeType = cursor.getString(mimeColumn);
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
-                    collectTreeTracks(treeUri, childId, depth + 1, tracks, summary);
+                    collectTreeTracks(treeUri, childId, depth + 1, tracks, summary, state);
                     continue;
                 }
                 Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId);
                 appendCandidate(documentUri, name, mimeType, tracks, summary);
             }
-        } catch (SecurityException | IllegalArgumentException ignored) {
-            // Some providers expose partial trees or revoke individual children.
+        } catch (SecurityException ignored) {
+            state.fail("ACCESS_LOST");
+        } catch (IllegalArgumentException ignored) {
+            state.fail("PROVIDER_ERROR");
+        }
+    }
+
+    private static final class TreeScanState {
+        private boolean complete = true;
+        private String failureReason = "";
+
+        private void fail(String reason) {
+            complete = false;
+            if (failureReason.isEmpty()) {
+                failureReason = reason == null ? "PROVIDER_ERROR" : reason;
+            }
         }
     }
 

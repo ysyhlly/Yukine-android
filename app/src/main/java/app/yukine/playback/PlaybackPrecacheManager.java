@@ -84,6 +84,7 @@ final class PlaybackPrecacheManager {
     private final MediaCacheOperations mediaCacheOperations;
     private final CallbackScheduler callbackScheduler;
     private final Runnable audioCacheReleaseAction;
+    private final Consumer<Track> upcomingFormatPreflightAction;
     private final ThreadPoolExecutor playbackCacheExecutor;
     private final Set<String> activePrecacheRanges =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -111,6 +112,7 @@ final class PlaybackPrecacheManager {
                 mediaCacheOperations,
                 callbackScheduler,
                 audioCacheReleaseAction,
+                null,
                 newPlaybackCacheExecutor()
         );
     }
@@ -123,11 +125,32 @@ final class PlaybackPrecacheManager {
             Runnable audioCacheReleaseAction,
             ThreadPoolExecutor playbackCacheExecutor
     ) {
+        this(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaCacheOperations,
+                callbackScheduler,
+                audioCacheReleaseAction,
+                null,
+                playbackCacheExecutor
+        );
+    }
+
+    PlaybackPrecacheManager(
+            StateProvider stateProvider,
+            IntFunction<List<Track>> upcomingTracksProvider,
+            MediaCacheOperations mediaCacheOperations,
+            CallbackScheduler callbackScheduler,
+            Runnable audioCacheReleaseAction,
+            Consumer<Track> upcomingFormatPreflightAction,
+            ThreadPoolExecutor playbackCacheExecutor
+    ) {
         this.stateProvider = stateProvider;
         this.upcomingTracksProvider = upcomingTracksProvider;
         this.mediaCacheOperations = mediaCacheOperations;
         this.callbackScheduler = callbackScheduler;
         this.audioCacheReleaseAction = audioCacheReleaseAction;
+        this.upcomingFormatPreflightAction = upcomingFormatPreflightAction;
         this.playbackCacheExecutor = playbackCacheExecutor == null
                 ? newPlaybackCacheExecutor()
                 : playbackCacheExecutor;
@@ -139,12 +162,30 @@ final class PlaybackPrecacheManager {
             PlaybackMediaSourceProvider mediaSourceProvider,
             CallbackScheduler callbackScheduler
     ) {
+        return fromMediaSourceProvider(
+                stateProvider,
+                upcomingTracksProvider,
+                mediaSourceProvider,
+                callbackScheduler,
+                null
+        );
+    }
+
+    static PlaybackPrecacheManager fromMediaSourceProvider(
+            StateProvider stateProvider,
+            IntFunction<List<Track>> upcomingTracksProvider,
+            PlaybackMediaSourceProvider mediaSourceProvider,
+            CallbackScheduler callbackScheduler,
+            Consumer<Track> upcomingFormatPreflightAction
+    ) {
         return new PlaybackPrecacheManager(
                 stateProvider,
                 upcomingTracksProvider,
                 mediaCacheOperationsFromMediaSourceProvider(mediaSourceProvider),
                 callbackScheduler,
-                audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider)
+                audioCacheReleaseActionFromMediaSourceProvider(mediaSourceProvider),
+                upcomingFormatPreflightAction,
+                newPlaybackCacheExecutor()
         );
     }
 
@@ -331,6 +372,9 @@ final class PlaybackPrecacheManager {
             return;
         }
         final Track upcomingTrack = track;
+        if (upcomingFormatPreflightAction != null) {
+            upcomingFormatPreflightAction.accept(upcomingTrack);
+        }
         stateProvider.streamingDiagnostics().recordPrecacheQueued(upcomingTrack);
         submitPlaybackCacheTask(
                 PrecachePriority.UPCOMING_TRACK,

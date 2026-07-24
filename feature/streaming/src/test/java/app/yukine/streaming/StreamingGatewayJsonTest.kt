@@ -365,6 +365,7 @@ class StreamingGatewayJsonTest {
             sampleRate = 44_100,
             bitDepth = 16,
             codec = "flac",
+            channelCount = 2,
             headers = mapOf("Referer" to "https://y.qq.com/"),
             requiresProxy = true,
             supportsRange = false
@@ -381,9 +382,23 @@ class StreamingGatewayJsonTest {
         assertEquals(source.sampleRate, result.sampleRate)
         assertEquals(source.bitDepth, result.bitDepth)
         assertEquals(source.codec, result.codec)
+        assertEquals(source.channelCount, result.channelCount)
         assertEquals(source.headers, result.headers)
         assertTrue(result.requiresProxy)
         assertFalse(result.supportsRange)
+    }
+
+    @Test
+    fun playbackSourceWithoutChannelCountRemainsBackwardCompatible() {
+        val result = StreamingGatewayJson.playbackSource(
+            JSONObject()
+                .put("provider", "qqmusic")
+                .put("providerTrackId", "legacy-track")
+                .put("url", "https://example.test/legacy.mp3")
+                .toString()
+        )
+
+        assertEquals(null, result.channelCount)
     }
 
     @Test
