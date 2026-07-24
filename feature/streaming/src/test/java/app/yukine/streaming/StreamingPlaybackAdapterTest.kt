@@ -86,6 +86,21 @@ class StreamingPlaybackAdapterTest {
     }
 
     @Test
+    fun resolvedNeteaseTrackNormalizesLegacyBitsPerSecondBitrate() {
+        val resolved = StreamingPlaybackAdapter.toTrack(
+            source = StreamingPlaybackSource(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "2054974200",
+                url = "https://stream.netease.example/song.flac",
+                codec = "flac",
+                bitrate = 2_945_010
+            )
+        )
+
+        assertEquals(2_945, resolved.bitrateKbps)
+    }
+
+    @Test
     fun resolvedTrackCarriesPlaybackMimeTypeInItsPersistentDataPath() {
         val resolved = StreamingPlaybackAdapter.toTrack(
             source = StreamingPlaybackSource(

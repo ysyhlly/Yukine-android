@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -39,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.yukine.ui.LocalEchoPageBottomChromeInset
 
 data class TogetherLabels(
     val title: String,
@@ -99,6 +103,10 @@ fun TogetherDestination(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val bottomSafePadding = maxOf(
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+        LocalEchoPageBottomChromeInset.current
+    )
     var pendingMatchId by remember { mutableStateOf<String?>(null) }
     val addAudioLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -116,6 +124,7 @@ fun TogetherDestination(
     }
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -132,13 +141,16 @@ fun TogetherDestination(
             }
         }
     ) { padding ->
+        val pageModifier = Modifier
+            .padding(padding)
+            .padding(bottom = bottomSafePadding)
         when (state.page) {
             TogetherPage.Home -> TogetherHome(
                 state,
                 labels,
                 viewModel::openCreate,
                 viewModel::openJoin,
-                Modifier.padding(padding)
+                pageModifier
             )
             TogetherPage.Create -> TogetherCreate(
                 state,
@@ -147,7 +159,7 @@ fun TogetherDestination(
                 viewModel::moveDraft,
                 { addAudioLauncher.launch(arrayOf("audio/*")) },
                 viewModel::create,
-                Modifier.padding(padding)
+                pageModifier
             )
             TogetherPage.Join -> TogetherJoin(
                 state,
@@ -158,7 +170,7 @@ fun TogetherDestination(
                     matchAudioLauncher.launch(arrayOf("audio/*"))
                 },
                 viewModel::join,
-                Modifier.padding(padding)
+                pageModifier
             )
             TogetherPage.Room -> TogetherRoom(
                 state,
@@ -167,7 +179,7 @@ fun TogetherDestination(
                 onShareRoomCode,
                 viewModel::save,
                 viewModel::leave,
-                Modifier.padding(padding)
+                pageModifier
             )
             TogetherPage.Settings -> TogetherSettings(
                 state,
@@ -175,7 +187,7 @@ fun TogetherDestination(
                 viewModel::updateSettings,
                 viewModel::testConnection,
                 viewModel::saveSettings,
-                Modifier.padding(padding)
+                pageModifier
             )
         }
     }

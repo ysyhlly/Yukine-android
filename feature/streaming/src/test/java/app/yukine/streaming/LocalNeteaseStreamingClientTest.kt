@@ -8,6 +8,24 @@ import org.junit.Test
 
 class LocalNeteaseStreamingClientTest {
     @Test
+    fun resolvePlaybackConvertsBitrateFromBitsPerSecondToKbps() {
+        val client = LocalNeteaseStreamingClient(
+            authStore = FakeAuthStore("MUSIC_U=session"),
+            httpClient = PlaybackNeteaseHttpClient()
+        )
+
+        val source = client.resolvePlayback(
+            StreamingPlaybackRequest(
+                provider = StreamingProviderName.NETEASE,
+                providerTrackId = "2054974200",
+                quality = StreamingAudioQuality.LOSSLESS
+            )
+        )
+
+        assertEquals(2_945, source.bitrate)
+    }
+
+    @Test
     fun setFavoriteUsesEncryptedWeApiEnvelopeAndDesktopCookie() {
         val http = RecordingNeteaseHttpClient()
         val client = LocalNeteaseStreamingClient(
@@ -31,6 +49,23 @@ class LocalNeteaseStreamingClientTest {
         client.setFavorite("654321", false)
 
         assertEquals(2, http.getPaths.size)
+    }
+
+    private class PlaybackNeteaseHttpClient : NeteaseHttpClient {
+        override fun getJson(
+            path: String,
+            query: Map<String, String>,
+            cookieHeader: String?
+        ): JSONObject = JSONObject().put(
+            "data",
+            org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", "2054974200")
+                    .put("url", "https://example.test/audio.flac")
+                    .put("type", "flac")
+                    .put("br", 2_945_010)
+            )
+        )
     }
 
     private class RecordingNeteaseHttpClient : NeteaseHttpClient {

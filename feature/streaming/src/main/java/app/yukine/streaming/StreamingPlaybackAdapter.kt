@@ -108,7 +108,7 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
             0L,
             (metadata?.coverUrl ?: metadata?.coverThumbUrl)?.takeIf { it.isNotBlank() }?.let(Uri::parse),
             source.codec.orEmpty(),
-            source.bitrate ?: 0,
+            normalizedBitrateKbps(source),
             source.sampleRate ?: 0,
             source.bitDepth ?: 0,
             source.channelCount ?: 0,
@@ -205,6 +205,17 @@ object StreamingPlaybackAdapter : StreamingDataPathParser {
     private fun stableTrackId(provider: StreamingProviderName, providerTrackId: String): Long {
         val value = "${provider.wireName}:$providerTrackId".hashCode().toLong().absoluteValue
         return if (value == 0L) 1L else value
+    }
+
+    private fun normalizedBitrateKbps(source: StreamingPlaybackSource): Int {
+        val bitrate = source.bitrate?.takeIf { it > 0 } ?: return 0
+        // Compatibility for playback-source JSON cached before NetEase `br` was converted
+        // from bits per second at the provider boundary.
+        return if (source.provider == StreamingProviderName.NETEASE && bitrate >= 10_000) {
+            (bitrate / 1_000).coerceAtLeast(1)
+        } else {
+            bitrate
+        }
     }
 
     private fun dataPath(source: StreamingPlaybackSource, metadata: StreamingTrack?): String {

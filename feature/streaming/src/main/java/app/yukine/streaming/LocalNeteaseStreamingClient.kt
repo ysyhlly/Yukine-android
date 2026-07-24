@@ -712,7 +712,11 @@ class LocalNeteaseStreamingClient(
             url = url,
             expiresAtEpochMs = source.optionalLongLocal("expi")?.let { System.currentTimeMillis() + it * 1000L },
             mimeType = mimeType(url, source.optionalStringLocal("type") ?: source.optionalStringLocal("encodeType")),
-            bitrate = source.optionalIntLocal("br"),
+            // NetEase reports `br` in bits per second, while StreamingPlaybackSource
+            // and Track expose bitrate in kilobits per second.
+            bitrate = source.optionalIntLocal("br")
+                ?.takeIf { it > 0 }
+                ?.let { (it / 1_000).coerceAtLeast(1) },
             codec = source.optionalStringLocal("type") ?: source.optionalStringLocal("encodeType"),
             headers = mapOf(
                 "User-Agent" to "Mozilla/5.0 Yukine-Android",
