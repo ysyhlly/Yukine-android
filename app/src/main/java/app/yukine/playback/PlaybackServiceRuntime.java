@@ -276,6 +276,7 @@ final class PlaybackServiceRuntime
     private AudioDeviceCapabilityProbe audioDeviceCapabilityProbe;
     private UsbAudioDeviceManager usbAudioDeviceManager;
     private UsbExclusiveAudioSink usbExclusiveAudioSink;
+    private int observedUsbAudioDeviceId = -1;
     private Boolean pendingRestorePlayWhenReady;
     private final PlaybackServiceActionBuffer serviceActionBuffer = new PlaybackServiceActionBuffer();
 
@@ -504,12 +505,13 @@ final class PlaybackServiceRuntime
         audioDeviceCapabilityProbe.register(mainHandler);
         // Initialize USB audio device manager for USB exclusive output
         usbAudioDeviceManager = new UsbAudioDeviceManager(service);
-        usbAudioDeviceManager.register();
         usbAudioDeviceManager.setOnDeviceChanged(() -> {
             audioDeviceCapabilityProbe.refresh();
             handleAudioDeviceCapabilitiesChanged();
             return null;
         });
+        usbAudioDeviceManager.register();
+        observedUsbAudioDeviceId = usbAudioDeviceManager.activeDeviceId();
         AudioOutputMode requestedMode = audioOutputCoordinator.updateRequests(
                 bitPerfectEnabled, usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile());
@@ -1875,6 +1877,10 @@ final class PlaybackServiceRuntime
     }
 
     private void scheduleOutputReevaluation(boolean immediate) {
+        scheduleOutputReevaluation(immediate, false);
+    }
+
+    private void scheduleOutputReevaluation(boolean immediate, boolean forceUsbRebuild) {
         final long generation = ++outputReevaluationGeneration;
         Runnable reevaluate = () -> {
             if (destroyed || generation != outputReevaluationGeneration) return;
@@ -1883,7 +1889,10 @@ final class PlaybackServiceRuntime
                     usbExclusiveEnabled,
                     audioDeviceCapabilityProbe.getCurrentProfile()
             );
-            switchOutputMode(resolved);
+            switchOutputMode(
+                    resolved,
+                    forceUsbRebuild && resolved == AudioOutputMode.USB_EXCLUSIVE
+            );
         };
         if (immediate) {
             mainHandler.post(reevaluate);
@@ -1893,13 +1902,25 @@ final class PlaybackServiceRuntime
     }
 
     private void handleAudioDeviceCapabilitiesChanged() {
-        if (destroyed || (!bitPerfectEnabled && !usbExclusiveEnabled)) return;
+        if (destroyed) return;
+        int currentUsbAudioDeviceId = usbAudioDeviceManager == null
+                ? -1
+                : usbAudioDeviceManager.activeDeviceId();
+        int previousUsbAudioDeviceId = observedUsbAudioDeviceId;
+        observedUsbAudioDeviceId = currentUsbAudioDeviceId;
+        if (!bitPerfectEnabled && !usbExclusiveEnabled) return;
         AudioOutputMode newMode = audioOutputCoordinator.updateRequests(
                 bitPerfectEnabled,
                 usbExclusiveEnabled,
                 audioDeviceCapabilityProbe.getCurrentProfile()
         );
-        if (newMode == currentAudioOutputMode) return;
+        boolean forceUsbRebuild = shouldForceUsbRebuild(
+                currentAudioOutputMode,
+                newMode,
+                previousUsbAudioDeviceId,
+                currentUsbAudioDeviceId
+        );
+        if (newMode == currentAudioOutputMode && !forceUsbRebuild) return;
         boolean usbDetached = currentAudioOutputMode == AudioOutputMode.USB_EXCLUSIVE
                 && newMode != AudioOutputMode.USB_EXCLUSIVE;
         if (usbDetached) {
@@ -1912,7 +1933,19 @@ final class PlaybackServiceRuntime
         }
         // Both Android AudioDeviceCallback and USB broadcasts may describe the same change.
         // The generation token in scheduleOutputReevaluation collapses them into one switch.
-        scheduleOutputReevaluation(usbDetached);
+        scheduleOutputReevaluation(usbDetached || forceUsbRebuild, forceUsbRebuild);
+    }
+
+    static boolean shouldForceUsbRebuild(
+            AudioOutputMode currentMode,
+            AudioOutputMode newMode,
+            int previousDeviceId,
+            int currentDeviceId
+    ) {
+        return previousDeviceId != currentDeviceId
+                && currentDeviceId >= 0
+                && currentMode == AudioOutputMode.USB_EXCLUSIVE
+                && newMode == AudioOutputMode.USB_EXCLUSIVE;
     }
 
     public boolean concurrentPlaybackEnabled() {
@@ -2459,8 +2492,16 @@ final class PlaybackServiceRuntime
      * the new AudioSink configuration. Preserves playback position.
      */
     private void switchOutputMode(AudioOutputMode newMode) {
-        if (destroyed || newMode == currentAudioOutputMode) return;
-        DiagnosticLog.w(TAG, "Switching audio output mode: " + currentAudioOutputMode + " -> " + newMode);
+        switchOutputMode(newMode, false);
+    }
+
+    private void switchOutputMode(AudioOutputMode newMode, boolean forceRebuild) {
+        if (destroyed || (!forceRebuild && newMode == currentAudioOutputMode)) return;
+        String action = forceRebuild ? "Rebuilding" : "Switching";
+        DiagnosticLog.w(
+                TAG,
+                action + " audio output mode: " + currentAudioOutputMode + " -> " + newMode
+        );
         AudioOutputMode effectiveMode = configurePlayerFactory(newMode);
         rebuildPlayerPreservingPosition(effectiveMode);
         if (effectiveMode != AudioOutputMode.USB_EXCLUSIVE && usbAudioDeviceManager != null) {

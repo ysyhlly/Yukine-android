@@ -11,6 +11,7 @@ package syncer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -27,6 +28,13 @@ import (
 // const) only so the end-to-end loopback test can shrink it; production
 // never changes it.
 var heartbeatEvery = 2 * time.Second
+
+var (
+	ErrPlayerClosed      = errors.New("player closed")
+	ErrRelayDisconnected = errors.New("lost connection to all relays")
+	ErrKicked            = errors.New("kicked from room")
+	ErrInputClosed       = errors.New("session input closed")
+)
 
 // maxDesyncWindow bounds how long the room holds paused for one peer's
 // buffering flag before continuing without them (slow-peer recovery).
@@ -498,21 +506,23 @@ func (e *Engine) Run(ctx context.Context) error {
 			return ctx.Err()
 		case err := <-e.d.Mpv.Done():
 			e.d.Printf("* mpv closed — ending the session")
-			_ = err
-			return nil
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrPlayerClosed, err)
+			}
+			return ErrPlayerClosed
 		case ev, ok := <-e.d.Mpv.Events():
 			if !ok {
-				return nil
+				return ErrPlayerClosed
 			}
 			e.handleMpvEvent(ctx, ev)
 		case m, ok := <-e.d.Inbox:
 			if !ok {
 				e.d.Printf("* lost connection to all relays")
-				return nil
+				return ErrRelayDisconnected
 			}
 			e.handleMessage(ctx, m)
 			if e.quitRequested { // a kick targeted us
-				return nil
+				return ErrKicked
 			}
 		case <-heartbeat.C:
 			e.heartbeat(ctx)
@@ -533,7 +543,7 @@ func (e *Engine) Run(ctx context.Context) error {
 			}
 		case line, ok := <-e.d.Lines:
 			if !ok {
-				return nil
+				return ErrInputClosed
 			}
 			if quit := e.handleLine(ctx, line); quit {
 				return nil

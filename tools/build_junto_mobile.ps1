@@ -79,6 +79,7 @@ try {
     Pop-Location
 }
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $entries = [System.IO.Compression.ZipFile]::OpenRead($aarPath)
 try {
     $names = $entries.Entries.FullName

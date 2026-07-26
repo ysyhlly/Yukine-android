@@ -29,6 +29,27 @@ type Callback interface {
 	OnCommand(commandJSON string)
 }
 
+type synchronizedCallback struct {
+	target Callback
+	mu     sync.Mutex
+}
+
+func (c *synchronizedCallback) OnEvent(eventJSON string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.target != nil {
+		c.target.OnEvent(eventJSON)
+	}
+}
+
+func (c *synchronizedCallback) OnCommand(commandJSON string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.target != nil {
+		c.target.OnCommand(commandJSON)
+	}
+}
+
 type options struct {
 	Version        int      `json:"v"`
 	Nickname       string   `json:"nickname"`
@@ -50,18 +71,19 @@ type queueItem struct {
 
 // Session owns one room transport, sync engine and optional file-transfer pipeline.
 type Session struct {
-	cb       Callback
-	code     string
-	cancel   context.CancelFunc
-	done     chan struct{}
-	player   *mobilePlayer
-	mu       sync.RWMutex
-	store    *transfer.FileStore
-	server   *streamserver.Server
-	files    []protocol.FileMeta
-	fileIDs  []string
-	closed   bool
-	closeOne sync.Once
+	cb           Callback
+	code         string
+	cancel       context.CancelFunc
+	done         chan struct{}
+	player       *mobilePlayer
+	mu           sync.RWMutex
+	store        *transfer.FileStore
+	server       *streamserver.Server
+	files        []protocol.FileMeta
+	fileIDs      []string
+	closed       bool
+	closeOne     sync.Once
+	terminalOnce sync.Once
 }
 
 // Create starts a host session. queueJSON contains absolute readable paths prepared by Android.
@@ -174,8 +196,9 @@ func TestConnection(configJSON string) (string, error) {
 }
 
 func newSession(cb Callback, code string) *Session {
-	s := &Session{cb: cb, code: code, done: make(chan struct{})}
-	s.player = newMobilePlayer(cb)
+	serialized := &synchronizedCallback{target: cb}
+	s := &Session{cb: serialized, code: code, done: make(chan struct{})}
+	s.player = newMobilePlayer(serialized)
 	return s
 }
 
@@ -499,9 +522,15 @@ func (s *Session) runEngine(
 		OnSnapshot:       s.onSnapshot,
 	})
 	err := engine.Run(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		s.fail(err, true)
+	if errors.Is(err, context.Canceled) || s.isClosed() {
+		return
 	}
+	if err == nil {
+		s.terminal("ended", "Together session ended", true)
+		return
+	}
+	reason, recoverable := terminalReason(err)
+	s.terminal(reason, err.Error(), recoverable)
 }
 
 func validateAudioRoom(files []protocol.FileMeta) error {
@@ -626,7 +655,7 @@ func (s *Session) fail(err error, recoverable bool) {
 	if err == nil {
 		return
 	}
-	s.emit(map[string]any{"type": "failed", "message": err.Error(), "recoverable": recoverable})
+	s.terminal("error", err.Error(), recoverable)
 }
 
 func (s *Session) emit(value any) {
@@ -640,7 +669,43 @@ func (s *Session) emit(value any) {
 }
 
 func (s *Session) finish() {
+	if !s.isClosed() {
+		s.terminal("ended", "Together session ended", true)
+	}
 	s.closeOne.Do(func() { close(s.done) })
+}
+
+func (s *Session) terminal(reason, message string, recoverable bool) {
+	s.terminalOnce.Do(func() {
+		s.emit(map[string]any{
+			"type":           "terminal",
+			"reason":         reason,
+			"message":        message,
+			"recoverable":    recoverable,
+			"user_initiated": false,
+		})
+	})
+}
+
+func (s *Session) isClosed() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.closed
+}
+
+func terminalReason(err error) (string, bool) {
+	switch {
+	case errors.Is(err, syncer.ErrKicked):
+		return "kicked", false
+	case errors.Is(err, syncer.ErrRelayDisconnected):
+		return "relay_lost", true
+	case errors.Is(err, syncer.ErrPlayerClosed):
+		return "player_closed", true
+	case errors.Is(err, syncer.ErrInputClosed):
+		return "input_closed", true
+	default:
+		return "error", true
+	}
 }
 
 // RoomCode returns the secret room code. Callers must never persist or log it.

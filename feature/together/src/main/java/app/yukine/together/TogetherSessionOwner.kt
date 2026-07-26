@@ -1,6 +1,7 @@
 package app.yukine.together
 
 import android.content.Context
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 fun interface TogetherForegroundController {
     fun setDataSyncActive(active: Boolean)
@@ -35,6 +37,7 @@ class TogetherSessionOwner internal constructor(
     private val mutableState = MutableStateFlow<TogetherSessionState>(TogetherSessionState.Idle)
     private val echoSuppressor = TogetherEchoSuppressor()
     private val transferActive = AtomicBoolean(false)
+    private val sessionGeneration = AtomicLong(0L)
     private var nativeSession: TogetherNativeBridge.NativeSession? = null
     private var roomQueue: List<TogetherQueueItem> = emptyList()
     private var roomCode = ""
@@ -71,77 +74,111 @@ class TogetherSessionOwner internal constructor(
     override suspend fun create(
         editableQueue: List<TogetherQueueItem>,
         options: TogetherConnectOptions
-    ): Result<Unit> = runCatching {
-        check(nativeSession == null) { "Already in a room" }
-        require(editableQueue.isNotEmpty()) { "Choose at least one local audio file" }
-        val cache = sessionCache("preparing")
-        val policy = TogetherCachePolicy(cacheRoot())
-        policy.trim(emptySet())
-        policy.requireCapacity()
-        mutableState.value = TogetherSessionState.Preparing(editableQueue)
-        val prepared = withContext(ioDispatcher) {
-            TogetherQueueMaterializer(context, cache).prepare(editableQueue)
+    ): Result<Unit> {
+        if (nativeSession != null) {
+            return Result.failure(IllegalStateException("Already in a room"))
         }
-        roomQueue = prepared
-        mutableState.value = TogetherSessionState.Connecting(joining = false)
-        nativeSession = withContext(ioDispatcher) {
-            bridge.create(
-                TogetherJson.options(options.copy(cacheDirectory = cache.absolutePath)),
-                TogetherJson.queue(prepared),
-                callback
-            )
+        if (editableQueue.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Choose at least one local audio file"))
         }
-        roomCode = nativeSession?.roomCode().orEmpty()
-        player.setRoomPlaybackConstraints(true)
-        mutableState.value = TogetherSessionState.WaitingReady(roomCode, roomQueue, emptyList())
-    }.onFailure(::fail)
+        val generation = sessionGeneration.incrementAndGet()
+        val callbackGate = CompletableDeferred<Unit>()
+        return runCatching {
+            val cache = sessionCache("preparing")
+            val policy = TogetherCachePolicy(cacheRoot())
+            policy.trim(emptySet())
+            policy.requireCapacity()
+            mutableState.value = TogetherSessionState.Preparing(editableQueue)
+            val prepared = withContext(ioDispatcher) {
+                TogetherQueueMaterializer(context, cache).prepare(editableQueue)
+            }
+            if (!isCurrentGeneration(generation)) return@runCatching
+            roomQueue = prepared
+            mutableState.value = TogetherSessionState.Connecting(joining = false)
+            val createdSession = withContext(ioDispatcher) {
+                bridge.create(
+                    TogetherJson.options(options.copy(cacheDirectory = cache.absolutePath)),
+                    TogetherJson.queue(prepared),
+                    callbackFor(generation, callbackGate)
+                )
+            }
+            if (!isCurrentGeneration(generation)) {
+                callbackGate.complete(Unit)
+                withContext(ioDispatcher) { runCatching { createdSession.leave() } }
+                return@runCatching
+            }
+            nativeSession = createdSession
+            roomCode = createdSession.roomCode()
+            player.setRoomPlaybackConstraints(true)
+            mutableState.value = TogetherSessionState.WaitingReady(roomCode, roomQueue, emptyList())
+            callbackGate.complete(Unit)
+        }.onFailure { error ->
+            callbackGate.complete(Unit)
+            if (isCurrentGeneration(generation)) fail(error)
+        }
+    }
 
     override suspend fun join(
         roomCode: String,
         localMatches: List<TogetherQueueItem>,
         options: TogetherConnectOptions
-    ): Result<Unit> = runCatching {
-        check(nativeSession == null) { "Already in a room" }
+    ): Result<Unit> {
+        if (nativeSession != null) {
+            return Result.failure(IllegalStateException("Already in a room"))
+        }
         val normalized = TogetherRoomCode.normalize(roomCode)
-        require(TogetherRoomCode.isValid(normalized)) { "Invalid junto room code" }
-        val hash = roomHash(normalized)
-        val cache = sessionCache(hash)
-        TogetherCachePolicy(cacheRoot()).apply {
-            trim(emptySet())
-            requireCapacity()
+        if (!TogetherRoomCode.isValid(normalized)) {
+            return Result.failure(IllegalArgumentException("Invalid junto room code"))
         }
-        val preparedMatches = withContext(ioDispatcher) {
-            TogetherQueueMaterializer(context, cache).prepare(localMatches)
+        val generation = sessionGeneration.incrementAndGet()
+        val callbackGate = CompletableDeferred<Unit>()
+        return runCatching {
+            val hash = roomHash(normalized)
+            val cache = sessionCache(hash)
+            TogetherCachePolicy(cacheRoot()).apply {
+                trim(emptySet())
+                requireCapacity()
+            }
+            val preparedMatches = withContext(ioDispatcher) {
+                TogetherQueueMaterializer(context, cache).prepare(localMatches)
+            }
+            if (!isCurrentGeneration(generation)) return@runCatching
+            this.roomCode = normalized
+            roomQueue = preparedMatches
+            mutableState.value = TogetherSessionState.Connecting(joining = true)
+            val joinedSession = withContext(ioDispatcher) {
+                bridge.join(
+                    TogetherJson.options(options.copy(cacheDirectory = cache.absolutePath)),
+                    normalized,
+                    TogetherJson.queue(preparedMatches),
+                    callbackFor(generation, callbackGate)
+                )
+            }
+            if (!isCurrentGeneration(generation)) {
+                callbackGate.complete(Unit)
+                withContext(ioDispatcher) { runCatching { joinedSession.leave() } }
+                return@runCatching
+            }
+            nativeSession = joinedSession
+            player.setRoomPlaybackConstraints(true)
+            callbackGate.complete(Unit)
+        }.onFailure { error ->
+            callbackGate.complete(Unit)
+            if (isCurrentGeneration(generation)) fail(error)
         }
-        this.roomCode = normalized
-        roomQueue = preparedMatches
-        mutableState.value = TogetherSessionState.Connecting(joining = true)
-        nativeSession = withContext(ioDispatcher) {
-            bridge.join(
-                TogetherJson.options(options.copy(cacheDirectory = cache.absolutePath)),
-                normalized,
-                TogetherJson.queue(preparedMatches),
-                callback
-            )
-        }
-        player.setRoomPlaybackConstraints(true)
-    }.onFailure(::fail)
+    }
 
     override suspend fun leave(reason: String) {
         if (nativeSession == null && mutableState.value is TogetherSessionState.Idle) return
+        val leaveGeneration = sessionGeneration.incrementAndGet()
         mutableState.value = TogetherSessionState.Leaving(reason)
-        idleLeaveJob?.cancel()
+        val session = detachSessionState()
         withContext(ioDispatcher) {
-            runCatching { nativeSession?.leave() }
+            runCatching { session?.leave() }
         }
-        nativeSession = null
-        roomCode = ""
-        roomQueue = emptyList()
-        echoSuppressor.clear()
-        transferActive.set(false)
-        foregroundController.setDataSyncActive(false)
-        player.setRoomPlaybackConstraints(false)
-        mutableState.value = TogetherSessionState.Idle
+        if (isCurrentGeneration(leaveGeneration)) {
+            mutableState.value = TogetherSessionState.Idle
+        }
         withContext(ioDispatcher) {
             TogetherCachePolicy(cacheRoot()).trim(emptySet())
         }
@@ -176,10 +213,9 @@ class TogetherSessionOwner internal constructor(
     }
 
     fun close() {
-        runCatching { nativeSession?.leave() }
-        nativeSession = null
-        foregroundController.setDataSyncActive(false)
-        player.setRoomPlaybackConstraints(false)
+        sessionGeneration.incrementAndGet()
+        val session = detachSessionState()
+        runCatching { session?.leave() }
         scope.cancel()
     }
 
@@ -187,13 +223,22 @@ class TogetherSessionOwner internal constructor(
         scope.launch { leave(reason) }
     }
 
-    private val callback = object : TogetherNativeBridge.Callback {
+    private fun callbackFor(
+        generation: Long,
+        ready: CompletableDeferred<Unit>
+    ): TogetherNativeBridge.Callback = object : TogetherNativeBridge.Callback {
         override fun onEvent(eventJson: String) {
-            scope.launch { handleNativeEvent(eventJson) }
+            scope.launch {
+                ready.await()
+                if (isCurrentGeneration(generation)) handleNativeEvent(eventJson)
+            }
         }
 
         override fun onCommand(commandJson: String) {
-            scope.launch { applyRemoteCommand(commandJson) }
+            scope.launch {
+                ready.await()
+                if (isCurrentGeneration(generation)) applyRemoteCommand(commandJson)
+            }
         }
     }
 
@@ -225,6 +270,14 @@ class TogetherSessionOwner internal constructor(
                 )
                 "failed" -> fail(
                     IllegalStateException(event.optString("message", "Together session failed")),
+                    event.optBoolean("recoverable", true)
+                )
+                "terminal" -> fail(
+                    IllegalStateException(
+                        event.optString("message").ifBlank {
+                            "Together session ended: ${event.optString("reason", "unknown")}"
+                        }
+                    ),
                     event.optBoolean("recoverable", true)
                 )
             }
@@ -346,11 +399,35 @@ class TogetherSessionOwner internal constructor(
     }
 
     private fun fail(error: Throwable, recoverable: Boolean = true) {
+        sessionGeneration.incrementAndGet()
+        val session = detachSessionState()
         mutableState.value = TogetherSessionState.Failed(
             error.message ?: "Together session failed",
             recoverable
         )
+        if (session != null) {
+            scope.launch(ioDispatcher) {
+                runCatching { session.leave() }
+            }
+        }
+    }
+
+    private fun isCurrentGeneration(generation: Long): Boolean =
+        generation == sessionGeneration.get()
+
+    private fun detachSessionState(): TogetherNativeBridge.NativeSession? {
+        val session = nativeSession
+        nativeSession = null
+        roomCode = ""
+        roomQueue = emptyList()
+        idleLeaveJob?.cancel()
+        idleLeaveJob = null
+        echoSuppressor.clear()
+        transferActive.set(false)
+        interrupted = false
         foregroundController.setDataSyncActive(false)
+        player.setRoomPlaybackConstraints(false)
+        return session
     }
 
     private fun cacheRoot(): File = File(context.cacheDir, "together")

@@ -68,7 +68,7 @@ internal class UsbAudioDeviceManager(private val context: Context) {
     /** Callback invoked when a USB audio device is attached or detached. */
     var onDeviceChanged: (() -> Unit)? = null
 
-    private val usbReceiver = object : BroadcastReceiver() {
+    private val usbDeviceReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
             when (intent?.action) {
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
@@ -87,21 +87,67 @@ internal class UsbAudioDeviceManager(private val context: Context) {
                             closeConnection()
                             activeDevice = null
                         }
-                        onDeviceChanged?.invoke()
-                    }
-                }
-                ACTION_USB_PERMISSION -> {
-                    val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
-                    val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
-                    if (granted && device != null) {
-                        DiagnosticLog.d(TAG, "USB permission granted for: ${device.productName}")
                         refreshActiveDevice()
                         onDeviceChanged?.invoke()
-                    } else {
-                        DiagnosticLog.w(TAG, "USB permission denied")
                     }
                 }
             }
+        }
+    }
+
+    private val usbPermissionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            if (intent?.action != ACTION_USB_PERMISSION) return
+            val manager = usbManager ?: return
+            val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+            val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+            if (granted && device != null && manager.hasPermission(device)) {
+                DiagnosticLog.d(TAG, "USB permission granted for: ${device.productName}")
+                refreshActiveDevice()
+                onDeviceChanged?.invoke()
+            } else {
+                DiagnosticLog.w(TAG, "USB permission denied or could not be verified")
+            }
+        }
+    }
+
+    /** Stable identity used by the playback runtime to detect same-mode DAC replacement. */
+    fun activeDeviceId(): Int = activeDevice?.device?.deviceId ?: -1
+
+    private fun registerUsbReceivers() {
+        val deviceFilter = IntentFilter().apply {
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+        val permissionFilter = IntentFilter(ACTION_USB_PERMISSION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // System USB attach/detach broadcasts originate outside this process.
+            context.registerReceiver(
+                usbDeviceReceiver,
+                deviceFilter,
+                Context.RECEIVER_EXPORTED
+            )
+            // The PendingIntent below is package-scoped; never accept this private action
+            // from another application.
+            context.registerReceiver(
+                usbPermissionReceiver,
+                permissionFilter,
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            context.registerReceiver(usbDeviceReceiver, deviceFilter)
+            context.registerReceiver(usbPermissionReceiver, permissionFilter)
+        }
+    }
+
+    private fun unregisterUsbReceivers() {
+        try {
+            context.unregisterReceiver(usbDeviceReceiver)
+        } catch (_: Exception) {
+        }
+        try {
+            context.unregisterReceiver(usbPermissionReceiver)
+        } catch (_: Exception) {
         }
     }
 
@@ -110,16 +156,7 @@ internal class UsbAudioDeviceManager(private val context: Context) {
      */
     fun register() {
         if (registered) return
-        val filter = IntentFilter().apply {
-            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
-            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-            addAction(ACTION_USB_PERMISSION)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            context.registerReceiver(usbReceiver, filter)
-        }
+        registerUsbReceivers()
         registered = true
         refreshActiveDevice()
     }
@@ -129,10 +166,7 @@ internal class UsbAudioDeviceManager(private val context: Context) {
      */
     fun unregister() {
         if (!registered) return
-        try {
-            context.unregisterReceiver(usbReceiver)
-        } catch (_: Exception) {
-        }
+        unregisterUsbReceivers()
         registered = false
         closeConnection()
         activeDevice = null
@@ -343,7 +377,10 @@ internal class UsbAudioDeviceManager(private val context: Context) {
             0
         }
         val permissionIntent = PendingIntent.getBroadcast(
-            context, 0, Intent(ACTION_USB_PERMISSION), flags
+            context,
+            0,
+            Intent(ACTION_USB_PERMISSION).setPackage(context.packageName),
+            flags
         )
         manager.requestPermission(device, permissionIntent)
     }

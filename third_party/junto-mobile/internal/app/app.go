@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -780,7 +781,10 @@ func runSession(ctx context.Context, t *nostrx.Transport, mediaPaths []string, m
 		OnPeerGone:       extras.onPeerGone,
 	})
 	err = engine.Run(ctx)
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, syncer.ErrPlayerClosed) ||
+		errors.Is(err, syncer.ErrInputClosed) {
 		err = nil
 	}
 	printLine("* bye")
