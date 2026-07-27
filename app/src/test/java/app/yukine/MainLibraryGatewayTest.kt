@@ -7,7 +7,7 @@ import org.junit.Test
 
 class MainLibraryGatewayTest {
     @Test
-    fun favoriteAppliesHostStateAndRefreshesViews() {
+    fun favoriteAppliesHostStateWithoutFullCollectionsReload() {
         val events = mutableListOf<String>()
         val gateway = gateway(events)
 
@@ -15,15 +15,14 @@ class MainLibraryGatewayTest {
 
         assertEquals(
             listOf(
-                "favorites:7:true",
-                "loadCollections"
+                "favorites:7:true"
             ),
             events
         )
     }
 
     @Test
-    fun favoriteBatchRefreshesCollectionsOnlyOnce() {
+    fun favoriteBatchAppliesOnceWithoutCollectionsReload() {
         val events = mutableListOf<String>()
         val gateway = gateway(events)
 
@@ -31,8 +30,7 @@ class MainLibraryGatewayTest {
 
         assertEquals(
             listOf(
-                "favorites:1,2,3:true",
-                "loadCollections"
+                "favorites:1,2,3:true"
             ),
             events
         )

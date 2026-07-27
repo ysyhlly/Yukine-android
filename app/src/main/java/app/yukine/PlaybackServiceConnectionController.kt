@@ -153,7 +153,8 @@ internal class PlaybackServiceConnectionController(
     }
 
     private fun publishReadModel(snapshot: PlaybackStateSnapshot) {
-        readModel.publish(snapshot) { service?.queueSnapshot().orEmpty() }
+        val queueEditable = service?.canMutateQueue() != false
+        readModel.publish(snapshot, queueEditable) { service?.queueSnapshot().orEmpty() }
     }
 
     private fun clearPublishedState() {

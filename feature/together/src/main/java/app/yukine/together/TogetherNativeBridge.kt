@@ -13,11 +13,13 @@ internal interface TogetherNativeBridge {
     interface Callback {
         fun onEvent(eventJson: String)
         fun onCommand(commandJson: String)
+        fun resolveSource(requestJson: String): String
     }
 
     interface NativeSession {
         fun roomCode(): String
         fun notifyPlayback(eventJson: String)
+        fun updateQueue(queueJson: String)
         fun receivedFilePath(fileId: String): String
         fun receivedFileRoot(fileId: String): String
         fun leave()
@@ -51,12 +53,16 @@ internal class GomobileTogetherNativeBridge : TogetherNativeBridge {
         object : MobileCallback {
             override fun onEvent(eventJson: String) = this@asMobileCallback.onEvent(eventJson)
             override fun onCommand(commandJson: String) = this@asMobileCallback.onCommand(commandJson)
+            override fun resolveSource(requestJson: String): String =
+                this@asMobileCallback.resolveSource(requestJson)
         }
 
     private class GomobileSession(private val raw: Session) : TogetherNativeBridge.NativeSession {
         override fun roomCode(): String = raw.roomCode()
 
         override fun notifyPlayback(eventJson: String) = raw.notifyPlayback(eventJson)
+
+        override fun updateQueue(queueJson: String) = raw.updateQueue(queueJson)
 
         override fun receivedFilePath(fileId: String): String = raw.receivedFilePath(fileId)
 

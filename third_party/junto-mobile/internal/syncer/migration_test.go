@@ -500,6 +500,35 @@ func TestOnHostFilesNotCalledOnReHello(t *testing.T) {
 	}
 }
 
+func TestOnHostFilesCalledWhenSameHostChangesLiveQueue(t *testing.T) {
+	var snapshots [][]protocol.FileMeta
+	e := New(Deps{
+		SelfPub: "self",
+		Printf:  func(string, ...any) {},
+		OnHostFiles: func(files []protocol.FileMeta) {
+			snapshots = append(snapshots, append([]protocol.FileMeta(nil), files...))
+		},
+	})
+	e.handleMessage(context.Background(), protocol.Message{
+		Type: protocol.MsgHello, From: "host1", Files: testFiles,
+	})
+	updated := append(append([]protocol.FileMeta(nil), testFiles...), protocol.FileMeta{
+		Name: "new.flac", Size: 42, SHA256: "new",
+	})
+	e.handleMessage(context.Background(), protocol.Message{
+		Type: protocol.MsgHello, From: "host1", Files: updated,
+	})
+	if len(snapshots) != 2 {
+		t.Fatalf("OnHostFiles calls = %d, want 2", len(snapshots))
+	}
+	if got := len(snapshots[1]); got != len(updated) {
+		t.Fatalf("updated queue length = %d, want %d", got, len(updated))
+	}
+	if e.d.PlaylistLen != len(updated) {
+		t.Fatalf("playlist length = %d, want %d", e.d.PlaylistLen, len(updated))
+	}
+}
+
 // --- smooth drift correction ---
 
 // TestClearNudgeNoopWhenNotNudging verifies clearNudge does nothing (and

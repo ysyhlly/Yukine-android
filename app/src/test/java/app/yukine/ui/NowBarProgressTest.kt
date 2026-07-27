@@ -6,9 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -55,9 +57,12 @@ class NowBarProgressTest {
             }
         }
 
+        // Drag must only commit once on finger-up (not during move, not cancelled mid-drag).
         composeRule.onNodeWithContentDescription("Playback progress").performTouchInput {
             val y = visibleSize.height / 2f
             down(Offset(visibleSize.width * 0.2f, y))
+            moveTo(Offset(visibleSize.width * 0.5f, y))
+            assertTrue("seek must not fire while dragging", seekPositions.isEmpty())
             moveTo(Offset(visibleSize.width * 0.8f, y))
             assertTrue(seekPositions.isEmpty())
             up()
@@ -67,6 +72,49 @@ class NowBarProgressTest {
             assertEquals(1, seekPositions.size)
             assertTrue(seekPositions.last() >= 75_000L)
             assertFalse(waveformExpanded)
+        }
+    }
+
+    @Test
+    fun trackIdentityResetsSmoothPositionAndClearsScrubOverlay() {
+        var trackId by mutableStateOf(1L)
+        var positionMs by mutableStateOf(40_000L)
+        val displayHolder = arrayOfNulls<androidx.compose.runtime.State<Long>>(1)
+        val scrubHolder = arrayOfNulls<ScrubbablePlaybackPosition>(1)
+
+        composeRule.setContent {
+            EchoTheme.EchoTheme {
+                val scrub = rememberScrubbablePlaybackPosition(
+                    positionMs = positionMs,
+                    durationMs = 100_000L,
+                    playing = false,
+                    trackId = trackId,
+                    contentUriString = "content://track/$trackId",
+                    dataPath = "/path/$trackId"
+                )
+                scrubHolder[0] = scrub
+                displayHolder[0] = scrub.displayPosition
+            }
+        }
+
+        composeRule.runOnIdle {
+            assertEquals(40_000L, displayHolder[0]!!.value)
+            val scrub = scrubHolder[0]!!
+            assertEquals(90_000L, scrub.scrubTo(90f, 100f))
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertTrue(displayHolder[0]!!.value >= 80_000L)
+        }
+
+        // Same position/duration/playing but new identity must drop scrub and reseed.
+        composeRule.runOnIdle {
+            trackId = 2L
+            positionMs = 5_000L
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(5_000L, displayHolder[0]!!.value)
         }
     }
 
@@ -164,9 +212,9 @@ class NowBarProgressTest {
     }
 
     @Test
-    fun scrollCompactedNowBarKeepsProgressAndPlaybackControlsInteractive() {
-        val seekPositions = mutableListOf<Long>()
+    fun scrollCompactedNowBarLocksToCompactHeightAndKeepsPlaybackControls() {
         var playClicks = 0
+        var openNowPlayingClicks = 0
 
         composeRule.setContent {
             EchoTheme.EchoTheme {
@@ -184,26 +232,36 @@ class NowBarProgressTest {
                         onFavorite = Runnable { },
                         onShuffle = Runnable { },
                         onRepeat = Runnable { },
-                        onOpenNowPlaying = Runnable { },
+                        onOpenNowPlaying = Runnable { openNowPlayingClicks += 1 },
                         onOpenQueue = Runnable { },
-                        onSeek = SeekAction { position -> seekPositions += position }
+                        onSeek = SeekAction { }
                     )
                 }
             }
         }
 
-        composeRule.onNodeWithContentDescription("Playback progress").performTouchInput {
-            val y = visibleSize.height / 2f
-            down(Offset(visibleSize.width * 0.3f, y))
-            moveTo(Offset(visibleSize.width * 0.7f, y))
-            up()
-        }
+        composeRule.waitForIdle()
+        // Height-compact clips progress / mode rows to zero height while keeping their clocks alive.
+        val compactedProgressHeight = composeRule
+            .onNodeWithContentDescription("Playback progress")
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .height
+        assertEquals(0f, compactedProgressHeight, 0.5f)
+        composeRule.onNodeWithTag("echo-now-bar-surface")
+            .assertHeightIsEqualTo(EchoMobileLayoutMetrics.nowBarCompactHeight)
         composeRule.onNodeWithContentDescription("Play").performClick()
+        // Tap title while locked expands instead of opening now-playing.
+        composeRule.onNodeWithText("Track").performClick()
+        composeRule.waitForIdle()
 
         composeRule.runOnIdle {
-            assertEquals(1, seekPositions.size)
-            assertTrue(playClicks == 1)
+            assertEquals(1, playClicks)
+            assertEquals(0, openNowPlayingClicks)
         }
+        composeRule.onNodeWithContentDescription("Playback progress").assertIsDisplayed()
+        composeRule.onNodeWithTag("echo-now-bar-surface")
+            .assertHeightIsEqualTo(EchoMobileLayoutMetrics.nowBarHeight)
     }
 
     @Test

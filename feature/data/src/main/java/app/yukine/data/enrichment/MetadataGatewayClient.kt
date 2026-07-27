@@ -346,16 +346,10 @@ class MetadataGatewayClient(
             ?: return@runCatching GatewayLyricsSearchResult(null)
         val synced = item.optString("syncedLyrics")
         val plain = item.optString("plainLyrics")
-        val wordLyrics = item.optString("wordLyrics")
-            .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
+        val wordLyrics = boundedLyricsField(item, "wordLyrics")
         val wordLyricsSource = item.optString("wordLyricsSource")
-        val romanization = item.optString("romanization")
-            .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
-        val translation = item.optString("translation")
-            .take(MAX_WORD_LYRICS_LENGTH)
-            .takeIf { it.length <= MAX_WORD_LYRICS_LENGTH } ?: ""
+        val romanization = boundedLyricsField(item, "romanization")
+        val translation = boundedLyricsField(item, "translation")
         if (synced.isBlank() && plain.isBlank() && wordLyrics.isBlank()) {
             return@runCatching GatewayLyricsSearchResult(null)
         }
@@ -457,6 +451,9 @@ class MetadataGatewayClient(
     }.getOrDefault("")
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
+
+    private fun boundedLyricsField(item: JSONObject, key: String): String =
+        item.optString(key).take(MAX_WORD_LYRICS_LENGTH)
 
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8))

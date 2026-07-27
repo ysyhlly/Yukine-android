@@ -30,20 +30,34 @@ import kotlin.math.abs
 fun rememberSmoothPosition(
     positionMs: Long,
     durationMs: Long,
-    playing: Boolean
+    playing: Boolean,
+    /**
+     * Track visual identity. Changing this reseeds the local clock and drops any
+     * carry-over from the previous track (same position/duration must not stick).
+     */
+    identityKey: Any? = Unit
 ): State<Long> {
     val duration = durationMs.coerceAtLeast(1L)
-    val position = remember {
+    val position = remember(identityKey) {
         mutableStateOf(if (durationMs > 0L) positionMs.coerceIn(0L, duration) else 0L)
     }
-    LaunchedEffect(positionMs, durationMs, playing) {
+    // Tracks which identity last seeded the smooth clock (outside remember(identityKey) so we
+    // can still detect the change inside LaunchedEffect even if position state was recreated).
+    val seededIdentity = remember { mutableStateOf<Any?>(identityKey) }
+    LaunchedEffect(positionMs, durationMs, playing, identityKey) {
         if (durationMs <= 0L) {
             position.value = 0L
+            seededIdentity.value = identityKey
             return@LaunchedEffect
         }
         val base = positionMs.coerceIn(0L, duration)
         val current = position.value.coerceIn(0L, duration)
+        val identityChanged = seededIdentity.value != identityKey
+        seededIdentity.value = identityKey
+        // Always snap on identity change / pause / seek-forward / large correction so a new
+        // track cannot keep the previous song's smooth clock.
         val startBase = if (
+            identityChanged ||
             !playing ||
             base >= current ||
             abs(base - current) > POSITION_SNAP_THRESHOLD_MS
@@ -83,7 +97,12 @@ class ScrubbablePlaybackPosition internal constructor(
             scrubPosition.value = null
             return 0L
         }
-        val progress = if (width <= 0f) 0f else (x / width).coerceIn(0f, 1f)
+        // Ignore degenerate hit targets (e.g. collapsing progress height/width) so a fold
+        // animation cannot pin scrub to 0% or 100% and freeze elapsed after re-expand.
+        if (width < 8f) {
+            return scrubPosition.value ?: 0L
+        }
+        val progress = (x / width).coerceIn(0f, 1f)
         val nextPosition = (duration * progress).toLong().coerceIn(0L, duration)
         scrubPosition.value = nextPosition
         return nextPosition
@@ -92,24 +111,39 @@ class ScrubbablePlaybackPosition internal constructor(
     fun clearScrub() {
         scrubPosition.value = null
     }
+
+    val isScrubbing: Boolean
+        get() = scrubPosition.value != null
 }
 
 @Composable
 fun rememberScrubbablePlaybackPosition(
     positionMs: Long,
     durationMs: Long,
-    playing: Boolean
+    playing: Boolean,
+    trackId: Long = -1L,
+    contentUriString: String? = null,
+    dataPath: String = ""
 ): ScrubbablePlaybackPosition {
+    val identityKey = remember(trackId, contentUriString, dataPath) {
+        Triple(trackId, contentUriString, dataPath)
+    }
     val duration = durationMs.coerceAtLeast(1L)
     val seekEnabled = durationMs > 0L
-    val smoothPosition = rememberSmoothPosition(positionMs, durationMs, playing)
-    val scrubPosition = remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(seekEnabled) {
+    val smoothPosition = rememberSmoothPosition(
+        positionMs = positionMs,
+        durationMs = durationMs,
+        playing = playing,
+        identityKey = identityKey
+    )
+    // New scrub overlay state per track so a drag on the previous track cannot stick.
+    val scrubPosition = remember(identityKey) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(seekEnabled, identityKey) {
         if (!seekEnabled) {
             scrubPosition.value = null
         }
     }
-    val displayPosition = remember(duration, seekEnabled) {
+    val displayPosition = remember(duration, seekEnabled, identityKey) {
         derivedStateOf {
             if (!seekEnabled) {
                 0L
@@ -118,7 +152,7 @@ fun rememberScrubbablePlaybackPosition(
             }
         }
     }
-    return remember(displayPosition, duration, seekEnabled, scrubPosition) {
+    return remember(displayPosition, duration, seekEnabled, scrubPosition, identityKey) {
         ScrubbablePlaybackPosition(displayPosition, duration, seekEnabled, scrubPosition)
     }
 }

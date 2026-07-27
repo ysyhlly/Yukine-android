@@ -15,11 +15,18 @@ import app.yukine.navigation.SettingsTab
 import app.yukine.navigation.StreamingNavBinding
 import app.yukine.navigation.TabRoute
 import app.yukine.navigation.TogetherNavBinding
+import app.yukine.navigation.TogetherTab
+import app.yukine.playback.TogetherMedia3PlayerAdapter
+import app.yukine.streaming.StreamingQualityPreference
 import app.yukine.together.TogetherLabels
+import app.yukine.together.TogetherPlaylistRef
 import app.yukine.together.TogetherPreferences
 import app.yukine.together.TogetherQueueItem
+import app.yukine.together.TogetherQueueEditPort
+import app.yukine.together.TogetherQueueItemMapper
 import app.yukine.together.TogetherViewModel
 import app.yukine.ui.OnboardingActions
+import kotlinx.coroutines.flow.map
 
 /**
  * Activity-scoped navigation binding.
@@ -128,6 +135,11 @@ internal class NavigationFeatureBinding(
     fun openSmartCollection(key: String, title: String) {
         routeController.openLibraryGroup(LibraryGrouping.PLAYLISTS, key, title)
     }
+    fun openTogetherFromPlaylist(ref: TogetherPlaylistRef) {
+        togetherViewModel?.openCreateFromPlaylist(ref)
+        intentOwner.navigateToTab(TogetherTab, false)
+    }
+
     fun handleBack(): Boolean = intentOwner.handleBack()
 
     private fun createNavHostState(
@@ -183,23 +195,40 @@ internal class NavigationFeatureBinding(
             viewModel = TogetherViewModel(
                 playbackConnection.togetherSession,
                 currentQueue = {
-                    playbackConnection.queueSnapshot().map { track ->
-                        val source = track.dataPath.takeIf(String::isNotBlank)
-                            ?: track.contentUri?.toString().orEmpty()
-                        val localFile = java.io.File(source)
-                        TogetherQueueItem(
-                            stableId = track.id.toString(),
-                            title = track.title,
-                            artist = track.artist,
-                            sourceUri = source,
-                            sizeBytes = if (localFile.isFile) localFile.length() else 0L,
-                            shareable = source.startsWith("content://") ||
-                                source.startsWith("file://") ||
-                                localFile.isFile
-                        )
-                    }
+                    TogetherQueueItemMapper.fromTracks(playbackConnection.queueSnapshot())
                 },
-                preferences = TogetherPreferences(activity)
+                preferences = TogetherPreferences(activity),
+                playlistCatalog = AppTogetherPlaylistCatalog(
+                    libraryViewModel = viewModels.libraryViewModel,
+                    streamingViewModel = viewModels.streamingViewModel,
+                    quality = {
+                        StreamingQualityPreference.playbackQuality(
+                            activity, settingsStore.streamingAudioQuality()
+                        )
+                    },
+                    languageMode = { settingsStore.languageMode() }
+                ),
+                currentQueueUpdates = playbackConnection.queue.map { snapshot ->
+                    TogetherQueueItemMapper.fromTracks(snapshot.tracks)
+                },
+                queueEditPort = object : TogetherQueueEditPort {
+                    override fun remove(stableId: String) {
+                        // Resolve non-numeric catalog/streaming ids the same way Media3 tracks are built.
+                        val trackId = TogetherMedia3PlayerAdapter.media3TrackId(stableId)
+                        playbackConnection.removeTracksById(setOf(trackId))
+                    }
+
+                    override fun move(fromStableId: String, toStableId: String) {
+                        val tracks = playbackConnection.queueSnapshot()
+                        if (tracks.isEmpty()) return
+                        val fromId = TogetherMedia3PlayerAdapter.media3TrackId(fromStableId)
+                        val toId = TogetherMedia3PlayerAdapter.media3TrackId(toStableId)
+                        val fromIndex = tracks.indexOfFirst { it.id == fromId }
+                        val toIndex = tracks.indexOfFirst { it.id == toId }
+                        if (fromIndex < 0 || toIndex < 0 || fromIndex == toIndex) return
+                        playbackConnection.moveQueueTrack(fromIndex, toIndex)
+                    }
+                }
             ).also { togetherViewModel = it },
             labels = { togetherLabels(settingsStore.languageMode()) },
             copyRoomCode = ::copyTogetherRoomCode,
@@ -277,7 +306,33 @@ private fun togetherLabels(language: String) = TogetherLabels(
     copyCode = AppLanguage.text(language, "together.code.copy"),
     shareCode = AppLanguage.text(language, "together.code.share"),
     invalidRoomCode = AppLanguage.text(language, "together.code.invalid"),
-    fileSaved = AppLanguage.text(language, "together.file.saved")
+    fileSaved = AppLanguage.text(language, "together.file.saved"),
+    homeSubtitle = AppLanguage.text(language, "together.home.subtitle"),
+    createRoomHint = AppLanguage.text(language, "together.create.hint"),
+    joinRoomHint = AppLanguage.text(language, "together.join.hint"),
+    createTitle = AppLanguage.text(language, "together.create.title"),
+    joinTitle = AppLanguage.text(language, "together.join.title"),
+    roomTitle = AppLanguage.text(language, "together.room.title"),
+    choosePlaylist = AppLanguage.text(language, "together.queue.choose.playlist"),
+    closePlaylistPicker = AppLanguage.text(language, "together.queue.close.picker"),
+    playlistLoading = AppLanguage.text(language, "together.queue.playlist.loading"),
+    replaceQueue = AppLanguage.text(language, "together.queue.replace"),
+    skippedTracks = AppLanguage.text(language, "together.queue.skipped"),
+    playlistHasNoShareableTracks = AppLanguage.text(language, "together.queue.no.shareable"),
+    replaceQueueConfirmation = AppLanguage.text(language, "together.queue.replace.confirm"),
+    currentQueueHint = AppLanguage.text(language, "together.queue.hint"),
+    liveQueue = AppLanguage.text(language, "together.queue.live"),
+    emptyQueueHint = AppLanguage.text(language, "together.queue.empty.hint"),
+    trackCountLabel = AppLanguage.text(language, "together.queue.track.count"),
+    settingsSaved = AppLanguage.text(language, "together.settings.saved"),
+    noPlaylists = AppLanguage.text(language, "together.queue.no.playlists"),
+    nowPlayingBadge = AppLanguage.text(language, "together.now.playing"),
+    pasteFromClipboard = AppLanguage.text(language, "together.room.paste.action"),
+    joinStepInput = AppLanguage.text(language, "together.join.step.input"),
+    joinStepPreview = AppLanguage.text(language, "together.join.step.preview"),
+    matchedSummary = AppLanguage.text(language, "together.join.matched.summary"),
+    editRoomCode = AppLanguage.text(language, "together.room.edit.code"),
+    dragReorder = AppLanguage.text(language, "together.queue.drag")
 )
 
 internal fun openPlayHistoryRoute(routeController: MainRouteController, languageMode: String) {

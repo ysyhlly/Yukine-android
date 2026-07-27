@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -232,7 +233,7 @@ func TestReplaceExecutable(t *testing.T) {
 		t.Errorf("contents = %q, want %q", got, "new binary")
 	}
 	fi, _ := os.Stat(dst)
-	if fi.Mode()&0o100 == 0 {
+	if runtime.GOOS != "windows" && fi.Mode()&0o100 == 0 {
 		t.Error("replaced file should be executable")
 	}
 }

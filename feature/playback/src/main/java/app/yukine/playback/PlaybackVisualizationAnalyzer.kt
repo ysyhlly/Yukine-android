@@ -124,13 +124,16 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
     }
 
     private fun maybeGenerateSpectrum(track: Track, durationMs: Long, cachedProgress: Float, allowQuickStart: Boolean) {
-        if (released || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track) || cachedProgress <= 0.005f) {
+        if (released
+            || !PlaybackMediaSourceProvider.hasPlayableMediaUri(track)
+            || cachedProgress <= SPECTRUM_MIN_QUICK_PROGRESS
+        ) {
             return
         }
         var targetProgress = minOf(cachedProgress, spectrumDecodeProgressLimit(durationMs))
         if (allowQuickStart && !spectrumSnapshot.hasBands()) {
             val quickProgress = if (durationMs <= 0L) targetProgress else minOf(targetProgress, SPECTRUM_QUICK_START_MS / durationMs.toFloat())
-            targetProgress = maxOf(0.006f, minOf(cachedProgress, quickProgress))
+            targetProgress = maxOf(SPECTRUM_MIN_QUICK_PROGRESS, minOf(cachedProgress, quickProgress))
         }
         val targetGeneratedFrames = maxOf(
             1,
@@ -342,8 +345,11 @@ internal class PlaybackVisualizationAnalyzer internal constructor(
     }
 
     companion object {
-        private const val PLAYBACK_VISUALIZATION_WARMUP_MS = 1200L
-        private const val SPECTRUM_QUICK_START_MS = 800L
+        // URL resolution and playback recovery still outrank this background work. Keep only a
+        // short warmup so the orb can receive its first spectrum shortly after playback starts.
+        private const val PLAYBACK_VISUALIZATION_WARMUP_MS = 350L
+        private const val SPECTRUM_QUICK_START_MS = 320L
+        private const val SPECTRUM_MIN_QUICK_PROGRESS = 0.002f
         private const val SPECTRUM_MAX_BACKGROUND_DECODE_MS = 45_000L
         private const val SPECTRUM_MAX_BACKGROUND_PROGRESS = 0.25f
         private const val SPECTRUM_PROGRESS_STEP = 0.08f

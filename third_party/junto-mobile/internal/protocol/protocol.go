@@ -6,6 +6,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -15,10 +16,12 @@ import (
 // peer can splatter across another watcher's terminal / mpv OSD; the
 // control-character stripping (SafeText) prevents ANSI-escape injection.
 const (
-	maxNickLen = 64
-	maxChatLen = 2000
-	maxNameLen = 255  // typical filesystem component limit
-	maxFiles   = 1024 // playlist entries a host may announce
+	maxNickLen          = 64
+	maxChatLen          = 2000
+	maxNameLen          = 255  // typical filesystem component limit
+	maxFiles            = 1024 // playlist entries a host may announce
+	maxPublicDisplayLen = 220
+	maxPublicArtworkLen = 2048
 	// maxSDPLen bounds Signal.SDP. A real WebRTC offer/answer runs at most
 	// a few KB even with many ICE candidates; this exists to reject a
 	// hostile or corrupted payload before it reaches pion's SDP parser.
@@ -106,6 +109,7 @@ func SafeText(s string, max int) string {
 // semantics, so mismatched peers can detect each other instead of
 // silently misbehaving.
 const Version = 1
+const RemoteQueueVersion = 2
 
 type MsgType string
 
@@ -125,20 +129,21 @@ const (
 // serialized — the transport fills it from the signed event's pubkey,
 // so peers cannot spoof it inside the payload.
 type Message struct {
-	Type      MsgType    `json:"type"`
-	V         int        `json:"v,omitempty"` // protocol version; Encode stamps it
-	From      string     `json:"-"`
-	To        string     `json:"to,omitempty"`
-	Nick      string     `json:"nick,omitempty"`
-	State     *PlayState `json:"state,omitempty"`
-	Text      string     `json:"text,omitempty"`
-	Files     []FileMeta `json:"files,omitempty"`    // hello: the host's playlist
-	CanHost   bool       `json:"can_host,omitempty"` // hello: sender has local files and can become host
-	FileIndex int        `json:"fidx,omitempty"`     // file-req: which playlist entry
-	Offset    int64      `json:"off,omitempty"`      // file-req: start at this byte
-	Length    int64      `json:"len,omitempty"`      // file-req: send at most this many bytes (0 = to EOF)
-	Signal    *Signal    `json:"signal,omitempty"`
-	Kicked    string     `json:"kicked,omitempty"` // kick: pubkey of the peer being kicked
+	Type         MsgType    `json:"type"`
+	V            int        `json:"v,omitempty"` // protocol version; Encode stamps it
+	From         string     `json:"-"`
+	To           string     `json:"to,omitempty"`
+	Nick         string     `json:"nick,omitempty"`
+	State        *PlayState `json:"state,omitempty"`
+	Text         string     `json:"text,omitempty"`
+	Files        []FileMeta `json:"files,omitempty"` // hello: the host's playlist
+	Capabilities []string   `json:"caps,omitempty"`
+	CanHost      bool       `json:"can_host,omitempty"` // hello: sender has local files and can become host
+	FileIndex    int        `json:"fidx,omitempty"`     // file-req: which playlist entry
+	Offset       int64      `json:"off,omitempty"`      // file-req: start at this byte
+	Length       int64      `json:"len,omitempty"`      // file-req: send at most this many bytes (0 = to EOF)
+	Signal       *Signal    `json:"signal,omitempty"`
+	Kicked       string     `json:"kicked,omitempty"` // kick: pubkey of the peer being kicked
 
 	// Swarm coverage advertisement, piggybacked on state heartbeats (a new
 	// message type would be rejected by older binaries' validate; unknown
@@ -193,9 +198,16 @@ type HaveEntry struct {
 }
 
 type FileMeta struct {
-	Name   string `json:"name"`
-	Size   int64  `json:"size"`
-	SHA256 string `json:"sha256"`
+	Name   string      `json:"name"`
+	Size   int64       `json:"size"`
+	SHA256 string      `json:"sha256"`
+	Remote *RemoteMeta `json:"remote,omitempty"`
+	// PublicDisplay* fields are optional presentation metadata. They never contain playback
+	// URLs, request headers, cookies, provider refresh payloads, or device-local artwork URIs.
+	PublicTitle      string `json:"title,omitempty"`
+	PublicArtist     string `json:"artist,omitempty"`
+	PublicAlbum      string `json:"album,omitempty"`
+	PublicArtworkURI string `json:"artwork_uri,omitempty"`
 	// Bao/BaoGroup/BaoOb enable per-chunk verification so bytes can be
 	// fetched from any peer, not just the host: Bao is the hex 32-byte
 	// BLAKE3/Bao root, BaoGroup the log2 chunks-per-group it was encoded
@@ -218,6 +230,15 @@ type FileMeta struct {
 	Subs []FileMeta `json:"subs,omitempty"`
 }
 
+// RemoteMeta is safe to broadcast. Temporary URLs, cookies, vkeys and request headers stay in
+// the host process and are deliberately absent from this wire type.
+type RemoteMeta struct {
+	Provider   string `json:"provider"`
+	TrackID    string `json:"track_id"`
+	Quality    string `json:"quality"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+}
+
 type Signal struct {
 	Kind string `json:"kind"` // "offer" | "answer"
 	SDP  string `json:"sdp"`
@@ -227,7 +248,9 @@ func Encode(m Message) ([]byte, error) {
 	if err := m.validate(); err != nil {
 		return nil, err
 	}
-	m.V = Version
+	if m.V == 0 {
+		m.V = Version
+	}
 	return json.Marshal(m)
 }
 
@@ -246,9 +269,9 @@ func Decode(data []byte) (Message, error) {
 	m.Nick = SafeText(m.Nick, maxNickLen)
 	m.Text = SafeText(m.Text, maxChatLen)
 	for i := range m.Files {
-		m.Files[i].Name = SafeText(m.Files[i].Name, maxNameLen)
+		sanitizeFileMeta(&m.Files[i])
 		for j := range m.Files[i].Subs {
-			m.Files[i].Subs[j].Name = SafeText(m.Files[i].Subs[j].Name, maxNameLen)
+			sanitizeFileMeta(&m.Files[i].Subs[j])
 		}
 	}
 	if err := m.validate(); err != nil {
@@ -337,6 +360,22 @@ func validateFileMeta(f FileMeta) error {
 	if f.DurationSecs < 0 || f.DurationSecs > maxPlausibleDurationSecs {
 		return fmt.Errorf("file %q has an implausible duration %v", f.Name, f.DurationSecs)
 	}
+	if SafeText(f.PublicTitle, maxPublicDisplayLen) != f.PublicTitle ||
+		SafeText(f.PublicArtist, maxPublicDisplayLen) != f.PublicArtist ||
+		SafeText(f.PublicAlbum, maxPublicDisplayLen) != f.PublicAlbum ||
+		sanitizePublicArtworkURI(f.PublicArtworkURI) != f.PublicArtworkURI {
+		return fmt.Errorf("file %q has malformed public display metadata", f.Name)
+	}
+	if f.Remote != nil {
+		if SafeText(f.Remote.Provider, 64) != f.Remote.Provider || f.Remote.Provider == "" ||
+			SafeText(f.Remote.TrackID, 512) != f.Remote.TrackID || f.Remote.TrackID == "" ||
+			SafeText(f.Remote.Quality, 32) != f.Remote.Quality {
+			return fmt.Errorf("file %q has malformed remote metadata", f.Name)
+		}
+		if f.Remote.DurationMS < 0 || f.Remote.DurationMS > int64(maxPlausibleDurationSecs*1000) {
+			return fmt.Errorf("file %q has implausible remote duration", f.Name)
+		}
+	}
 	// The bao fields come as a unit: a root without a fetchable-and-
 	// checkable outboard (or vice versa) is unusable, and catching the
 	// inconsistency here beats a confusing verification failure later.
@@ -356,6 +395,27 @@ func validateFileMeta(f FileMeta) error {
 		return fmt.Errorf("file %q has bao group %d out of range", f.Name, f.BaoGroup)
 	}
 	return nil
+}
+
+func sanitizeFileMeta(f *FileMeta) {
+	f.Name = SafeText(f.Name, maxNameLen)
+	f.PublicTitle = SafeText(f.PublicTitle, maxPublicDisplayLen)
+	f.PublicArtist = SafeText(f.PublicArtist, maxPublicDisplayLen)
+	f.PublicAlbum = SafeText(f.PublicAlbum, maxPublicDisplayLen)
+	f.PublicArtworkURI = sanitizePublicArtworkURI(f.PublicArtworkURI)
+}
+
+func sanitizePublicArtworkURI(value string) string {
+	value = SafeText(strings.TrimSpace(value), maxPublicArtworkLen)
+	if value == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return parsed.String()
 }
 
 // isHex reports whether s is exactly n lowercase-or-uppercase hex chars.

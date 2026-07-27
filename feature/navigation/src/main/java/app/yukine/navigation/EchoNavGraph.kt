@@ -3,6 +3,7 @@ package app.yukine.navigation
 import app.yukine.NetworkPage
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
@@ -50,6 +51,7 @@ import app.yukine.now.NowPlayingDestination
 import app.yukine.queue.QueueDestination
 import app.yukine.search.SearchDestination
 import app.yukine.settings.SettingsDestination
+import app.yukine.ui.EchoMotion
 import app.yukine.ui.EchoTheme
 import app.yukine.ui.StreamingSearchScreen
 import app.yukine.ui.UnifiedSearchStreamingState
@@ -226,11 +228,16 @@ fun EchoNavGraph(
         glassSurfaceOpacity = settingsChromeState.glassSurfaceOpacity
     ) { contentModifier ->
         if (!selectedInPager) {
-            // Routes that live outside the 4-tab pager (Network / Search / Now),
-            // reachable via in-app navigation rather than the bottom bar. Render each
-            // directly so navigating to them never leaves the pager showing a stale page.
-            Box(modifier = contentModifier) {
-                when (selectedTab) {
+            // Routes that live outside the 4-tab pager (Network / Search / Now / Together / Downloads),
+            // reachable via in-app navigation rather than the bottom bar. Single AnimatedContent
+            // so switches fade + lightly slide; pager tabs keep HorizontalPager alone (no double anim).
+            AnimatedContent(
+                targetState = selectedTab,
+                modifier = contentModifier,
+                transitionSpec = { EchoMotion.pageContentTransition() },
+                label = "outOfPagerRoute"
+            ) { tab ->
+                when (tab) {
                     NetworkTab -> {
                         val networkMenuState by hostState.settings.networkMenuState.collectAsState()
                         NetworkDestination(

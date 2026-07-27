@@ -230,6 +230,7 @@ class RoomRecordingIdentityRepository(
     ): CanonicalRecording {
         check(database.inTransaction()) { "Recording merge requires an active transaction" }
         require(sourceRecordingId != targetRecordingId) { "Source and target recording are identical" }
+        rejectStrongWorkConflict(sourceRecordingId, targetRecordingId)
         val source = requireRecording(sourceRecordingId)
         val target = requireRecording(targetRecordingId)
         requireMergeCompatible(source, target)
@@ -417,7 +418,7 @@ class RoomRecordingIdentityRepository(
         val preflightSource = requireRecording(sourceRecordingId)
         val preflightTarget = requireRecording(targetRecordingId)
         if (!differentStrongWork(preflightSource, preflightTarget)) return
-        database.runInTransaction {
+        val recordConflict = {
             RecordingRelationStore(database).upsert(
                 listOf(
                     RecordingRelationDraft(
@@ -433,6 +434,11 @@ class RoomRecordingIdentityRepository(
                 )
             )
         }
+        if (database.inTransaction()) {
+            recordConflict()
+        } else {
+            database.runInTransaction(recordConflict)
+        }
         throw IllegalArgumentException("Work MBID conflict")
     }
 
@@ -445,9 +451,16 @@ class RoomRecordingIdentityRepository(
         val sourceCredits = dao.credits(sourceId)
         val targetCredits = dao.credits(targetId)
         RecordingRelationStore(database).relation(sourceId, targetId)?.let { relation ->
+            val overridableAlgorithmCannotLink =
+                relation.relationType == RecordingRelationship.CANNOT_LINK.name &&
+                    !relation.locked &&
+                    relation.origin.startsWith("MATCH_EVALUATOR_V")
             require(
-                relation.relationType != RecordingRelationship.CANNOT_LINK.name &&
-                    relation.relationType != RecordingRelationship.SAME_WORK_DIFFERENT_VERSION.name
+                relation.relationType != RecordingRelationship.SAME_WORK_DIFFERENT_VERSION.name &&
+                    (
+                        relation.relationType != RecordingRelationship.CANNOT_LINK.name ||
+                            overridableAlgorithmCannotLink
+                    )
             ) {
                 "Recording relation ${relation.relationType} prevents merge"
             }

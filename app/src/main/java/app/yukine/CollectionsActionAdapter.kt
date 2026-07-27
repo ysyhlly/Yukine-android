@@ -3,35 +3,27 @@ package app.yukine
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 
+/**
+ * Thin UI bridge from Collections screen runnables to platform sinks + [CollectionsIntentOwner].
+ * Business mutations live on the intent owner / ViewModel — not in this adapter.
+ */
 internal class CollectionsActionAdapter(
-    private val playlistCreator: PlaylistCreator,
+    private val intents: CollectionsIntentOwner,
     private val playlistM3uPicker: PlaylistM3uPicker,
     private val playHistoryClearConfirmer: PlayHistoryClearConfirmer,
     private val backRequester: BackRequester,
-    private val trackListPlayer: TrackListPlayer,
-    private val favoriteToggler: FavoriteToggler,
-    private val playlistAdder: PlaylistAdder,
-    private val trackDownloader: TrackDownloader,
-    private val tracksDownloader: TracksDownloader,
-    private val playlistSelector: PlaylistSelector,
-    private val playlistRenamer: PlaylistRenamer,
-    private val playlistDeleteConfirmer: PlaylistDeleteConfirmer,
+    private val statusKeySink: StatusKeySink,
+    private val playlistExportDocumentOpener: PlaylistExportDocumentOpener,
     private val selectedPlaylistIdSource: SelectedPlaylistIdSource,
     private val selectedPlaylistTracksSource: SelectedPlaylistTracksSource,
     private val selectedPlaylistNameSource: SelectedPlaylistNameSource,
-    private val statusKeySink: StatusKeySink,
-    private val playlistExportDocumentOpener: PlaylistExportDocumentOpener,
     private val selectedPlaylistStreamingImporter: SelectedPlaylistStreamingImporter,
     private val favoritesStreamingImporter: FavoritesStreamingImporter,
     private val streamingFavoritesImporter: StreamingFavoritesImporter,
     private val selectedPlaylistStreamingSyncer: SelectedPlaylistStreamingSyncer,
-    private val selectedPlaylistTrackMover: SelectedPlaylistTrackMover,
-    private val selectedPlaylistTrackRemover: SelectedPlaylistTrackRemover
+    private val selectedPlaylistTogetherCreator: SelectedPlaylistTogetherCreator =
+        SelectedPlaylistTogetherCreator {}
 ) : CollectionsStateBinding.Listener {
-    fun interface PlaylistCreator {
-        fun showCreatePlaylist()
-    }
-
     fun interface PlaylistM3uPicker {
         fun openPlaylistM3uFilePicker()
     }
@@ -44,38 +36,6 @@ internal class CollectionsActionAdapter(
         fun requestBack()
     }
 
-    fun interface TrackListPlayer {
-        fun playTrackList(tracks: List<Track>, index: Int)
-    }
-
-    fun interface FavoriteToggler {
-        fun toggleFavorite(track: Track)
-    }
-
-    fun interface PlaylistAdder {
-        fun showAddToPlaylist(track: Track)
-    }
-
-    fun interface TrackDownloader {
-        fun downloadTrack(track: Track)
-    }
-
-    fun interface TracksDownloader {
-        fun downloadTracks(tracks: List<Track>)
-    }
-
-    fun interface PlaylistSelector {
-        fun selectPlaylist(playlistId: Long)
-    }
-
-    fun interface PlaylistRenamer {
-        fun showRenamePlaylist(playlist: Playlist)
-    }
-
-    fun interface PlaylistDeleteConfirmer {
-        fun confirmDeletePlaylist(playlist: Playlist)
-    }
-
     fun interface SelectedPlaylistIdSource {
         fun selectedPlaylistId(): Long
     }
@@ -86,6 +46,10 @@ internal class CollectionsActionAdapter(
 
     fun interface SelectedPlaylistNameSource {
         fun selectedPlaylistName(): String
+    }
+
+    fun interface SelectedPlaylistTogetherCreator {
+        fun createTogether(playlistId: Long)
     }
 
     fun interface StatusKeySink {
@@ -112,16 +76,8 @@ internal class CollectionsActionAdapter(
         fun syncSelectedPlaylistFromStreaming()
     }
 
-    fun interface SelectedPlaylistTrackMover {
-        fun moveSelectedPlaylistTrack(playlistId: Long, track: Track, trackIndex: Int, direction: Int)
-    }
-
-    fun interface SelectedPlaylistTrackRemover {
-        fun removeSelectedPlaylistTrack(playlistId: Long, track: Track)
-    }
-
     override fun showCreatePlaylist() {
-        playlistCreator.showCreatePlaylist()
+        intents.createPlaylist()
     }
 
     override fun openPlaylistM3uFilePicker() {
@@ -137,35 +93,35 @@ internal class CollectionsActionAdapter(
     }
 
     override fun playTrackList(tracks: List<Track>, index: Int) {
-        trackListPlayer.playTrackList(tracks, index)
+        intents.play(tracks, index)
     }
 
     override fun toggleFavorite(track: Track) {
-        favoriteToggler.toggleFavorite(track)
+        intents.toggleFavorite(track)
     }
 
     override fun showAddToPlaylist(track: Track) {
-        playlistAdder.showAddToPlaylist(track)
+        intents.addToPlaylist(track)
     }
 
     override fun downloadTrack(track: Track) {
-        trackDownloader.downloadTrack(track)
+        intents.download(track)
     }
 
     override fun downloadTracks(tracks: List<Track>) {
-        tracksDownloader.downloadTracks(tracks)
+        intents.downloadAll(tracks)
     }
 
     override fun selectPlaylist(playlistId: Long) {
-        playlistSelector.selectPlaylist(playlistId)
+        intents.select(playlistId)
     }
 
     override fun showRenamePlaylist(playlist: Playlist) {
-        playlistRenamer.showRenamePlaylist(playlist)
+        intents.renamePlaylist(playlist)
     }
 
     override fun confirmDeletePlaylist(playlist: Playlist) {
-        playlistDeleteConfirmer.confirmDeletePlaylist(playlist)
+        intents.deletePlaylist(playlist)
     }
 
     override fun openSelectedPlaylistExportDocument() {
@@ -178,6 +134,11 @@ internal class CollectionsActionAdapter(
             selectedPlaylistId,
             selectedPlaylistNameSource.selectedPlaylistName()
         )
+    }
+
+    override fun createTogetherFromSelectedPlaylist() {
+        val playlistId = selectedPlaylistIdSource.selectedPlaylistId()
+        if (playlistId >= 0L) selectedPlaylistTogetherCreator.createTogether(playlistId)
     }
 
     override fun importSelectedPlaylistToStreaming() {
@@ -197,10 +158,10 @@ internal class CollectionsActionAdapter(
     }
 
     override fun moveSelectedPlaylistTrack(playlistId: Long, track: Track, trackIndex: Int, direction: Int) {
-        selectedPlaylistTrackMover.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction)
+        intents.moveSelectedPlaylistTrack(playlistId, track, trackIndex, direction)
     }
 
     override fun removeSelectedPlaylistTrack(playlistId: Long, track: Track) {
-        selectedPlaylistTrackRemover.removeSelectedPlaylistTrack(playlistId, track)
+        intents.removeSelectedPlaylistTrack(playlistId, track)
     }
 }

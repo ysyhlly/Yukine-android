@@ -469,7 +469,7 @@ internal class QuickJsLuoxueScriptRuntime(
      * wait for the same signal instead of validating immediately after top-level evaluation.
      */
     private suspend fun awaitSourceInitialization(quickJs: QuickJs) {
-        // Keep Promise values out of quickjs-kt's alpha13 type converter. Synchronous sources are
+        // Keep Promise values out of quickjs-kt's host type converter. Synchronous sources are
         // detected immediately; asynchronous sources get host-side polling while QuickJS drains
         // jobs created by bound HTTP functions between evaluations.
         val attempts = (SOURCE_INIT_TIMEOUT_MS / SOURCE_INIT_POLL_MS).toInt().coerceAtLeast(1)

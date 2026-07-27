@@ -62,14 +62,14 @@ class LocalLuoxueStreamingClientTest {
         val result = client.search(StreamingSearchRequest(StreamingProviderName.LUOXUE, "hello", pageSize = 10))
 
         assertEquals(2, result.tracks.size)
-        assertEquals("kw:101", result.tracks[0].providerTrackId)
+        assertEquals("kg:0123456789abcdef0123456789abcdef.22.33", result.tracks[0].providerTrackId)
+        assertEquals("https://imge.kugou.com/stdmusic/400/cover.jpg", result.tracks[0].coverUrl)
+        assertTrue(result.tracks[0].playbackCandidates.any { it.label == "LX/酷狗" })
+        assertEquals("kw:101", result.tracks[1].providerTrackId)
         assertEquals(
             "https://img1.kuwo.cn/star/albumcover/500/s4s69/38/116989308.jpg",
-            result.tracks[0].coverUrl
+            result.tracks[1].coverUrl
         )
-        assertEquals("kg:0123456789abcdef0123456789abcdef.22.33", result.tracks[1].providerTrackId)
-        assertEquals("https://imge.kugou.com/stdmusic/400/cover.jpg", result.tracks[1].coverUrl)
-        assertTrue(result.tracks[1].playbackCandidates.any { it.label == "LX/酷狗" })
     }
 
     @Test

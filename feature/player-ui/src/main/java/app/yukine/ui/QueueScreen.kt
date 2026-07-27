@@ -3,6 +3,7 @@
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
@@ -28,13 +30,15 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -43,6 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.yukine.core.designsystem.R
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 data class QueueTrackUiState(
     val key: String,
@@ -86,7 +93,8 @@ fun QueueScreen(
     actions: List<QueueTrackActions>,
     onClearQueue: Runnable,
     labels: QueueScreenLabels,
-    onBack: Runnable?
+    onBack: Runnable?,
+    queueEditable: Boolean = true
 ) {
     QueueScreen(
         trackCount = tracks.size,
@@ -95,7 +103,8 @@ fun QueueScreen(
         onMove = { fromIndex, toIndex -> actions.getOrNull(fromIndex)?.onMove?.invoke(fromIndex, toIndex) },
         onClearQueue = onClearQueue,
         labels = labels,
-        onBack = onBack
+        onBack = onBack,
+        queueEditable = queueEditable
     )
 }
 
@@ -107,7 +116,8 @@ fun QueueScreen(
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onClearQueue: Runnable,
     labels: QueueScreenLabels,
-    onBack: Runnable?
+    onBack: Runnable?,
+    queueEditable: Boolean = true
 ) {
     QueueScreen(
         trackCount = tracks.size,
@@ -116,7 +126,8 @@ fun QueueScreen(
         onMove = onMove,
         onClearQueue = onClearQueue,
         labels = labels,
-        onBack = onBack
+        onBack = onBack,
+        queueEditable = queueEditable
     )
 }
 
@@ -129,15 +140,45 @@ fun QueueScreen(
     onMove: (fromIndex: Int, toIndex: Int) -> Unit,
     onClearQueue: Runnable,
     labels: QueueScreenLabels,
-    onBack: Runnable?
+    onBack: Runnable?,
+    queueEditable: Boolean = true
 ) {
     val p = EchoTheme.colors()
     val listState = rememberLazyListState()
     val dragState = rememberQueueDragState(
         itemKeyPrefix = "track-",
-        onMove = onMove
+        onMove = if (queueEditable) onMove else { _, _ -> }
     )
+    val dragScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val edgeThresholdPx = with(density) { 64.dp.toPx() }
+    val autoScrollStepPx = with(density) { 18.dp.toPx() }
+    var autoScrollJob by remember { mutableStateOf<Job?>(null) }
+    fun stopAutoScroll() {
+        autoScrollJob?.cancel()
+        autoScrollJob = null
+    }
+    fun startAutoScrollIfNeeded() {
+        if (autoScrollJob?.isActive == true) return
+        autoScrollJob = dragScope.launch {
+            while (isActive && dragState.dragging()) {
+                val scrollDelta = dragState.autoScrollDelta(
+                    listState.layoutInfo,
+                    edgeThresholdPx,
+                    autoScrollStepPx
+                )
+                if (scrollDelta == 0f) break
+                val consumed = listState.scrollBy(scrollDelta)
+                if (consumed == 0f) break
+                dragState.onListScrolled(consumed)
+                dragState.drag(listState.layoutInfo.visibleItemsInfo, 0f)
+                withFrameNanos { }
+            }
+            autoScrollJob = null
+        }
+    }
     LaunchedEffect(trackCount) {
+        stopAutoScroll()
         dragState.clear()
     }
     LazyColumn(
@@ -149,7 +190,7 @@ fun QueueScreen(
         item(key = "title") {
             QueueHeader(labels, trackCount, onBack)
         }
-        if (trackCount > 0) {
+        if (trackCount > 0 && queueEditable) {
             item(key = "clear-queue") {
                 Surface(
                     onClick = { onClearQueue.run() },
@@ -183,28 +224,57 @@ fun QueueScreen(
             key = { index -> "track-${trackAt(index)?.key ?: index}" }
         ) { index ->
             val track = trackAt(index) ?: return@items
+            val rowKey = "track-${track.key}"
+            val dragging = dragState.isDragging(rowKey)
             actionForIndex(index)?.let { action ->
                 QueueTrackRow(
                     track = track,
                     actions = action,
                     labels = labels,
+                    editable = queueEditable,
                     modifier = Modifier
-                        .graphicsLayer {
-                            translationY = dragState.dragOffsetFor("track-${track.key}")
-                            shadowElevation = if (dragState.isDragging("track-${track.key}")) 12.dp.toPx() else 0f
-                        },
-                    dragHandleModifier = Modifier.pointerInput(track.key, trackCount) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                dragState.start(listState.layoutInfo.visibleItemsInfo, "track-${track.key}", offset)
-                            },
-                            onDragCancel = { dragState.clear() },
-                            onDragEnd = { dragState.drop() },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragState.drag(listState.layoutInfo.visibleItemsInfo, dragAmount.y)
+                        // Placement animation for inserts/reorders; disabled while this row is
+                        // manually dragged so graphicsLayer offset does not fight animateItem.
+                        .animateItem(
+                            fadeInSpec = if (dragging) null else EchoMotion.layoutSpring<Float>().spec(),
+                            fadeOutSpec = if (dragging) null else EchoMotion.layoutSpring<Float>().spec(),
+                            placementSpec = if (dragging) {
+                                null
+                            } else {
+                                EchoMotion.layoutSpring<androidx.compose.ui.unit.IntOffset>().spec()
                             }
                         )
+                        .graphicsLayer {
+                            translationY = dragState.dragOffsetFor(rowKey)
+                            shadowElevation = if (dragging) 12.dp.toPx() else 0f
+                        },
+                    dragHandleModifier = if (queueEditable) {
+                        Modifier.pointerInput(track.key, trackCount) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    dragState.start(
+                                        listState.layoutInfo.visibleItemsInfo,
+                                        rowKey,
+                                        index
+                                    )
+                                },
+                                onDragCancel = {
+                                    stopAutoScroll()
+                                    dragState.clear()
+                                },
+                                onDragEnd = {
+                                    stopAutoScroll()
+                                    dragState.drop()
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragState.drag(listState.layoutInfo.visibleItemsInfo, dragAmount.y)
+                                    startAutoScrollIfNeeded()
+                                }
+                            )
+                        }
+                    } else {
+                        Modifier
                     }
                 )
             }
@@ -267,7 +337,8 @@ private fun QueueTrackRow(
     actions: QueueTrackActions,
     labels: QueueScreenLabels,
     modifier: Modifier = Modifier,
-    dragHandleModifier: Modifier = Modifier
+    dragHandleModifier: Modifier = Modifier,
+    editable: Boolean = true
 ) {
     val p = EchoTheme.colors()
     val bg by androidx.compose.animation.animateColorAsState(
@@ -331,7 +402,9 @@ private fun QueueTrackRow(
                     color = p.muted,
                     modifier = Modifier.padding(horizontal = 6.dp)
                 )
-                QueueDragHandle(dragHandleModifier, labels.dragReorder)
+                if (editable) {
+                    QueueDragHandle(dragHandleModifier, labels.dragReorder)
+                }
             }
             Spacer(Modifier.height(6.dp))
             Row(
@@ -346,8 +419,10 @@ private fun QueueTrackRow(
                 QueueIconButton(EchoIconKind.PlaylistAdd, labels.addToPlaylist) {
                     actions.onAddToPlaylist.run()
                 }
-                QueueIconButton(EchoIconKind.Remove, labels.remove) {
-                    actions.onRemove.run()
+                if (editable) {
+                    QueueIconButton(EchoIconKind.Remove, labels.remove) {
+                        actions.onRemove.run()
+                    }
                 }
             }
         }
@@ -375,37 +450,71 @@ private class QueueDragState(
     private val onMove: (fromIndex: Int, toIndex: Int) -> Unit
 ) {
     private var draggingKey by mutableStateOf<Any?>(null)
-    private var fromAdapterIndex by mutableIntStateOf(-1)
-    private var currentAdapterIndex by mutableIntStateOf(-1)
-    private var draggedItemStart by mutableIntStateOf(0)
-    private var draggedItemSize by mutableIntStateOf(0)
+    private var fromTrackIndex by mutableIntStateOf(-1)
+    private var currentTrackIndex by mutableIntStateOf(-1)
+    private var adapterOffset by mutableIntStateOf(0)
+    private var draggedItemStart by mutableFloatStateOf(0f)
+    private var draggedItemSize by mutableFloatStateOf(0f)
     private var dragOffset by mutableFloatStateOf(0f)
 
-    fun start(visibleItems: List<LazyListItemInfo>, key: Any, pointerOffset: Offset) {
+    fun start(visibleItems: List<LazyListItemInfo>, key: Any, trackIndex: Int) {
         val item = visibleItems.firstOrNull { it.key == key } ?: return
         draggingKey = key
-        fromAdapterIndex = item.index
-        currentAdapterIndex = item.index
-        draggedItemStart = item.offset
-        draggedItemSize = item.size
+        fromTrackIndex = trackIndex
+        currentTrackIndex = trackIndex
+        adapterOffset = item.index - trackIndex
+        draggedItemStart = item.offset.toFloat()
+        draggedItemSize = item.size.toFloat()
         dragOffset = 0f
     }
 
     fun drag(visibleItems: List<LazyListItemInfo>, deltaY: Float) {
         val key = draggingKey ?: return
         dragOffset += deltaY
-        val draggedCenter = draggedItemStart + dragOffset + draggedItemSize / 2f
-        val target = visibleItems
+        val draggedCenter = draggedCenter()
+        val queueItems = visibleItems
             .filter { it.key != key && it.key.toString().startsWith(itemKeyPrefix) }
-            .firstOrNull { item ->
+        val target = queueItems.firstOrNull { item ->
                 draggedCenter in item.offset.toFloat()..(item.offset + item.size).toFloat()
-            } ?: return
-        currentAdapterIndex = target.index
+            } ?: when {
+                queueItems.isEmpty() -> null
+                draggedCenter < queueItems.first().offset -> queueItems.first()
+                draggedCenter > queueItems.last().offset + queueItems.last().size -> queueItems.last()
+                else -> null
+            }
+        target ?: return
+        currentTrackIndex = target.index - adapterOffset
+    }
+
+    fun autoScrollDelta(
+        layoutInfo: LazyListLayoutInfo,
+        edgeThresholdPx: Float,
+        maxStepPx: Float
+    ): Float {
+        if (draggingKey == null || edgeThresholdPx <= 0f || maxStepPx <= 0f) return 0f
+        val center = draggedCenter()
+        val start = layoutInfo.viewportStartOffset.toFloat()
+        val end = layoutInfo.viewportEndOffset.toFloat()
+        return when {
+            center < start + edgeThresholdPx ->
+                -maxStepPx * ((start + edgeThresholdPx - center) / edgeThresholdPx)
+                    .coerceIn(0.2f, 1f)
+            center > end - edgeThresholdPx ->
+                maxStepPx * ((center - (end - edgeThresholdPx)) / edgeThresholdPx)
+                    .coerceIn(0.2f, 1f)
+            else -> 0f
+        }
+    }
+
+    fun onListScrolled(consumedPx: Float) {
+        if (draggingKey == null) return
+        draggedItemStart -= consumedPx
+        dragOffset += consumedPx
     }
 
     fun drop() {
-        val from = adapterIndexToTrackIndex(fromAdapterIndex)
-        val to = adapterIndexToTrackIndex(currentAdapterIndex)
+        val from = fromTrackIndex
+        val to = currentTrackIndex
         if (from >= 0 && to >= 0 && from != to) {
             onMove(from, to)
         }
@@ -414,18 +523,22 @@ private class QueueDragState(
 
     fun clear() {
         draggingKey = null
-        fromAdapterIndex = -1
-        currentAdapterIndex = -1
-        draggedItemStart = 0
-        draggedItemSize = 0
+        fromTrackIndex = -1
+        currentTrackIndex = -1
+        adapterOffset = 0
+        draggedItemStart = 0f
+        draggedItemSize = 0f
         dragOffset = 0f
     }
+
+    fun dragging(): Boolean = draggingKey != null
 
     fun isDragging(key: Any): Boolean = draggingKey == key
 
     fun dragOffsetFor(key: Any): Float = if (draggingKey == key) dragOffset else 0f
 
-    private fun adapterIndexToTrackIndex(index: Int): Int = index - 2
+    private fun draggedCenter(): Float =
+        draggedItemStart + dragOffset + draggedItemSize / 2f
 }
 
 @Composable

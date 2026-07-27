@@ -1,7 +1,6 @@
 package app.yukine.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,10 +22,16 @@ fun EchoNowBar(
     onRepeat: Runnable,
     onSeek: SeekAction
 ) {
-    var waveformExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(state.track.trackId, state.track.contentUri, state.track.dataPath) {
-        waveformExpanded = false
+    // Reset waveform open state with track identity so a prior track cannot leave
+    // one expanded frame on the next song.
+    val trackIdentity = remember(
+        state.track.trackId,
+        state.track.contentUri,
+        state.track.dataPath
+    ) {
+        Triple(state.track.trackId, state.track.contentUri, state.track.dataPath)
     }
+    var waveformExpanded by remember(trackIdentity) { mutableStateOf(false) }
     NowBar(
         state = state,
         waveformExpanded = waveformExpanded,

@@ -314,6 +314,28 @@ class StreamingPlaylistStateOwner internal constructor(
         )
     }
 
+    suspend fun userPlaylistsForTogether(provider: StreamingProviderName): List<StreamingPlaylist> =
+        withContext(ioDispatcher()) { repository().userPlaylists(provider) }
+
+    suspend fun playlistTracksForTogether(
+        provider: StreamingProviderName,
+        providerPlaylistId: String
+    ): Pair<String, List<StreamingTrack>> =
+        playlistDataCoordinator.loadPlaylistTracks(provider, providerPlaylistId)
+
+    suspend fun resolvePlaybackForTogether(
+        track: StreamingTrack,
+        quality: StreamingAudioQuality
+    ): StreamingPlaybackSource = withContext(ioDispatcher()) {
+        repository().resolvePlayback(
+            provider = track.provider,
+            providerTrackId = track.providerTrackId,
+            quality = quality,
+            luoxueMusicInfoJson = track.luoxueMusicInfoJson,
+            forceRefresh = true
+        )
+    }
+
     fun loadUserPlaylists(provider: StreamingProviderName): Job {
         stateOwner.value = stateOwner.value.copy(
             userPlaylistsLoading = true,

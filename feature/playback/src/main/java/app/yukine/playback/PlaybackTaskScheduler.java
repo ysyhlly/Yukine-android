@@ -13,9 +13,9 @@ final class PlaybackTaskScheduler implements Executor {
     enum Priority {
         CURRENT_PLAYBACK_RECOVERY,
         CURRENT_URL_RESOLVE,
+        CURRENT_WAVEFORM,
         NEXT_URL_RESOLVE,
-        NEXT_TRACK_PRECACHE,
-        CURRENT_WAVEFORM
+        NEXT_TRACK_PRECACHE
     }
 
     private final PriorityBlockingQueue<ScheduledTask> queue = new PriorityBlockingQueue<>();

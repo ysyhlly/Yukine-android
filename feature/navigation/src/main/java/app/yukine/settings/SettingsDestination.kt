@@ -47,6 +47,7 @@ fun SettingsDestination(
         compactSettingsCards = settingsState.destinationCompactSettingsCards,
         activeDownload = activeDownload,
         playbackQuality = playbackQuality,
-        audioMotion = audioMotion
+        audioMotion = audioMotion,
+        contentKey = settingsState.destinationTitle
     )
 }

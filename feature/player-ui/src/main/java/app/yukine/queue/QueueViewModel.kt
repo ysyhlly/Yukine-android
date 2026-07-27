@@ -84,6 +84,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     /** Snapshot of the tracks currently backing each rendered row, by row index. */
     @Volatile
     private var boundTracks: List<Track> = emptyList()
+    @Volatile
+    private var boundQueueEditable: Boolean = true
     private var stateSourcesBinding: Job? = null
 
     fun bindStateSources(
@@ -112,7 +114,14 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                     favoriteIds,
                     languageMode,
                     connection ->
-                QueueStateInputs(queue.tracks, playback, favoriteIds, languageMode, connection)
+                QueueStateInputs(
+                    queue.tracks,
+                    playback,
+                    favoriteIds,
+                    languageMode,
+                    connection,
+                    queue.queueEditable
+                )
             }.collect { inputs ->
                 bindRows(
                     inputs.tracks,
@@ -120,7 +129,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                     inputs.playback.currentIndex,
                     inputs.favoriteIds,
                     inputs.languageMode,
-                    inputs.connection
+                    inputs.connection,
+                    inputs.queueEditable
                 )
             }
         }
@@ -132,9 +142,11 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         currentIndex: Int?,
         favoriteIds: Set<Long>,
         languageMode: String,
-        connection: PlaybackConnectionState
+        connection: PlaybackConnectionState,
+        queueEditable: Boolean
     ) {
         boundTracks = tracks
+        boundQueueEditable = queueEditable
         val currentQueueIndex = currentIndex?.takeIf { it in tracks.indices }
         val keyFactory = QueueRowKeyFactory(tracks)
         val eagerTracks = tracks.take(EAGER_QUEUE_ROW_LIMIT)
@@ -173,7 +185,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
                         }
                     }
                 }
-            }
+            },
+            queueEditable = queueEditable
         )
         _labels.value = QueueScreenLabels(
             title = AppLanguage.text(languageMode, "tab.queue"),
@@ -209,7 +222,8 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
         val playback: QueuePlaybackSelection,
         val favoriteIds: Set<Long>,
         val languageMode: String,
-        val connection: PlaybackConnectionState
+        val connection: PlaybackConnectionState,
+        val queueEditable: Boolean
     )
 
     /** The tracks backing the current rows; used by the screen to build positional intents. */
@@ -231,17 +245,22 @@ class QueueViewModel : ViewModel(), QueueDestinationStateProvider {
     }
 
     override fun onRemove(index: Int) {
+        if (!boundQueueEditable) return
         boundTracks.getOrNull(index)?.let { emit(QueueIntent.Remove(it)) }
     }
 
     override fun onMove(fromIndex: Int, toIndex: Int) {
+        if (!boundQueueEditable) return
         val tracks = boundTracks
         if (fromIndex in tracks.indices && toIndex in tracks.indices && fromIndex != toIndex) {
             emit(QueueIntent.Move(fromIndex, toIndex))
         }
     }
 
-    override fun onClearQueue() = emit(QueueIntent.ClearQueue)
+    override fun onClearQueue() {
+        if (!boundQueueEditable) return
+        emit(QueueIntent.ClearQueue)
+    }
 
     override fun onBack() = emit(QueueIntent.Back)
 

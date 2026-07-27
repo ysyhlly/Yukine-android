@@ -28,13 +28,18 @@ data class TogetherSavedSettings(
     )
 }
 
-class TogetherPreferences(context: Context) {
+interface TogetherSettingsPort {
+    fun load(): TogetherSavedSettings
+    fun save(settings: TogetherSavedSettings)
+}
+
+class TogetherPreferences(context: Context) : TogetherSettingsPort {
     private val prefs = context.applicationContext.getSharedPreferences(
         "together_connection_settings",
         Context.MODE_PRIVATE
     )
 
-    fun load(): TogetherSavedSettings {
+    override fun load(): TogetherSavedSettings {
         val remember = prefs.getBoolean(KEY_REMEMBER, false)
         return TogetherSavedSettings(
             nickname = prefs.getString(KEY_NICK, "").orEmpty(),
@@ -52,7 +57,7 @@ class TogetherPreferences(context: Context) {
         )
     }
 
-    fun save(settings: TogetherSavedSettings) {
+    override fun save(settings: TogetherSavedSettings) {
         prefs.edit()
             .putString(KEY_NICK, settings.nickname.trim())
             .putString(KEY_RELAYS, settings.relays.joinToString("\n"))

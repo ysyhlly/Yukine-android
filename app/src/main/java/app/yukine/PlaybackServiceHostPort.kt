@@ -11,6 +11,9 @@ interface PlaybackServiceHostPort : PlaybackCommands, SettingsPlaybackServicePor
 
     fun queueSnapshot(): List<Track>
 
+    /** False when queue mutations are locked (e.g. Together guest). Default true for fakes. */
+    fun canMutateQueue(): Boolean = true
+
     fun registerListener(listener: PlaybackStateListener?)
 
     fun unregisterListener(listener: PlaybackStateListener?)

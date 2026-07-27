@@ -1,5 +1,6 @@
 package app.yukine.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -33,11 +34,14 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -192,6 +196,63 @@ class SettingsListScrollState(
     }
 }
 
+/**
+ * Immutable page frame rendered by [SettingsScreen]'s AnimatedContent slots.
+ * Built via [settingsPageFrame] so enter/exit each paint their own snapshot (not the live parent).
+ */
+@Immutable
+internal data class SettingsPageFrame(
+    val key: Any,
+    val title: String,
+    val metrics: List<SettingsMetric>,
+    val sections: List<SettingsActionSection>,
+    val issues: List<SettingsIssue>,
+    val issuesTitle: String,
+    val searchEntries: List<SettingsSearchEntry>,
+    val searchPlaceholder: String,
+    val searchResultsTitle: String,
+    val searchEmptyMessage: String,
+    val highlightedEntryId: SettingsEntryId?,
+    val compactSettingsCards: Boolean,
+    val backLabel: String?,
+    val onBack: Runnable?
+)
+
+/** Pure builder for settings page transition frames (testable without Compose). */
+internal fun settingsPageFrame(
+    contentKey: Any,
+    title: String,
+    metrics: List<SettingsMetric>,
+    actions: List<SettingsAction>,
+    issues: List<SettingsIssue> = emptyList(),
+    issuesTitle: String = "",
+    searchEntries: List<SettingsSearchEntry> = emptyList(),
+    searchPlaceholder: String = "",
+    searchResultsTitle: String = "",
+    searchEmptyMessage: String = "",
+    highlightedEntryId: SettingsEntryId? = null,
+    compactSettingsCards: Boolean = false
+): SettingsPageFrame {
+    val titleBackAction = actions.firstOrNull { it.isBack }
+    val visibleActions = settingsContentActions(actions)
+    return SettingsPageFrame(
+        key = contentKey,
+        title = title,
+        metrics = metrics,
+        sections = settingsActionSections(visibleActions),
+        issues = issues,
+        issuesTitle = issuesTitle,
+        searchEntries = searchEntries,
+        searchPlaceholder = searchPlaceholder,
+        searchResultsTitle = searchResultsTitle,
+        searchEmptyMessage = searchEmptyMessage,
+        highlightedEntryId = highlightedEntryId,
+        compactSettingsCards = compactSettingsCards,
+        backLabel = titleBackAction?.label,
+        onBack = titleBackAction?.onClick
+    )
+}
+
 @Composable
 fun SettingsScreen(
     title: String,
@@ -208,126 +269,166 @@ fun SettingsScreen(
     compactSettingsCards: Boolean = false,
     activeDownload: TrackDownloadItem? = null,
     playbackQuality: String = "",
-    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty
+    audioMotion: YukineOrbAudioMotion = YukineOrbAudioMotion.Empty,
+    /** Stable key for subpage content transitions (title is a good default). */
+    contentKey: Any = title
 ) {
     var activeImageDialog by remember { mutableStateOf<SettingsImageDialog?>(null) }
     var pendingConfirmation by remember { mutableStateOf<SettingsAction?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    val titleBackAction = actions.firstOrNull { it.isBack }
-    val visibleActions = settingsContentActions(actions)
-    val actionSections = settingsActionSections(visibleActions)
-    val cardDensity = settingsCardDensityTokens(compactSettingsCards)
-    val filteredSearchEntries = remember(searchEntries, searchQuery) {
-        filterSettingsSearchEntries(searchEntries, searchQuery)
-    }
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
-        initialFirstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset.coerceAtLeast(0)
-    )
-    DisposableEffect(listState) {
-        onDispose {
-            scrollState.save(listState)
-        }
-    }
-    val highlightedSectionItemIndex = settingsHighlightedSectionItemIndex(
-        sections = actionSections,
+    val pageFrame = settingsPageFrame(
+        contentKey = contentKey,
+        title = title,
+        metrics = metrics,
+        actions = actions,
+        issues = issues,
+        issuesTitle = issuesTitle,
+        searchEntries = searchEntries,
+        searchPlaceholder = searchPlaceholder,
+        searchResultsTitle = searchResultsTitle,
+        searchEmptyMessage = searchEmptyMessage,
         highlightedEntryId = highlightedEntryId,
-        hasSearch = searchEntries.isNotEmpty(),
-        hasIssues = issues.isNotEmpty(),
-        hasMetrics = metrics.isNotEmpty()
+        compactSettingsCards = compactSettingsCards
     )
-    LaunchedEffect(highlightedEntryId, highlightedSectionItemIndex) {
-        if (highlightedEntryId != null && highlightedSectionItemIndex != null) {
-            listState.animateScrollToItem(highlightedSectionItemIndex)
+    // Keep last snapshot per page key so exit slots still paint the previous page, not the new one.
+    // Bound growth to current + previous key so long navigation sessions do not leak frames.
+    val framesByKey = remember { mutableStateMapOf<Any, SettingsPageFrame>() }
+    framesByKey[pageFrame.key] = pageFrame
+    if (framesByKey.size > 2) {
+        val keep = buildSet {
+            add(pageFrame.key)
+            framesByKey.keys.firstOrNull { it != pageFrame.key }?.let(::add)
         }
+        framesByKey.keys.retainAll(keep)
     }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = echoPagePadding(),
-        verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
-    ) {
-        item(key = "title") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+    val currentKey by rememberUpdatedState(pageFrame.key)
+    AnimatedContent(
+        targetState = pageFrame.key,
+        transitionSpec = { EchoMotion.pageContentTransition() },
+        label = "settingsPageContent",
+        modifier = Modifier.fillMaxSize()
+    ) { key ->
+        val page = framesByKey[key] ?: pageFrame
+        val cardDensity = settingsCardDensityTokens(page.compactSettingsCards)
+        val filteredSearchEntries = remember(page.searchEntries, searchQuery) {
+            filterSettingsSearchEntries(page.searchEntries, searchQuery)
+        }
+        // One LazyListState per transition slot/page key — never share across enter+exit.
+        val listState = rememberLazyListState(
+            initialFirstVisibleItemIndex = scrollState.firstVisibleItemIndex.coerceAtLeast(0),
+            initialFirstVisibleItemScrollOffset = scrollState.firstVisibleItemScrollOffset.coerceAtLeast(0)
+        )
+        DisposableEffect(listState, key) {
+            onDispose {
+                // Only the still-current page may write shared scroll restoration state.
+                if (key == currentKey) {
+                    scrollState.save(listState)
+                }
+            }
+        }
+        val highlightedSectionItemIndex = settingsHighlightedSectionItemIndex(
+            sections = page.sections,
+            highlightedEntryId = page.highlightedEntryId,
+            hasSearch = page.searchEntries.isNotEmpty(),
+            hasIssues = page.issues.isNotEmpty(),
+            hasMetrics = page.metrics.isNotEmpty()
+        )
+        LaunchedEffect(key, page.highlightedEntryId, highlightedSectionItemIndex) {
+            if (key == currentKey &&
+                page.highlightedEntryId != null &&
+                highlightedSectionItemIndex != null
             ) {
-                EchoPageTitle(
-                    title,
-                    modifier = Modifier.weight(1f),
-                    backLabel = titleBackAction?.label,
-                    onBack = titleBackAction?.onClick
-                )
-                YukineDownloadOrb(
-                    item = activeDownload,
-                    playbackQuality = playbackQuality,
-                    audioMotion = audioMotion,
-                    modifier = Modifier.size(40.dp)
-                )
+                listState.animateScrollToItem(highlightedSectionItemIndex)
             }
         }
-        if (searchEntries.isNotEmpty()) {
-            item(key = "search") {
-                SettingsSearchField(
-                    query = searchQuery,
-                    placeholder = searchPlaceholder,
-                    onQueryChange = { searchQuery = it }
-                )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = echoPagePadding(),
+            verticalArrangement = Arrangement.spacedBy(EchoPageDefaults.itemSpacing)
+        ) {
+            item(key = "title") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    EchoPageTitle(
+                        page.title,
+                        modifier = Modifier.weight(1f),
+                        backLabel = page.backLabel,
+                        onBack = page.onBack
+                    )
+                    YukineDownloadOrb(
+                        item = activeDownload,
+                        playbackQuality = playbackQuality,
+                        audioMotion = audioMotion,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
             }
-        }
-        if (searchQuery.isNotBlank()) {
-            item(key = "search-results") {
-                SettingsSearchResultsCard(
-                    title = searchResultsTitle,
-                    emptyMessage = searchEmptyMessage,
-                    entries = filteredSearchEntries,
-                    cardDensity = cardDensity,
-                    compactSettingsCards = compactSettingsCards,
-                    onSelected = { entry ->
-                        scrollState.save(listState)
-                        searchQuery = ""
-                        entry.onClick.run()
-                    }
-                )
+            if (page.searchEntries.isNotEmpty()) {
+                item(key = "search") {
+                    SettingsSearchField(
+                        query = searchQuery,
+                        placeholder = page.searchPlaceholder,
+                        onQueryChange = { searchQuery = it }
+                    )
+                }
             }
-        } else if (issues.isNotEmpty()) {
-            item(key = "issues") {
-                SettingsIssuesCard(
-                    title = issuesTitle,
-                    issues = issues,
-                    cardDensity = cardDensity,
-                    compactSettingsCards = compactSettingsCards
-                )
-            }
-        }
-        if (searchQuery.isBlank() && metrics.isNotEmpty()) {
-            item(key = "overview") {
-                SettingsOverviewCard(metrics)
-            }
-        }
-        if (searchQuery.isBlank()) {
-            itemsIndexed(
-                items = actionSections,
-                key = { index, section -> "section:${section.title}:$index" }
-            ) { index, section ->
-                SettingsActionSectionCard(
-                    section = section,
-                    highlightedEntryId = highlightedEntryId,
-                    cardDensity = cardDensity,
-                    compactSettingsCards = compactSettingsCards,
-                    modifier = Modifier.echoEnter(index.coerceAtMost(8)),
-                    onAction = { action ->
-                        scrollState.save(listState)
-                        if (action.imageDialog != null) {
-                            activeImageDialog = action.imageDialog
-                        } else if (action.confirmationDialog != null) {
-                            pendingConfirmation = action
-                        } else {
-                            action.onClick.run()
+            if (searchQuery.isNotBlank()) {
+                item(key = "search-results") {
+                    SettingsSearchResultsCard(
+                        title = page.searchResultsTitle,
+                        emptyMessage = page.searchEmptyMessage,
+                        entries = filteredSearchEntries,
+                        cardDensity = cardDensity,
+                        compactSettingsCards = page.compactSettingsCards,
+                        onSelected = { entry ->
+                            scrollState.save(listState)
+                            searchQuery = ""
+                            entry.onClick.run()
                         }
-                    }
-                )
+                    )
+                }
+            } else if (page.issues.isNotEmpty()) {
+                item(key = "issues") {
+                    SettingsIssuesCard(
+                        title = page.issuesTitle,
+                        issues = page.issues,
+                        cardDensity = cardDensity,
+                        compactSettingsCards = page.compactSettingsCards
+                    )
+                }
+            }
+            if (searchQuery.isBlank() && page.metrics.isNotEmpty()) {
+                item(key = "overview") {
+                    SettingsOverviewCard(page.metrics)
+                }
+            }
+            if (searchQuery.isBlank()) {
+                itemsIndexed(
+                    items = page.sections,
+                    key = { index, section -> "section:${section.title}:$index" }
+                ) { index, section ->
+                    SettingsActionSectionCard(
+                        section = section,
+                        highlightedEntryId = page.highlightedEntryId,
+                        cardDensity = cardDensity,
+                        compactSettingsCards = page.compactSettingsCards,
+                        modifier = Modifier.echoEnter(index.coerceAtMost(8)),
+                        onAction = { action ->
+                            scrollState.save(listState)
+                            if (action.imageDialog != null) {
+                                activeImageDialog = action.imageDialog
+                            } else if (action.confirmationDialog != null) {
+                                pendingConfirmation = action
+                            } else {
+                                action.onClick.run()
+                            }
+                        }
+                    )
+                }
             }
         }
     }

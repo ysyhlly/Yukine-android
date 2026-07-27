@@ -1,6 +1,7 @@
 package app.yukine
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import app.yukine.model.Playlist
 import app.yukine.model.Track
 import org.junit.Assert.assertEquals
@@ -8,7 +9,7 @@ import org.junit.Test
 
 class CollectionsActionAdapterTest {
     @Test
-    fun delegatesCollectionsRenderActionsToInjectedOwners() {
+    fun delegatesCollectionsRenderActionsThroughIntentOwnerAndPlatformSinks() {
         val calls = mutableListOf<String>()
         val track = track(1L)
         val playlist = playlist(9L)
@@ -80,80 +81,27 @@ class CollectionsActionAdapterTest {
         assertEquals(listOf("status:no.tracks.in.playlist"), calls)
     }
 
-    @Test
-    fun directConstructionCreatesCollectionsStateBindingListener() {
-        val calls = mutableListOf<String>()
-        val listener = CollectionsActionAdapter(
-            CollectionsActionAdapter.PlaylistCreator { calls += "create-playlist" },
-            CollectionsActionAdapter.PlaylistM3uPicker { calls += "open-m3u" },
-            CollectionsActionAdapter.PlayHistoryClearConfirmer { calls += "confirm-clear-history" },
-            CollectionsActionAdapter.BackRequester { calls += "back" },
-            CollectionsActionAdapter.TrackListPlayer { tracks, index -> calls += "play:${tracks.size}:$index" },
-            CollectionsActionAdapter.FavoriteToggler { calls += "favorite:${it.id}" },
-            CollectionsActionAdapter.PlaylistAdder { calls += "add-to-playlist:${it.id}" },
-            CollectionsActionAdapter.TrackDownloader { calls += "download:${it.id}" },
-            CollectionsActionAdapter.TracksDownloader { calls += "download-list:${it.size}" },
-            CollectionsActionAdapter.PlaylistSelector { calls += "select-playlist:$it" },
-            CollectionsActionAdapter.PlaylistRenamer { calls += "rename-playlist:${it.id}" },
-            CollectionsActionAdapter.PlaylistDeleteConfirmer { calls += "delete-playlist:${it.id}" },
-            CollectionsActionAdapter.SelectedPlaylistIdSource { 3L },
-            CollectionsActionAdapter.SelectedPlaylistTracksSource { listOf(track(1L)) },
-            CollectionsActionAdapter.SelectedPlaylistNameSource { "Road Mix" },
-            CollectionsActionAdapter.StatusKeySink { calls += "status:$it" },
-            CollectionsActionAdapter.PlaylistExportDocumentOpener { playlistId, name ->
-                calls += "export-playlist:$playlistId:$name"
-            },
-            CollectionsActionAdapter.SelectedPlaylistStreamingImporter { calls += "import-selected-streaming" },
-            CollectionsActionAdapter.FavoritesStreamingImporter { calls += "import-favorites-streaming" },
-            CollectionsActionAdapter.StreamingFavoritesImporter { calls += "import-streaming-favorites" },
-            CollectionsActionAdapter.SelectedPlaylistStreamingSyncer { calls += "sync-selected-streaming" },
-            CollectionsActionAdapter.SelectedPlaylistTrackMover { playlistId, track, index, direction ->
-                calls += "move-track:$playlistId:${track.id}:$index:$direction"
-            },
-            CollectionsActionAdapter.SelectedPlaylistTrackRemover { playlistId, track ->
-                calls += "remove-track:$playlistId:${track.id}"
-            }
-        )
-
-        listener.showCreatePlaylist()
-        listener.openSelectedPlaylistExportDocument()
-
-        assertEquals(listOf("create-playlist", "export-playlist:3:Road Mix"), calls)
-    }
-
     private fun listener(
         calls: MutableList<String>,
         selectedPlaylistId: Long,
         selectedPlaylistTracks: List<Track>
     ): CollectionsActionAdapter =
         CollectionsActionAdapter(
-            playlistCreator = CollectionsActionAdapter.PlaylistCreator { calls += "create-playlist" },
+            intents = RecordingCollectionsIntentOwner(calls),
             playlistM3uPicker = CollectionsActionAdapter.PlaylistM3uPicker { calls += "open-m3u" },
             playHistoryClearConfirmer = CollectionsActionAdapter.PlayHistoryClearConfirmer {
                 calls += "confirm-clear-history"
             },
             backRequester = CollectionsActionAdapter.BackRequester { calls += "back" },
-            trackListPlayer = CollectionsActionAdapter.TrackListPlayer { tracks, index ->
-                calls += "play:${tracks.size}:$index"
-            },
-            favoriteToggler = CollectionsActionAdapter.FavoriteToggler { calls += "favorite:${it.id}" },
-            playlistAdder = CollectionsActionAdapter.PlaylistAdder { calls += "add-to-playlist:${it.id}" },
-            trackDownloader = CollectionsActionAdapter.TrackDownloader { calls += "download:${it.id}" },
-            tracksDownloader = CollectionsActionAdapter.TracksDownloader { calls += "download-list:${it.size}" },
-            playlistSelector = CollectionsActionAdapter.PlaylistSelector { calls += "select-playlist:$it" },
-            playlistRenamer = CollectionsActionAdapter.PlaylistRenamer { calls += "rename-playlist:${it.id}" },
-            playlistDeleteConfirmer = CollectionsActionAdapter.PlaylistDeleteConfirmer {
-                calls += "delete-playlist:${it.id}"
+            statusKeySink = CollectionsActionAdapter.StatusKeySink { calls += "status:$it" },
+            playlistExportDocumentOpener = CollectionsActionAdapter.PlaylistExportDocumentOpener { playlistId, name ->
+                calls += "export-playlist:$playlistId:$name"
             },
             selectedPlaylistIdSource = CollectionsActionAdapter.SelectedPlaylistIdSource { selectedPlaylistId },
             selectedPlaylistTracksSource = CollectionsActionAdapter.SelectedPlaylistTracksSource {
                 selectedPlaylistTracks
             },
             selectedPlaylistNameSource = CollectionsActionAdapter.SelectedPlaylistNameSource { "Road Mix" },
-            statusKeySink = CollectionsActionAdapter.StatusKeySink { calls += "status:$it" },
-            playlistExportDocumentOpener = CollectionsActionAdapter.PlaylistExportDocumentOpener { playlistId, name ->
-                calls += "export-playlist:$playlistId:$name"
-            },
             selectedPlaylistStreamingImporter = CollectionsActionAdapter.SelectedPlaylistStreamingImporter {
                 calls += "import-selected-streaming"
             },
@@ -165,14 +113,46 @@ class CollectionsActionAdapterTest {
             },
             selectedPlaylistStreamingSyncer = CollectionsActionAdapter.SelectedPlaylistStreamingSyncer {
                 calls += "sync-selected-streaming"
-            },
-            selectedPlaylistTrackMover = CollectionsActionAdapter.SelectedPlaylistTrackMover { playlistId, track, index, direction ->
-                calls += "move-track:$playlistId:${track.id}:$index:$direction"
-            },
-            selectedPlaylistTrackRemover = CollectionsActionAdapter.SelectedPlaylistTrackRemover { playlistId, track ->
-                calls += "remove-track:$playlistId:${track.id}"
             }
         )
+
+    private class RecordingCollectionsIntentOwner(
+        private val calls: MutableList<String>
+    ) : CollectionsIntentOwner(
+        viewModel = LibraryViewModel(),
+        playlistMutationOwner = PlaylistMutationOwner(
+            LibraryViewModel(),
+            MainRouteController(NavigationViewModel(SavedStateHandle())),
+            PlaylistMutationOwner.LanguageModeSource { AppLanguage.MODE_ENGLISH },
+            PlaylistMutationOwner.StatusSink { },
+            PlaylistMutationOwner.CollectionsLoader { }
+        ),
+        playTrackList = { tracks, index -> calls += "play:${tracks.size}:$index" },
+        showAddToPlaylist = { calls += "add-to-playlist:${it.id}" },
+        showCreatePlaylist = { calls += "create-playlist" },
+        showRenamePlaylist = { calls += "rename-playlist:${it.id}" },
+        confirmDeletePlaylist = { calls += "delete-playlist:${it.id}" },
+        selectPlaylist = { calls += "select-playlist:$it" },
+        downloadTrack = { calls += "download:${it.id}" },
+        downloadTracks = { calls += "download-list:${it.size}" }
+    ) {
+        override fun toggleFavorite(track: Track) {
+            calls += "favorite:${track.id}"
+        }
+
+        override fun moveSelectedPlaylistTrack(
+            playlistId: Long,
+            track: Track,
+            trackIndex: Int,
+            direction: Int
+        ) {
+            calls += "move-track:$playlistId:${track.id}:$trackIndex:$direction"
+        }
+
+        override fun removeSelectedPlaylistTrack(playlistId: Long, track: Track) {
+            calls += "remove-track:$playlistId:${track.id}"
+        }
+    }
 
     private fun track(id: Long): Track =
         Track(id, "Track $id", "Artist", "Album", 1000L, Uri.EMPTY, "file:$id")

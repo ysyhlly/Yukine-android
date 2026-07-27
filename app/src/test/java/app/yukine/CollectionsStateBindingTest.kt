@@ -14,12 +14,68 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CollectionsStateBindingTest {
     @Test
-    fun enteringCollectionsLoadsInsightsOffTheRenderPathAndPublishesThem() = runTest {
+    fun enteringCollectionsPublishesSmartCollectionsFromStoreWithoutSourceReloadOnFavoriteOnly() =
+        runTest {
+            val viewModel = CollectionsViewModel()
+            val controller = CollectionsStateBinding(
+                viewModel,
+                NoOpCollectionsListener,
+                this,
+                StandardTestDispatcher(testScheduler)
+            )
+            val routes = MutableStateFlow(NavigationRouteState())
+            val recentlyAdded = track(8L, "Recently Added")
+            val library = MutableStateFlow(
+                LibraryStoreState(
+                    recentlyAddedTracks = listOf(recentlyAdded),
+                    longUnplayedTracks = listOf(track(9L, "Dusty")),
+                    playlists = listOf(Playlist(1L, "Local", 1, 0L, 0L))
+                )
+            )
+            val settings = MutableStateFlow(SettingsState())
+            var sourceLoads = 0
+
+            controller.bindStateSources(
+                routes,
+                library,
+                settings,
+                EmptyPlaybackReadModel,
+                CollectionsPlaylistSourcesLoader {
+                    sourceLoads += 1
+                    emptyMap()
+                }
+            )
+            advanceUntilIdle()
+            assertEquals(0, sourceLoads)
+
+            routes.value = NavigationRouteState(selectedTab = CollectionsTab)
+            advanceUntilIdle()
+
+            assertEquals(1, sourceLoads)
+            val section = viewModel.screen.value.trackSections.first { it.key == "recently-added" }
+            assertEquals(listOf(8L), section.rows.map { it.id })
+            val longUnplayed = viewModel.screen.value.trackSections.first { it.key == "long-unplayed" }
+            assertEquals(listOf(9L), longUnplayed.rows.map { it.id })
+
+            // Favorite-only change must not re-load playlist sources.
+            library.value = library.value.copy(
+                favoriteTrackIds = setOf(8L),
+                favoriteTracks = listOf(recentlyAdded)
+            )
+            advanceUntilIdle()
+            assertEquals(1, sourceLoads)
+
+            controller.bindStateSources(null, null, null, null, null as CollectionsPlaylistSourcesLoader?)
+        }
+
+    @Test
+    fun currentTrackOnlyChangeDoesNotReloadPlaylistSources() = runTest {
         val viewModel = CollectionsViewModel()
         val controller = CollectionsStateBinding(
             viewModel,
@@ -27,27 +83,61 @@ class CollectionsStateBindingTest {
             this,
             StandardTestDispatcher(testScheduler)
         )
-        val routes = MutableStateFlow(NavigationRouteState())
-        val library = MutableStateFlow(LibraryStoreState())
+        val routes = MutableStateFlow(NavigationRouteState(selectedTab = CollectionsTab))
+        val library = MutableStateFlow(
+            LibraryStoreState(playlists = listOf(Playlist(1L, "Local", 1, 0L, 0L)))
+        )
         val settings = MutableStateFlow(SettingsState())
-        var loads = 0
-        val recentlyAdded = track(8L, "Recently Added")
-
-        controller.bindStateSources(routes, library, settings, EmptyPlaybackReadModel) { _ ->
-            loads += 1
-            CollectionsInsightSnapshot(recentlyAdded = listOf(recentlyAdded))
+        val playbackState = MutableStateFlow(PlaybackStateSnapshot.empty())
+        val playback = object : PlaybackReadModel {
+            override val state = playbackState
+            override val queue = MutableStateFlow(PlaybackQueueSnapshot())
+            override val connection = MutableStateFlow(PlaybackConnectionState.Disconnected)
         }
+        var sourceLoads = 0
+        controller.bindStateSources(
+            routes,
+            library,
+            settings,
+            playback,
+            CollectionsPlaylistSourcesLoader {
+                sourceLoads += 1
+                emptyMap()
+            }
+        )
         advanceUntilIdle()
-        assertEquals(0, loads)
+        assertEquals(1, sourceLoads)
 
-        routes.value = NavigationRouteState(selectedTab = CollectionsTab)
+        playbackState.value = PlaybackStateSnapshot(
+            track(99L, "Now Playing"),
+            0,
+            1,
+            0L,
+            0L,
+            false,
+            false,
+            "",
+            false,
+            0,
+            1f,
+            1f,
+            0L,
+            null,
+            null,
+            0f
+        )
         advanceUntilIdle()
+        assertEquals(1, sourceLoads)
 
-        assertEquals(1, loads)
-        val section = viewModel.screen.value.trackSections.first { it.key == "recently-added" }
-        assertEquals(listOf(8L), section.rows.map { it.id })
+        // Playlist list identity change does reload sources.
+        library.value = library.value.copy(
+            playlists = listOf(Playlist(1L, "Local", 2, 0L, 1L))
+        )
+        advanceUntilIdle()
+        assertEquals(2, sourceLoads)
 
-        controller.bindStateSources(null, null, null, null, null)
+        // Unbind without cancelling the test scope (release() cancels the injected scope).
+        controller.bindStateSources(null, null, null, null, null as CollectionsPlaylistSourcesLoader?)
     }
 
     @Test
@@ -86,6 +176,16 @@ class CollectionsStateBindingTest {
         assertEquals(listOf(favorite.id), screen.trackSections.first { it.key == "favorites" }.rows.map { it.id })
 
         controller.release()
+    }
+
+    @Test
+    fun playlistListSignatureChangesWithCountAndName() {
+        val a = listOf(Playlist(1L, "A", 1, 0L, 0L))
+        val b = listOf(Playlist(1L, "A", 2, 0L, 0L))
+        val c = listOf(Playlist(1L, "B", 2, 0L, 0L))
+        assertTrue(playlistListSignature(a) != playlistListSignature(b))
+        assertTrue(playlistListSignature(b) != playlistListSignature(c))
+        assertEquals(playlistListSignature(a), playlistListSignature(a))
     }
 
     private fun track(id: Long, title: String): Track =

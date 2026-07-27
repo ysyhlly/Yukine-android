@@ -32,7 +32,13 @@ final class PlaybackPlayerStateOwner implements
     // Track the transition timestamp and expected start position to suppress stale readings.
     private long transitionStartElapsedMs = Long.MIN_VALUE;
     private long transitionExpectedPositionMs;
-    private static final long TRANSITION_GUARD_WINDOW_MS = 800L;
+    // Last media-item index observed while reading position. An unannounced index change
+    // (auto-advance path that skipped beginMediaItemPositionTransition) still must not inherit
+    // the previous item's progress.
+    private int lastObservedMediaItemIndex = C.INDEX_UNSET;
+    // Stop validating against wall-clock after this; eventually trust ExoPlayer again.
+    private static final long TRANSITION_GUARD_HARD_TIMEOUT_MS = 8_000L;
+    // Allow a little jitter above (expected + elapsed) before treating a reading as stale.
     private static final long TRANSITION_STALE_THRESHOLD_MS = 500L;
 
     PlaybackPlayerStateOwner(PlayerProvider playerProvider) {
@@ -69,6 +75,7 @@ final class PlaybackPlayerStateOwner implements
             return 0L;
         }
         try {
+            noteMediaItemIndex(player.getCurrentMediaItemIndex());
             if (shouldReportPendingMediaItemPosition(player)) {
                 return pendingMediaItemPositionMs;
             }
@@ -116,6 +123,7 @@ final class PlaybackPlayerStateOwner implements
             return Math.max(0L, estimatedPositionMs);
         }
         try {
+            noteMediaItemIndex(player.getCurrentMediaItemIndex());
             if (shouldReportPendingMediaItemPosition(player)) {
                 return pendingMediaItemPositionMs;
             }
@@ -153,6 +161,9 @@ final class PlaybackPlayerStateOwner implements
     synchronized void resetPositionEstimate() {
         clearPendingMediaItemPosition();
         resetPositionEstimateInternal();
+        // Replacing the playable source without a known start should still suppress a brief
+        // stale ExoPlayer position reading from the previous item.
+        armTransitionGuard(0L);
     }
 
     /**
@@ -164,8 +175,10 @@ final class PlaybackPlayerStateOwner implements
         resetPositionEstimateInternal();
         pendingMediaItemIndex = mediaItemIndex < 0 ? C.INDEX_UNSET : mediaItemIndex;
         pendingMediaItemPositionMs = Math.max(0L, startPositionMs);
-        transitionStartElapsedMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
-        transitionExpectedPositionMs = Math.max(0L, startPositionMs);
+        if (mediaItemIndex >= 0) {
+            lastObservedMediaItemIndex = mediaItemIndex;
+        }
+        armTransitionGuard(Math.max(0L, startPositionMs));
     }
 
     private boolean shouldReportPendingMediaItemPosition(Player player) {
@@ -185,32 +198,88 @@ final class PlaybackPlayerStateOwner implements
         lastPlaying = false;
     }
 
+    private void armTransitionGuard(long expectedPositionMs) {
+        transitionStartElapsedMs = Math.max(0L, elapsedRealtimeMs.getAsLong());
+        transitionExpectedPositionMs = Math.max(0L, expectedPositionMs);
+    }
+
+    private void clearTransitionGuard() {
+        transitionStartElapsedMs = Long.MIN_VALUE;
+        transitionExpectedPositionMs = 0L;
+    }
+
     /**
-     * Suppresses a stale position reading from ExoPlayer during the brief window after a
-     * media-item transition. Even though {@code getCurrentMediaItemIndex()} already reports
-     * the new item, {@code getCurrentPosition()} can momentarily return the previous item's
-     * position. If the raw position is far above the expected start position within the guard
-     * window, it is clamped to the expected value.
+     * When ExoPlayer advances to a new media item without an explicit hand-off call, treat that
+     * as a start-at-zero transition so the previous item's progress cannot stick to the next song.
+     */
+    private void noteMediaItemIndex(int mediaItemIndex) {
+        if (mediaItemIndex < 0) {
+            return;
+        }
+        // During an explicit hand-off the player may still report the previous index. Ignore it
+        // so we do not treat "still on old item" as another transition back to that item.
+        if (pendingMediaItemIndex != C.INDEX_UNSET && mediaItemIndex != pendingMediaItemIndex) {
+            return;
+        }
+        if (lastObservedMediaItemIndex == C.INDEX_UNSET) {
+            lastObservedMediaItemIndex = mediaItemIndex;
+            return;
+        }
+        if (mediaItemIndex == lastObservedMediaItemIndex) {
+            return;
+        }
+        lastObservedMediaItemIndex = mediaItemIndex;
+        // Unannounced index change: drop the old estimate and clamp to the new item start.
+        resetPositionEstimateInternal();
+        clearPendingMediaItemPosition();
+        armTransitionGuard(0L);
+    }
+
+    /**
+     * Suppresses a stale position reading from ExoPlayer during the window after a media-item
+     * transition. Even though {@code getCurrentMediaItemIndex()} already reports the new item,
+     * {@code getCurrentPosition()} can momentarily (or for several seconds while buffering)
+     * return the previous item's position.
+     * <p>
+     * A reading is only accepted when it could have been reached from the expected start by
+     * wall-clock elapsed time since the transition (plus a small jitter threshold). That keeps
+     * a 3-minute leftover from the previous song from sticking onto the next one, without
+     * blocking real seeks that update {@link #transitionExpectedPositionMs}.
      */
     private long guardStalePositionAfterTransition(long rawPositionMs, long nowMs) {
         if (transitionStartElapsedMs == Long.MIN_VALUE) {
             return rawPositionMs;
         }
         long sinceTransitionMs = nowMs - transitionStartElapsedMs;
-        if (sinceTransitionMs < 0L || sinceTransitionMs > TRANSITION_GUARD_WINDOW_MS) {
-            transitionStartElapsedMs = Long.MIN_VALUE;
-            return rawPositionMs;
-        }
-        if (rawPositionMs > transitionExpectedPositionMs + TRANSITION_STALE_THRESHOLD_MS) {
+        if (sinceTransitionMs < 0L) {
             return transitionExpectedPositionMs;
         }
-        // Position is consistent with the new track; disarm the guard early.
-        transitionStartElapsedMs = Long.MIN_VALUE;
+        if (sinceTransitionMs > TRANSITION_GUARD_HARD_TIMEOUT_MS) {
+            clearTransitionGuard();
+            return rawPositionMs;
+        }
+        long maxPlausibleMs = transitionExpectedPositionMs
+                + sinceTransitionMs
+                + TRANSITION_STALE_THRESHOLD_MS;
+        if (rawPositionMs > maxPlausibleMs) {
+            return transitionExpectedPositionMs;
+        }
+        // First plausible reading for the new item — hand control back to the player clock.
+        clearTransitionGuard();
         return rawPositionMs;
     }
 
     synchronized void setPositionEstimate(long positionMs) {
-        seedPositionEstimate(Math.max(0L, positionMs), Math.max(0L, elapsedRealtimeMs.getAsLong()), false);
+        long clamped = Math.max(0L, positionMs);
+        seedPositionEstimate(clamped, Math.max(0L, elapsedRealtimeMs.getAsLong()), false);
+        // Explicit seek / start position is intentional. If a transition guard is still armed,
+        // move its expected anchor so we do not clamp a real seek back to the pre-seek start.
+        if (pendingMediaItemIndex != C.INDEX_UNSET) {
+            pendingMediaItemPositionMs = clamped;
+        }
+        if (transitionStartElapsedMs != Long.MIN_VALUE) {
+            transitionExpectedPositionMs = clamped;
+        }
     }
 
     private void seedPositionEstimate(long positionMs, long nowMs, boolean playing) {

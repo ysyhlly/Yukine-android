@@ -24,7 +24,11 @@ internal class MutablePlaybackReadModel : PlaybackReadModel {
         mutableConnection.value = PlaybackConnectionState.Connected
     }
 
-    fun publish(snapshot: PlaybackStateSnapshot, queueProvider: () -> List<Track>) {
+    fun publish(
+        snapshot: PlaybackStateSnapshot,
+        queueEditable: Boolean = true,
+        queueProvider: () -> List<Track>
+    ) {
         val publishedQueue = mutableQueue.value
         if (
             publishedQueue.revision != snapshot.queueRevision ||
@@ -33,10 +37,17 @@ internal class MutablePlaybackReadModel : PlaybackReadModel {
             mutableQueue.value = PlaybackQueueSnapshot(
                 revision = snapshot.queueRevision,
                 currentIndex = snapshot.currentIndex,
-                tracks = queueProvider().toList()
+                tracks = queueProvider().toList(),
+                queueEditable = queueEditable
             )
-        } else if (publishedQueue.currentIndex != snapshot.currentIndex) {
-            mutableQueue.value = publishedQueue.copy(currentIndex = snapshot.currentIndex)
+        } else if (
+            publishedQueue.currentIndex != snapshot.currentIndex ||
+            publishedQueue.queueEditable != queueEditable
+        ) {
+            mutableQueue.value = publishedQueue.copy(
+                currentIndex = snapshot.currentIndex,
+                queueEditable = queueEditable
+            )
         }
         mutableState.value = snapshot
     }

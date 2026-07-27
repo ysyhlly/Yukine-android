@@ -69,10 +69,7 @@ class LocalQqMusicStreamingProvider(
     override suspend fun playlist(request: StreamingPlaylistRequest): StreamingPlaylistDetail = client.playlist(request)
 
     override suspend fun resolvePlayback(request: StreamingPlaybackRequest): StreamingPlaybackSource =
-        throw StreamingGatewayException(
-            "QQ 音乐仅用于曲库与同步，不提供播放音源",
-            code = StreamingErrorCode.UNSUPPORTED_OPERATION
-        )
+        client.resolvePlayback(request)
 
     override suspend fun authState(): StreamingAuthState =
         authStore?.authState(StreamingProviderName.QQ_MUSIC) ?: descriptor.auth

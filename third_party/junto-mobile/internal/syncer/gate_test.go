@@ -52,6 +52,54 @@ func TestHostReadyTracking(t *testing.T) {
 	}
 }
 
+func TestHostRejectsOlderClientForRemoteQueue(t *testing.T) {
+	var sent []protocol.Message
+	e := New(Deps{
+		Host: true, Nick: "host", SelfPub: "host-key", MinPeerVersion: protocol.RemoteQueueVersion,
+		Printf: func(string, ...any) {},
+		Send: func(_ context.Context, message protocol.Message) error {
+			sent = append(sent, message)
+			return nil
+		},
+	})
+	e.handleMessage(context.Background(), protocol.Message{
+		Type: protocol.MsgHello, From: "old-peer", Nick: "old", V: protocol.Version,
+	})
+	if len(sent) != 1 || sent[0].Type != protocol.MsgKick ||
+		sent[0].To != "old-peer" || sent[0].Kicked != "old-peer" ||
+		!strings.Contains(sent[0].Text, "upgrade required") {
+		t.Fatalf("old-client response = %#v", sent)
+	}
+	if _, joined := e.peers["old-peer"]; joined {
+		t.Fatal("older client entered a v2 remote room")
+	}
+}
+
+func TestHostRejectsV2ClientMissingRemoteCapability(t *testing.T) {
+	var sent []protocol.Message
+	e := New(Deps{
+		Host: true, Nick: "host", SelfPub: "host-key",
+		MinPeerVersion:           protocol.RemoteQueueVersion,
+		RequiredPeerCapabilities: []string{"remote_queue", "local_resolver", "range_relay"},
+		Printf:                   func(string, ...any) {},
+		Send: func(_ context.Context, message protocol.Message) error {
+			sent = append(sent, message)
+			return nil
+		},
+	})
+	e.handleMessage(context.Background(), protocol.Message{
+		Type: protocol.MsgHello, From: "partial-peer", Nick: "partial",
+		V: protocol.RemoteQueueVersion, Capabilities: []string{"remote_queue"},
+	})
+	if len(sent) != 1 || sent[0].Type != protocol.MsgKick ||
+		!strings.Contains(sent[0].Text, "missing capability local_resolver") {
+		t.Fatalf("missing-capability response = %#v", sent)
+	}
+	if _, joined := e.peers["partial-peer"]; joined {
+		t.Fatal("capability-incomplete client entered a remote room")
+	}
+}
+
 // With a peer not yet ready, the host sees a partial count rather than
 // the everyone-ready prompt.
 func TestPartialReadyShowsCount(t *testing.T) {

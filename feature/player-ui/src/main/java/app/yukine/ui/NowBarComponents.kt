@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
@@ -367,36 +368,46 @@ internal fun NowBarProgressSection(
     onSeek: SeekAction
 ) {
     val p = EchoTheme.colors()
-    if (waveformExpanded) {
-        ExpandedWaveformProgress(
-            slice = slice,
-            scrub = scrub,
-            onSeek = onSeek,
-            modifier = Modifier.fillMaxWidth()
-        )
-    } else {
-        CollapsedProgress(
-            scrub = scrub,
-            cachedProgress = slice.waveformCachedProgress,
-            progressLabel = slice.playbackProgressLabel,
-            onSeek = onSeek,
+    // Observe as delegated State so elapsed keeps recomposing while the smooth clock ticks.
+    val displayPositionMs by scrub.displayPosition
+    // Must be a Column: the collapsing parent is a Box, so sibling roots would stack and
+    // pin the time labels on top of the progress track instead of below it.
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (waveformExpanded) {
+            ExpandedWaveformProgress(
+                slice = slice,
+                scrub = scrub,
+                onSeek = onSeek,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            CollapsedProgress(
+                scrub = scrub,
+                cachedProgress = slice.waveformCachedProgress,
+                progressLabel = slice.playbackProgressLabel,
+                onSeek = onSeek,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
+            )
+        }
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(EchoMobileLayoutMetrics.nowBarProgressHeight)
-        )
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = if (waveformExpanded) onCollapseWaveform else onExpandWaveform)
-            .semantics {
-                contentDescription = slice.expandWaveformLabel.ifBlank { slice.playbackProgressLabel }
-            }
-            .padding(top = 0.dp, bottom = 1.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(Track.formatDuration(scrub.displayPosition.value), style = EchoTypography.caption, color = p.muted)
-        Text(slice.duration, style = EchoTypography.caption, color = p.muted)
+                .clickable(onClick = if (waveformExpanded) onCollapseWaveform else onExpandWaveform)
+                .semantics {
+                    contentDescription = slice.expandWaveformLabel.ifBlank { slice.playbackProgressLabel }
+                }
+                .padding(top = 0.dp, bottom = 1.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                Track.formatDuration(displayPositionMs),
+                style = EchoTypography.caption,
+                color = p.muted
+            )
+            Text(slice.duration, style = EchoTypography.caption, color = p.muted)
+        }
     }
 }
 
@@ -495,10 +506,12 @@ internal fun NowBarTrackSection(
     onDockRight: () -> Unit,
     onDockTop: () -> Unit,
     dockGesturesEnabled: Boolean,
+    heightCompact: Boolean = false,
+    onCompactHeight: () -> Unit = {},
+    onExpandHeight: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
-    val uri = remember(slice.artUriString) { slice.artUriString?.let { Uri.parse(it) } }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val copyText = remember(slice.title, slice.subtitle) {
@@ -510,15 +523,29 @@ internal fun NowBarTrackSection(
         modifier = modifier
             .nowBarDockGesture(
                 enabled = dockGesturesEnabled && slice.canExpand,
+                dockPosition = NowBarDockPosition.Expanded,
+                heightCompact = heightCompact,
                 onDockLeft = onDockLeft,
                 onDockRight = onDockRight,
-                onDockTop = onDockTop
+                onDockTop = onDockTop,
+                onCompactHeight = onCompactHeight,
+                onExpandHeight = onExpandHeight,
+                onTap = {
+                    if (heightCompact) {
+                        onExpandHeight()
+                    }
+                }
             )
             .combinedClickable(
                 enabled = slice.canExpand,
                 onClick = {
-                    onCollapseWaveform()
-                    onOpenNowPlaying.run()
+                    if (heightCompact) {
+                        // Sticky compact unlocks only via explicit expand (tap / swipe-up).
+                        onExpandHeight()
+                    } else {
+                        onCollapseWaveform()
+                        onOpenNowPlaying.run()
+                    }
                 },
                 onLongClick = {
                     if (copyText.isNotBlank()) {
@@ -529,30 +556,42 @@ internal fun NowBarTrackSection(
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AlbumArtThumb(uri, slice.title, slice.subtitle)
-        Spacer(Modifier.width(12.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                slice.title,
-                style = EchoTypography.bodyMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 19.sp
-                ),
-                color = p.text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (slice.subtitle.isNotBlank()) {
-                Text(
-                    slice.subtitle,
-                    style = EchoTypography.caption.copy(lineHeight = 15.sp),
-                    color = p.muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        // Artwork + title + subtitle share one track-identity transition so cover and
+        // text do not desync (cover snap vs text fade) on track change.
+        AnimatedContent(
+            targetState = Triple(slice.artUriString, slice.title, slice.subtitle),
+            transitionSpec = { EchoMotion.trackContentTransition() },
+            label = "nowBarTrackVisual",
+            modifier = Modifier.weight(1f)
+        ) { (artUriString, title, subtitle) ->
+            val artUri = remember(artUriString) { artUriString?.let { Uri.parse(it) } }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AlbumArtThumb(artUri, title, subtitle)
+                Spacer(Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        title,
+                        style = EchoTypography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 19.sp
+                        ),
+                        color = p.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            subtitle,
+                            style = EchoTypography.caption.copy(lineHeight = 15.sp),
+                            color = p.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
@@ -612,7 +651,9 @@ internal fun NowBarModeControls(
             icon = EchoIconKind.Heart,
             label = if (slice.favorite) slice.favoritedLabel else slice.favoriteLabel,
             active = slice.favorite,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .echoConfirmPulse(slice.favorite)
         ) {
             onCollapseWaveform()
             onFavorite.run()
@@ -745,6 +786,41 @@ private fun AuxChip(
                 color = if (active) p.accent else p.muted,
                 maxLines = 1
             )
+        }
+    }
+}
+
+/**
+ * Layout-collapses [content] with the same [open] fraction that drives surface height.
+ * Outer height and alpha both track [open] so collapse stays frame-synced (no delayed slide).
+ *
+ * Content stays composed even when [open] is 0 (zero-height clip) so progress clocks and
+ * elapsed labels keep ticking and do not freeze after re-expand.
+ */
+@Composable
+internal fun NowBarCollapsingSection(
+    open: Float,
+    fullHeight: androidx.compose.ui.unit.Dp,
+    content: @Composable () -> Unit
+) {
+    if (fullHeight <= 0.dp) {
+        return
+    }
+    val fraction = open.coerceIn(0f, 1f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(fullHeight * fraction)
+            .clipToBounds()
+            .graphicsLayer { alpha = fraction }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(fullHeight)
+                .align(Alignment.TopCenter)
+        ) {
+            content()
         }
     }
 }

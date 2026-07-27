@@ -85,6 +85,7 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(1L, 2L, 3L), favoriteWrites)
+        // Gateway receives only successfully persisted ids.
         assertEquals(listOf(setOf(1L, 3L) to true), libraryGateway.favoriteBatches)
         assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
         assertTrue(libraryGateway.calls.contains("status:library.favorite.failed"))
@@ -214,17 +215,22 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun toggleFavoriteDoesNotUpdateUiWhenPersistenceFails() = runTest {
+    fun toggleFavoriteRollsBackOptimisticUiWhenPersistenceFails() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel(dispatcher)
         viewModel.bindGateway(gateway)
         viewModel.bindFavoriteWriter { _, _ -> false }
+        viewModel.data.replaceLibrary(listOf(track(2L)), emptySet(), null)
 
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
+        // Optimistic favorite is visible before the write settles.
+        assertEquals(setOf(2L), viewModel.data.favoriteIds())
         advanceUntilIdle()
 
+        // Gateway is notified only after successful persist; failures stay local + status.
         assertEquals(listOf("status:library.favorite.failed"), gateway.calls)
+        assertEquals(emptySet<Long>(), viewModel.data.favoriteIds())
         assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 
@@ -254,32 +260,36 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun favoriteExceptionClearsPendingAndReportsFailure() = runTest {
+    fun favoriteExceptionRollsBackOptimisticUiAndReportsFailure() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel(dispatcher)
         viewModel.bindGateway(gateway)
         viewModel.bindFavoriteWriter { _, _ -> throw IllegalStateException("database unavailable") }
+        viewModel.data.replaceLibrary(listOf(track(2L)), emptySet(), null)
 
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
         advanceUntilIdle()
 
         assertEquals(listOf("status:library.favorite.failed"), gateway.calls)
+        assertEquals(emptySet<Long>(), viewModel.data.favoriteIds())
         assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 
     @Test
-    fun favoriteCancellationOnlyClearsPending() = runTest {
+    fun favoriteCancellationRollsBackOptimisticUiWithoutStatus() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val gateway = FakeGateway()
         val viewModel = LibraryViewModel(dispatcher)
         viewModel.bindGateway(gateway)
         viewModel.bindFavoriteWriter { _, _ -> throw CancellationException("cancelled") }
+        viewModel.data.replaceLibrary(listOf(track(2L)), emptySet(), null)
 
         viewModel.onEvent(LibraryEvent.ToggleFavorite(track(2L)))
         advanceUntilIdle()
 
         assertTrue(gateway.calls.isEmpty())
+        assertEquals(emptySet<Long>(), viewModel.data.favoriteIds())
         assertTrue(viewModel.favoritePendingTrackIds.value.isEmpty())
     }
 

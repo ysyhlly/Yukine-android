@@ -220,6 +220,149 @@ class LibraryDataStateOwner @JvmOverloads constructor(
         mutableFavoriteTrackIds.value = favoriteIds
     }
 
+    /** Narrow playlist list replace used after create/rename/delete without a full collections reload. */
+    fun patchPlaylists(playlists: List<Playlist>) {
+        mutableState.value = mutableState.value.copy(playlists = playlists.toList())
+    }
+
+    fun patchPlaylistName(playlistId: Long, name: String): Boolean {
+        val current = mutableState.value
+        val index = current.playlists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return false
+        val existing = current.playlists[index]
+        val now = System.currentTimeMillis()
+        val updated = current.playlists.toMutableList()
+        updated[index] = Playlist(existing.id, name, existing.trackCount, existing.createdAt, now)
+        mutableState.value = current.copy(playlists = updated)
+        return true
+    }
+
+    fun patchAddPlaylist(playlist: Playlist) {
+        val current = mutableState.value
+        if (current.playlists.any { it.id == playlist.id }) {
+            patchPlaylistName(playlist.id, playlist.name)
+            return
+        }
+        mutableState.value = current.copy(playlists = current.playlists + playlist)
+    }
+
+    fun patchRemovePlaylist(playlistId: Long, clearSelectedTracks: Boolean = false): Boolean {
+        val current = mutableState.value
+        val filtered = current.playlists.filterNot { it.id == playlistId }
+        if (filtered.size == current.playlists.size) return false
+        mutableState.value = current.copy(
+            playlists = filtered,
+            selectedPlaylistTracks = if (clearSelectedTracks) emptyList() else current.selectedPlaylistTracks
+        )
+        return true
+    }
+
+    fun patchSelectedPlaylistTracks(tracks: List<Track>) {
+        val current = mutableState.value
+        mutableState.value = current.copy(selectedPlaylistTracks = tracks.toList())
+    }
+
+    fun patchAdjustPlaylistTrackCount(playlistId: Long, delta: Int): Boolean {
+        if (delta == 0) return true
+        val current = mutableState.value
+        val index = current.playlists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return false
+        val existing = current.playlists[index]
+        val updated = current.playlists.toMutableList()
+        updated[index] = Playlist(
+            existing.id,
+            existing.name,
+            (existing.trackCount + delta).coerceAtLeast(0),
+            existing.createdAt,
+            System.currentTimeMillis()
+        )
+        mutableState.value = current.copy(playlists = updated)
+        return true
+    }
+
+    fun patchMoveSelectedPlaylistTrack(trackIndex: Int, direction: Int): Boolean {
+        val current = mutableState.value
+        val neighbor = trackIndex + direction
+        val tracks = current.selectedPlaylistTracks
+        if (trackIndex !in tracks.indices || neighbor !in tracks.indices || direction == 0) {
+            return false
+        }
+        val reordered = tracks.toMutableList()
+        val moved = reordered.removeAt(trackIndex)
+        reordered.add(neighbor, moved)
+        mutableState.value = current.copy(selectedPlaylistTracks = reordered)
+        return true
+    }
+
+    fun patchRemoveSelectedPlaylistTrack(playlistId: Long, track: Track): Boolean {
+        val current = mutableState.value
+        // DAO removes a single membership row; only drop the first matching id so duplicates stay aligned.
+        val removeIndex = current.selectedPlaylistTracks.indexOfFirst { it.id == track.id }
+        if (removeIndex < 0) return false
+        val remaining = current.selectedPlaylistTracks.toMutableList().also { it.removeAt(removeIndex) }
+        val playlists = current.playlists.map { playlist ->
+            if (playlist.id != playlistId) {
+                playlist
+            } else {
+                Playlist(
+                    playlist.id,
+                    playlist.name,
+                    (playlist.trackCount - 1).coerceAtLeast(0),
+                    playlist.createdAt,
+                    System.currentTimeMillis()
+                )
+            }
+        }
+        mutableState.value = current.copy(
+            selectedPlaylistTracks = remaining,
+            playlists = playlists
+        )
+        return true
+    }
+
+    /**
+     * Bumps playlist track count after a successful add. When [appendToSelected] is true and
+     * [track] is non-null, also appends to the in-memory selected playlist track list.
+     */
+    fun patchTrackAddedToPlaylist(
+        playlistId: Long,
+        track: Track?,
+        appendToSelected: Boolean
+    ): Boolean {
+        val current = mutableState.value
+        val index = current.playlists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return false
+        val existing = current.playlists[index]
+        val updatedPlaylists = current.playlists.toMutableList()
+        updatedPlaylists[index] = Playlist(
+            existing.id,
+            existing.name,
+            existing.trackCount + 1,
+            existing.createdAt,
+            System.currentTimeMillis()
+        )
+        val selectedTracks = if (appendToSelected && track != null) {
+            if (current.selectedPlaylistTracks.any { it.id == track.id }) {
+                current.selectedPlaylistTracks
+            } else {
+                current.selectedPlaylistTracks + track
+            }
+        } else {
+            current.selectedPlaylistTracks
+        }
+        mutableState.value = current.copy(
+            playlists = updatedPlaylists,
+            selectedPlaylistTracks = selectedTracks
+        )
+        return true
+    }
+
+    fun clearSelectedPlaylistTracks() {
+        val current = mutableState.value
+        if (current.selectedPlaylistTracks.isEmpty()) return
+        mutableState.value = current.copy(selectedPlaylistTracks = emptyList())
+    }
+
     fun applySearch(query: String?) {
         latestSearchQuery = normalizedSearchQuery(query)
         searchJob?.cancel()

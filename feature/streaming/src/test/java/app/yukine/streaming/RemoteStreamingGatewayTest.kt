@@ -1636,7 +1636,7 @@ class RemoteStreamingGatewayTest {
 
         assertEquals("https://m701.music.126.net/audio.flac", source.url)
         assertEquals("audio/flac", source.mimeType)
-        assertEquals(999000, source.bitrate)
+        assertEquals(999, source.bitrate)
         assertEquals("MUSIC_U=local-token", source.headers["Cookie"])
         assertEquals(listOf("/api/song/enhance/player/url/v1"), netease.paths)
     }

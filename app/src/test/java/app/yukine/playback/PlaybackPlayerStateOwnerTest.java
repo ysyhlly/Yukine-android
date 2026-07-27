@@ -152,7 +152,7 @@ public class PlaybackPlayerStateOwnerTest {
     }
 
     @Test
-    public void transitionGuardDisarmsAfterWindowExpires() {
+    public void transitionGuardRejectsImplausiblePositionUntilElapsedAllowsIt() {
         MutableClock clock = new MutableClock(10_000L);
         MutablePlayerState state = new MutablePlayerState(true, 180_000L, 200_000L);
         state.mediaItemIndex = 1;
@@ -163,14 +163,34 @@ public class PlaybackPlayerStateOwnerTest {
 
         owner.beginMediaItemPositionTransition(1, 0L);
 
-        // Within the guard window, stale position is suppressed.
+        // 500ms later a 180s leftover is still impossible from a 0 start — clamp.
         clock.nowMs = 10_500L;
         assertEquals(0L, owner.positionMs());
 
-        // After the guard window expires, trust the player's position again.
-        state.positionMs = 5_000L;
-        clock.nowMs = 11_000L;
-        assertEquals(5_000L, owner.positionMs());
+        // 1200ms later a 800ms reading is plausible (elapsed + jitter) — accept and disarm.
+        state.positionMs = 800L;
+        clock.nowMs = 11_200L;
+        assertEquals(800L, owner.positionMs());
+    }
+
+    @Test
+    public void transitionGuardHardTimeoutEventuallyTrustsPlayer() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 180_000L, 200_000L);
+        state.mediaItemIndex = 1;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.beginMediaItemPositionTransition(1, 0L);
+
+        clock.nowMs = 12_000L;
+        assertEquals(0L, owner.positionMs());
+
+        // After the hard timeout, stop clamping and trust ExoPlayer again.
+        clock.nowMs = 18_100L;
+        assertEquals(180_000L, owner.positionMs());
     }
 
     @Test
@@ -186,9 +206,46 @@ public class PlaybackPlayerStateOwnerTest {
         // Seek to 4200ms in the mirrored queue.
         owner.beginMediaItemPositionTransition(1, 4_200L);
 
-        // Position 4500 is within threshold of expected 4200; guard disarms.
+        // Position 4500 is within expected + elapsed + threshold; guard disarms.
         clock.nowMs = 10_100L;
         assertEquals(4_500L, owner.positionMs());
+    }
+
+    @Test
+    public void unannouncedMediaItemIndexChangeDoesNotInheritPreviousProgress() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 180_000L, 200_000L);
+        state.mediaItemIndex = 0;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        assertEquals(180_000L, owner.positionMs());
+
+        // Auto-advance without beginMediaItemPositionTransition (missed call site).
+        state.mediaItemIndex = 1;
+        clock.nowMs = 10_050L;
+        assertEquals(0L, owner.positionMs());
+        assertEquals(0L, owner.sessionPositionMs());
+    }
+
+    @Test
+    public void explicitSeekDuringTransitionUpdatesExpectedAnchor() {
+        MutableClock clock = new MutableClock(10_000L);
+        MutablePlayerState state = new MutablePlayerState(true, 0L, 200_000L);
+        state.mediaItemIndex = 1;
+        PlaybackPlayerStateOwner owner = new PlaybackPlayerStateOwner(
+                () -> fakePlayer(state),
+                clock
+        );
+
+        owner.beginMediaItemPositionTransition(1, 0L);
+        owner.setPositionEstimate(60_000L);
+        state.positionMs = 60_000L;
+        clock.nowMs = 10_100L;
+
+        assertEquals(60_000L, owner.positionMs());
     }
 
     @Test

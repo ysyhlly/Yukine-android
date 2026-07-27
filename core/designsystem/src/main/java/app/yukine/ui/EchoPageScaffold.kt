@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.sp
 import app.yukine.BackgroundTransform
 import app.yukine.BackgroundTransformLayout
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeSource
 
 object EchoPageDefaults {
     val horizontalPadding: Dp = 18.dp
@@ -111,7 +111,7 @@ fun EchoPageBackground(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState)
+                .hazeSource(hazeState)
                 // The Haze source must contain the theme gradient too. Otherwise cards have no
                 // pixels to sample when the user has not selected a custom background image.
                 .echoPageBackground()
@@ -273,10 +273,17 @@ fun echoPagePadding(
 }
 
 @Composable
-fun echoPageBottomPadding(extra: Dp = 0.dp): Dp =
-    EchoPageDefaults.bottomPadding +
-        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-        extra
+fun echoPageBottomPadding(extra: Dp = 0.dp): Dp {
+    val chromeInset = LocalEchoPageBottomChromeInset.current
+    val systemInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // Prefer live scaffold chrome (tracks NowBar full/compact height). Fall back to the
+    // historical fixed reserve when rendered outside EchoScaffold.
+    return if (chromeInset > 0.dp) {
+        chromeInset + EchoMobileLayoutMetrics.floatingChromeGap + extra
+    } else {
+        EchoPageDefaults.bottomPadding + systemInset + extra
+    }
+}
 
 @Composable
 fun EchoPageTitle(

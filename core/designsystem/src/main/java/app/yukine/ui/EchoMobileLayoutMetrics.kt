@@ -5,9 +5,15 @@ import androidx.compose.ui.unit.dp
 object EchoMobileLayoutMetrics {
     val nowBarHeight = 148.dp
     val nowBarExpandedHeight = nowBarHeight
+    /** Single-row height while Expanded is height-compacted (scroll or swipe-down lock). */
+    val nowBarCompactHeight = 64.dp
     val nowBarArtworkSize = 48.dp
     val nowBarArtworkCornerRadius = 6.dp
     val nowBarProgressHeight = 18.dp
+    /** Progress bar + time labels block used when layout-collapsing the Expanded NowBar. */
+    val nowBarProgressBlockHeight = 36.dp
+    /** Mode chip row under the track line. */
+    val nowBarModeControlsHeight = 26.dp
     val nowBarScrollTranslation = 1.5.dp
     const val nowBarScrollScale = 0.985f
     val nowBarScrollStretchTranslation = 0.25.dp
@@ -17,6 +23,8 @@ object EchoMobileLayoutMetrics {
     val bottomTabScrollStretchTranslation = 0.25.dp
     const val bottomTabScrollStretchScale = 1.006f
     const val nowBarScrollRestoreDelayMs = 250L
+    /** Scroll-driven compact commits a sticky lock once progress reaches this threshold. */
+    const val nowBarHeightCompactLockThreshold = 0.92f
     const val nowBarCompactShadowFactor = 0.90f
     const val nowBarCompactLyricsAlpha = 0.94f
     val nowBarDockedWidth = 168.dp

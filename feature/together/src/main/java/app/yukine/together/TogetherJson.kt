@@ -16,15 +16,39 @@ internal object TogetherJson {
 
     fun queue(items: List<TogetherQueueItem>): String = JSONArray().apply {
         items.forEach { item ->
-            put(JSONObject()
+            val json = JSONObject()
                 .put("id", item.stableId)
                 .put("title", item.title)
                 .put("artist", item.artist)
                 .put("uri", item.sourceUri)
                 .put("size", item.sizeBytes)
-                .put("root", item.contentRoot))
+                .put("root", item.contentRoot)
+                .put("album", item.album)
+                .put("artwork_uri", publicArtworkUri(item.artworkUri))
+                .put("duration_ms", item.durationMs)
+            when (val source = item.source) {
+                is TogetherQueueSource.Local -> json.put("kind", "local")
+                is TogetherQueueSource.Streaming -> json
+                    .put("kind", "streaming")
+                    .put("provider", source.provider)
+                    .put("track_id", source.providerTrackId)
+                    .put("quality", source.quality)
+                    .put("duration_ms", source.durationMs)
+                    .put("url", source.resolvedUrl)
+                    .put("headers", JSONObject(source.headers))
+                    .put("expires_at_ms", source.expiresAtEpochMs)
+                    .put("mime", source.mimeType)
+                    .put("supports_range", source.supportsRange)
+            }
+            put(json)
         }
     }.toString()
+
+    private fun publicArtworkUri(value: String): String =
+        value.takeIf {
+            it.startsWith("https://", ignoreCase = true) ||
+                it.startsWith("http://", ignoreCase = true)
+        }.orEmpty()
 
     fun playback(event: TogetherPlaybackEvent): String {
         val json = JSONObject().put("v", 1)

@@ -12,8 +12,9 @@ type callbackRecorder struct {
 	events   chan string
 }
 
-func (c *callbackRecorder) OnCommand(value string) { c.commands <- value }
-func (c *callbackRecorder) OnEvent(value string)   { c.events <- value }
+func (c *callbackRecorder) OnCommand(value string)      { c.commands <- value }
+func (c *callbackRecorder) OnEvent(value string)        { c.events <- value }
+func (c *callbackRecorder) ResolveSource(string) string { return "" }
 
 func TestRemotePauseProducesOneCommandAndOneSuppressionEcho(t *testing.T) {
 	cb := &callbackRecorder{commands: make(chan string, 2), events: make(chan string, 2)}

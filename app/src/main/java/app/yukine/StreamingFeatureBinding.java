@@ -369,7 +369,10 @@ final class StreamingFeatureBinding {
                         playlistImportDialogController::showImportDialog,
                         luoxueSourceImportDialogController::showSourceManager,
                         manualCookieController::showStreamingCookieDialog,
-                        viewModel.searchOwner()::updateStreamingSearchChrome
+                        viewModel.searchOwner()::updateStreamingSearchChrome,
+                        playlist -> navigation.openTogetherFromPlaylist(
+                                new app.yukine.together.TogetherPlaylistRef.Streaming(
+                                        playlist.getProvider().getWireName(), playlist.getProviderPlaylistId()))
                 )
         );
     }

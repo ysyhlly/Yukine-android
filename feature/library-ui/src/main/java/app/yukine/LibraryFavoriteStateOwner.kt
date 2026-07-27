@@ -33,20 +33,28 @@ internal class LibraryFavoriteStateOwner(
             return
         }
         if (!data.beginFavoriteMutation(track.id)) return
+        val knownIds = idsProvider?.favoriteIds() ?: data.favoriteIds()
+        val previousFavorite = track.id in knownIds
+        val nextFavorite = !previousFavorite
+        // Optimistic UI on the local store only. Notify gateway after Room success so remote
+        // favorite sync does not flash and roll back twice on a failed write.
+        data.setFavorite(track.id, nextFavorite)
         scope.launch {
             try {
-                val (favorite, written) = mutations.runLocked {
-                    val next = track.id !in idsProvider?.favoriteIds().orEmpty()
-                    next to currentWriter.writeFavorite(track, next)
+                val written = mutations.runLocked {
+                    currentWriter.writeFavorite(track, nextFavorite)
                 }
                 if (written) {
-                    gateway()?.applyFavorite(track.id, favorite)
+                    gateway()?.applyFavorite(track.id, nextFavorite)
                 } else {
+                    data.setFavorite(track.id, previousFavorite)
                     gateway()?.showStatusKey("library.favorite.failed")
                 }
             } catch (error: CancellationException) {
+                data.setFavorite(track.id, previousFavorite)
                 throw error
             } catch (_: Exception) {
+                data.setFavorite(track.id, previousFavorite)
                 gateway()?.showStatusKey("library.favorite.failed")
             }
         }.invokeOnCompletion {
@@ -62,6 +70,8 @@ internal class LibraryFavoriteStateOwner(
             .associateBy { it.id }
         val pendingIds = data.beginFavoriteMutations(tracksById.keys)
         if (pendingIds.isEmpty()) return
+        // Optimistic local UI; gateway notified only for ids that persist successfully.
+        data.setFavorites(pendingIds, true)
         scope.launch {
             try {
                 val succeededIds = mutations.runLocked {
@@ -76,15 +86,19 @@ internal class LibraryFavoriteStateOwner(
                         }
                     }
                 }
+                val failedIds = pendingIds - succeededIds
+                if (failedIds.isNotEmpty()) {
+                    data.setFavorites(failedIds, false)
+                    gateway()?.showStatusKey("library.favorite.failed")
+                }
                 if (succeededIds.isNotEmpty()) {
                     gateway()?.applyFavorites(succeededIds, true)
                 }
-                if (succeededIds.size < pendingIds.size) {
-                    gateway()?.showStatusKey("library.favorite.failed")
-                }
             } catch (error: CancellationException) {
+                data.setFavorites(pendingIds, false)
                 throw error
             } catch (_: Exception) {
+                data.setFavorites(pendingIds, false)
                 gateway()?.showStatusKey("library.favorite.failed")
             }
         }.invokeOnCompletion {

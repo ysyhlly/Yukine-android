@@ -8,6 +8,50 @@ import org.junit.Test
 
 class SettingsScreenTest {
     @Test
+    fun pageFrameSnapshotsTitleAndSectionsPerContentKeyForTransitionSlots() {
+        val homeActions = listOf(
+            SettingsAction("Back", Runnable {}, isBack = true, section = "Nav"),
+            SettingsAction("Appearance", Runnable {}, section = "Groups")
+        )
+        val themeActions = listOf(
+            SettingsAction("Back", Runnable {}, isBack = true, section = "Nav"),
+            SettingsAction("Dark", Runnable {}, section = "Theme")
+        )
+        val home = settingsPageFrame(
+            contentKey = "Home",
+            title = "设置",
+            metrics = listOf(SettingsMetric("Tracks", "12")),
+            actions = homeActions
+        )
+        val theme = settingsPageFrame(
+            contentKey = "Theme",
+            title = "主题",
+            metrics = emptyList(),
+            actions = themeActions
+        )
+
+        // Simulates AnimatedContent framesByKey: exit keeps home while enter paints theme.
+        val framesByKey = mutableMapOf<Any, SettingsPageFrame>()
+        framesByKey[home.key] = home
+        framesByKey[theme.key] = theme
+
+        assertEquals("设置", framesByKey["Home"]!!.title)
+        assertEquals(listOf("Groups"), framesByKey["Home"]!!.sections.map { it.title })
+        assertEquals("主题", framesByKey["Theme"]!!.title)
+        assertEquals(listOf("Theme"), framesByKey["Theme"]!!.sections.map { it.title })
+        assertEquals("Back", framesByKey["Home"]!!.backLabel)
+        // Updating only the active key must not rewrite the exit snapshot.
+        framesByKey[theme.key] = settingsPageFrame(
+            contentKey = "Theme",
+            title = "主题 · 深色",
+            metrics = emptyList(),
+            actions = themeActions
+        )
+        assertEquals("设置", framesByKey["Home"]!!.title)
+        assertEquals("主题 · 深色", framesByKey["Theme"]!!.title)
+    }
+
+    @Test
     fun contentActionsRemoveTheActualBackActionWithoutDroppingEarlierContent() {
         val first = SettingsAction("First", Runnable {})
         val back = SettingsAction("Back", Runnable {}, isBack = true)

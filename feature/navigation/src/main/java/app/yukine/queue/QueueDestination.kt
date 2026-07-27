@@ -28,14 +28,23 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
 
     val rowCount = uiState.rowCount
     val rowAt = uiState.rowAt
-    val actionForIndex = remember(provider) {
+    val queueEditable = uiState.queueEditable
+    val actionForIndex = remember(provider, queueEditable) {
         { index: Int ->
             QueueTrackActions(
                 onPlay = Runnable { provider.onPlayAt(index) },
                 onFavorite = Runnable { provider.onToggleFavorite(index) },
                 onAddToPlaylist = Runnable { provider.onAddToPlaylist(index) },
-                onRemove = Runnable { provider.onRemove(index) },
-                onMove = { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) }
+                onRemove = if (queueEditable) {
+                    Runnable { provider.onRemove(index) }
+                } else {
+                    Runnable { }
+                },
+                onMove = if (queueEditable) {
+                    { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) }
+                } else {
+                    { _, _ -> }
+                }
             )
         }
     }
@@ -45,10 +54,19 @@ fun QueueDestination(provider: QueueDestinationStateProvider, modifier: Modifier
             trackCount = rowCount,
             trackAt = rowAt,
             actionForIndex = actionForIndex,
-            onMove = { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) },
-            onClearQueue = Runnable { provider.onClearQueue() },
+            onMove = if (queueEditable) {
+                { fromIndex, toIndex -> provider.onMove(fromIndex, toIndex) }
+            } else {
+                { _, _ -> }
+            },
+            onClearQueue = if (queueEditable) {
+                Runnable { provider.onClearQueue() }
+            } else {
+                Runnable { }
+            },
             labels = labels,
-            onBack = Runnable { provider.onBack() }
+            onBack = Runnable { provider.onBack() },
+            queueEditable = queueEditable
         )
     }
 }

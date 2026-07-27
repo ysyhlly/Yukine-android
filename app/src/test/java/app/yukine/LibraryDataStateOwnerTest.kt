@@ -1,7 +1,9 @@
 package app.yukine
 
 import android.net.Uri
+import app.yukine.model.Playlist
 import app.yukine.model.Track
+import app.yukine.model.TrackPlayRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -81,6 +83,38 @@ class LibraryDataStateOwnerTest {
 
         assertEquals(listOf(71L), owner.state.value.recentlyAddedTracks.map { it.id })
         assertEquals(listOf(72L), owner.state.value.longUnplayedTracks.map { it.id })
+    }
+
+    @Test
+    fun narrowPlaylistPatchesUpdateListAndSelectedTracksWithoutTouchingHistory() {
+        val first = track(1L)
+        val second = track(2L)
+        owner.applyCollections(
+            LibraryCollectionsResult(
+                playlists = listOf(Playlist(9L, "Mix", 2, 1L, 1L)),
+                selectedPlaylistTracks = listOf(first, second),
+                recentRecords = listOf(
+                    TrackPlayRecord(first, 1L, 1)
+                ),
+                mostPlayedRecords = listOf(
+                    TrackPlayRecord(second, 2L, 5)
+                ),
+                recentlyAddedTracks = listOf(first),
+                longUnplayedTracks = listOf(second)
+            )
+        )
+
+        assertTrue(owner.patchMoveSelectedPlaylistTrack(1, -1))
+        assertTrue(owner.patchRemoveSelectedPlaylistTrack(9L, first))
+        assertTrue(owner.patchPlaylistName(9L, "Renamed"))
+
+        assertEquals(listOf(2L), owner.state.value.selectedPlaylistTracks.map { it.id })
+        assertEquals("Renamed", owner.state.value.playlists.single().name)
+        assertEquals(1, owner.state.value.playlists.single().trackCount)
+        assertEquals(1, owner.state.value.recentRecords.size)
+        assertEquals(1, owner.state.value.mostPlayedRecords.size)
+        assertEquals(listOf(1L), owner.state.value.recentlyAddedTracks.map { it.id })
+        assertEquals(listOf(2L), owner.state.value.longUnplayedTracks.map { it.id })
     }
 
     @Test

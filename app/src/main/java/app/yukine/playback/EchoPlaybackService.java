@@ -1,5 +1,4 @@
 package app.yukine.playback;
-
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -63,7 +62,8 @@ public final class EchoPlaybackService extends MediaLibraryService {
         togetherSessionOwner = TogetherSessionOwner.create(
                 this,
                 new TogetherMedia3PlayerAdapter(runtime),
-                this::setTogetherDataSyncActive
+                this::setTogetherDataSyncActive,
+                new AppTogetherStreamingResolver(runtime.streamingRepositorySource())
         );
     }
 

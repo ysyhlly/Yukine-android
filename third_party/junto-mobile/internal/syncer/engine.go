@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -116,6 +117,11 @@ type Deps struct {
 	// everyone with one keypress. Joiners wait for the host to start.
 	Host  bool
 	Files []protocol.FileMeta // set on the host; included in hellos
+	// MinPeerVersion is non-zero when room semantics require a newer client.
+	MinPeerVersion int
+	// RequiredPeerCapabilities are enforced on hello before a peer enters the room.
+	RequiredPeerCapabilities []string
+
 	// PlaylistLen is how many entries the local mpv playlist has; used
 	// to bounds-check remote indices (an out-of-range playlist-pos
 	// write idles or exits mpv).
@@ -863,6 +869,28 @@ func (e *Engine) handleMessage(ctx context.Context, m protocol.Message) {
 	}
 	// Any inbound message may change what the live panel shows (a join,
 	// leave, ready, position/DL heartbeat, kick); refresh it on the way
+	if e.d.Host && e.d.MinPeerVersion > 0 && m.Type == protocol.MsgHello && m.V < e.d.MinPeerVersion {
+		e.d.Printf("* rejected an older client (protocol v%d); this room requires v%d", m.V, e.d.MinPeerVersion)
+		_ = e.d.Send(ctx, protocol.Message{
+			Type:   protocol.MsgKick,
+			To:     m.From,
+			Kicked: m.From,
+			Text:   fmt.Sprintf("upgrade required: protocol v%d", e.d.MinPeerVersion),
+		})
+		return
+	}
+	if e.d.Host && m.Type == protocol.MsgHello {
+		for _, required := range e.d.RequiredPeerCapabilities {
+			if !containsCapability(m.Capabilities, required) {
+				e.d.Printf("* rejected a client missing required capability %q", required)
+				_ = e.d.Send(ctx, protocol.Message{
+					Type: protocol.MsgKick, To: m.From, Kicked: m.From,
+					Text: "upgrade required: missing capability " + required,
+				})
+				return
+			}
+		}
+	}
 	// out. No-op with no mpv IPC on the plain path.
 	defer e.emitSnapshot(ctx)
 	if m.V > protocol.Version && !e.warnedNewer[m.From] {
@@ -1059,6 +1087,15 @@ func (e *Engine) handleMessage(ctx context.Context, m protocol.Message) {
 			e.d.OnSignal(m.From, *m.Signal)
 		}
 	}
+}
+
+func containsCapability(capabilities []string, required string) bool {
+	for _, capability := range capabilities {
+		if capability == required {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) applyRemoteState(ctx context.Context, m protocol.Message) {
@@ -1430,21 +1467,34 @@ func (e *Engine) checkHostPresence(ctx context.Context) {
 // promoted peer; callers gate eligibility (see the unknown-peer branch's
 // hostGoneAt check and the known-peer branch's SECURITY comment).
 func (e *Engine) adoptHost(ctx context.Context, from string, files []protocol.FileMeta) {
-	if e.d.Host || len(files) == 0 || from == e.hostPub {
+	if e.d.Host || len(files) == 0 {
+		return
+	}
+	if from == e.hostPub {
+		if reflect.DeepEqual(e.peerFiles, files) {
+			return
+		}
+		e.peerFiles = append([]protocol.FileMeta(nil), files...)
+		e.d.PlaylistLen = len(files)
+		if e.d.OnHostFiles != nil {
+			e.d.OnHostFiles(e.peerFiles)
+		}
 		return
 	}
 	old := e.hostPub
 	e.hostPub = from
 	e.hostGoneAt = time.Time{}
 	e.hostLastEscalation = time.Time{}
-	if len(e.peerFiles) == 0 {
-		e.peerFiles = append([]protocol.FileMeta(nil), files...)
-	}
+	e.peerFiles = append([]protocol.FileMeta(nil), files...)
+	e.d.PlaylistLen = len(files)
 	if old == "" {
 		if e.d.OnHostFiles != nil {
 			e.d.OnHostFiles(e.peerFiles)
 		}
 		return
+	}
+	if e.d.OnHostFiles != nil {
+		e.d.OnHostFiles(e.peerFiles)
 	}
 	e.d.Log.E("host_changed", "old", old[:min(8, len(old))], "new", from[:min(8, len(from))])
 	if e.d.OnHostChange != nil {

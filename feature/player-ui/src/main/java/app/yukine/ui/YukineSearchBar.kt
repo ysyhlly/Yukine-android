@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +95,13 @@ fun YukineSearchBar(
     }
 }
 
+/**
+ * Search-bar status orb.
+ *
+ * Visual language matches NowBar waveform + Echo glass chrome:
+ * solid accent / accentSoft strokes, surfaceVariant tracks, no bloom / peak glitter / whole-orb bounce.
+ * Quality only tints the core slightly; download progress is a thin outer arc.
+ */
 @Composable
 fun YukineDownloadOrb(
     item: TrackDownloadItem? = null,
@@ -111,7 +117,7 @@ fun YukineDownloadOrb(
     )
     val isIdle = !audioMotion.playing && item?.status == null
     val breathPhase = rememberIdleBreathPhase(isIdle && audioMotion.visualMotionEnabled)
-    val breathValue = breathCurve(breathPhase)  // [0,1] 非对称呼吸曲线
+    val breathValue = breathCurve(breathPhase)
     val waveformPhase = if (audioMotion.visualMotionEnabled && (audioMotion.playing || item?.status != null)) {
         ((smoothPosition.value % YukineOrbPhasePeriodMs).toFloat() / YukineOrbPhasePeriodMs.toFloat())
             .coerceIn(0f, 1f)
@@ -119,32 +125,37 @@ fun YukineDownloadOrb(
         0f
     }
     val fallbackPulse = if (audioMotion.visualMotionEnabled) {
-        (0.18f + ((sin((waveformPhase * 2f * PI).toFloat()) + 1f) * 0.5f) * 0.20f)
-            .coerceIn(0.12f, 0.44f)
+        (0.16f + ((sin((waveformPhase * 2f * PI).toFloat()) + 1f) * 0.5f) * 0.14f)
+            .coerceIn(0.12f, 0.36f)
     } else {
-        0.18f
+        0.16f
     }
     val progress = when (item?.status) {
         null, TrackDownloadStatus.Finished -> 1f
         else -> item.progressPercent.coerceIn(0, 100) / 100f
     }
+    val qualityTint = yukineQualityColor(playbackQuality, base = p.accent, fallback = p.accent)
     val outerQuality = item?.quality?.takeIf { it.isNotBlank() } ?: playbackQuality
-    val outerColors = yukineQualityGradient(outerQuality, base = p.accent)
-    val centerColor = yukineQualityColor(playbackQuality, base = p.accent, fallback = p.accent)
+    val progressBrushColors = yukineQualityGradient(outerQuality, base = p.accent)
     val motion = audioMotion.copy(positionMs = smoothPosition.value)
     val spectrumState = motion.toOrbSpectrum(waveformPhase)
     val waveformState = motion.toWaveformOrbSpectrum(waveformPhase)
     val fallbackBreath = fallbackPulse * if (audioMotion.playing || item?.status != null) {
         1f
     } else {
-        0.28f + breathValue * 0.14f  // 待机时频谱条随呼吸轻微起伏
+        0.34f + breathValue * 0.12f
     }
     val targetSpectrum = if (spectrumState.hasSignal) {
         spectrumState
     } else if (waveformState.hasSignal) {
         waveformState
     } else {
-        YukineOrbSpectrumState(fallbackSpectrumBars(fallbackBreath), fallbackBreath, false, audioMotion.visualMotionEnabled)
+        YukineOrbSpectrumState(
+            fallbackSpectrumBars(fallbackBreath),
+            fallbackBreath,
+            false,
+            audioMotion.visualMotionEnabled
+        )
     }
     val realtimeBeat = audioMotion.realtimeBeat.coerceIn(0f, 1f)
     val realtimeSpectrum = audioMotion.toRealtimeOrbSpectrum()
@@ -153,135 +164,129 @@ fun YukineDownloadOrb(
         visualSpectrum.copy(bass = max(visualSpectrum.bass, realtimeBeat * 0.70f)),
         playing = audioMotion.playing
     )
-    val beat = max(renderedSpectrum.beat, realtimeBeat * 0.95f)
+    val beat = max(renderedSpectrum.beat, realtimeBeat * 0.92f).coerceIn(0f, 1f)
     val bars = renderedSpectrum.bars
-    val peaks = renderedSpectrum.peaks
-    val idleBreath = if (audioMotion.playing || item?.status != null) {
-        0.016f + fallbackPulse * 0.014f
-    } else {
-        // 呼吸模式：基础 0.008 + 呼吸曲线驱动 ±0.012 缩放振幅
-        0.008f + breathValue * 0.024f
-    }
-    val targetRingScale = 0.952f + idleBreath + beat.coerceIn(0f, 1f) * 0.34f +
-        audioMotion.realtimeTransient.coerceIn(0f, 1f) * 0.10f
-    val ringScale by animateFloatAsState(
-        targetValue = targetRingScale,
+
+    // Motion stays in EchoMotion range: soft settle, almost no bounce.
+    val corePulse by animateFloatAsState(
+        targetValue = if (audioMotion.playing) {
+            0.92f + beat * 0.08f
+        } else if (isIdle) {
+            0.94f + breathValue * 0.04f
+        } else {
+            0.96f
+        },
         animationSpec = spring(
-            dampingRatio = 0.50f,
-            stiffness = Spring.StiffnessMedium
+            dampingRatio = 0.82f,
+            stiffness = Spring.StiffnessMediumLow
         ),
-        label = "orbScale"
+        label = "orbCorePulse"
     )
+
     Box(
-        modifier = modifier
-            .graphicsLayer {
-                scaleX = ringScale
-                scaleY = ringScale
+        modifier = modifier.semantics {
+            contentDescription = if (item == null) {
+                "播放音质状态"
+            } else {
+                "下载进度 ${item.progressPercent.coerceIn(0, 100)}%"
             }
-            .semantics {
-                contentDescription = if (item == null) {
-                    "播放音质状态"
-                } else {
-                    "下载进度 ${item.progressPercent.coerceIn(0, 100)}%"
-                }
-            },
+        },
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.matchParentSize().padding(4.dp)) {
-            val strokeWidth = 2.5.dp.toPx()
-            val radius = (size.minDimension - strokeWidth) / 2f
-            val topLeft = Offset(size.width / 2f - radius, size.height / 2f - radius)
-            val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
+        // Single canvas: same flat accent language as NowBarWaveform.
+        Canvas(modifier = Modifier.matchParentSize().padding(3.dp)) {
+            val dim = size.minDimension
+            val trackStroke = 2.dp.toPx()
+            val barStroke = 1.6.dp.toPx()
+            val trackRadius = (dim - trackStroke) / 2f
+            val trackTopLeft = Offset(center.x - trackRadius, center.y - trackRadius)
+            val trackSize = androidx.compose.ui.geometry.Size(trackRadius * 2f, trackRadius * 2f)
+
+            // Progress track (surfaceVariant) — same role as waveform rail background.
             drawArc(
-                color = p.accent.copy(alpha = 0.16f),
+                color = p.surfaceVariant.copy(alpha = 0.72f),
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                topLeft = trackTopLeft,
+                size = trackSize,
+                style = Stroke(width = trackStroke, cap = StrokeCap.Round)
             )
+            // Download / ready progress in accent family.
             drawArc(
-                brush = Brush.sweepGradient(outerColors),
+                brush = Brush.sweepGradient(progressBrushColors),
                 startAngle = -90f,
                 sweepAngle = 360f * progress.coerceIn(0f, 1f),
                 useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                topLeft = trackTopLeft,
+                size = trackSize,
+                style = Stroke(width = trackStroke, cap = StrokeCap.Round)
             )
-        }
-        Canvas(modifier = Modifier.matchParentSize().padding(7.dp)) {
-            val centerRadius = size.minDimension * 0.24f
-            val glowRadius = size.minDimension * 0.30f
-            val baseRadius = size.minDimension * 0.34f
-            val maxBar = size.minDimension * 0.21f
-            val strokeWidth = 1.8.dp.toPx()
-            val brightColor = lerp(centerColor, Color.White, 0.32f)
-            bars.forEachIndexed { index, value ->
-                val angle = ((index.toFloat() / bars.size) * 2f * PI - PI / 2f).toFloat()
-                val animatedValue = visibleOrbSpectrumValue(value)
-                val peakValue = visibleOrbSpectrumValue(peaks.getOrElse(index) { value })
-                val visualValue = max(animatedValue, peakValue * 0.68f).coerceIn(0f, 0.92f)
-                val startRadius = baseRadius
-                val endRadius = baseRadius + maxBar * visualValue
+
+            // Radial spectrum ticks — polar equivalent of NowBar bars (accent / accentSoft).
+            val barCount = bars.size.coerceAtLeast(1)
+            val baseRadius = dim * 0.30f
+            val maxBar = dim * 0.18f
+            val active = audioMotion.playing || item?.status != null
+            for (index in 0 until barCount) {
+                val self = bars.getOrElse(index) { 0f }
+                val left = bars.getOrElse((index - 1 + barCount) % barCount) { self }
+                val right = bars.getOrElse((index + 1) % barCount) { self }
+                val coupled = self * 0.78f + left * 0.11f + right * 0.11f
+                val height = orbBarHeight(coupled).coerceIn(0.08f, 0.88f)
+                val angle = ((index.toFloat() / barCount) * 2f * PI - PI / 2f).toFloat()
                 val cosA = cos(angle)
                 val sinA = sin(angle)
                 val start = Offset(
-                    x = center.x + cosA * startRadius,
-                    y = center.y + sinA * startRadius
+                    x = center.x + cosA * baseRadius,
+                    y = center.y + sinA * baseRadius
                 )
                 val end = Offset(
-                    x = center.x + cosA * endRadius,
-                    y = center.y + sinA * endRadius
+                    x = center.x + cosA * (baseRadius + maxBar * height),
+                    y = center.y + sinA * (baseRadius + maxBar * height)
                 )
-                val barColor = lerp(centerColor, brightColor, visualValue)
+                // Played-style: full accent; quieter bands use accentSoft like unplayed waveform cache.
+                val color = if (active && height > 0.28f) {
+                    p.accent.copy(alpha = 0.78f + height * 0.18f)
+                } else {
+                    p.accentSoft.copy(alpha = 0.48f + height * 0.30f)
+                }
                 drawLine(
-                    color = barColor.copy(alpha = 0.34f + visualValue * 0.60f),
+                    color = color,
                     start = start,
                     end = end,
-                    strokeWidth = strokeWidth,
+                    strokeWidth = barStroke,
                     cap = StrokeCap.Round
                 )
-                // Peak dot indicator
-                if (peakValue > animatedValue + 0.06f) {
-                    val peakRadius = baseRadius + maxBar * peakValue.coerceIn(0f, 0.92f)
-                    val peakCenter = Offset(
-                        x = center.x + cosA * peakRadius,
-                        y = center.y + sinA * peakRadius
-                    )
-                    drawCircle(
-                        color = brightColor.copy(alpha = 0.72f),
-                        radius = (strokeWidth * 0.52f).coerceAtLeast(1.2f),
-                        center = peakCenter
-                    )
-                }
             }
-            // Soft outer glow
+
+            // Soft core — quality tint over accentSoft, glass-like but flat (no white specular stack).
+            val coreRadius = dim * 0.20f * corePulse
+            val coreFill = lerp(p.accentSoft, qualityTint, 0.55f)
             drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        centerColor.copy(alpha = 0.06f + beat.coerceIn(0f, 1f) * 0.24f +
-                            (if (isIdle) breathValue * 0.06f else 0f)),
-                        Color.Transparent
-                    ),
-                    center = center,
-                    radius = glowRadius
-                ),
-                radius = glowRadius
+                color = p.surfaceVariant.copy(alpha = 0.55f),
+                radius = coreRadius * 1.08f,
+                center = center
             )
-            // Center orb with layered gradient
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        brightColor.copy(alpha = if (isIdle) 0.88f + breathValue * 0.08f else 0.96f),
-                        centerColor.copy(alpha = 0.88f),
-                        centerColor.copy(alpha = 0.62f)
+                        coreFill.copy(alpha = if (isIdle) 0.78f + breathValue * 0.08f else 0.86f + beat * 0.08f),
+                        qualityTint.copy(alpha = 0.72f),
+                        qualityTint.copy(alpha = 0.50f)
                     ),
                     center = center,
-                    radius = centerRadius
+                    radius = coreRadius
                 ),
-                radius = centerRadius
+                radius = coreRadius,
+                center = center
+            )
+            // Hairline border — same family as echoGlassLayer borders.
+            drawCircle(
+                color = p.border.copy(alpha = 0.35f),
+                radius = coreRadius,
+                center = center,
+                style = Stroke(width = 1.dp.toPx())
             )
         }
     }
@@ -340,10 +345,11 @@ private fun rememberYukineOrbSmoothedSpectrum(
     targetState.value = target
 
     LaunchedEffect(playing, barCount) {
-        val attackFactor = 0.84f   // fast rise (per frame ~16ms)
-        val releaseFactor = 0.26f  // fast fall for wider peak-valley swing
-        val peakHoldMs = 380L      // hold peak before decay
-        val peakDecayRate = 0.0032f // per ms decay after hold
+        // Match waveform feel: moderate attack/release, no glitter peak hold for chrome.
+        val attackFactor = 0.78f
+        val releaseFactor = 0.28f
+        val peakHoldMs = 260L
+        val peakDecayRate = 0.0040f
         var lastFrameNanos = withFrameNanos { it }
         while (true) {
             val nowNanos = withFrameNanos { it }
@@ -352,14 +358,13 @@ private fun rememberYukineOrbSmoothedSpectrum(
             val nowMs = nowNanos / 1_000_000L
             val currentTarget = targetState.value
             val bars = currentTarget.bars
-            val dtFactor = dtMs / 16.67f // normalize to 60fps
+            val dtFactor = dtMs / 16.67f
             var anyChanged = false
             for (i in bars.indices) {
                 val targetVal = bars.getOrElse(i) { 0f }.coerceIn(0f, 1f)
                 val current = smoothed.getOrElse(i) { 0f }
                 val factor = if (targetVal > current) {
-                    val effectiveAttack = if (targetVal - current > 0.25f) 0.92f else attackFactor
-                    1f - (1f - effectiveAttack).pow(dtFactor)
+                    1f - (1f - attackFactor).pow(dtFactor)
                 } else {
                     1f - (1f - releaseFactor).pow(dtFactor)
                 }
@@ -368,7 +373,6 @@ private fun rememberYukineOrbSmoothedSpectrum(
                     smoothed[i] = next
                     anyChanged = true
                 }
-                // Peak hold & decay
                 if (next > peakHold.getOrElse(i) { 0f }) {
                     peakHold[i] = next
                     peakDecayStart[i] = nowMs
@@ -378,10 +382,9 @@ private fun rememberYukineOrbSmoothedSpectrum(
                     anyChanged = true
                 }
             }
-            // Beat smoothing
             val targetBeat = currentTarget.bass.coerceIn(0f, 1f)
             val beatCurrent = currentBeat.value
-            val beatFactor = if (targetBeat > beatCurrent) 0.92f else 0.18f
+            val beatFactor = if (targetBeat > beatCurrent) 0.88f else 0.22f
             val beatNext = beatCurrent + (targetBeat - beatCurrent) * (1f - (1f - beatFactor).pow(dtFactor))
             if (kotlin.math.abs(beatNext - beatCurrent) > 0.002f) {
                 currentBeat.value = beatNext
@@ -476,7 +479,7 @@ private fun YukineOrbSpectrumState.blendWithRealtime(
  * quieter live bands, which made the ring look frozen even though fresh samples arrived.
  */
 internal fun blendYukineOrbSpectrumBand(base: Float, realtime: Float): Float {
-    val baseline = base.coerceIn(0f, 1f) * 0.18f
+    val baseline = base.coerceIn(0f, 1f) * 0.16f
     val live = realtime.coerceIn(0f, 1f) * 0.96f
     return (baseline + live).coerceIn(0f, 1f)
 }
@@ -486,15 +489,16 @@ private fun enhancedSpectrumValue(value: Float): Float {
     if (bounded <= 0f) {
         return 0f
     }
-    return bounded.pow(0.80f).coerceIn(0f, 1f)
+    return bounded.pow(0.78f).coerceIn(0f, 1f)
 }
 
-private fun visibleOrbSpectrumValue(value: Float): Float {
+/** Height shaping aligned with NowBar waveform (sqrt-ish, modest floor). */
+private fun orbBarHeight(value: Float): Float {
     val bounded = value.coerceIn(0f, 1f)
     if (bounded <= 0f) {
-        return 0f
+        return 0.08f
     }
-    return (0.06f + bounded.pow(0.72f) * 0.84f).coerceIn(0f, 0.92f)
+    return (0.10f + kotlin.math.sqrt(bounded) * 0.78f).coerceIn(0.08f, 0.88f)
 }
 
 private fun YukineOrbAudioMotion.toOrbSpectrum(phase: Float): YukineOrbSpectrumState {
@@ -521,7 +525,7 @@ private fun YukineOrbAudioMotion.toOrbSpectrum(phase: Float): YukineOrbSpectrumS
         val band = ((index * bands) / YukineOrbSpectrumBarCount).coerceIn(0, bands - 1)
         val raw = lerpFloat(bandAt(frame, band), bandAt(nextFrame, band), frameMix)
         val shimmer = if (playing) {
-            0.9f + 0.1f * sin((phase * 2f * PI + index * 0.36f).toFloat())
+            0.96f + 0.04f * sin((phase * 2f * PI + index * 0.36f).toFloat())
         } else {
             1f
         }
@@ -602,7 +606,7 @@ private fun fallbackSpectrumBars(pulse: Float): List<Float> =
     List(YukineOrbSpectrumBarCount) { index ->
         val phase = index.toFloat() / YukineOrbSpectrumBarCount
         val wave = (sin((phase * 2f * PI + pulse * 2f * PI).toFloat()) + 1f) * 0.5f
-        (0.1f + wave * 0.24f + pulse * 0.18f).coerceIn(0f, 0.62f)
+        (0.10f + wave * 0.18f + pulse * 0.12f).coerceIn(0f, 0.48f)
     }
 
 private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float =

@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +64,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -92,23 +93,54 @@ import kotlin.math.sin
 
 private const val WAVEFORM_TWO_PI = 6.2831855f
 
+/**
+ * Progress scrub gesture. Tracks the pointer until a real lift so parent floating
+ * chrome observers / competing recognizers cannot treat a normal drag as cancelled
+ * (Compose [drag] returns false on cancel and used to skip [onSeek]).
+ *
+ * - Move: preview via [ScrubbablePlaybackPosition.scrubTo] and consume events.
+ * - Normal up: commit last position once.
+ * - Cancel / pointer loss: do not commit.
+ * - Always clear scrub overlay in finally.
+ */
 internal fun Modifier.playbackSeekGesture(
     scrub: ScrubbablePlaybackPosition,
     onSeek: SeekAction
 ): Modifier = pointerInput(scrub.seekEnabled, scrub.duration) {
     awaitEachGesture {
-        val down = awaitFirstDown()
-        if (!scrub.seekEnabled) {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        if (!scrub.seekEnabled || size.width < 8f || size.height < 4f) {
             return@awaitEachGesture
         }
+        val pointerId = down.id
         var targetPosition = scrub.scrubTo(down.position.x, size.width.toFloat())
+        if (!scrub.isScrubbing) {
+            // Degenerate target rejected by scrubTo — do not start a gesture.
+            return@awaitEachGesture
+        }
+        down.consume()
         try {
-            val completed = drag(down.id) { change ->
-                targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
+            while (true) {
+                val event = awaitPointerEvent(pass = PointerEventPass.Main)
+                val change = event.changes.firstOrNull { it.id == pointerId }
+                if (change == null) {
+                    // Pointer left the stream without a clean up — treat as cancel.
+                    break
+                }
+                if (change.pressed) {
+                    if (size.width >= 8f) {
+                        targetPosition = scrub.scrubTo(change.position.x, size.width.toFloat())
+                    }
+                    change.consume()
+                    continue
+                }
+                // Released: commit only on a real up, not on an interrupted cancel path.
+                val isRealUp = change.changedToUpIgnoreConsumed()
                 change.consume()
-            }
-            if (completed) {
-                onSeek.seekTo(targetPosition)
+                if (isRealUp && scrub.isScrubbing) {
+                    onSeek.seekTo(targetPosition)
+                }
+                break
             }
         } finally {
             scrub.clearScrub()
@@ -119,11 +151,14 @@ internal fun Modifier.playbackSeekGesture(
 internal fun Modifier.nowBarDockGesture(
     enabled: Boolean,
     dockPosition: NowBarDockPosition = NowBarDockPosition.Expanded,
+    heightCompact: Boolean = false,
     onDockLeft: () -> Unit,
     onDockRight: () -> Unit,
     onDockTop: () -> Unit = {},
     onRestoreBottom: () -> Unit = {},
     onCompactTopCloud: () -> Unit = {},
+    onCompactHeight: () -> Unit = {},
+    onExpandHeight: () -> Unit = {},
     onTap: () -> Unit = {}
 ): Modifier = composed {
     if (!enabled) return@composed this
@@ -145,11 +180,14 @@ internal fun Modifier.nowBarDockGesture(
     }
     pointerInput(
         dockPosition,
+        heightCompact,
         onDockLeft,
         onDockRight,
         onDockTop,
         onRestoreBottom,
         onCompactTopCloud,
+        onCompactHeight,
+        onExpandHeight,
         onTap,
         distanceThresholdPx,
         topCloudEnterDistanceThresholdPx,
@@ -222,8 +260,17 @@ internal fun Modifier.nowBarDockGesture(
                         if (verticalThreshold) {
                             val resolvedDirection = if (abs(deltaY) >= verticalDistance) deltaY else velocity.y
                             when {
-                                dockPosition == NowBarDockPosition.Expanded && resolvedDirection < 0f ->
-                                    onDockTop()
+                                // Height-compact Expanded: swipe up unlocks full height first.
+                                dockPosition == NowBarDockPosition.Expanded &&
+                                    heightCompact &&
+                                    resolvedDirection < 0f -> onExpandHeight()
+                                // Full Expanded: swipe down locks compact height; swipe up docks top.
+                                dockPosition == NowBarDockPosition.Expanded &&
+                                    !heightCompact &&
+                                    resolvedDirection > 0f -> onCompactHeight()
+                                dockPosition == NowBarDockPosition.Expanded &&
+                                    !heightCompact &&
+                                    resolvedDirection < 0f -> onDockTop()
                                 (dockPosition == NowBarDockPosition.TopCloud ||
                                     dockPosition == NowBarDockPosition.TopCloudExpanded) && resolvedDirection > 0f -> {
                                     val diagonalThreshold = abs(deltaY) *

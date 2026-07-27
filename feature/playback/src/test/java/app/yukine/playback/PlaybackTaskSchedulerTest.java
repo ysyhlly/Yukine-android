@@ -111,7 +111,7 @@ public final class PlaybackTaskSchedulerTest {
     public void scheduledTasksRunByPlaybackPriorityBeforeSequenceOrder() throws Exception {
         CountDownLatch firstTaskDequeued = new CountDownLatch(1);
         CountDownLatch releaseFirstTask = new CountDownLatch(1);
-        CountDownLatch scheduledTasksFinished = new CountDownLatch(2);
+        CountDownLatch scheduledTasksFinished = new CountDownLatch(3);
         AtomicBoolean blockFirstTask = new AtomicBoolean(true);
         List<String> events = Collections.synchronizedList(new ArrayList<>());
         PlaybackTaskScheduler scheduler = new PlaybackTaskScheduler(
@@ -136,6 +136,10 @@ public final class PlaybackTaskSchedulerTest {
             events.add("next-precache");
             scheduledTasksFinished.countDown();
         });
+        scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM, () -> {
+            events.add("current-waveform");
+            scheduledTasksFinished.countDown();
+        });
         scheduler.schedule(PlaybackTaskScheduler.Priority.CURRENT_URL_RESOLVE, () -> {
             events.add("current-url");
             scheduledTasksFinished.countDown();
@@ -144,9 +148,10 @@ public final class PlaybackTaskSchedulerTest {
 
         assertTrue(scheduledTasksFinished.await(2, TimeUnit.SECONDS));
         scheduler.shutdownNow();
-        assertEquals(2, events.size());
+        assertEquals(3, events.size());
         assertEquals("current-url", events.get(0));
-        assertEquals("next-precache", events.get(1));
+        assertEquals("current-waveform", events.get(1));
+        assertEquals("next-precache", events.get(2));
     }
 
     @Test

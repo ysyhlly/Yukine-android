@@ -18,6 +18,8 @@ class TogetherSessionClient : TogetherSessionPort {
 
     override val state: StateFlow<TogetherSessionState> = mutableState.asStateFlow()
 
+    override fun canEditQueue(): Boolean = host?.canEditQueue() == true
+
     fun attach(next: TogetherSessionHostPort?) {
         if (host === next) return
         collection?.cancel()

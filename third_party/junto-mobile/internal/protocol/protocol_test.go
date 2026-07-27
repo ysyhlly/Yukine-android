@@ -6,6 +6,71 @@ import (
 	"testing"
 )
 
+func TestRemoteQueueV2DoesNotSerializePrivatePlaybackState(t *testing.T) {
+	message := Message{
+		Type: MsgHello,
+		V:    RemoteQueueVersion,
+		Files: []FileMeta{{
+			Name: "cloud.flac", Size: 1024, SHA256: strings.Repeat("a", 64),
+			PublicTitle: "海底列车", PublicArtist: "PIKASONIC / なこたんまる",
+			PublicAlbum: "真实专辑", PublicArtworkURI: "https://cdn.example/cover.jpg",
+			Remote: &RemoteMeta{
+				Provider: "qqmusic", TrackID: "song-mid", Quality: "lossless", DurationMS: 180000,
+			},
+		}},
+	}
+	encoded, err := Encode(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := string(encoded)
+	for _, secretField := range []string{"\"url\"", "\"headers\"", "cookie", "vkey", "turn_password"} {
+		if strings.Contains(strings.ToLower(wire), secretField) {
+			t.Fatalf("private playback state escaped protocol: %s", wire)
+		}
+	}
+	decoded, err := Decode(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := decoded.Files[0]
+	if decoded.V != RemoteQueueVersion || file.Remote.TrackID != "song-mid" ||
+		file.PublicTitle != "海底列车" || file.PublicArtist != "PIKASONIC / なこたんまる" ||
+		file.PublicAlbum != "真实专辑" || file.PublicArtworkURI != "https://cdn.example/cover.jpg" {
+		t.Fatalf("remote queue round trip = %#v", decoded)
+	}
+}
+
+func TestDecodeSanitizesPublicDisplayMetadata(t *testing.T) {
+	encoded := []byte(`{"type":"hello","files":[{"name":"song.flac","size":1,"sha256":"x","title":"海\u001b底","artist":"歌\t手","album":"专辑","artwork_uri":"file:///private/cover.jpg"}]}`)
+	decoded, err := Decode(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := decoded.Files[0]
+	if file.PublicTitle != "海底" || file.PublicArtist != "歌 手" || file.PublicAlbum != "专辑" {
+		t.Fatalf("display metadata was not sanitized: %#v", file)
+	}
+	if file.PublicArtworkURI != "" {
+		t.Fatalf("device-local artwork escaped decode boundary: %q", file.PublicArtworkURI)
+	}
+}
+
+func TestEncodeRejectsUnsafePublicDisplayMetadata(t *testing.T) {
+	for _, artwork := range []string{
+		"file:///private/cover.jpg",
+		"data:image/png;base64,secret",
+		"https://user:password@example.com/cover.jpg",
+	} {
+		message := Message{Type: MsgHello, Files: []FileMeta{{
+			Name: "song.flac", Size: 1, SHA256: "x", PublicArtworkURI: artwork,
+		}}}
+		if _, err := Encode(message); err == nil {
+			t.Fatalf("unsafe public artwork URI accepted: %q", artwork)
+		}
+	}
+}
+
 func TestRoundTrip(t *testing.T) {
 	msgs := []Message{
 		{Type: MsgHello, Nick: "alice", Files: []FileMeta{

@@ -26,9 +26,11 @@ class HandoffExperienceContractTest {
     fun progressBarSeeksFromAnyPointOnTapOrDrag() {
         val gestures = read("feature/player-ui/src/main/java/app/yukine/ui/NowBarGestures.kt")
 
-        assertTrue(gestures.contains("awaitFirstDown()"))
+        assertTrue(gestures.contains("awaitFirstDown(requireUnconsumed = false)"))
+        assertTrue(gestures.contains("awaitPointerEvent(pass = PointerEventPass.Main)"))
+        assertTrue(gestures.contains("changedToUpIgnoreConsumed()"))
         assertTrue(gestures.contains("onSeek.seekTo(targetPosition)"))
-        assertTrue(gestures.contains("drag(down.id)"))
+        assertTrue(gestures.contains("scrub.clearScrub()"))
         assertFalse(gestures.contains("thumbHit"))
     }
 

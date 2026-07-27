@@ -224,27 +224,46 @@ public final class PlaylistRepository {
         if (direction == 0) {
             return false;
         }
-        TrackSourceMappingEntity source = identityDao.sourceForLocalTrack(trackId);
-        List<PlaylistRecordingItemEntity> canonicalRows = dao.playlistRecordingRows(playlistId);
-        if (source != null && !canonicalRows.isEmpty()) {
-            int canonicalIndex = -1;
-            for (int i = 0; i < canonicalRows.size(); i++) {
-                if (canonicalRows.get(i).getRecordingId() == source.getRecordingId()) {
-                    canonicalIndex = i;
-                    break;
+        AtomicBoolean moved = new AtomicBoolean(false);
+        database.runInTransaction(() -> {
+            if (dao.playlistExists(playlistId) == 0) {
+                return;
+            }
+            // Prefer canonical recording rows when present — one read, one swap, no second table pass.
+            List<PlaylistRecordingItemEntity> canonicalRows = dao.playlistRecordingRows(playlistId);
+            if (!canonicalRows.isEmpty()) {
+                TrackSourceMappingEntity source = identityDao.sourceForLocalTrack(trackId);
+                long recordingId = source == null ? -1L : source.getRecordingId();
+                int canonicalIndex = -1;
+                if (recordingId > 0L) {
+                    for (int i = 0; i < canonicalRows.size(); i++) {
+                        if (canonicalRows.get(i).getRecordingId() == recordingId) {
+                            canonicalIndex = i;
+                            break;
+                        }
+                    }
                 }
+                if (canonicalIndex < 0) {
+                    // Fall back to legacy position when the track has no recording mapping yet.
+                    List<PlaylistTrackEntity> legacyRows = dao.playlistTrackRows(playlistId);
+                    int legacyIndex = indexOfTrack(legacyRows, trackId);
+                    if (swapLegacyAt(playlistId, legacyRows, legacyIndex, direction)) {
+                        moved.set(true);
+                    }
+                    return;
+                }
+                if (swapCanonicalAt(playlistId, canonicalRows, canonicalIndex, direction)) {
+                    moved.set(true);
+                }
+                return;
             }
-            return moveAt(playlistId, canonicalIndex, direction);
-        }
-        List<PlaylistTrackEntity> rows = dao.playlistTrackRows(playlistId);
-        int index = -1;
-        for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).getTrackId() == trackId) {
-                index = i;
-                break;
+            List<PlaylistTrackEntity> rows = dao.playlistTrackRows(playlistId);
+            int index = indexOfTrack(rows, trackId);
+            if (swapLegacyAt(playlistId, rows, index, direction)) {
+                moved.set(true);
             }
-        }
-        return moveAt(playlistId, index, direction);
+        });
+        return moved.get();
     }
 
     public boolean moveAt(long playlistId, int trackIndex, int direction) {
@@ -259,45 +278,35 @@ public final class PlaylistRepository {
             }
             List<PlaylistRecordingItemEntity> canonicalRows = dao.playlistRecordingRows(playlistId);
             if (!canonicalRows.isEmpty()) {
-                if (trackIndex >= canonicalRows.size() || neighborIndex >= canonicalRows.size()) {
-                    return;
+                if (swapCanonicalAt(playlistId, canonicalRows, trackIndex, direction)) {
+                    moved.set(true);
                 }
-                PlaylistRecordingItemEntity current = canonicalRows.get(trackIndex);
-                PlaylistRecordingItemEntity neighbor = canonicalRows.get(neighborIndex);
-                dao.updateRecordingSortKey(playlistId, current.getRecordingId(), neighbor.getSortKey());
-                dao.updateRecordingSortKey(playlistId, neighbor.getRecordingId(), current.getSortKey());
-                dao.touchPlaylist(playlistId, System.currentTimeMillis());
-                moved.set(true);
                 return;
             }
             List<PlaylistTrackEntity> rows = dao.playlistTrackRows(playlistId);
-            if (trackIndex >= rows.size() || neighborIndex >= rows.size()) {
-                return;
+            if (swapLegacyAt(playlistId, rows, trackIndex, direction)) {
+                moved.set(true);
             }
-            PlaylistTrackEntity current = rows.get(trackIndex);
-            PlaylistTrackEntity neighbor = rows.get(neighborIndex);
-            dao.updateTrackPosition(playlistId, current.getTrackId(), neighbor.getPosition());
-            dao.updateTrackPosition(playlistId, neighbor.getTrackId(), current.getPosition());
-            dao.touchPlaylist(playlistId, System.currentTimeMillis());
-            moved.set(true);
         });
         return moved.get();
     }
 
     public List<Track> loadTracks(long playlistId) {
         List<PlaylistRecordingTrackRow> canonicalRows = dao.playlistRecordingTracks(playlistId);
-        List<PlaylistRecordingItemEntity> canonicalItems = dao.playlistRecordingRows(playlistId);
         List<TrackEntity> legacyTracks = dao.playlistTracks(playlistId);
         List<TrackEntity> rows;
         if (canonicalRows.isEmpty()) {
             rows = legacyTracks;
         } else if (legacyTracks.isEmpty()) {
+            // Canonical-only playlists: one joined query is enough; skip re-reading item rows.
             ArrayList<TrackEntity> canonicalTracks = new ArrayList<>(canonicalRows.size());
             for (PlaylistRecordingTrackRow canonicalRow : canonicalRows) {
                 canonicalTracks.add(canonicalRow.getTrack());
             }
             rows = canonicalTracks;
         } else {
+            // Mixed migration window: merge legacy order with canonical preferred sources.
+            List<PlaylistRecordingItemEntity> canonicalItems = dao.playlistRecordingRows(playlistId);
             Map<Long, TrackEntity> canonicalByRecording = new HashMap<>();
             for (PlaylistRecordingTrackRow canonicalRow : canonicalRows) {
                 canonicalByRecording.put(canonicalRow.getRecordingId(), canonicalRow.getTrack());
@@ -352,6 +361,57 @@ public final class PlaylistRepository {
             }
         }
         return tracks;
+    }
+
+    private boolean swapCanonicalAt(
+            long playlistId,
+            List<PlaylistRecordingItemEntity> canonicalRows,
+            int trackIndex,
+            int direction
+    ) {
+        int neighborIndex = trackIndex + direction;
+        if (trackIndex < 0
+                || neighborIndex < 0
+                || trackIndex >= canonicalRows.size()
+                || neighborIndex >= canonicalRows.size()) {
+            return false;
+        }
+        PlaylistRecordingItemEntity current = canonicalRows.get(trackIndex);
+        PlaylistRecordingItemEntity neighbor = canonicalRows.get(neighborIndex);
+        dao.updateRecordingSortKey(playlistId, current.getRecordingId(), neighbor.getSortKey());
+        dao.updateRecordingSortKey(playlistId, neighbor.getRecordingId(), current.getSortKey());
+        dao.touchPlaylist(playlistId, System.currentTimeMillis());
+        return true;
+    }
+
+    private boolean swapLegacyAt(
+            long playlistId,
+            List<PlaylistTrackEntity> rows,
+            int trackIndex,
+            int direction
+    ) {
+        int neighborIndex = trackIndex + direction;
+        if (trackIndex < 0
+                || neighborIndex < 0
+                || trackIndex >= rows.size()
+                || neighborIndex >= rows.size()) {
+            return false;
+        }
+        PlaylistTrackEntity current = rows.get(trackIndex);
+        PlaylistTrackEntity neighbor = rows.get(neighborIndex);
+        dao.updateTrackPosition(playlistId, current.getTrackId(), neighbor.getPosition());
+        dao.updateTrackPosition(playlistId, neighbor.getTrackId(), current.getPosition());
+        dao.touchPlaylist(playlistId, System.currentTimeMillis());
+        return true;
+    }
+
+    private static int indexOfTrack(List<PlaylistTrackEntity> rows, long trackId) {
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).getTrackId() == trackId) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static final int IDENTITY_QUERY_CHUNK_SIZE = 900;

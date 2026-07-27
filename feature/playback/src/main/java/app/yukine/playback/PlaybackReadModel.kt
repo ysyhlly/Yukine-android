@@ -12,7 +12,9 @@ enum class PlaybackConnectionState {
 data class PlaybackQueueSnapshot(
     val revision: Long = Long.MIN_VALUE,
     val currentIndex: Int = -1,
-    val tracks: List<Track> = emptyList()
+    val tracks: List<Track> = emptyList(),
+    /** False when Together guest mode (or other room lock) rejects queue mutations. */
+    val queueEditable: Boolean = true
 )
 
 /**

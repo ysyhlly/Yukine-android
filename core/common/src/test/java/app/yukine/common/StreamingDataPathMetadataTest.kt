@@ -6,6 +6,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 class StreamingDataPathMetadataTest {
     @Test
@@ -68,5 +71,47 @@ class StreamingDataPathMetadataTest {
             )
         )
         assertEquals("", StreamingDataPathMetadata.playbackMimeType("file:///music/local.m4s"))
+    }
+
+    @Test
+    fun luoxueMusicInfoRestoresBoundedJsonObject() {
+        val json = """{"id":"kw_123","name":"Ahead of Us"}"""
+        val encoded = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(json.toByteArray(StandardCharsets.UTF_8))
+
+        val restored = JSONObject(
+            StreamingDataPathMetadata.luoxueMusicInfoJson(
+                "streaming:luoxue:kw:123?lxmi=$encoded"
+            ).orEmpty()
+        )
+        assertEquals("kw_123", restored.getString("id"))
+        assertEquals("Ahead of Us", restored.getString("name"))
+        assertNull(
+            StreamingDataPathMetadata.luoxueMusicInfoJson(
+                "streaming:luoxue:kw:123?lxmi=not-base64"
+            )
+        )
+    }
+
+    @Test
+    fun streamingDataPathRoundTripsPlaybackIdentityAndPrivateMetadata() {
+        val dataPath = StreamingDataPathMetadata.streamingDataPath(
+            provider = "luoxue",
+            providerTrackId = "kw:123",
+            quality = "lossless",
+            playbackMimeType = "audio/flac",
+            luoxueMusicInfoJson = """{"id":"kw_123","name":"Ahead of Us"}"""
+        )
+
+        assertEquals(StreamingProviderName.LUOXUE, StreamingDataPathMetadata.provider(dataPath))
+        assertEquals("kw:123", StreamingDataPathMetadata.providerTrackId(dataPath))
+        assertEquals("lossless", StreamingDataPathMetadata.quality(dataPath))
+        assertEquals("audio/flac", StreamingDataPathMetadata.playbackMimeType(dataPath))
+        assertEquals(
+            "Ahead of Us",
+            JSONObject(StreamingDataPathMetadata.luoxueMusicInfoJson(dataPath).orEmpty())
+                .getString("name")
+        )
     }
 }

@@ -9,14 +9,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/swayam-mishra/junto/internal/nostrx"
 	"github.com/swayam-mishra/junto/internal/protocol"
+	"github.com/swayam-mishra/junto/internal/remoteproxy"
 	"github.com/swayam-mishra/junto/internal/room"
 	"github.com/swayam-mishra/junto/internal/streamserver"
 	"github.com/swayam-mishra/junto/internal/syncer"
@@ -27,6 +30,7 @@ import (
 type Callback interface {
 	OnEvent(eventJSON string)
 	OnCommand(commandJSON string)
+	ResolveSource(requestJSON string) string
 }
 
 type synchronizedCallback struct {
@@ -48,6 +52,15 @@ func (c *synchronizedCallback) OnCommand(commandJSON string) {
 	if c.target != nil {
 		c.target.OnCommand(commandJSON)
 	}
+
+}
+func (c *synchronizedCallback) ResolveSource(requestJSON string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.target == nil {
+		return ""
+	}
+	return c.target.ResolveSource(requestJSON)
 }
 
 type options struct {
@@ -61,12 +74,24 @@ type options struct {
 }
 
 type queueItem struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Artist string `json:"artist"`
-	URI    string `json:"uri"`
-	Size   int64  `json:"size"`
-	Root   string `json:"root"`
+	ID            string            `json:"id"`
+	Title         string            `json:"title"`
+	Artist        string            `json:"artist"`
+	Album         string            `json:"album"`
+	ArtworkURI    string            `json:"artwork_uri"`
+	URI           string            `json:"uri"`
+	Size          int64             `json:"size"`
+	Root          string            `json:"root"`
+	Kind          string            `json:"kind"`
+	Provider      string            `json:"provider"`
+	TrackID       string            `json:"track_id"`
+	Quality       string            `json:"quality"`
+	DurationMS    int64             `json:"duration_ms"`
+	URL           string            `json:"url"`
+	Headers       map[string]string `json:"headers"`
+	ExpiresAtMS   *int64            `json:"expires_at_ms"`
+	Mime          string            `json:"mime"`
+	SupportsRange bool              `json:"supports_range"`
 }
 
 // Session owns one room transport, sync engine and optional file-transfer pipeline.
@@ -79,8 +104,11 @@ type Session struct {
 	mu           sync.RWMutex
 	store        *transfer.FileStore
 	server       *streamserver.Server
+	remoteProxy  *remoteproxy.Server
 	files        []protocol.FileMeta
 	fileIDs      []string
+	queueUpdates chan []queueItem
+	host         bool
 	closed       bool
 	closeOne     sync.Once
 	terminalOnce sync.Once
@@ -100,6 +128,7 @@ func Create(configJSON, queueJSON string, cb Callback) (*Session, error) {
 		return nil, err
 	}
 	s := newSession(cb, rm.Code())
+	s.host = true
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	go s.runHost(ctx, rm, cfg, items)
@@ -142,7 +171,10 @@ func Preview(configJSON, roomCode string) (string, error) {
 		return "", fmt.Errorf("relay connection: %w", err)
 	}
 	defer t.Close()
-	if err := t.Send(ctx, protocol.Message{Type: protocol.MsgHello, Nick: cfg.Nickname}); err != nil {
+	if err := t.Send(ctx, protocol.Message{
+		Type: protocol.MsgHello, Nick: cfg.Nickname, V: protocol.RemoteQueueVersion,
+		Capabilities: remoteCapabilities(),
+	}); err != nil {
 		return "", fmt.Errorf("joining room: %w", err)
 	}
 	_, files, err := waitForHost(ctx, t)
@@ -155,10 +187,18 @@ func Preview(configJSON, roomCode string) (string, error) {
 	items := make([]map[string]any, 0, len(files))
 	ids := makeFileIDs(files)
 	for index, file := range files {
-		items = append(items, map[string]any{
-			"id": ids[index], "file_id": ids[index], "title": file.Name,
-			"name": file.Name, "size": file.Size, "root": file.Bao,
-		})
+		item := map[string]any{
+			"id": ids[index], "file_id": ids[index], "title": displayTitle(file),
+			"name": file.Name, "artist": file.PublicArtist, "album": file.PublicAlbum,
+			"artwork_uri": file.PublicArtworkURI, "duration_ms": displayDurationMS(file),
+			"size": file.Size, "root": file.Bao,
+		}
+		if file.Remote != nil {
+			item["kind"], item["provider"] = "streaming", file.Remote.Provider
+			item["track_id"], item["quality"] = file.Remote.TrackID, file.Remote.Quality
+			item["duration_ms"] = file.Remote.DurationMS
+		}
+		items = append(items, item)
 	}
 	data, err := json.Marshal(map[string]any{"v": 1, "items": items})
 	if err != nil {
@@ -197,7 +237,10 @@ func TestConnection(configJSON string) (string, error) {
 
 func newSession(cb Callback, code string) *Session {
 	serialized := &synchronizedCallback{target: cb}
-	s := &Session{cb: serialized, code: code, done: make(chan struct{})}
+	s := &Session{
+		cb: serialized, code: code, done: make(chan struct{}),
+		queueUpdates: make(chan []queueItem, 1),
+	}
 	s.player = newMobilePlayer(serialized)
 	return s
 }
@@ -224,12 +267,80 @@ func decodeInputs(configJSON, queueJSON string) (options, []queueItem, error) {
 }
 
 func (s *Session) runHost(ctx context.Context, rm *room.Room, cfg options, items []queueItem) {
-	defer s.finish()
+	parentCtx := ctx
+	ctx, cancelCycle := context.WithCancel(parentCtx)
+	var restartItems []queueItem
+	defer func() {
+		cancelCycle()
+		if restartItems != nil && parentCtx.Err() == nil && !s.isClosed() {
+			go s.runHost(parentCtx, rm, cfg, restartItems)
+			return
+		}
+		s.finish()
+	}()
 	metas := make([]protocol.FileMeta, 0, len(items))
 	paths := make([]string, 0, len(items))
+	remotes := make([]*transfer.HTTPRangeSource, 0, len(items))
 	outboards := make([][]byte, 0, len(items))
 	fileIDs := make([]string, 0, len(items))
 	for index, item := range items {
+		if item.Kind == "streaming" {
+			if item.Provider == "" || item.TrackID == "" || item.URL == "" || item.Size <= 0 || !item.SupportsRange {
+				// Skip unrelayable streaming rows instead of killing the whole room.
+				s.emit(map[string]any{
+					"type":   "queue_item_skipped",
+					"index":  index,
+					"id":     item.ID,
+					"reason": "remote item is not relayable",
+				})
+				continue
+			}
+			ext := ".audio"
+			if parsed, parseErr := url.Parse(item.URL); parseErr == nil {
+				if candidate := filepath.Ext(parsed.Path); len(candidate) > 1 && len(candidate) <= 12 {
+					ext = candidate
+				}
+			}
+			name := protocol.SafeText(item.Title, 220)
+			if name == "" {
+				name = "streaming-audio"
+			}
+			logical := sha256.Sum256([]byte(item.Provider + ":" + item.TrackID + ":" + item.Quality + fmt.Sprint(":", item.Size)))
+			meta := protocol.FileMeta{
+				Name: name + ext, Size: item.Size, SHA256: hex.EncodeToString(logical[:]),
+				PublicTitle: protocol.SafeText(item.Title, 220), PublicArtist: protocol.SafeText(item.Artist, 220),
+				PublicAlbum: protocol.SafeText(item.Album, 220), PublicArtworkURI: publicArtworkURI(item.ArtworkURI),
+				Remote: &protocol.RemoteMeta{Provider: item.Provider, TrackID: item.TrackID, Quality: item.Quality, DurationMS: item.DurationMS},
+			}
+			if item.DurationMS > 0 {
+				meta.DurationSecs = float64(item.DurationMS) / 1000
+			}
+			metas = append(metas, meta)
+			paths = append(paths, "")
+			remote := &transfer.HTTPRangeSource{URL: item.URL, Headers: item.Headers, Size: item.Size}
+			remote.Refresh = func(refreshCtx context.Context) (transfer.HTTPRangeSource, error) {
+				request, _ := json.Marshal(map[string]any{
+					"provider": item.Provider, "track_id": item.TrackID, "quality": item.Quality,
+				})
+				raw := s.cb.ResolveSource(string(request))
+				var refreshed queueItem
+				if raw == "" || json.Unmarshal([]byte(raw), &refreshed) != nil ||
+					refreshed.Provider != item.Provider || refreshed.TrackID != item.TrackID ||
+					refreshed.URL == "" || refreshed.Size <= 0 || !refreshed.SupportsRange {
+					return transfer.HTTPRangeSource{}, fmt.Errorf("remote source refresh unavailable")
+				}
+				select {
+				case <-refreshCtx.Done():
+					return transfer.HTTPRangeSource{}, refreshCtx.Err()
+				default:
+				}
+				return transfer.HTTPRangeSource{URL: refreshed.URL, Headers: refreshed.Headers, Size: refreshed.Size}, nil
+			}
+			remotes = append(remotes, remote)
+			outboards = append(outboards, nil)
+			fileIDs = append(fileIDs, item.ID)
+			continue
+		}
 		path, err := filepath.Abs(item.URI)
 		if err != nil {
 			s.fail(fmt.Errorf("resolving item %d: %w", index, err), false)
@@ -247,18 +358,25 @@ func (s *Session) runHost(ctx context.Context, rm *room.Room, cfg options, items
 			return
 		}
 		meta := protocol.FileMeta{
-			Name:     protocol.SafeText(filepath.Base(path), 255),
-			Size:     info.Size(),
-			SHA256:   hashes.SHA256,
-			Bao:      hashes.BaoRoot,
-			BaoGroup: hashes.BaoGroup,
-			BaoOb:    hashes.BaoObSHA,
+			Name:             protocol.SafeText(filepath.Base(path), 255),
+			Size:             info.Size(),
+			SHA256:           hashes.SHA256,
+			PublicTitle:      protocol.SafeText(item.Title, 220),
+			PublicArtist:     protocol.SafeText(item.Artist, 220),
+			PublicAlbum:      protocol.SafeText(item.Album, 220),
+			PublicArtworkURI: publicArtworkURI(item.ArtworkURI),
+			Bao:              hashes.BaoRoot,
+			BaoGroup:         hashes.BaoGroup,
+			BaoOb:            hashes.BaoObSHA,
 		}
-		if duration, ok := transfer.ProbeDuration(path, info.Size()); ok {
+		if item.DurationMS > 0 {
+			meta.DurationSecs = float64(item.DurationMS) / 1000
+		} else if duration, ok := transfer.ProbeDuration(path, info.Size()); ok {
 			meta.DurationSecs = duration
 		}
 		metas = append(metas, meta)
 		paths = append(paths, path)
+		remotes = append(remotes, nil)
 		outboards = append(outboards, hashes.Outboard)
 		fileIDs = append(fileIDs, item.ID)
 	}
@@ -283,6 +401,13 @@ func (s *Session) runHost(ctx context.Context, rm *room.Room, cfg options, items
 		go func() {
 			signaler, signals := router.open(from)
 			defer router.release(from, signals)
+			if remotes[index] != nil {
+				err := transfer.ServeHTTPRange(ctx, signaler, from, *remotes[index], ice, s.notice, nil, nil, fair, index)
+				if err != nil && ctx.Err() == nil {
+					s.notice("remote relay failed: %v", err)
+				}
+				return
+			}
 			outboard := func(context.Context) ([]byte, error) { return outboards[index], nil }
 			err := transfer.ServeFile(
 				ctx, signaler, from, paths[index], ice, s.notice, nil, nil, outboard, fair, index,
@@ -293,18 +418,49 @@ func (s *Session) runHost(ctx context.Context, rm *room.Room, cfg options, items
 		}()
 	}
 	s.emitQueue(metas, nil)
-	s.runEngine(ctx, t, cfg, true, metas, len(metas), onFileReq, router.deliver, engineExtras{})
+	engineDone := make(chan struct{})
+	go func() {
+		defer close(engineDone)
+		s.runEngine(
+			ctx, t, cfg, true, metas, len(metas), onFileReq, router.deliver,
+			engineExtras{remoteRoom: hasRemoteFiles(metas), liveQueue: true},
+		)
+	}()
+	select {
+	case restartItems = <-s.queueUpdates:
+		cancelCycle()
+		<-engineDone
+	case <-engineDone:
+	}
 }
 
 func (s *Session) runJoin(ctx context.Context, rm *room.Room, cfg options, matches []queueItem) {
-	defer s.finish()
+	parentCtx := ctx
+	ctx, cancelCycle := context.WithCancel(parentCtx)
+	restart := make(chan struct{})
+	var restartOnce sync.Once
+	defer func() {
+		cancelCycle()
+		select {
+		case <-restart:
+			if parentCtx.Err() == nil && !s.isClosed() {
+				go s.runJoin(parentCtx, rm, cfg, matches)
+				return
+			}
+		default:
+		}
+		s.finish()
+	}()
 	t, err := nostrx.New(cfg.Relays, rm)
 	if err != nil {
 		s.fail(fmt.Errorf("relay connection: %w", err), true)
 		return
 	}
 	defer t.Close()
-	if err := t.Send(ctx, protocol.Message{Type: protocol.MsgHello, Nick: cfg.Nickname}); err != nil {
+	if err := t.Send(ctx, protocol.Message{
+		Type: protocol.MsgHello, Nick: cfg.Nickname, V: protocol.RemoteQueueVersion,
+		Capabilities: remoteCapabilities(),
+	}); err != nil {
 		s.fail(fmt.Errorf("joining room: %w", err), true)
 		return
 	}
@@ -403,6 +559,31 @@ func (s *Session) runJoin(ctx context.Context, rm *room.Room, cfg options, match
 	downloader.SetPlayheadFunc(server.CurrentReadPos)
 	server.Start()
 	urls := server.URLs()
+	directSources := make(map[int]remoteproxy.Source)
+	for index, file := range files {
+		if source, ok := s.resolveRemoteSource(ctx, file, urls[index]); ok {
+			directSources[index] = source
+		}
+	}
+	if len(directSources) > 0 {
+		proxy, proxyErr := remoteproxy.New(directSources)
+		if proxyErr != nil {
+			s.notice("local cloud resolver proxy unavailable: %v", proxyErr)
+		} else {
+			s.mu.Lock()
+			s.remoteProxy = proxy
+			s.mu.Unlock()
+			proxy.Start()
+			defer func() {
+				shutdown, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				_ = proxy.Close(shutdown)
+			}()
+			for index := range directSources {
+				urls[index] = proxy.URL(index)
+			}
+		}
+	}
 	s.emitQueue(files, urls)
 	s.emit(map[string]any{"type": "stream_urls", "urls": urls})
 
@@ -451,7 +632,7 @@ func (s *Session) runJoin(ctx context.Context, rm *room.Room, cfg options, match
 		}
 	}
 	s.runEngine(ctx, t, cfg, false, nil, len(files), onFileReq, onSignal, engineExtras{
-		buffer:         buffer,
+		buffer: buffer, remoteRoom: hasRemoteFiles(files), liveQueue: true,
 		ready:          ready,
 		progress:       store.Progress,
 		canHostDynamic: store.AllDone,
@@ -459,6 +640,15 @@ func (s *Session) runJoin(ctx context.Context, rm *room.Room, cfg options, match
 		haveSnapshot:   store.AdvertSnapshot,
 		onPeerHave:     downloader.UpdatePeerHave,
 		onPeerGone:     downloader.PeerGone,
+		onHostFiles: func(updated []protocol.FileMeta) {
+			if reflect.DeepEqual(files, updated) {
+				return
+			}
+			restartOnce.Do(func() {
+				close(restart)
+				cancelCycle()
+			})
+		},
 		onBecomeHost: func([]protocol.FileMeta) (
 			func(string, int, int64, int64),
 			func(string, protocol.Signal),
@@ -466,6 +656,44 @@ func (s *Session) runJoin(ctx context.Context, rm *room.Room, cfg options, match
 			return onFileReq, onSignal
 		},
 	})
+}
+
+func (s *Session) resolveRemoteSource(
+	ctx context.Context,
+	file protocol.FileMeta,
+	fallbackURL string,
+) (remoteproxy.Source, bool) {
+	if file.Remote == nil || file.Size <= 0 {
+		return remoteproxy.Source{}, false
+	}
+	request, _ := json.Marshal(map[string]any{
+		"provider": file.Remote.Provider, "track_id": file.Remote.TrackID,
+		"quality": file.Remote.Quality, "duration_ms": file.Remote.DurationMS, "size": file.Size,
+	})
+	resolve := func(resolveCtx context.Context) (remoteproxy.Source, error) {
+		raw := s.cb.ResolveSource(string(request))
+		var resolved queueItem
+		if raw == "" || json.Unmarshal([]byte(raw), &resolved) != nil ||
+			resolved.Provider != file.Remote.Provider || resolved.TrackID != file.Remote.TrackID ||
+			resolved.URL == "" || resolved.Size != file.Size || !resolved.SupportsRange {
+			return remoteproxy.Source{}, fmt.Errorf("local remote source unavailable")
+		}
+		select {
+		case <-resolveCtx.Done():
+			return remoteproxy.Source{}, resolveCtx.Err()
+		default:
+		}
+		return remoteproxy.Source{
+			URL: resolved.URL, Headers: resolved.Headers, Size: resolved.Size,
+			FallbackURL: fallbackURL,
+		}, nil
+	}
+	resolved, err := resolve(ctx)
+	if err != nil {
+		return remoteproxy.Source{}, false
+	}
+	resolved.Refresh = resolve
+	return resolved, true
 }
 
 type engineExtras struct {
@@ -481,6 +709,9 @@ type engineExtras struct {
 	haveSnapshot func() ([]protocol.HaveEntry, [][2]int)
 	onPeerHave   func(string, []protocol.HaveEntry, [][2]int)
 	onPeerGone   func(string)
+	remoteRoom   bool
+	liveQueue    bool
+	onHostFiles  func([]protocol.FileMeta)
 }
 
 func (s *Session) runEngine(
@@ -495,31 +726,49 @@ func (s *Session) runEngine(
 	extras engineExtras,
 ) {
 	lines := make(chan string)
+	send := t.Send
+	requiresV2 := extras.remoteRoom || extras.liveQueue
+	if requiresV2 {
+		send = func(sendCtx context.Context, message protocol.Message) error {
+			message.V = protocol.RemoteQueueVersion
+			if message.Type == protocol.MsgHello {
+				message.Capabilities = remoteCapabilities()
+			}
+			return t.Send(sendCtx, message)
+		}
+	}
+	var requiredCapabilities []string
+	if requiresV2 {
+		requiredCapabilities = remoteCapabilities()
+	}
 	engine := syncer.New(syncer.Deps{
-		Mpv:              s.player,
-		Send:             t.Send,
-		Inbox:            t.Receive(),
-		Lines:            lines,
-		Printf:           s.notice,
-		SelfPub:          t.SelfPubKey(),
-		Nick:             cfg.Nickname,
-		Host:             host,
-		Files:            files,
-		PlaylistLen:      playlistLen,
-		OnFileReq:        onFileReq,
-		OnSignal:         onSignal,
-		CanHost:          host,
-		CanHostDynamic:   extras.canHostDynamic,
-		OnBecomeHost:     extras.onBecomeHost,
-		OnHostChange:     extras.onHostChange,
-		HaveSnapshot:     extras.haveSnapshot,
-		OnPeerHave:       extras.onPeerHave,
-		OnPeerGone:       extras.onPeerGone,
-		ReadyCh:          extras.ready,
-		Buffer:           extras.buffer,
-		DownloadProgress: extras.progress,
-		Receiving:        t.Receiving,
-		OnSnapshot:       s.onSnapshot,
+		Mpv:                      s.player,
+		Send:                     send,
+		Inbox:                    t.Receive(),
+		Lines:                    lines,
+		Printf:                   s.notice,
+		SelfPub:                  t.SelfPubKey(),
+		Nick:                     cfg.Nickname,
+		Host:                     host,
+		Files:                    files,
+		PlaylistLen:              playlistLen,
+		OnFileReq:                onFileReq,
+		OnSignal:                 onSignal,
+		CanHost:                  host,
+		CanHostDynamic:           extras.canHostDynamic,
+		OnBecomeHost:             extras.onBecomeHost,
+		OnHostChange:             extras.onHostChange,
+		HaveSnapshot:             extras.haveSnapshot,
+		OnPeerHave:               extras.onPeerHave,
+		OnPeerGone:               extras.onPeerGone,
+		OnHostFiles:              extras.onHostFiles,
+		ReadyCh:                  extras.ready,
+		Buffer:                   extras.buffer,
+		MinPeerVersion:           map[bool]int{true: protocol.RemoteQueueVersion, false: 0}[requiresV2],
+		RequiredPeerCapabilities: requiredCapabilities,
+		DownloadProgress:         extras.progress,
+		Receiving:                t.Receiving,
+		OnSnapshot:               s.onSnapshot,
 	})
 	err := engine.Run(ctx)
 	if errors.Is(err, context.Canceled) || s.isClosed() {
@@ -560,10 +809,43 @@ func waitForHost(ctx context.Context, t *nostrx.Transport) (string, []protocol.F
 				return "", nil, errors.New("lost all relay connections")
 			}
 			if message.Type == protocol.MsgHello && message.From != t.SelfPubKey() && len(message.Files) > 0 {
+				if message.V < protocol.RemoteQueueVersion ||
+					!hasAllCapabilities(message.Capabilities, remoteCapabilities()) {
+					return "", nil, errors.New("this room uses a live queue; upgrade ECHO to join")
+				}
 				return message.From, message.Files, nil
 			}
 		}
 	}
+}
+
+func hasRemoteFiles(files []protocol.FileMeta) bool {
+	for _, file := range files {
+		if file.Remote != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func remoteCapabilities() []string {
+	return []string{"remote_queue", "local_resolver", "range_relay", "live_queue"}
+}
+
+func hasAllCapabilities(actual, required []string) bool {
+	for _, requiredCapability := range required {
+		found := false
+		for _, capability := range actual {
+			if capability == requiredCapability {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Session) onSnapshot(snapshot syncer.Snapshot) {
@@ -605,12 +887,46 @@ func (s *Session) emitQueue(files []protocol.FileMeta, urls []string) {
 		if index < len(urls) {
 			url = urls[index]
 		}
-		items = append(items, map[string]any{
-			"id": s.fileID(index), "file_id": s.fileID(index), "title": file.Name,
-			"name": file.Name, "size": file.Size, "root": file.Bao, "stream_url": url,
-		})
+		item := map[string]any{
+			"id": s.fileID(index), "file_id": s.fileID(index), "title": displayTitle(file),
+			"name": file.Name, "artist": file.PublicArtist, "album": file.PublicAlbum,
+			"artwork_uri": file.PublicArtworkURI, "duration_ms": displayDurationMS(file),
+			"size": file.Size, "root": file.Bao, "stream_url": url,
+		}
+		if file.Remote != nil {
+			item["kind"], item["provider"] = "streaming", file.Remote.Provider
+			item["track_id"], item["quality"] = file.Remote.TrackID, file.Remote.Quality
+			item["duration_ms"] = file.Remote.DurationMS
+		}
+		items = append(items, item)
 	}
 	s.emit(map[string]any{"type": "queue", "items": items})
+}
+
+func displayTitle(file protocol.FileMeta) string {
+	if file.PublicTitle != "" {
+		return file.PublicTitle
+	}
+	return file.Name
+}
+
+func displayDurationMS(file protocol.FileMeta) int64 {
+	if file.Remote != nil && file.Remote.DurationMS > 0 {
+		return file.Remote.DurationMS
+	}
+	if file.DurationSecs <= 0 {
+		return 0
+	}
+	return int64(file.DurationSecs * 1000)
+}
+
+func publicArtworkURI(value string) string {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return parsed.String()
 }
 
 func (s *Session) fileID(index int) string {
@@ -714,6 +1030,38 @@ func (s *Session) RoomCode() string { return s.code }
 // NotifyPlayback forwards a local Media3 event into junto's sync engine.
 func (s *Session) NotifyPlayback(eventJSON string) {
 	s.player.notify(eventJSON)
+}
+
+// UpdateQueue replaces the host-authoritative live queue. Restarting the current transfer
+// cycle keeps positional file requests, sparse caches and loopback URLs on one consistent order.
+func (s *Session) UpdateQueue(queueJSON string) error {
+	if !s.host {
+		return errors.New("only the room host can update the queue")
+	}
+	_, items, err := decodeInputs(`{"v":1}`, queueJSON)
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return errors.New("live queue cannot be empty")
+	}
+	if s.isClosed() {
+		return errors.New("session is closed")
+	}
+	select {
+	case s.queueUpdates <- items:
+	default:
+		select {
+		case <-s.queueUpdates:
+		default:
+		}
+		select {
+		case s.queueUpdates <- items:
+		case <-s.done:
+			return errors.New("session is closed")
+		}
+	}
+	return nil
 }
 
 // ReceivedFilePath returns a path only after the FileStore has fully verified the file.

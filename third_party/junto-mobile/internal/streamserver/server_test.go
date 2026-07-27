@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -59,8 +60,16 @@ func (s *fakeStore) setErr(e error)   { s.mu.Lock(); s.err = e; s.cond.Broadcast
 func (s *fakeStore) setDone() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.Rename(s.path, s.finalPath); err != nil {
-		panic(err) // test setup issue, not a path this fake expects to hit
+	if runtime.GOOS == "windows" {
+		data, err := os.ReadFile(s.path)
+		if err == nil {
+			err = os.WriteFile(s.finalPath, data, 0o644)
+		}
+		if err != nil {
+			panic(err)
+		}
+	} else if err := os.Rename(s.path, s.finalPath); err != nil {
+		panic(err)
 	}
 	s.done = true
 	s.cond.Broadcast()
@@ -185,6 +194,9 @@ func TestRangeBlockingGrowingFile(t *testing.T) {
 // OpenFor collapses the decision and the open into one locked step, so
 // the exact same sequence can never observe a stale path.
 func TestStalePathRacesRename(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not permit renaming an open file; covered by the completion tests")
+	}
 	fs := newFakeStore(t, []byte("hello"))
 
 	stalePath := fs.racyPathFor(0) // snapshot while still "not done"

@@ -1,6 +1,7 @@
 package app.yukine.ui
 
 import android.net.Uri
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +56,7 @@ data class StreamingSearchActions(
     val onPlayResolvedTrack: TrackAction,
     val onNextPage: Runnable,
     val onImportPlaylist: StreamingPlaylistAction,
+    val onCreateTogetherPlaylist: StreamingPlaylistAction = StreamingPlaylistAction { _ -> },
     val onLoadUserPlaylists: Runnable,
     val onImportLikedTracks: Runnable,
     val onDailyRecommend: Runnable,
@@ -78,6 +81,7 @@ data class StreamingSearchActions(
             onPlayResolvedTrack = TrackAction { _ -> },
             onNextPage = Runnable {},
             onImportPlaylist = StreamingPlaylistAction { _ -> },
+            onCreateTogetherPlaylist = StreamingPlaylistAction { _ -> },
             onLoadUserPlaylists = Runnable {},
             onImportLikedTracks = Runnable {},
             onDailyRecommend = Runnable {},
@@ -156,7 +160,8 @@ data class StreamingSearchLabels(
     val neteaseLikedPlaylistEmpty: String,
     val neteaseAccountIdMissing: String,
     val neteaseLoginRequiredPlaylists: String,
-    val trackCountSuffix: String
+    val trackCountSuffix: String,
+    val createTogetherFromPlaylist: String = "\u521b\u5efa\u4e00\u8d77\u542c"
 ) {
     companion object {
         @JvmStatic
@@ -224,7 +229,8 @@ data class StreamingSearchLabels(
             neteaseLikedPlaylistEmpty = "\u672a\u627e\u5230\u6536\u85cf\u6b4c\u5355",
             neteaseAccountIdMissing = "\u7f3a\u5c11\u7f51\u6613\u4e91\u8d26\u53f7 ID",
             neteaseLoginRequiredPlaylists = "\u8bf7\u5148\u767b\u5f55\u518d\u52a0\u8f7d\u6b4c\u5355",
-            trackCountSuffix = " \u9996"
+            trackCountSuffix = " \u9996",
+            createTogetherFromPlaylist = "\u521b\u5efa\u4e00\u8d77\u542c"
         )
     }
 }
@@ -270,7 +276,8 @@ fun StreamingSearchScreen(
                 labels.title,
                 subtitle = provider?.displayName,
                 backLabel = labels.back,
-                onBack = actions.onBack
+                onBack = actions.onBack,
+                modifier = Modifier.echoEnter(0)
             )
         }
         item(key = "search-hero") {
@@ -285,13 +292,17 @@ fun StreamingSearchScreen(
                 query = state.searchQuery.ifBlank { "echo" },
                 canSearch = canSearch,
                 labels = labels,
-                onSearch = actions.onSearch
+                onSearch = actions.onSearch,
+                modifier = Modifier.echoEnter(1)
             )
         }
         if (state.providers.isNotEmpty()) {
             item(key = "provider-picker-title") { SectionTitle(labels.sourceDefault) }
             item(key = "provider-picker") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LazyRow(
+                    modifier = Modifier.echoEnter(2),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     items(state.providers, key = { it.name.wireName }) { item ->
                         val health = state.providerHealth.firstOrNull { it.provider == item.name }
                         val authState = state.authStates[item.name] ?: item.auth
@@ -324,7 +335,8 @@ fun StreamingSearchScreen(
                             connected = selectedAuthState?.connected == true,
                             onSelect = {},
                             onLogin = { actions.onLogin.run(selected.name) },
-                            onSignOut = { actions.onSignOut.run(selected.name) }
+                            onSignOut = { actions.onSignOut.run(selected.name) },
+                            modifier = Modifier.echoEnter(3)
                         )
                     }
                 }
@@ -337,7 +349,8 @@ fun StreamingSearchScreen(
                         priorityCount = state.playbackSourcePolicy.remotePriority.size,
                         onChanged = { enabled -> actions.onPlaybackEnabledChanged.run(selected.name, enabled) },
                         onMoveUp = { actions.onPlaybackPriorityUp.run(selected.name) },
-                        onMoveDown = { actions.onPlaybackPriorityDown.run(selected.name) }
+                        onMoveDown = { actions.onPlaybackPriorityDown.run(selected.name) },
+                        modifier = Modifier.echoEnter(3)
                     )
                 }
             }
@@ -351,11 +364,16 @@ fun StreamingSearchScreen(
         }
         item(key = "quick-actions-title") { SectionTitle(labels.discoverMusic) }
         item(key = "quick-actions") {
-            StreamingQuickActions(state, labels, actions)
+            StreamingQuickActions(
+                state,
+                labels,
+                actions,
+                modifier = Modifier.echoEnter(4)
+            )
         }
         if (state.userPlaylistsLoading) {
             item(key = "account-playlists-loading") {
-                MessageRow(labels.loadingAccountPlaylists)
+                MessageRow(labels.loadingAccountPlaylists, breathing = true)
             }
         }
         if (state.userPlaylists.isNotEmpty()) {
@@ -366,17 +384,22 @@ fun StreamingSearchScreen(
                 items = state.userPlaylists,
                 key = { _, item -> "user-playlist:${item.provider.wireName}:${item.providerPlaylistId}" }
             ) { _, item ->
-                StreamingPlaylistRow(item, labels) { actions.onImportPlaylist.run(item) }
+                Column {
+                    StreamingPlaylistRow(item, labels) { actions.onImportPlaylist.run(item) }
+                    TextButton(onClick = { actions.onCreateTogetherPlaylist.run(item) }) {
+                        Text(labels.createTogetherFromPlaylist)
+                    }
+                }
             }
         }
         if (state.loading && !state.loadingMore) {
             item(key = "loading") {
-                MessageRow(labels.loading)
+                MessageRow(labels.loading, breathing = true)
             }
         }
         if (state.playlistImporting) {
             item(key = "playlist-importing") {
-                MessageRow(labels.matchingLocalTracks)
+                MessageRow(labels.matchingLocalTracks, breathing = true)
             }
         }
         state.playlistImportSummary?.let { summary ->
@@ -436,12 +459,12 @@ fun StreamingSearchScreen(
         }
         if (result != null && displayedCount == 0 && !state.loading) {
             item(key = "empty") {
-                MessageRow(labels.noResults)
+                MessageRow(labels.noResults, breathing = true)
             }
         }
         if (state.loadingMore) {
             item(key = "loading-more") {
-                MessageRow(labels.loadMore)
+                MessageRow(labels.loadMore, breathing = true)
             }
         } else if (result?.hasMore == true && canSearch) {
             item(key = "next-page") {
@@ -487,11 +510,12 @@ private fun StreamingSearchHero(
     query: String,
     canSearch: Boolean,
     labels: StreamingSearchLabels,
-    onSearch: QueryAction
+    onSearch: QueryAction,
+    modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
     EchoGlassSurface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = EchoShapes.large,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
     ) {
@@ -520,10 +544,13 @@ private fun StreamingSearchHero(
             }
             if (canSearch) {
                 val searchLabel = labels.searchPrefix + query + labels.searchSuffix
+                val interaction = remember { MutableInteractionSource() }
                 Surface(
                     onClick = { onSearch.run(query) },
+                    interactionSource = interaction,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .echoPressScale(interaction)
                         .semantics { contentDescription = searchLabel },
                     shape = EchoShapes.medium,
                     color = p.accentSoft
@@ -565,12 +592,15 @@ private fun ProviderPickerChip(
     onClick: () -> Unit
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
+        interactionSource = interaction,
         modifier = Modifier
             .widthIn(min = 128.dp, max = 188.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
+            .echoPressScale(interaction)
             .semantics { contentDescription = name },
         shape = EchoShapes.medium,
         color = if (selected) p.accentSoft else Color.Transparent
@@ -609,7 +639,8 @@ private fun ProviderPickerChip(
 private fun StreamingQuickActions(
     state: StreamingSearchState,
     labels: StreamingSearchLabels,
-    actions: StreamingSearchActions
+    actions: StreamingSearchActions,
+    modifier: Modifier = Modifier
 ) {
     val quickActions = buildList {
         if (state.selectedProvider == StreamingProviderName.NETEASE) {
@@ -625,7 +656,10 @@ private fun StreamingQuickActions(
             add(StreamingQuickAction(labels.importPlaylistFromStreaming, EchoIconKind.PlaylistAdd, actions.onPasteImport))
         }
     }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         items(quickActions, key = { it.label }) { item ->
             QuickActionCard(item)
         }
@@ -635,12 +669,15 @@ private fun StreamingQuickActions(
 @Composable
 private fun QuickActionCard(item: StreamingQuickAction) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = { item.action.run() },
+        interactionSource = interaction,
         modifier = Modifier
             .width(176.dp)
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
+            .echoPressScale(interaction)
             .semantics { contentDescription = item.label },
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -688,11 +725,12 @@ private fun ProviderPlaybackPolicyRow(
     priorityCount: Int,
     onChanged: (Boolean) -> Unit,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
+    onMoveDown: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = EchoTheme.colors()
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         color = colors.surface.copy(alpha = 0.7f),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
     ) {
@@ -831,15 +869,19 @@ private fun ProviderRow(
     connected: Boolean,
     onSelect: () -> Unit,
     onLogin: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onSelect,
-        modifier = Modifier
+        interactionSource = interaction,
+        modifier = modifier
             .fillMaxWidth()
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
+            .echoPressScale(interaction)
             .semantics { contentDescription = name },
         shape = EchoShapes.medium,
         color = if (selected) p.accentSoft else Color.Transparent
@@ -962,15 +1004,18 @@ private fun StreamingInfoRow(
     trailingIcon: EchoIconKind? = null
 ) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     val rowModifier = Modifier
         .fillMaxWidth()
         .semantics { contentDescription = title }
     if (onClick != null) {
         Surface(
             onClick = onClick,
+            interactionSource = interaction,
             modifier = rowModifier
                 .echoFloatingLayer(p, EchoShapes.medium)
-                .echoGlassLayer(p, EchoShapes.medium),
+                .echoGlassLayer(p, EchoShapes.medium)
+                .echoPressScale(interaction),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -1029,15 +1074,18 @@ private fun StreamingInfoRowBody(
 @Composable
 private fun StreamingTrackRow(track: StreamingTrack, playable: Boolean, onPlay: () -> Unit) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     val modifier = Modifier
         .fillMaxWidth()
         .semantics { contentDescription = track.title }
     if (playable) {
         Surface(
             onClick = onPlay,
+            interactionSource = interaction,
             modifier = modifier
                 .echoFloatingLayer(p, EchoShapes.medium)
-                .echoGlassLayer(p, EchoShapes.medium),
+                .echoGlassLayer(p, EchoShapes.medium)
+                .echoPressScale(interaction),
             shape = EchoShapes.medium,
             color = Color.Transparent
         ) {
@@ -1106,12 +1154,15 @@ private fun StreamingTrackRowContent(track: StreamingTrack, playable: Boolean) {
 @Composable
 private fun ActionRow(label: String, icon: EchoIconKind, onClick: () -> Unit) {
     val p = EchoTheme.colors()
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
+        interactionSource = interaction,
         modifier = Modifier
             .fillMaxWidth()
             .echoFloatingLayer(p, EchoShapes.medium)
             .echoGlassLayer(p, EchoShapes.medium)
+            .echoPressScale(interaction)
             .semantics { contentDescription = label },
         shape = EchoShapes.medium,
         color = Color.Transparent
@@ -1172,13 +1223,14 @@ private fun MetricRow(label: String, value: String) {
 }
 
 @Composable
-private fun MessageRow(message: String) {
+private fun MessageRow(message: String, breathing: Boolean = false) {
     val p = EchoTheme.colors()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .echoFloatingLayer(p, EchoShapes.medium)
-            .echoGlassLayer(p, EchoShapes.medium),
+            .echoGlassLayer(p, EchoShapes.medium)
+            .echoBreath(enabled = breathing),
         shape = EchoShapes.medium,
         color = Color.Transparent
     ) {

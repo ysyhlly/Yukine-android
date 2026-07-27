@@ -51,7 +51,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
@@ -90,15 +89,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-private const val WAVEFORM_TWO_PI = 6.2831855f
-
-val LocalEchoNowBarCompactProgress = staticCompositionLocalOf { 0f }
-val LocalEchoNowBarScrollProgress = staticCompositionLocalOf { 0f }
-val LocalEchoNowBarPageScrollEvent = staticCompositionLocalOf { 0 }
-val LocalEchoNowBarBottomInset = staticCompositionLocalOf { 0.dp }
-val LocalEchoNowBarTopCloudClearanceChanged = staticCompositionLocalOf<(androidx.compose.ui.unit.Dp) -> Unit> { {} }
-
-
 @Composable
 fun NowBar(
     state: NowBarState,
@@ -121,6 +111,9 @@ fun NowBar(
     var previousBottomDockName by rememberSaveable {
         mutableStateOf(NowBarDockPosition.BottomRight.name)
     }
+    /** Sticky compact-height lock: list scroll or bar swipe-down; cleared only by tap/swipe-up expand. */
+    var heightCompactLocked by rememberSaveable { mutableStateOf(false) }
+    var scrollCompactSuppressedUntilReset by rememberSaveable { mutableStateOf(false) }
     val dockPosition = NowBarDockPosition.entries.firstOrNull { it.name == dockName }
         ?: NowBarDockPosition.Expanded
     val docked = dockPosition != NowBarDockPosition.Expanded
@@ -128,13 +121,49 @@ fun NowBar(
     val topCloudExpanded = dockPosition == NowBarDockPosition.TopCloudExpanded
     val topCloudVisible = topCloud || topCloudExpanded
     val topCloudPosition = topCloudVisible
-    val compactProgress = if (docked) 0f else LocalEchoNowBarCompactProgress.current.coerceIn(0f, 1f)
+    val scrollDrivenCompact =
+        if (docked) 0f else LocalEchoNowBarCompactProgress.current.coerceIn(0f, 1f)
+    LaunchedEffect(scrollDrivenCompact, docked) {
+        when {
+            docked -> scrollCompactSuppressedUntilReset = false
+            scrollDrivenCompact <= 0.01f -> scrollCompactSuppressedUntilReset = false
+            !scrollCompactSuppressedUntilReset &&
+                scrollDrivenCompact >= EchoMobileLayoutMetrics.nowBarHeightCompactLockThreshold -> {
+                heightCompactLocked = true
+            }
+        }
+    }
+    LaunchedEffect(docked) {
+        if (docked) {
+            heightCompactLocked = false
+        }
+    }
+    val heightCompact = !docked && heightCompactLocked
+    val compactProgress = when {
+        docked -> 0f
+        heightCompactLocked -> 1f
+        scrollCompactSuppressedUntilReset -> 0f
+        else -> scrollDrivenCompact
+    }
     val scrollProgress = if (topCloudPosition) 0f else LocalEchoNowBarScrollProgress.current.coerceIn(-1f, 1f)
     val scrollCompactProgress = scrollProgress.coerceIn(0f, 1f)
     val scrollStretchProgress = (-scrollProgress).coerceIn(0f, 1f)
     val bottomInset = LocalEchoNowBarBottomInset.current
     val pageScrollEvent = LocalEchoNowBarPageScrollEvent.current
     val onTopCloudClearanceChanged = LocalEchoNowBarTopCloudClearanceChanged.current
+    val onOccupiedHeightChanged = LocalEchoNowBarOccupiedHeightChanged.current
+    // Compact lock must not clear waveform immediately — collapsing waveform mid-morph
+    // used to flip the full-height base across the old 0.5 threshold and jump layout.
+    val lockHeightCompact = {
+        if (!docked) {
+            scrollCompactSuppressedUntilReset = false
+            heightCompactLocked = true
+        }
+    }
+    val unlockHeightCompact = {
+        heightCompactLocked = false
+        scrollCompactSuppressedUntilReset = scrollDrivenCompact > 0.01f
+    }
     SideEffect {
         onTopCloudClearanceChanged(
             when {
@@ -198,7 +227,35 @@ fun NowBar(
         animationSpec = EchoMotion.floatSpring(),
         label = "nowBarDockMorph"
     )
-    val barHeight = if (waveformExpanded) EchoMobileLayoutMetrics.nowBarExpandedHeight else EchoMobileLayoutMetrics.nowBarHeight
+    val heightCompactMorph by animateFloatAsState(
+        targetValue = compactProgress,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "nowBarHeightCompactMorph"
+    )
+    // Collapse waveform only after compact morph settles; reverse expand cancels this.
+    LaunchedEffect(heightCompactLocked, heightCompactMorph, waveformExpanded) {
+        if (
+            heightCompactLocked &&
+            heightCompactMorph >= 0.99f &&
+            waveformExpanded
+        ) {
+            onCollapseWaveform()
+        }
+    }
+    // Continuous full-height base: standard ↔ waveform-expanded share one morph (no 0.5 step).
+    val waveformOpenMorph by animateFloatAsState(
+        targetValue = if (waveformExpanded) 1f else 0f,
+        animationSpec = EchoMotion.floatSpring(),
+        label = "nowBarWaveformOpenMorph"
+    )
+    val standardBarHeight = EchoMobileLayoutMetrics.nowBarHeight
+    val waveformBarHeight = EchoMobileLayoutMetrics.nowBarExpandedHeight
+    val compactBarHeight = EchoMobileLayoutMetrics.nowBarCompactHeight
+    val fullOpenBarHeight =
+        standardBarHeight + (waveformBarHeight - standardBarHeight) * waveformOpenMorph
+    // Expanded surface height: continuous blend full-open → compact with the same morph.
+    val expandedBarHeight =
+        fullOpenBarHeight + (compactBarHeight - fullOpenBarHeight) * heightCompactMorph
     val progressSlice = NowBarProgressSlice(
         positionMs = state.progress.positionMs,
         durationMs = state.progress.durationMs,
@@ -217,8 +274,18 @@ fun NowBar(
     val playbackScrub = rememberScrubbablePlaybackPosition(
         positionMs = progressSlice.positionMs,
         durationMs = progressSlice.durationMs,
-        playing = progressSlice.playing
+        playing = progressSlice.playing,
+        trackId = progressSlice.trackId,
+        contentUriString = progressSlice.contentUriString,
+        dataPath = progressSlice.dataPath
     )
+    // Collapsing used to dispose the progress section (open≈0), which could leave a scrub
+    // overlay or desync the elapsed Text from the bar after re-expand. Clear scrub while folded.
+    LaunchedEffect(heightCompactMorph, heightCompactLocked) {
+        if (heightCompactLocked || heightCompactMorph >= 0.5f) {
+            playbackScrub.clearScrub()
+        }
+    }
     val trackSlice = NowBarTrackSlice(
         artUriString = state.artwork.albumArtUri?.toString(),
         title = state.track.title,
@@ -262,8 +329,9 @@ fun NowBar(
             NowBarDockPosition.TopCloud,
             NowBarDockPosition.TopCloudExpanded -> topCloudBaseWidth
         }
-        val targetSurfaceHeight = when (dockPosition) {
-            NowBarDockPosition.Expanded -> barHeight
+        // Capsule height for docked/top-cloud modes (animated on mode change).
+        val capsuleTargetHeight = when (dockPosition) {
+            NowBarDockPosition.Expanded -> expandedBarHeight
             NowBarDockPosition.BottomLeft,
             NowBarDockPosition.BottomRight -> EchoMobileLayoutMetrics.nowBarDockedHeight
             NowBarDockPosition.TopCloud,
@@ -277,14 +345,30 @@ fun NowBar(
             ),
             label = "nowBarDockWidth"
         )
-        val surfaceHeight by animateDpAsState(
-            targetValue = targetSurfaceHeight,
+        val capsuleHeight by animateDpAsState(
+            targetValue = capsuleTargetHeight,
             animationSpec = tween(
                 durationMillis = EchoMobileLayoutMetrics.nowBarDockSizeDurationMs,
                 easing = FastOutSlowInEasing
             ),
             label = "nowBarDockHeight"
         )
+        // Blend Expanded morph height with capsule by dockMorph so TopCloud↔Expanded
+        // never jumps; when fully Expanded (dockMorph≈0) height tracks compact morph 1:1.
+        val surfaceHeight =
+            expandedBarHeight * (1f - dockMorphProgress) + capsuleHeight * dockMorphProgress
+        SideEffect {
+            val occupied = when (dockPosition) {
+                NowBarDockPosition.Expanded -> surfaceHeight
+                NowBarDockPosition.BottomLeft,
+                NowBarDockPosition.BottomRight ->
+                    EchoMobileLayoutMetrics.nowBarDockedHeight +
+                        EchoMobileLayoutMetrics.nowBarDockedBottomPadding
+                NowBarDockPosition.TopCloud,
+                NowBarDockPosition.TopCloudExpanded -> 0.dp
+            }
+            onOccupiedHeightChanged(occupied)
+        }
         val dockTravel = ((availableWidth - EchoMobileLayoutMetrics.nowBarDockedWidth)
             .coerceAtLeast(0.dp)) / 2
         val surfaceHorizontalOffset by animateDpAsState(
@@ -303,23 +387,39 @@ fun NowBar(
         )
         val topCloudY = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
             EchoMobileLayoutMetrics.nowBarTopCloudOffset
-        val bottomY = (maxHeight - bottomInset - targetSurfaceHeight -
-            if (docked) EchoMobileLayoutMetrics.nowBarDockedBottomPadding else 0.dp)
-            .coerceAtLeast(0.dp)
-        val surfaceVerticalOffset by animateDpAsState(
-            targetValue = if (topCloudPosition) topCloudY else bottomY,
+        // Animated bottom-edge anchor: Expanded/bottom dock → screen bottom; TopCloud →
+        // topCloudY + targetHeight. Top Y is always anchor - height so TopCloud↔Expanded
+        // moves continuously and Expanded height changes keep the bottom edge pinned.
+        val screenBottomAnchor = (maxHeight - bottomInset -
+            if (docked && !topCloudPosition) {
+                EchoMobileLayoutMetrics.nowBarDockedBottomPadding
+            } else {
+                0.dp
+            }).coerceAtLeast(0.dp)
+        val targetBottomAnchor = if (topCloudPosition) {
+            topCloudY + capsuleTargetHeight
+        } else {
+            screenBottomAnchor
+        }
+        val animatedBottomAnchor by animateDpAsState(
+            targetValue = targetBottomAnchor,
             animationSpec = tween(
                 durationMillis = EchoMobileLayoutMetrics.nowBarDockMoveDurationMs,
                 easing = FastOutSlowInEasing
             ),
-            label = "nowBarDockVerticalOffset"
+            label = "nowBarBottomAnchor"
         )
+        // Never bypass: top Y is always bottom-anchor − height. Expanded height morph keeps
+        // the bottom edge fixed (anchor target constant); TopCloud↔Expanded animates the anchor.
+        val surfaceVerticalOffset =
+            (animatedBottomAnchor - surfaceHeight).coerceAtLeast(0.dp)
         EchoGlassSurface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(x = surfaceHorizontalOffset, y = surfaceVerticalOffset)
                 .width(surfaceWidth)
                 .height(surfaceHeight)
+                .clipToBounds()
                 .testTag("echo-now-bar-surface")
                 .blockPointerInputBehind()
                 .graphicsLayer {
@@ -399,55 +499,96 @@ fun NowBar(
                             }
                         )
                     } else {
-                        listOf(
-                            CustomAccessibilityAction(
-                                state.labels.dockLeft.ifBlank { "停靠左侧" }
-                            ) {
-                                onCollapseWaveform()
-                                dockBottomLeft()
-                                true
-                            },
-                            CustomAccessibilityAction(
-                                state.labels.dockRight.ifBlank { "停靠右侧" }
-                            ) {
-                                onCollapseWaveform()
-                                dockBottomRight()
-                                true
+                        buildList {
+                            if (heightCompact) {
+                                add(
+                                    CustomAccessibilityAction(
+                                        state.labels.expandNowBar.ifBlank { "展开 Now Bar" }
+                                    ) {
+                                        unlockHeightCompact()
+                                        true
+                                    }
+                                )
+                            } else {
+                                add(
+                                    CustomAccessibilityAction(
+                                        "收起 Now Bar"
+                                    ) {
+                                        lockHeightCompact()
+                                        true
+                                    }
+                                )
                             }
-                        )
+                            add(
+                                CustomAccessibilityAction(
+                                    state.labels.dockLeft.ifBlank { "停靠左侧" }
+                                ) {
+                                    onCollapseWaveform()
+                                    dockBottomLeft()
+                                    true
+                                }
+                            )
+                            add(
+                                CustomAccessibilityAction(
+                                    state.labels.dockRight.ifBlank { "停靠右侧" }
+                                ) {
+                                    onCollapseWaveform()
+                                    dockBottomRight()
+                                    true
+                                }
+                            )
+                        }
                     }
                 },
             shape = if (docked) EchoShapes.pill else EchoShapes.large,
             elevation = EchoMobileLayoutMetrics.floatingChromeElevation *
                 (if (topCloudPosition) 0.72f else 1f) *
-                (1f - compactProgress * (1f - EchoMobileLayoutMetrics.nowBarCompactShadowFactor))
+                (1f - heightCompactMorph * (1f - EchoMobileLayoutMetrics.nowBarCompactShadowFactor))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
                 if (!docked || dockMorphProgress < 0.99f) {
+                    // One tree only: section heights, alphas, and surface height share the
+                    // continuous morph (no dual-layer lag, no discrete 0.5 height flip).
+                    val fold = heightCompactMorph
+                    val open = (1f - fold).coerceIn(0f, 1f)
+                    val verticalPad = 6.dp + 2.dp * fold
+                    val hasLyrics = state.lyrics.lines.isNotEmpty() ||
+                        state.lyrics.status.isNotBlank()
+                    // Keep waveform chrome while compacting until parent state clears after settle.
+                    val showWaveformProgress = waveformExpanded && open > 0.001f
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(barHeight)
+                            .fillMaxSize()
                             .graphicsLayer {
                                 alpha = 1f - dockMorphProgress
                                 scaleX = 1f - dockMorphProgress * 0.08f
                                 scaleY = 1f - dockMorphProgress * 0.08f
                             }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                            .padding(horizontal = 12.dp, vertical = verticalPad),
+                        verticalArrangement = Arrangement.spacedBy(2.dp * open)
                     ) {
-                        MiniLyricsStrip(state, compactProgress)
-                        NowBarProgressSection(
-                            slice = progressSlice,
-                            scrub = playbackScrub,
-                            waveformExpanded = waveformExpanded,
-                            onExpandWaveform = onExpandWaveform,
-                            onCollapseWaveform = onCollapseWaveform,
-                            onSeek = onSeek
-                        )
+                        NowBarCollapsingSection(
+                            open = open,
+                            fullHeight = if (hasLyrics) 20.dp else 0.dp
+                        ) {
+                            MiniLyricsStrip(state, fold)
+                        }
+                        NowBarCollapsingSection(
+                            open = open,
+                            fullHeight = EchoMobileLayoutMetrics.nowBarProgressBlockHeight
+                        ) {
+                            NowBarProgressSection(
+                                slice = progressSlice,
+                                scrub = playbackScrub,
+                                waveformExpanded = showWaveformProgress,
+                                onExpandWaveform = onExpandWaveform,
+                                onCollapseWaveform = onCollapseWaveform,
+                                onSeek = onSeek
+                            )
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -456,6 +597,7 @@ fun NowBar(
                         ) {
                             NowBarTrackSection(
                                 slice = trackSlice,
+                                heightCompact = heightCompact,
                                 onOpenNowPlaying = onOpenNowPlaying,
                                 onCollapseWaveform = onCollapseWaveform,
                                 onDockLeft = {
@@ -470,6 +612,8 @@ fun NowBar(
                                     onCollapseWaveform()
                                     dockTop()
                                 },
+                                onCompactHeight = lockHeightCompact,
+                                onExpandHeight = unlockHeightCompact,
                                 dockGesturesEnabled = !docked,
                                 modifier = Modifier.weight(1f)
                             )
@@ -487,8 +631,23 @@ fun NowBar(
                                 onCollapseWaveform = onCollapseWaveform
                             )
                         }
-                        Spacer(Modifier.height(2.dp))
-                        NowBarModeControls(modeSlice, onFavorite, onShuffle, onRepeat, onOpenQueue, onCollapseWaveform)
+                        NowBarCollapsingSection(
+                            open = open,
+                            fullHeight = if (modeSlice.favoriteEnabled) {
+                                EchoMobileLayoutMetrics.nowBarModeControlsHeight
+                            } else {
+                                0.dp
+                            }
+                        ) {
+                            NowBarModeControls(
+                                modeSlice,
+                                onFavorite,
+                                onShuffle,
+                                onRepeat,
+                                onOpenQueue,
+                                onCollapseWaveform
+                            )
+                        }
                     }
                 }
                 if (dockMorphProgress > 0.01f) {

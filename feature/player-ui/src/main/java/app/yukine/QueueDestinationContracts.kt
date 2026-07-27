@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 data class QueueDestinationState(
     val rows: List<QueueTrackUiState> = emptyList(),
     val rowCount: Int = rows.size,
-    val rowAt: (Int) -> QueueTrackUiState? = { index -> rows.getOrNull(index) }
+    val rowAt: (Int) -> QueueTrackUiState? = { index -> rows.getOrNull(index) },
+    /** When false, queue remove/move/clear gestures are locked (e.g. Together guest). */
+    val queueEditable: Boolean = true
 )
 
 interface QueueDestinationStateProvider {

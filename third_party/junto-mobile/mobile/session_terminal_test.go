@@ -87,3 +87,34 @@ func TestTerminalReasonMapsExpectedEngineFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestHostUpdateQueueKeepsOnlyLatestPendingSnapshot(t *testing.T) {
+	session := newSession(&callbackRecorder{}, "room")
+	session.host = true
+	defer session.player.Close()
+
+	first := `[{"id":"1","title":"one","kind":"local","uri":"one.flac"}]`
+	second := `[{"id":"2","title":"two","kind":"streaming","provider":"qq","track_id":"2"}]`
+	if err := session.UpdateQueue(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.UpdateQueue(second); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case items := <-session.queueUpdates:
+		if len(items) != 1 || items[0].ID != "2" {
+			t.Fatalf("unexpected latest live queue: %#v", items)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing live queue update")
+	}
+}
+
+func TestJoinerCannotUpdateQueue(t *testing.T) {
+	session := newSession(&callbackRecorder{}, "room")
+	defer session.player.Close()
+	if err := session.UpdateQueue(`[{"id":"1"}]`); err == nil {
+		t.Fatal("joiner queue update should be rejected")
+	}
+}

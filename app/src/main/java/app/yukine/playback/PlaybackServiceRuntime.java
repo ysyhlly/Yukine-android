@@ -85,6 +85,8 @@ final class PlaybackServiceRuntime
 
     private ExoPlayer player;
     private boolean togetherRoomActive;
+    /** Id-order signature for the last queue snapshot forwarded to Together; skips progress churn. */
+    private String lastTogetherQueueLightSignature = "";
     private boolean togetherPreviousShuffle;
     private int togetherPreviousRepeatMode = PlaybackRepeatMode.REPEAT_OFF;
     private final PlaybackPlayerStateOwner playbackPlayerStateOwner =
@@ -342,7 +344,9 @@ final class PlaybackServiceRuntime
                 together.onLocalPlayback(new TogetherPlaybackEvent.QueueIndexChanged(nextIndex));
             }
             if (!playbackQueueMirroredTransitionOwner.canApplyMirroredTransition()) {
-                playbackPlayerStateOwner.resetPositionEstimate();
+                // Still a real media-item change for the player clock — do not inherit the
+                // previous item's progress into the next song's snapshot.
+                playbackPlayerStateOwner.beginMediaItemPositionTransition(nextIndex, 0L);
                 maybeRetryUsbForMediaItemTransition(playbackQueueStateOwner.currentTrack(), reason);
                 return;
             }
@@ -350,8 +354,9 @@ final class PlaybackServiceRuntime
                     playbackQueueMirroredTransitionOwner.applyMirroredTransitionReason(nextIndex, reason);
             if (transition == null) {
                 // A rebuilt single-item queue reports PLAYLIST_CHANGED at the same index. It is
-                // still a real media transition for a latched USB retry even though queue state
-                // itself has nothing to advance.
+                // still a real media transition for position and for a latched USB retry even
+                // though queue state itself has nothing to advance.
+                playbackPlayerStateOwner.beginMediaItemPositionTransition(nextIndex, 0L);
                 maybeRetryUsbForMediaItemTransition(playbackQueueStateOwner.currentTrack(), reason);
                 return;
             }
@@ -1066,6 +1071,10 @@ final class PlaybackServiceRuntime
         return playbackSessionManager == null ? null : playbackSessionManager.session();
     }
 
+    StreamingRepositorySource streamingRepositorySource() {
+        return streamingRepositorySource;
+    }
+
     void handleServiceAction(String action) {
         if (PlaybackServiceActions.STOP.equals(action)) {
             pendingRestorePlayWhenReady = null;
@@ -1155,14 +1164,14 @@ final class PlaybackServiceRuntime
     }
 
     public void playQueue(List<Track> tracks, int startIndex) {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.playQueue(tracks, startIndex, C.TIME_UNSET);
     }
 
     public void appendToQueue(List<Track> tracks) {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.appendToQueue(tracks);
@@ -1309,7 +1318,7 @@ final class PlaybackServiceRuntime
     }
 
     public void moveQueueTrack(int fromIndex, int toIndex) {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.moveQueueTrack(fromIndex, toIndex);
@@ -1333,7 +1342,7 @@ final class PlaybackServiceRuntime
     }
 
     public void removeTracksById(Set<Long> trackIds) {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.removeTracksById(trackIds);
@@ -1347,14 +1356,14 @@ final class PlaybackServiceRuntime
     }
 
     public void retainTracksById(Set<Long> trackIdsToKeep) {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.retainTracksById(trackIdsToKeep);
     }
 
     public void clearQueue() {
-        if (togetherRoomActive) {
+        if (!canMutateQueue()) {
             return;
         }
         playbackQueueMutationOwner.clearQueue();
@@ -1504,6 +1513,7 @@ final class PlaybackServiceRuntime
             return;
         }
         togetherRoomActive = false;
+        lastTogetherQueueLightSignature = "";
         setShuffleEnabled(togetherPreviousShuffle);
         setRepeatMode(togetherPreviousRepeatMode);
     }
@@ -1521,8 +1531,31 @@ final class PlaybackServiceRuntime
         if (!togetherRoomActive || tracks == null || tracks.isEmpty()) {
             return;
         }
-        playbackQueueMutationOwner.playQueue(tracks, 0, C.TIME_UNSET);
-        pause();
+        PlaybackStateSnapshot previous = snapshot();
+        long currentId = previous != null && previous.currentTrack != null
+                ? previous.currentTrack.id
+                : Long.MIN_VALUE;
+        int nextIndex = 0;
+        for (int index = 0; index < tracks.size(); index++) {
+            if (tracks.get(index).id == currentId) {
+                nextIndex = index;
+                break;
+            }
+        }
+        long positionMs = currentId == Long.MIN_VALUE || tracks.get(nextIndex).id != currentId
+                ? C.TIME_UNSET
+                : previous.positionMs;
+        boolean wasPlaying = previous != null && previous.playing;
+        playbackQueueMutationOwner.playQueue(tracks, nextIndex, positionMs);
+        if (!wasPlaying) {
+            pause();
+        }
+    }
+
+    /** Whether queue remove/move/clear are allowed (false for Together guests). */
+    public boolean canMutateQueue() {
+        TogetherSessionOwner owner = togetherOwner();
+        return !togetherRoomActive || (owner != null && owner.canEditQueue());
     }
 
     private TogetherSessionOwner togetherOwner() {
@@ -2191,11 +2224,12 @@ final class PlaybackServiceRuntime
         resetWaveformIfTrackChanged(track);
         postponePlaybackVisualizationWarmup();
         applyPlaybackParametersToPlayer();
-        // A rebuilt queue starts a different media item. Do not let the previous item's
-        // interpolation be treated as a real seek position while the new source buffers.
-        playbackPlayerStateOwner.resetPositionEstimate();
         player.clearMediaItems();
-        player.setMediaSources(mediaSources, queuePreparation.startIndex(), Math.max(0L, startPositionMs));
+        int startIndex = queuePreparation.startIndex();
+        long clampedStartPositionMs = Math.max(0L, startPositionMs);
+        player.setMediaSources(mediaSources, startIndex, clampedStartPositionMs);
+        // New media sources must not inherit the previous item's interpolated/paused position.
+        playbackPlayerStateOwner.beginMediaItemPositionTransition(startIndex, clampedStartPositionMs);
         playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(true);
         // Repeat-all only maps to Media3 REPEAT_MODE_ALL while the player mirrors the queue.
         // Reapply after changing that fact so a previous single-track REPEAT_MODE_ONE cannot leak
@@ -2208,8 +2242,8 @@ final class PlaybackServiceRuntime
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);
             }
-            if (startPositionMs > 0L) {
-                playbackPlayerStateOwner.setPositionEstimate(startPositionMs);
+            if (clampedStartPositionMs > 0L) {
+                playbackPlayerStateOwner.setPositionEstimate(clampedStartPositionMs);
             }
             playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
@@ -2236,9 +2270,6 @@ final class PlaybackServiceRuntime
             playbackTransitionStateManager.setLastMarkedTrack(null);
             resetWaveformIfTrackChanged(track);
             postponePlaybackVisualizationWarmup();
-            // player.stop()/setMediaSource() replaces the logical song. Resetting here prevents
-            // an old paused/interpolated position from being handed to streaming source recovery.
-            playbackPlayerStateOwner.resetPositionEstimate();
             player.stop();
             player.clearMediaItems();
             playbackQueueRuntimeStateManager.setPlayerMirrorsQueue(false);
@@ -2247,15 +2278,18 @@ final class PlaybackServiceRuntime
             applyPlaybackModeToPlayer();
             applyPlaybackParametersToPlayer();
             player.setMediaSource(mediaSource);
+            long clampedStartPositionMs = Math.max(0L, startPositionMs);
+            // Replacing the only media source is still a track hand-off for the position clock.
+            playbackPlayerStateOwner.beginMediaItemPositionTransition(0, clampedStartPositionMs);
             player.setPlayWhenReady(playWhenReady);
             streamingDiagnostics.recordPrepareStarted(track);
             player.prepare();
             if (playbackWarmupCoordinator != null) {
                 playbackWarmupCoordinator.warmup(track);
             }
-            if (startPositionMs > 0L) {
-                player.seekTo(startPositionMs);
-                playbackPlayerStateOwner.setPositionEstimate(startPositionMs);
+            if (clampedStartPositionMs > 0L) {
+                player.seekTo(clampedStartPositionMs);
+                playbackPlayerStateOwner.setPositionEstimate(clampedStartPositionMs);
             }
             playbackCurrentTrackPreparationQueueOwner.consumeRestoredPositionAfterPrepare(startPositionMs);
             publishState();
@@ -2345,11 +2379,47 @@ final class PlaybackServiceRuntime
     private void publishState() {
         if (playbackStatePublisher != null) {
             playbackStatePublisher.publishState();
+            notifyTogetherLocalQueueIfChanged();
             return;
         }
         if (playbackModeSettingsStore != null) {
             playbackModeSettingsStore.applyPlaybackModeToPlayer(playbackRuntimeStateManager);
         }
+    }
+
+    /**
+     * Host queue sync only when Media3 queue identity/order changes — not on every progress tick.
+     */
+    private void notifyTogetherLocalQueueIfChanged() {
+        if (!togetherRoomActive || playbackQueueStateOwner == null) {
+            return;
+        }
+        TogetherSessionOwner owner = togetherOwner();
+        if (owner == null) {
+            return;
+        }
+        List<Track> queue = playbackQueueStateOwner.queueSnapshot();
+        String lightSignature = lightTogetherQueueSignature(queue);
+        if (lightSignature.equals(lastTogetherQueueLightSignature)) {
+            return;
+        }
+        lastTogetherQueueLightSignature = lightSignature;
+        owner.onLocalQueueChanged(queue);
+    }
+
+    private static String lightTogetherQueueSignature(List<Track> tracks) {
+        if (tracks == null || tracks.isEmpty()) {
+            return "";
+        }
+        StringBuilder signature = new StringBuilder(tracks.size() * 8);
+        for (int i = 0; i < tracks.size(); i++) {
+            if (i > 0) {
+                signature.append('\u001f');
+            }
+            Track track = tracks.get(i);
+            signature.append(track == null ? -1L : track.id);
+        }
+        return signature.toString();
     }
 
     private void applyPlaybackModeToPlayer() {

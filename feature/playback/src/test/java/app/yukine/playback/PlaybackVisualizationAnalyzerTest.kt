@@ -8,6 +8,7 @@ import app.yukine.model.Track
 import app.yukine.playback.manager.PlaybackMediaSourceProvider
 import app.yukine.streaming.StreamingPlaybackHeaderStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -82,6 +83,21 @@ class PlaybackVisualizationAnalyzerTest {
         assertEquals(1, scheduler.tasks.size)
     }
 
+    @Test
+    fun firstSpectrumDecodeUsesCurrentPlaybackPriorityAndSmallWorkload() {
+        val scheduler = FakeVisualizationTaskScheduler()
+        val analyzer = analyzer(scheduler, FakeStateProvider())
+
+        analyzer.spectrumSnapshot(localTrack(7L), 180_000L, deferGeneration = false)
+
+        assertEquals(listOf(PlaybackTaskScheduler.Priority.CURRENT_WAVEFORM), scheduler.priorities)
+        val generatingKey = analyzer.javaClass
+            .getDeclaredField("spectrumGeneratingKey")
+            .apply { isAccessible = true }
+            .get(analyzer) as String
+        assertTrue(generatingKey.endsWith("|spectrum|10"))
+    }
+
     private fun analyzer(
         scheduler: FakeVisualizationTaskScheduler,
         stateProvider: FakeStateProvider
@@ -133,8 +149,10 @@ class PlaybackVisualizationAnalyzerTest {
 
     private class FakeVisualizationTaskScheduler : PlaybackVisualizationAnalyzer.VisualizationTaskScheduler {
         val tasks = mutableListOf<Runnable>()
+        val priorities = mutableListOf<PlaybackTaskScheduler.Priority>()
 
         override fun schedule(priority: PlaybackTaskScheduler.Priority, task: Runnable) {
+            priorities.add(priority)
             tasks.add(task)
         }
     }

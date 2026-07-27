@@ -37,6 +37,8 @@ class StreamingSearchStateReducer(
 
         fun importStreamingPlaylist(playlist: StreamingPlaylist)
 
+        fun createTogetherFromStreamingPlaylist(playlist: StreamingPlaylist) = Unit
+
         fun loadUserPlaylists()
 
         fun importLikedTracks()
@@ -71,6 +73,7 @@ class StreamingSearchStateReducer(
             onPlayResolvedTrack = { track -> listener.playResolvedTrack(track) },
             onNextPage = Runnable { listener.loadNextPage() },
             onImportPlaylist = { playlist -> listener.importStreamingPlaylist(playlist) },
+            onCreateTogetherPlaylist = { playlist -> listener.createTogetherFromStreamingPlaylist(playlist) },
             onLoadUserPlaylists = Runnable { listener.loadUserPlaylists() },
             onImportLikedTracks = Runnable { listener.importLikedTracks() },
             onDailyRecommend = Runnable { listener.playDailyRecommendations() },
@@ -154,7 +157,8 @@ class StreamingSearchStateReducer(
             neteaseLikedPlaylistEmpty = text(languageMode, "streaming.status.netease.liked.empty"),
             neteaseAccountIdMissing = text(languageMode, "streaming.status.netease.account.id.missing"),
             neteaseLoginRequiredPlaylists = text(languageMode, "streaming.status.netease.login.required.playlists"),
-            trackCountSuffix = text(languageMode, "streaming.track.count.suffix")
+            trackCountSuffix = text(languageMode, "streaming.track.count.suffix"),
+            createTogetherFromPlaylist = text(languageMode, "together.create.from.playlist")
         )
     }
 

@@ -393,24 +393,32 @@ private fun NowPlayingNormalView(
                         modifier = Modifier.then(gestureModifier)
                     )
                     Spacer(Modifier.height(14.dp))
-                    CopyableMetadataText(
-                        text = state.title,
-                        style = EchoTypography.headline,
-                        color = p.heading,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                    if (state.artistName.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        CopyableMetadataText(
-                            text = state.artistName,
-                            style = EchoTypography.body,
-                            color = p.muted,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
-                        )
+                    AnimatedContent(
+                        targetState = Triple(state.trackId, state.title, state.artistName),
+                        transitionSpec = { EchoMotion.trackContentTransition() },
+                        label = "nowPlayingTrackMeta"
+                    ) { (_, title, artistName) ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CopyableMetadataText(
+                                text = title,
+                                style = EchoTypography.headline,
+                                color = p.heading,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            if (artistName.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                CopyableMetadataText(
+                                    text = artistName,
+                                    style = EchoTypography.body,
+                                    color = p.muted,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
                     }
                     if (state.albumName.isNotBlank()) {
                         Spacer(Modifier.height(2.dp))

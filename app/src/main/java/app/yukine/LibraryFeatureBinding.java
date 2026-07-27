@@ -480,42 +480,60 @@ final class LibraryFeatureBinding {
             }
             return playlistSources;
         };
+        CollectionsIntentOwner collectionsIntents = new CollectionsIntentOwner(
+                viewModel,
+                playlistMutationOwner,
+                (tracks, index) -> {
+                    playback.getPlaybackStartController().playTrackList(tracks, index);
+                    return kotlin.Unit.INSTANCE;
+                },
+                track -> {
+                    playlistDialogController.showAddToPlaylist(track);
+                    return kotlin.Unit.INSTANCE;
+                },
+                () -> {
+                    playlistDialogController.showCreatePlaylist();
+                    return kotlin.Unit.INSTANCE;
+                },
+                playlist -> {
+                    playlistDialogController.showRenamePlaylist(playlist);
+                    return kotlin.Unit.INSTANCE;
+                },
+                playlist -> {
+                    playlistDialogController.confirmDeletePlaylist(playlist);
+                    return kotlin.Unit.INSTANCE;
+                },
+                playlistId -> {
+                    collectionsOwner.selectAndLoad(playlistId);
+                    return kotlin.Unit.INSTANCE;
+                },
+                track -> {
+                    downloadRequestController.downloadTrack(track);
+                    return kotlin.Unit.INSTANCE;
+                },
+                tracks -> {
+                    downloadRequestController.downloadTracks(tracks);
+                    return kotlin.Unit.INSTANCE;
+                }
+        );
         collectionsStateBinding = new CollectionsStateBinding(
                 collectionsViewModel,
                 new CollectionsActionAdapter(
-                        playlistDialogController::showCreatePlaylist,
+                        collectionsIntents,
                         documentPickerController::openPlaylistM3uFilePicker,
                         confirmClearPlayHistory,
                         navigation::handleBack,
-                        (tracks, index) -> playback.getPlaybackStartController().playTrackList(tracks, index),
-                        track -> viewModel.onEvent(new LibraryEvent.ToggleFavorite(track)),
-                        playlistDialogController::showAddToPlaylist,
-                        downloadRequestController::downloadTrack,
-                        downloadRequestController::downloadTracks,
-                        collectionsOwner::selectAndLoad,
-                        playlistDialogController::showRenamePlaylist,
-                        playlistDialogController::confirmDeletePlaylist,
+                        statusMessages::setStatusKey,
+                        documentPickerController::openPlaylistExportDocument,
                         navigation::selectedPlaylistId,
                         store::selectedPlaylistTracks,
                         this::selectedPlaylistName,
-                        statusMessages::setStatusKey,
-                        documentPickerController::openPlaylistExportDocument,
                         streaming::importSelectedPlaylistToStreaming,
                         streaming::importFavoritesToStreaming,
                         streaming::showImportStreamingFavoritesProviderPicker,
                         streaming::syncSelectedPlaylistFromStreaming,
-                        (playlistId, track, trackIndex, direction) -> viewModel.playlistOwner().moveSelectedPlaylistTrackJava(
-                                playlistId,
-                                track,
-                                trackIndex,
-                                direction,
-                                playlistMutationOwner::onSelectedPlaylistTrackMoved
-                        ),
-                        (playlistId, track) -> viewModel.playlistOwner().removeSelectedPlaylistTrackJava(
-                                playlistId,
-                                track,
-                                playlistMutationOwner::onSelectedPlaylistTrackRemoved
-                        )
+                        playlistId -> navigation.openTogetherFromPlaylist(
+                                new app.yukine.together.TogetherPlaylistRef.Local(playlistId))
                 )
         );
         collectionsStateBinding.bindFavoriteSync(favoriteSyncViewModel);
@@ -524,13 +542,10 @@ final class LibraryFeatureBinding {
                 viewModel.getLibrary(),
                 settingsViewModel.getState(),
                 playback.readModel(),
-                playlists -> {
-                    return new CollectionsInsightSnapshot(
-                            repository.loadRecentlyAdded(30),
-                            repository.loadLongUnplayed(30),
-                            playlistSourcesLoader.load(playlists)
-                    );
-                }
+                // Smart collections come from LibraryStoreState (full collections snapshot).
+                // Only playlist-source mapping is loaded here, and only when the playlist list
+                // signature changes (see CollectionsStateBinding).
+                playlistSourcesLoader::load
         );
         viewModel.bindFavoriteWriter(toggleFavoriteUseCase::execute);
         viewModel.bindPlaylistTrackLoader(loadPlaylistTracksUseCase::execute);

@@ -37,5 +37,6 @@ dependencies {
     api libs.okhttp
 
     testImplementation libs.junit
+    testImplementation libs.json
     testImplementation libs.robolectric
 }

@@ -17,6 +17,10 @@ internal fun interface StreamingPlaylistProviderRefImporter {
     fun importStreamingPlaylistFromProviderRef(provider: StreamingProviderName, providerPlaylistId: String)
 }
 
+internal fun interface StreamingPlaylistTogetherCreator {
+    fun createTogether(playlist: StreamingPlaylist)
+}
+
 internal fun interface StreamingAccountPlaylistSyncPicker {
     fun showAccountPlaylistSyncPicker(provider: StreamingProviderName)
 }
@@ -56,7 +60,9 @@ internal class StreamingSearchActionAdapter(
     private val playlistImportDialogPresenter: StreamingPlaylistImportDialogPresenter,
     private val luoxueSourceManagerPresenter: LuoxueSourceManagerPresenter,
     private val manualCookiePresenter: StreamingManualCookiePresenter,
-    private val chromePublisher: StreamingSearchChromePublisher
+    private val chromePublisher: StreamingSearchChromePublisher,
+    private val playlistTogetherCreator: StreamingPlaylistTogetherCreator =
+        StreamingPlaylistTogetherCreator {}
 ) : StreamingSearchStateReducer.Listener {
     override fun backToNetworkHome() {
         networkNavigator.backToNetworkHome()
@@ -99,6 +105,10 @@ internal class StreamingSearchActionAdapter(
             playlist.provider,
             playlist.providerPlaylistId
         )
+    }
+
+    override fun createTogetherFromStreamingPlaylist(playlist: StreamingPlaylist) {
+        playlistTogetherCreator.createTogether(playlist)
     }
 
     override fun loadUserPlaylists() {

@@ -13,6 +13,7 @@ import app.yukine.identity.AnonymousAlbumCandidate
 import app.yukine.identity.RecordingVariantType
 import app.yukine.identity.RecordingIdentifier
 import app.yukine.streaming.ProviderRolePolicy
+import app.yukine.streaming.RecordingVersionClassifier
 import java.util.Locale
 import java.util.concurrent.Callable
 import org.json.JSONArray
@@ -23,6 +24,7 @@ class RoomIdentityCandidateRepository(
 ) : IdentityCandidateRepository {
     private companion object {
         const val INTERNAL_STORED_MATCH_ITEM_ID = "__stored_match__"
+        val GENERIC_VERSION_SUFFIX = Regex("""(?i)\s+(?:version|ver\.?)\s*$""")
     }
 
     private val dao: MusicIdentityDao
@@ -85,6 +87,19 @@ class RoomIdentityCandidateRepository(
                 if (ownerRecordingId != null) {
                     val sourceRecordingId = maxOf(candidate.targetId, ownerRecordingId)
                     val targetRecordingId = minOf(candidate.targetId, ownerRecordingId)
+                    val sourceRecording = dao.recording(sourceRecordingId)
+                    val targetRecording = dao.recording(targetRecordingId)
+                    require(
+                        sourceRecording == null ||
+                            targetRecording == null ||
+                            sourceRecording.workId == targetRecording.workId ||
+                            sameOwnerCollisionCoreTitle(
+                                sourceRecording.title,
+                                targetRecording.title
+                            )
+                    ) {
+                        "Provider source owner belongs to a different canonical Work"
+                    }
                     RoomRecordingIdentityRepository(database).mergeRecordingsInTransaction(
                         sourceRecordingId,
                         targetRecordingId
@@ -383,6 +398,16 @@ class RoomIdentityCandidateRepository(
             IdentityTargetType.ALBUM -> dao.album(targetId) != null
         }
         require(exists) { "Unknown ${targetType.name.lowercase()} target $targetId" }
+    }
+
+    private fun sameOwnerCollisionCoreTitle(left: String, right: String): Boolean {
+        val leftCore = RecordingVersionClassifier.coreTitle(
+            left.replace(GENERIC_VERSION_SUFFIX, "")
+        )
+        val rightCore = RecordingVersionClassifier.coreTitle(
+            right.replace(GENERIC_VERSION_SUFFIX, "")
+        )
+        return leftCore.isNotBlank() && leftCore == rightCore
     }
 
     private fun requireCandidate(candidateId: String): IdentityCandidateEntity =

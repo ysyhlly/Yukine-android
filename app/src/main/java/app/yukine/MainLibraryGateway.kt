@@ -94,14 +94,14 @@ internal class MainLibraryGateway(
     }
 
     override fun applyFavorite(trackId: Long, favorite: Boolean) {
+        // Store already holds the optimistic (or rolled-back) favorite set. Do not full-reload
+        // collections — that re-queries history/smart lists and races optimistic UI.
         favoriteApplier.setFavorites(setOf(trackId), favorite)
-        collectionsLoader.loadCollections()
     }
 
     override fun applyFavorites(trackIds: Set<Long>, favorite: Boolean) {
         if (trackIds.isEmpty()) return
         favoriteApplier.setFavorites(trackIds, favorite)
-        collectionsLoader.loadCollections()
     }
 
     override fun addToPlaylist(track: Track) {

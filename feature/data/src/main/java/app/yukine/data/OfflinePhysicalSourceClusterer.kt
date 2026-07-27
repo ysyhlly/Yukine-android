@@ -936,9 +936,13 @@ class SourceIdentityIngestor @JvmOverloads constructor(
         val highTrustPairs = pairs.filter { it.pairTrust >= HIGH_TRUST_THRESHOLD }
         val highTrustMinimum = highTrustPairs.minOfOrNull { it.evaluation.sameRecordingProbability }
         val recording = minOf(robustRecording, (highTrustMinimum ?: 1.0) + TRUST_FLOOR_SLACK)
-        val anyHardConflict = pairs.any { it.evaluation.hasHardConflict }
+        val anyBlockingHardConflict = pairs.any { pair ->
+            pair.evaluation.hardConflicts.any { conflict ->
+                conflict != RecordingMatchHardConflict.VERSION
+            }
+        }
         val relationship = when {
-            anyHardConflict -> RecordingRelationship.CANNOT_LINK
+            anyBlockingHardConflict -> RecordingRelationship.CANNOT_LINK
             recording >= autoMergeMinimumScore ->
                 RecordingRelationship.SAME_RECORDING
             robustWork >= SAME_WORK_MINIMUM_SCORE &&

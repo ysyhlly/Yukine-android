@@ -44,26 +44,49 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Playlist-source mapping only. Smart collections (recently-added / long-unplayed) are published
+ * through [LibraryStoreState] from the collections snapshot — not re-fetched here.
+ */
+internal fun interface CollectionsPlaylistSourcesLoader {
+    fun load(playlists: List<Playlist>): Map<Long, StreamingProviderName>
+}
+
+/** @deprecated Prefer [CollectionsPlaylistSourcesLoader]; kept for existing test fixtures. */
 internal data class CollectionsInsightSnapshot(
     val recentlyAdded: List<Track> = emptyList(),
     val longUnplayed: List<Track> = emptyList(),
     val playlistSources: Map<Long, StreamingProviderName> = emptyMap()
 )
 
+/** @deprecated Prefer [CollectionsPlaylistSourcesLoader]. */
 internal fun interface CollectionsInsightsLoader {
     fun load(playlists: List<Playlist>): CollectionsInsightSnapshot
 }
 
-internal class CollectionsStateBinding @JvmOverloads constructor(
+internal class CollectionsStateBinding private constructor(
     private val viewModel: CollectionsViewModel,
     private val listener: Listener,
-    private val scope: CoroutineScope = MainScope(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher,
+    private val ownsScope: Boolean
 ) {
-    private val insights = MutableStateFlow(CollectionsInsightSnapshot())
+    constructor(
+        viewModel: CollectionsViewModel,
+        listener: Listener
+    ) : this(viewModel, listener, MainScope(), Dispatchers.IO, ownsScope = true)
+
+    constructor(
+        viewModel: CollectionsViewModel,
+        listener: Listener,
+        scope: CoroutineScope,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    ) : this(viewModel, listener, scope, ioDispatcher, ownsScope = false)
+
+    private val playlistSources = MutableStateFlow<Map<Long, StreamingProviderName>>(emptyMap())
     private val favoriteDashboard = MutableStateFlow(FavoriteSyncDashboard())
     private var bindingJob: Job? = null
-    private var insightsJob: Job? = null
+    private var playlistSourcesJob: Job? = null
     private var favoriteJob: Job? = null
     private var playbackReadModel: PlaybackReadModel? = null
     private var favoriteSyncViewModel: FavoriteSyncViewModel? = null
@@ -95,6 +118,8 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
 
         fun openSelectedPlaylistExportDocument()
 
+        fun createTogetherFromSelectedPlaylist() = Unit
+
         fun importSelectedPlaylistToStreaming()
 
         fun importFavoritesToStreaming()
@@ -123,27 +148,46 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         playback: PlaybackReadModel?,
         insightsLoader: CollectionsInsightsLoader?
     ) {
+        val sourcesLoader = insightsLoader?.let { loader ->
+            CollectionsPlaylistSourcesLoader { playlists -> loader.load(playlists).playlistSources }
+        }
+        bindStateSources(routeState, libraryState, settingsState, playback, sourcesLoader)
+    }
+
+    fun bindStateSources(
+        routeState: StateFlow<NavigationRouteState>?,
+        libraryState: StateFlow<LibraryStoreState>?,
+        settingsState: StateFlow<SettingsState>?,
+        playback: PlaybackReadModel?,
+        sourcesLoader: CollectionsPlaylistSourcesLoader?
+    ) {
         bindingJob?.cancel()
-        insightsJob?.cancel()
+        playlistSourcesJob?.cancel()
         bindingJob = null
-        insightsJob = null
+        playlistSourcesJob = null
         playbackReadModel = playback
         if (
             routeState == null || libraryState == null || settingsState == null ||
-            playback == null || insightsLoader == null
+            playback == null || sourcesLoader == null
         ) {
             return
         }
         val route = routeState.map(::collectionsBindingRoute).distinctUntilChanged()
+        // Invalidate sources only when playlist identity/count/update changes — not on
+        // favorite ids, current track, or history-only store fields.
+        val playlistListForSources = libraryState
+            .map { state -> state.playlists to playlistListSignature(state.playlists) }
+            .distinctUntilChanged { old, new -> old.second == new.second }
+            .map { it.first }
         bindingJob = scope.launch {
             combine(
                 route,
                 libraryState,
                 settingsState.map { it.preferences.languageMode }.distinctUntilChanged(),
-                playback.state.map { it.currentTrack }.distinctUntilChanged(),
-                insights
-            ) { routeInput, library, languageMode, _, insightSnapshot ->
-                CollectionsBindingInputs(routeInput, library, languageMode, insightSnapshot)
+                playback.state.map { it.currentTrack?.id }.distinctUntilChanged(),
+                playlistSources
+            ) { routeInput, library, languageMode, _, sources ->
+                CollectionsBindingInputs(routeInput, library, languageMode, sources)
             }.combine(favoriteDashboard) { input, dashboard ->
                 input.copy(favoriteSync = dashboard)
             }.collect { input ->
@@ -152,15 +196,15 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
                 }
             }
         }
-        insightsJob = scope.launch {
+        playlistSourcesJob = scope.launch {
             combine(
                 route.map { it.active }.distinctUntilChanged(),
-                libraryState
-            ) { active, library -> active to library }
-                .collectLatest { (active, library) ->
+                playlistListForSources
+            ) { active, playlists -> active to playlists }
+                .collectLatest { (active, playlists) ->
                     if (active) {
-                        insights.value = withContext(ioDispatcher) {
-                            insightsLoader.load(library.playlists)
+                        playlistSources.value = withContext(ioDispatcher) {
+                            sourcesLoader.load(playlists)
                         }
                     }
                 }
@@ -169,14 +213,17 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
 
     fun release() {
         bindingJob?.cancel()
-        insightsJob?.cancel()
+        playlistSourcesJob?.cancel()
         favoriteJob?.cancel()
         bindingJob = null
-        insightsJob = null
+        playlistSourcesJob = null
         favoriteJob = null
         favoriteSyncViewModel = null
         playbackReadModel = null
-        scope.cancel()
+        // Never cancel an injected external/test scope — only cancel child jobs above.
+        if (ownsScope) {
+            scope.cancel()
+        }
     }
 
     private fun publishFromState(input: CollectionsBindingInputs) {
@@ -190,9 +237,9 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
             input.route.selectedPlaylistId,
             playbackReadModel?.state?.value,
             input.library.favoriteTrackIds,
-            input.insights.recentlyAdded,
-            input.insights.longUnplayed,
-            input.insights.playlistSources,
+            input.library.recentlyAddedTracks,
+            input.library.longUnplayedTracks,
+            input.playlistSources,
             input.favoriteSync
         )
     }
@@ -357,6 +404,9 @@ internal class CollectionsStateBinding @JvmOverloads constructor(
         }
         // Sync button for streaming-linked playlists (even if empty)
         if (selectedPlaylistId >= 0L) {
+            addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "together.create.from.playlist"), EchoIconKind.Network, Runnable {
+                listener.createTogetherFromSelectedPlaylist()
+            })
             addCollectionAction(selectedPlaylistActionRows, selectedPlaylistActions, text(languageMode, "sync.streaming.playlist"), EchoIconKind.Sync, Runnable {
                 listener.syncSelectedPlaylistFromStreaming()
             })
@@ -694,7 +744,7 @@ private data class CollectionsBindingInputs(
     val route: CollectionsBindingRoute,
     val library: LibraryStoreState,
     val languageMode: String,
-    val insights: CollectionsInsightSnapshot,
+    val playlistSources: Map<Long, StreamingProviderName> = emptyMap(),
     val favoriteSync: FavoriteSyncDashboard = FavoriteSyncDashboard()
 )
 
@@ -703,3 +753,8 @@ private fun collectionsBindingRoute(state: NavigationRouteState): CollectionsBin
         active = state.selectedTab == CollectionsTab,
         selectedPlaylistId = state.selectedPlaylistId
     )
+
+internal fun playlistListSignature(playlists: List<Playlist>): String =
+    playlists.joinToString(separator = "\u001f") {
+        "${it.id}\u001e${it.trackCount}\u001e${it.updatedAt}\u001e${it.name}"
+    }

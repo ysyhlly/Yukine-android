@@ -69,6 +69,7 @@ import app.yukine.ui.LocalEchoNowBarScrollProgress
 import app.yukine.ui.LocalEchoNowBarPageScrollEvent
 import app.yukine.ui.LocalEchoNowBarBottomInset
 import app.yukine.ui.LocalEchoNowBarTopCloudClearanceChanged
+import app.yukine.ui.LocalEchoNowBarOccupiedHeightChanged
 import app.yukine.ui.LocalEchoPageBottomChromeInset
 import app.yukine.ui.blockPointerInputBehind
 import app.yukine.ui.echoPressScale
@@ -178,6 +179,7 @@ fun EchoScaffold(
         EchoCompositeBackdrop(contentLayer) { contentOrigin }
     }
     var requestedTopCloudClearance by remember { mutableStateOf(0.dp) }
+    var nowBarOccupiedHeight by remember { mutableStateOf(EchoMobileLayoutMetrics.nowBarHeight) }
     var bottomNavHeightPx by remember { mutableStateOf(0) }
     val bottomNavHeight = with(density) { bottomNavHeightPx.toDp() }
     val topCloudClearance by animateDpAsState(
@@ -185,6 +187,8 @@ fun EchoScaffold(
         animationSpec = tween(EchoMobileLayoutMetrics.nowBarDockSizeDurationMs),
         label = "topCloudContentClearance"
     )
+    // NowBar already animates height and reports the in-flight value via SideEffect.
+    // Do not apply a second animateDpAsState here — that lags content padding by one cycle.
     EchoPageBackground(
         backgroundUri = backgroundUri,
         modifier = Modifier.fillMaxSize(),
@@ -227,7 +231,7 @@ fun EchoScaffold(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     CompositionLocalProvider(
                         LocalEchoPageBottomChromeInset provides
-                            bottomNavHeight + EchoMobileLayoutMetrics.nowBarHeight
+                            bottomNavHeight + nowBarOccupiedHeight
                     ) {
                         content(
                             Modifier
@@ -276,6 +280,9 @@ fun EchoScaffold(
                     LocalEchoNowBarBottomInset provides bottomNavHeight,
                     LocalEchoNowBarTopCloudClearanceChanged provides { clearance ->
                         requestedTopCloudClearance = clearance
+                    },
+                    LocalEchoNowBarOccupiedHeightChanged provides { height ->
+                        nowBarOccupiedHeight = height
                     }
                 ) {
                     nowBar()

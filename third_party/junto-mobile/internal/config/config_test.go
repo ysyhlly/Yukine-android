@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -13,8 +14,14 @@ func TestCacheDir(t *testing.T) {
 		t.Errorf("CacheDir with XDG_CACHE_HOME = %q, want %q", got, want)
 	}
 	t.Setenv("XDG_CACHE_HOME", "")
-	t.Setenv("HOME", "/home/tester")
-	if got, want := CacheDir(), filepath.Join("/home/tester", ".cache", "junto"); got != want {
+	home := "/home/tester"
+	if runtime.GOOS == "windows" {
+		home = `C:\home\tester`
+		t.Setenv("USERPROFILE", home)
+	} else {
+		t.Setenv("HOME", home)
+	}
+	if got, want := CacheDir(), filepath.Join(home, ".cache", "junto"); got != want {
 		t.Errorf("CacheDir fallback = %q, want %q", got, want)
 	}
 }

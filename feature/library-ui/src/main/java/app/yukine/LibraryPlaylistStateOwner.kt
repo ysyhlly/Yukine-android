@@ -23,6 +23,9 @@ class LibraryPlaylistStateOwner internal constructor(
         trackLoader = next
     }
 
+    suspend fun loadPlaylistTracksForTogether(playlistId: Long): List<Track> =
+        mutations.runRead { trackLoader?.loadPlaylistTracks(playlistId).orEmpty() }
+
     fun bindCollectionGateway(next: LibraryCollectionGateway?) {
         collectionGateway = next
     }
@@ -39,7 +42,7 @@ class LibraryPlaylistStateOwner internal constructor(
         }
         scope.launch {
             try {
-                val tracks = mutations.runLocked { loader.loadPlaylistTracks(playlistId) }
+                val tracks = mutations.runRead { loader.loadPlaylistTracks(playlistId) }
                 if (tracks.isEmpty()) {
                     gateway()?.showStatusKey("no.tracks.in.playlist")
                 } else {
@@ -63,7 +66,8 @@ class LibraryPlaylistStateOwner internal constructor(
         collectionLoadJob?.cancel()
         collectionLoadJob = scope.launch {
             try {
-                val result = mutations.runLocked { source.loadCollections(selectedPlaylistId) }
+                // Full collections snapshot is a read — must not hold the exclusive write mutex.
+                val result = mutations.runRead { source.loadCollections(selectedPlaylistId) }
                 if (activeCollectionLoadId == loadId) onLoaded?.invoke(result)
             } catch (error: CancellationException) {
                 throw error

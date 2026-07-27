@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeEffect
 
 class EchoCompositeBackdrop(
     val sourceLayer: GraphicsLayer,
@@ -151,9 +151,8 @@ fun Modifier.echoGaussianBackdrop(
     }
     val hazeState = LocalEchoHazeState.current ?: return this
     val opacity = EchoGlassDefaults.normalizeSurfaceOpacity(LocalEchoGlassOpacity.current)
-    return hazeChild(
+    return clip(shape).hazeEffect(
         state = hazeState,
-        shape = shape,
         style = HazeStyle(
             // Keep the Haze base transparent so opacity remains visible over both a custom
             // wallpaper and Yukine's built-in gradient background.
