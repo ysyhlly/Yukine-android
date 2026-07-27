@@ -592,7 +592,9 @@ public final class MainActivityArchitectureContractTest {
         assertTrue(loading.contains("class LibraryLoadStateOwner internal constructor("));
         assertTrue(playlists.contains("class LibraryPlaylistStateOwner internal constructor("));
         assertTrue(favorites.contains("class LibraryFavoriteStateOwner("));
-        assertTrue(mutations.contains("private val mutex = Mutex()"));
+        // Write path stays serialized; collection reads no longer take the exclusive mutex.
+        assertTrue(mutations.contains("private val writeMutex = Mutex()"));
+        assertTrue(mutations.contains("suspend fun <T> runRead(operation: () -> T): T"));
     }
 
     @Test
